@@ -1,9 +1,9 @@
 // Aggiunta diretta dalla scheda del prodotto: dal prodotto letto al modulo di cattura, senza passare dal modulo.
-import { expiryCategoryMatch, quantityText, type Product } from "@/core/catalog";
-import { effectiveExpiry, type FoodCategory } from "@/core/expiry";
+import { expiryCategoryProposal, quantityText, type ExpiryCategorySource, type Product } from "@/core/catalog";
+import { SHELF_LIFE, effectiveExpiry, type FoodCategory } from "@/core/expiry";
 import type { LedgerEvent, Location } from "@/core/ledger";
 import { formatQuantity } from "@/core/units";
-import { cleanName, readQuantity, type CaptureInput } from "../capture";
+import { buildCaptureEvents, cleanName, readQuantity, type CaptureContext, type CaptureInput, type FieldErrors } from "../capture";
 import { formatCalendarDate } from "../format";
 import { LOCATION_LABELS, type ChosenExpiryKind } from "../labels";
 import { defaultLocation } from "../quickAdd";
@@ -13,6 +13,8 @@ export interface ProductDraft {
   name?: string;
   quantityText?: string;
   category?: FoodCategory;
+  /** Da dove viene la categoria proposta: Open Food Facts o parole del nome. */
+  categorySource?: ExpiryCategorySource;
   barcode: string;
   brand?: string;
 }
@@ -26,13 +28,13 @@ export function draftFromProduct(product: Product): ProductDraft {
   const name = cleanName(product.name ?? "");
   // prima il valore già in unità base, poi il testo dell'etichetta; se nessuno dei due si legge, la quantità si chiede
   const text = [quantityText(product.quantity), product.quantity?.text].find((t) => t !== undefined && readQuantity(t).ok);
-  const match = expiryCategoryMatch(product);
+  const match = expiryCategoryProposal(product);
   return {
     barcode: product.barcode,
     ...(name !== "" ? { name } : {}),
     // la quantità vale solo se il registro la sa leggere: non se ne inventa una
     ...(text ? { quantityText: text } : {}),
-    ...(match.matched ? { category: match.category } : {}),
+    ...(match.matched ? { category: match.category, categorySource: match.source } : {}),
     ...(product.brand ? { brand: product.brand } : {}),
   };
 }
@@ -54,20 +56,97 @@ export interface DirectAnswers {
   priceText?: string;
 }
 
-/** Il dato scritto sulla scheda vale più di quello del prodotto, ma solo se non è vuoto. */
+/** Tipo di data proposto dalla categoria: i deperibili «da consumare entro», il resto «preferibilmente entro». */
+export function defaultExpiryKind(category: string | undefined): ChosenExpiryKind {
+  const life = category ? SHELF_LIFE[category as FoodCategory] : undefined;
+  return life?.perishable ? "use_by" : "best_before";
+}
+
+/** Il dato scritto sulla scheda vale più di quello del prodotto, ma solo se non è vuoto. La data è facoltativa: senza, resta la stima. */
 export function inputFromDraft(draft: ProductDraft, location: Location, answers: DirectAnswers = {}): CaptureInput {
+  const category = answers.category || draft.category || "";
+  const date = answers.expiryKind === "none" ? "" : (answers.expiryDate ?? "").trim();
   return {
     name: answers.name?.trim() || draft.name || "",
     quantityText: answers.quantityText?.trim() || draft.quantityText || "",
     location,
-    category: answers.category || draft.category || "",
-    expiryKind: answers.expiryKind ?? "none",
-    expiryDate: answers.expiryKind && answers.expiryKind !== "none" ? (answers.expiryDate ?? "") : "",
+    category,
+    expiryKind: date === "" ? "none" : answers.expiryKind && answers.expiryKind !== "none" ? answers.expiryKind : defaultExpiryKind(category),
+    expiryDate: date,
     priceText: answers.priceText ?? "",
     alreadyHave: false,
     barcode: draft.barcode,
     brand: draft.brand,
   };
+}
+
+/** Un gruppo di confezioni uguali con la stessa data (vuota = senza data, vale la stima). */
+export interface PackGroup {
+  count: number;
+  expiryDate: string;
+}
+
+export const MAX_PACKS = 24;
+
+export const clampPacks = (n: number): number => Math.min(MAX_PACKS, Math.max(1, Math.floor(Number.isFinite(n) ? n : 1)));
+
+/** Divide il totale in due gruppi, il primo il più grande: 5 diventa 3 + 2; con una sola confezione resta un gruppo. */
+export function splitPackGroups(total: number, expiryDate = ""): PackGroup[] {
+  const n = clampPacks(total);
+  if (n === 1) return [{ count: 1, expiryDate }];
+  const first = Math.ceil(n / 2);
+  return [
+    { count: first, expiryDate },
+    { count: n - first, expiryDate: "" },
+  ];
+}
+
+export const groupsTotal = (groups: readonly PackGroup[]): number => groups.reduce((sum, g) => sum + g.count, 0);
+
+/** Il messaggio d'errore se i gruppi non sommano al totale; null se vanno bene. */
+export function checkPackGroups(groups: readonly PackGroup[], total: number): string | null {
+  const sum = groupsTotal(groups);
+  if (sum < total) return `Mancano ${total - sum} confezioni: assegnale a un gruppo.`;
+  if (sum > total) return `Hai assegnato ${sum - total} confezioni in più del totale.`;
+  return null;
+}
+
+/** Un modulo di cattura per ogni confezione, nell'ordine dei gruppi: ognuna avrà il suo lotto e la sua data. */
+export function buildPackInputs(
+  draft: ProductDraft,
+  location: Location,
+  answers: DirectAnswers,
+  groups: readonly PackGroup[],
+): CaptureInput[] {
+  const inputs: CaptureInput[] = [];
+  for (const group of groups) {
+    for (let i = 0; i < group.count; i++) {
+      inputs.push(inputFromDraft(draft, location, { ...answers, expiryDate: group.expiryDate }));
+    }
+  }
+  return inputs;
+}
+
+export type PackEventsResult = { ok: true; events: LedgerEvent[]; lotIds: string[] } | { ok: false; errors: FieldErrors };
+
+/** Gli eventi di tutte le confezioni, da scrivere in una sola volta: se una non è valida non si scrive niente. */
+export function buildPackEvents(inputs: readonly CaptureInput[], ctx: CaptureContext): PackEventsResult {
+  const events: LedgerEvent[] = [];
+  const lotIds: string[] = [];
+  for (const input of inputs) {
+    const r = buildCaptureEvents(input, ctx);
+    if (!r.ok) return r;
+    events.push(...r.events);
+    lotIds.push(r.lotId);
+  }
+  return { ok: true, events, lotIds };
+}
+
+/** «3 × 170 g»; con una confezione solo la quantità. Se la quantità non si legge, il testo com'è. */
+export function packsLabel(count: number, quantityTextOfOne: string): string {
+  const reading = readQuantity(quantityTextOfOne);
+  const one = reading.ok ? formatQuantity(reading.quantity) : quantityTextOfOne.trim();
+  return count > 1 ? `${count} × ${one}` : one;
 }
 
 /** Luogo proposto per la categoria; senza categoria il frigo, che è la scelta più prudente. */
@@ -97,4 +176,25 @@ export function confirmationText(event: LedgerEvent, today: string): string {
   const head = `Aggiunto alla dispensa: ${event.productRef}, ${formatQuantity(event.quantity)}, in ${place}.`;
   if (event.expiry) return `${head} Scadenza: ${formatCalendarDate(event.expiry.date)}.`;
   return `${head} ${estimatedExpiryText(event.category, event.location, today)}`;
+}
+
+/** Conferma dopo l'aggiunta di più confezioni: un solo messaggio con il totale e le scadenze. */
+export function packsConfirmationText(events: readonly LedgerEvent[], today: string): string {
+  const creations = events.filter((e) => e.type === "purchase" || e.type === "declare");
+  const first = creations[0];
+  if (!first || (first.type !== "purchase" && first.type !== "declare")) return "Aggiunto alla dispensa.";
+  if (creations.length === 1) return confirmationText(first, today);
+  const place = LOCATION_LABELS[first.location].toLowerCase();
+  const head = `Aggiunte ${creations.length} confezioni alla dispensa: ${first.productRef}, ${creations.length} × ${formatQuantity(first.quantity)}, in ${place}.`;
+  const dates = new Map<string, number>();
+  let undated = 0;
+  for (const e of creations) {
+    if (e.type !== "purchase" && e.type !== "declare") continue;
+    if (e.expiry) dates.set(e.expiry.date, (dates.get(e.expiry.date) ?? 0) + 1);
+    else undated += 1;
+  }
+  if (dates.size === 0) return `${head} ${estimatedExpiryText(first.category, first.location, today)}`;
+  const parts = [...dates.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([d, n]) => `${n} entro ${formatCalendarDate(d)}`);
+  if (undated > 0) parts.push(`${undated} senza data, con la stima`);
+  return `${head} Scadenze: ${parts.join(", ")}.`;
 }

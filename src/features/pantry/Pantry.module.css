@@ -78,3 +78,106 @@
   border: var(--rule-width) solid var(--color-control-border);
   border-radius: var(--radius-md);
 }
+
+.headTools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.tool {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding: 0 var(--space-4);
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.tool:hover {
+  text-decoration: underline;
+}
+
+.tool:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.itemPick {
+  display: flex;
+  align-items: stretch;
+}
+
+.itemPick > :last-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.checkCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--tap-min);
+  min-height: var(--tap-min);
+}
+
+.check {
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.check:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.picked {
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+}
+
+/* Sopra la barra di navigazione, nello stesso punto dell'avviso. */
+.bar {
+  position: fixed;
+  z-index: 10;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: var(--column-max);
+  margin-inline: auto;
+  padding: var(--space-6) var(--gutter);
+  border-top: var(--rule-width) solid var(--color-rule);
+  background: var(--color-paper);
+}
+
+.barMain {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.barCount {
+  font-size: var(--text-body-sm);
+  font-weight: 500;
+}
+
+.barChoice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.barSpace {
+  height: 120px;
+}

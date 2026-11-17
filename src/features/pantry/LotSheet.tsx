@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { DeclareEvent, PurchaseEvent } from "@/core/ledger";
 import { formatQuantity } from "@/core/units";
-import { appendEvents, getDeviceId } from "@/data";
+import { appendEvents, getDeviceId, useEventLog, usePantry } from "@/data";
 import { LotNutrients } from "../nutrition/Per100";
 import { ExpiryTag, Label, LevelBar, Value } from "@/design";
 import { recipeForUnknown } from "@/models3d/fallback";
 import ModelViewer from "@/models3d/ModelViewer";
-import type { EditResult } from "../actions";
+import { findCreationEvent, type EditResult } from "../actions";
 import { dayOf, formatCalendarDate, formatPrice, relativeDay } from "../format";
+import { byNearestExpiry, entryDate } from "./groups";
 import { FOOD_CATEGORY_LABELS, LOCATION_LABELS, MODEL_CATEGORY_OF } from "../labels";
 import { expiryExplanation, expiryTagView, isFoodCategory, levelPercent, type PantryEntry } from "../lots";
 import { useNotice } from "../notice";
@@ -21,11 +22,23 @@ import styles from "./LotSheet.module.css";
 interface LotSheetProps {
   entry: PantryEntry;
   creation: PurchaseEvent | DeclareEvent | undefined;
+  /** Confezioni uguali raggruppate in Dispensa: si agisce su una alla volta, per prima quella che scade prima. */
+  group?: readonly PantryEntry[];
   now: string;
   onClose: () => void;
 }
 
-export function LotSheet({ entry, creation, now, onClose }: LotSheetProps) {
+export function LotSheet({ entry: initialEntry, creation: givenCreation, group, now, onClose }: LotSheetProps) {
+  const log = useEventLog();
+  const pantry = usePantry();
+  const members = useMemo(() => (group && group.length > 1 ? byNearestExpiry(group) : []), [group]);
+  const [chosenId, setChosenId] = useState<string | null>(null);
+  const entry = members.find((m) => m.lot.lotId === chosenId) ?? members[0] ?? initialEntry;
+  const creation = group
+    ? log.data && pantry.data
+      ? findCreationEvent(log.data, entry.lot.lotId, pantry.data.voidedEventIds)
+      : undefined
+    : givenCreation;
   const { lot } = entry;
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -125,6 +138,29 @@ export function LotSheet({ entry, creation, now, onClose }: LotSheetProps) {
           </button>
         </header>
 
+        {members.length > 1 ? (
+          <div className={styles.groupPick}>
+            <label htmlFor={`${titleId}-pack`} className={ui.fieldLabel}>
+              Hai {members.length} confezioni uguali. Agisci su
+            </label>
+            <select
+              id={`${titleId}-pack`}
+              className={ui.input}
+              value={entry.lot.lotId}
+              onChange={(e) => setChosenId(e.target.value)}
+            >
+              {members.map((m, i) => {
+                const date = entryDate(m);
+                return (
+                  <option key={m.lot.lotId} value={m.lot.lotId}>
+                    {`Confezione ${i + 1}: ${date ? `entro il ${formatCalendarDate(date)}` : "senza data"}${i === 0 ? " (la prima a scadere)" : ""}`}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+        ) : null}
+
         <dl className={styles.data}>
           <div className={styles.dataRow}>
             <dt>
@@ -179,7 +215,7 @@ export function LotSheet({ entry, creation, now, onClose }: LotSheetProps) {
         ) : null}
 
         {lot.remaining > 0 ? (
-          <LotActions entry={entry} creation={creation} now={now} busy={busy} perform={perform} error={error} />
+          <LotActions entry={entry} creation={creation} group={members} now={now} busy={busy} perform={perform} error={error} />
         ) : (
           <p className={ui.hint}>Di questo alimento non resta niente.</p>
         )}

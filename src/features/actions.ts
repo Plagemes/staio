@@ -316,3 +316,76 @@ export function buildFinish(lot: Lot, ctx: ActionContext): ActionResult {
   };
   return { ok: true, events: [event], message: `Eliminato: ${lot.productRef}.` };
 }
+
+/** Come escono dalla dispensa più alimenti insieme: «Inseriti per sbaglio» o «Finiti». */
+export type RemoveManyKind = "mistaken" | "finished";
+
+/**
+ * Elimina più alimenti con un solo insieme di eventi, da scrivere in una sola volta: se anche uno solo non si può
+ * costruire o non è valido non si scrive niente. L'annulla è `buildUndo` sullo stesso insieme.
+ */
+export function buildRemoveMany(
+  lots: readonly Lot[],
+  kind: RemoveManyKind,
+  events: readonly AnyEvent[],
+  voidedEventIds: readonly string[],
+  ctx: ActionContext,
+): ActionResult {
+  if (lots.length === 0) return { ok: false, error: "Non hai scelto nessun alimento." };
+  const out: LedgerEvent[] = [];
+  for (const lot of lots) {
+    const r = kind === "mistaken" ? buildRemoveMistaken(lot, events, voidedEventIds, ctx) : buildFinish(lot, ctx);
+    if (!r.ok) return { ok: false, error: `${lot.productRef}: ${r.error}` };
+    out.push(...r.events);
+  }
+  if (out.some((e) => validateEvent(e).length > 0)) {
+    return { ok: false, error: "Non riesco a salvare. Non è stato eliminato niente." };
+  }
+  const message = lots.length === 1 ? `Eliminato: ${lots[0].productRef}.` : `Eliminati: ${lots.length} alimenti.`;
+  return { ok: true, events: out, message };
+}
+
+/** «Tutte mangiate»: un consumo del rimasto per ogni confezione, da scrivere in una volta. */
+export function buildConsumeMany(lots: readonly Lot[], ctx: ActionContext): ActionResult {
+  const events: LedgerEvent[] = [];
+  for (const lot of lots) {
+    const r = buildConsume(lot, { kind: "all" }, ctx);
+    if (!r.ok) return { ok: false, error: `${lot.productRef}: ${r.error}` };
+    events.push(...r.events);
+  }
+  if (events.length === 0) return { ok: false, error: "Non hai scelto nessuna confezione." };
+  const name = lots[0].productRef;
+  return {
+    ok: true,
+    events,
+    message: lots.length === 1 ? `Segnato mangiato: ${name}.` : `Segnato mangiato: ${lots.length} confezioni di ${name}.`,
+  };
+}
+
+/** Cambia la data di una o più confezioni con l'evento di modifica del registro; senza data torna la stima. */
+export function buildSetExpiry(
+  lots: readonly Lot[],
+  expiry: { date: string; kind: ChosenExpiryKind } | null,
+  events: readonly AnyEvent[],
+  voidedEventIds: readonly string[],
+  ctx: ActionContext,
+): ActionResult {
+  if (lots.length === 0) return { ok: false, error: "Non hai scelto nessuna confezione." };
+  if (expiry && !isCalendarDate(expiry.date)) return { ok: false, error: "La data non è valida." };
+  const out: LedgerEvent[] = [];
+  for (const lot of lots) {
+    const creation = findCreationEvent(events, lot.lotId, voidedEventIds);
+    if (!creation) return { ok: false, error: `${lot.productRef}: non trovo l'inserimento.` };
+    out.push(
+      ...correctLot(creation, { expiry }, { lot, deviceId: ctx.deviceId, now: () => ctx.now, idGenerator: ctx.idGenerator }),
+    );
+  }
+  if (out.length === 0) return { ok: false, error: "La data è già quella." };
+  if (out.some((e) => validateEvent(e).length > 0)) return { ok: false, error: "Non riesco a salvare la modifica." };
+  const name = lots[0].productRef;
+  return {
+    ok: true,
+    events: out,
+    message: lots.length === 1 ? `Data modificata: ${name}.` : `Data modificata per ${lots.length} confezioni di ${name}.`,
+  };
+}

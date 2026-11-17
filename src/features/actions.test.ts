@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import { derivePantry, type LedgerEvent, type Lot } from "@/core/ledger";
 import {
   buildConsume,
+  buildConsumeMany,
+  buildSetExpiry,
   buildDiscard,
   buildEdit,
   buildFinish,
+  buildRemoveMany,
   buildRemoveMistaken,
   buildOpen,
   buildUndo,
@@ -348,5 +351,79 @@ describe("elimina dalla dispensa", () => {
     expect(l.status).toBe("finished");
     expect(l.consumed).toBe(0);
     expect(l.discarded).toBe(0);
+  });
+});
+
+describe("elimina più alimenti insieme", () => {
+  function two() {
+    const a = setup();
+    const b = setup({ name: "Yogurt", quantityText: "500 g", category: "yogurt" });
+    const events = [...a.events, ...b.events];
+    const lots = derivePantry(events).lots;
+    return { events, lots };
+  }
+
+  it("inseriti per sbaglio: tutti spariscono con una sola scrittura e Annulla li ripristina insieme", () => {
+    const { events, lots } = two();
+    let n = 0;
+    const c: ActionContext = { now: LATER, deviceId: "d", idGenerator: () => `x${++n}` };
+    const r = buildRemoveMany(lots, "mistaken", events, derivePantry(events).voidedEventIds, c);
+    if (!r.ok) throw new Error(r.error);
+    expect(r.message).toBe("Eliminati: 2 alimenti.");
+    expect(new Set(r.events.map((e) => e.id)).size).toBe(r.events.length);
+    const after = derivePantry([...events, ...r.events]);
+    expect(after.lots).toEqual([]);
+    expect(after.anomalies).toEqual([]);
+    const back = derivePantry([...events, ...r.events, ...buildUndo(r.events, ctx("2026-11-16T13:00:00.000Z"))]);
+    expect(back.lots).toHaveLength(2);
+    expect(back.anomalies).toEqual([]);
+  });
+
+  it("finiti: tutti a zero, senza consumo né spreco, e Annulla li ripristina", () => {
+    const { events, lots } = two();
+    const r = buildRemoveMany(lots, "finished", events, [], ctx());
+    if (!r.ok) throw new Error(r.error);
+    expect(r.events).toHaveLength(2);
+    const after = derivePantry([...events, ...r.events]).lots;
+    expect(after.every((l) => l.remaining === 0 && l.consumed === 0 && l.discarded === 0)).toBe(true);
+    const back = derivePantry([...events, ...r.events, ...buildUndo(r.events, ctx("2026-11-16T13:00:00.000Z"))]).lots;
+    expect(back.every((l) => l.remaining > 0)).toBe(true);
+  });
+
+  it("un solo alimento: messaggio al singolare; nessuno: errore; uno non eliminabile: non si scrive niente", () => {
+    const { events, lots } = two();
+    const one = buildRemoveMany([lots[0]], "mistaken", events, [], ctx());
+    expect(one.ok && one.message).toBe(`Eliminato: ${lots[0].productRef}.`);
+    expect(buildRemoveMany([], "finished", events, [], ctx()).ok).toBe(false);
+    const bad = buildRemoveMany(lots, "mistaken", [], [], ctx());
+    expect(bad.ok).toBe(false);
+  });
+});
+
+describe("confezioni uguali: consumo e cambio data", () => {
+  it("tutte mangiate: un consumo per confezione; Annulla le ripristina", () => {
+    const a = setup();
+    const b = setup();
+    const events = [...a.events, ...b.events];
+    const lots = derivePantry(events).lots;
+    const r = buildConsumeMany(lots, ctx());
+    if (!r.ok) throw new Error(r.error);
+    expect(r.events).toHaveLength(2);
+    expect(derivePantry([...events, ...r.events]).lots.every((l) => l.remaining === 0)).toBe(true);
+    const back = derivePantry([...events, ...r.events, ...buildUndo(r.events, ctx("2026-11-16T13:00:00.000Z"))]).lots;
+    expect(back.every((l) => l.remaining > 0)).toBe(true);
+  });
+
+  it("cambia la data di una sola confezione senza toccare le altre", () => {
+    const a = setup();
+    const b = setup();
+    const events = [...a.events, ...b.events];
+    const lots = derivePantry(events).lots;
+    const r = buildSetExpiry([lots[0]], { date: "2026-12-01", kind: "use_by" }, events, [], ctx());
+    if (!r.ok) throw new Error(r.error);
+    const after = derivePantry([...events, ...r.events]).lots;
+    expect(after.filter((l) => l.expiry?.date === "2026-12-01")).toHaveLength(1);
+    expect(after.filter((l) => l.expiry?.date === "2026-11-20")).toHaveLength(1);
+    expect(buildSetExpiry([lots[0]], { date: "2026-02-31", kind: "use_by" }, events, [], ctx()).ok).toBe(false);
   });
 });

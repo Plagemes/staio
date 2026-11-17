@@ -7,10 +7,12 @@ import { useEventLog, usePantry } from "@/data";
 import { Button, ExpiryTag } from "@/design";
 import {
   buildConsume,
+  buildConsumeMany,
   buildDiscard,
   buildEdit,
   buildFinish,
   buildRemoveMistaken,
+  buildSetExpiry,
   buildMove,
   buildOpen,
   canEditPrice,
@@ -33,6 +35,8 @@ import {
   type ChosenExpiryKind,
 } from "../labels";
 import { addManualEntries } from "../shopping";
+import { entryDate } from "./groups";
+import { formatCalendarDate } from "../format";
 import { useNotice } from "../notice";
 import { expiryExplanation, expiryTagView, previewExpiryAfterMove, type PantryEntry } from "../lots";
 import ui from "../ui.module.css";
@@ -44,11 +48,13 @@ import styles from "./LotSheet.module.css";
  */
 export type Perform = (build: (ctx: ActionContext) => EditResult, inline?: boolean) => Promise<EditResult | null>;
 
-type Mode = "menu" | "eat" | "discard" | "move" | "edit" | "remove";
+type Mode = "menu" | "eat" | "discard" | "move" | "edit" | "remove" | "dates";
 
 interface LotActionsProps {
   entry: PantryEntry;
   creation: PurchaseEvent | DeclareEvent | undefined;
+  /** Le confezioni uguali del gruppo (almeno due), la prima è la più vicina a scadere; vuoto se il lotto è solo. */
+  group?: readonly PantryEntry[];
   now: string;
   busy: boolean;
   perform: Perform;
@@ -56,11 +62,12 @@ interface LotActionsProps {
   error: string | null;
 }
 
-export function LotActions({ entry, creation, now, busy, perform, error }: LotActionsProps) {
+export function LotActions({ entry, creation, group = [], now, busy, perform, error }: LotActionsProps) {
   const [mode, setMode] = useState<Mode>("menu");
   const [listError, setListError] = useState<string | null>(null);
   const notice = useNotice();
   const { lot } = entry;
+  const grouped = group.length > 1;
 
   /** Rimette in lista la quantità con cui era entrato: si cambia poi nella lista. */
   async function addToList() {
@@ -79,7 +86,22 @@ export function LotActions({ entry, creation, now, busy, perform, error }: LotAc
     <section className={styles.actions} aria-label="Azioni">
       {mode === "menu" ? (
         <div className={styles.menu}>
-          <Button onClick={() => setMode("eat")}>Mangiato</Button>
+          {grouped ? (
+            <>
+              <Button disabled={busy} onClick={() => void perform((ctx) => buildConsume(lot, { kind: "all" }, ctx))}>
+                Una mangiata
+              </Button>
+              <Button variant="outline" disabled={busy} onClick={() => void perform((ctx) => buildConsumeMany(group.map((g) => g.lot), ctx))}>
+                {`Tutte mangiate (${group.length})`}
+              </Button>
+              <Button variant="outline" onClick={() => setMode("dates")}>
+                Cambia la data
+              </Button>
+            </>
+          ) : null}
+          <Button variant={grouped ? "outline" : "primary"} onClick={() => setMode("eat")}>
+            {grouped ? "Mangiata in parte" : "Mangiato"}
+          </Button>
           <Button variant="outline" href={`/app/pasto?lotto=${encodeURIComponent(lot.lotId)}`}>
             Mangiato in un pasto
           </Button>
@@ -91,7 +113,7 @@ export function LotActions({ entry, creation, now, busy, perform, error }: LotAc
             disabled={busy || lot.openedAt !== undefined}
             onClick={() => void perform((ctx) => buildOpen(lot, ctx))}
           >
-            {lot.openedAt !== undefined ? "Già aperto" : "Aperto"}
+            {lot.openedAt !== undefined ? "Già aperto" : grouped ? "Una aperta" : "Aperto"}
           </Button>
           <Button variant="outline" onClick={() => setMode("move")}>
             Sposta
@@ -113,6 +135,7 @@ export function LotActions({ entry, creation, now, busy, perform, error }: LotAc
       {mode === "remove" ? <RemoveForm entry={entry} busy={busy} perform={perform} onBack={back} onDiscard={() => setMode("discard")} /> : null}
       {mode === "eat" ? <AmountForm entry={entry} kind="eat" busy={busy} perform={perform} onBack={back} /> : null}
       {mode === "discard" ? <AmountForm entry={entry} kind="discard" busy={busy} perform={perform} onBack={back} /> : null}
+      {mode === "dates" ? <DatesForm entry={entry} group={group} busy={busy} perform={perform} onBack={back} /> : null}
       {mode === "move" ? <MoveForm entry={entry} now={now} busy={busy} perform={perform} onBack={back} /> : null}
       {mode === "edit" && creation ? (
         <EditFormView entry={entry} creation={creation} busy={busy} perform={perform} onBack={back} />
@@ -475,6 +498,86 @@ function RemoveForm({ entry, busy, perform, onBack, onDiscard }: SubFormProps & 
       <Button variant="text" onClick={onBack}>
         Indietro
       </Button>
+    </div>
+  );
+}
+
+function DatesForm({ entry, group, busy, perform, onBack }: SubFormProps & { group: readonly PantryEntry[] }) {
+  const ids = useId();
+  const log = useEventLog();
+  const pantry = usePantry();
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set([entry.lot.lotId]));
+  const [kind, setKind] = useState<ChosenExpiryKind>(entry.lot.expiry?.kind === "use_by" ? "use_by" : "best_before");
+  const [date, setDate] = useState(entry.lot.expiry?.date ?? "");
+  const [fieldError, setFieldError] = useState<string | null>(null);
+  const ready = log.data !== undefined && pantry.data !== undefined;
+  const chosen = group.filter((g) => picked.has(g.lot.lotId)).map((g) => g.lot);
+
+  async function save(expiry: { date: string; kind: ChosenExpiryKind } | null) {
+    setFieldError(null);
+    const failed = await perform(
+      (ctx) => buildSetExpiry(chosen, expiry, log.data ?? [], pantry.data?.voidedEventIds ?? [], ctx),
+      true,
+    );
+    if (failed && !failed.ok) setFieldError(failed.error);
+  }
+
+  return (
+    <div className={styles.form}>
+      <h3 className={styles.formTitle}>Cambia la data</h3>
+      <fieldset className={ui.field}>
+        <legend className={ui.fieldLabel}>Per quali confezioni</legend>
+        <div className={ui.choices}>
+          {group.map((g, i) => {
+            const d = entryDate(g);
+            return (
+              <label key={g.lot.lotId} className={ui.choice}>
+                <input
+                  type="checkbox"
+                  checked={picked.has(g.lot.lotId)}
+                  onChange={() =>
+                    setPicked((prev) => {
+                      const next = new Set(prev);
+                      if (!next.delete(g.lot.lotId)) next.add(g.lot.lotId);
+                      return next;
+                    })
+                  }
+                />
+                <span>{`${i + 1}: ${d ? formatCalendarDate(d) : "senza data"}`}</span>
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
+      <fieldset className={ui.field}>
+        <legend className={ui.fieldLabel}>Tipo di data</legend>
+        <div className={ui.choices}>
+          {(["use_by", "best_before"] as const).map((k) => (
+            <label key={k} className={ui.choice}>
+              <input type="radio" name={`${ids}-kind`} value={k} checked={kind === k} onChange={() => setKind(k)} />
+              <span>{EXPIRY_KIND_LABELS[k]}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <div className={ui.field}>
+        <label className={ui.fieldLabel} htmlFor={`${ids}-date`}>
+          Nuova data
+        </label>
+        <input id={`${ids}-date`} className={ui.input} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        {fieldError ? <p className={ui.error}>{fieldError}</p> : null}
+      </div>
+      <div className={ui.row}>
+        <Button disabled={busy || !ready || chosen.length === 0 || date === ""} onClick={() => void save({ date, kind })}>
+          Salva la data
+        </Button>
+        <Button variant="outline" disabled={busy || !ready || chosen.length === 0} onClick={() => void save(null)}>
+          Togli la data
+        </Button>
+        <Button variant="text" onClick={onBack}>
+          Indietro
+        </Button>
+      </div>
     </div>
   );
 }

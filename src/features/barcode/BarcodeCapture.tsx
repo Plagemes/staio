@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { expiryCategoryMatch, quantityText, type Product } from "@/core/catalog";
+import { quantityText, type Product } from "@/core/catalog";
 import { Button, Label } from "@/design";
-import { FOOD_CATEGORY_LABELS } from "../labels";
 import { ProductNutrients } from "../nutrition/Per100";
 import ui from "../ui.module.css";
 import { Scanner } from "./Scanner";
@@ -107,7 +106,6 @@ export function BarcodeCapture() {
 function ProductCard({ product, from, onAgain }: { product: Product; from: "memory" | "service"; onAgain: () => void }) {
   const [imageFailed, setImageFailed] = useState(false);
   const quantity = product.quantity?.text ?? quantityText(product.quantity);
-  const match = expiryCategoryMatch(product);
 
   return (
     <article className={styles.card} aria-label="Scheda del prodotto">
@@ -137,19 +135,6 @@ function ProductCard({ product, from, onAgain }: { product: Product; from: "memo
             <Label>Quantità</Label>
           </dt>
           <dd>{quantity ?? "Non indicata"}</dd>
-        </div>
-        <div className={styles.fact}>
-          <dt>
-            <Label>Categoria proposta</Label>
-          </dt>
-          <dd>
-            {match.matched ? FOOD_CATEGORY_LABELS[match.category] : "Non riconosciuta"}
-            <span className={styles.note}>
-              {match.matched
-                ? " Serve a stimare la scadenza quando manca la data: puoi cambiarla."
-                : " La scegli qui sotto, prima di aggiungere."}
-            </span>
-          </dd>
         </div>
         {product.packaging ? (
           <div className={styles.fact}>

@@ -3,6 +3,7 @@ import { SHELF_LIFE } from "@/core/expiry";
 import {
   expiryCategoryFor,
   expiryCategoryMatch,
+  expiryCategoryProposal,
   isStoredProduct,
   isValidBarcode,
   parsePackageQuantity,
@@ -300,5 +301,47 @@ describe("productFromOpenFoodFacts: additivi", () => {
     expect(read({})).not.toHaveProperty("additives");
     // conteggio positivo senza etichette: incoerente, non si afferma nulla
     expect(read({ additives_n: 3, additives_tags: [] })).not.toHaveProperty("additives");
+  });
+});
+
+describe("proposta di categoria: tag di Open Food Facts e nome", () => {
+  const p = (name: string, ...categories: string[]) => expiryCategoryProposal({ name, categories });
+  const cases: ReadonlyArray<readonly [string, string[], string]> = [
+    ["Mousse cacao protein", [], "yogurt"],
+    ["Mousse al cioccolato", ["desserts", "dairy-desserts", "mousses"], "yogurt"],
+    ["Pancakes freschi", [], "pastries_fresh"],
+    ["Skyr bianco naturale", [], "yogurt"],
+    ["Skyr", ["dairies", "fermented-milk-products", "skyr"], "yogurt"],
+    ["Budino proteico vaniglia", [], "yogurt"],
+    ["Prosciutto cotto affettato", [], "cold_cuts_sliced"],
+    ["Affettato di tacchino", ["meats", "deli-meats"], "cold_cuts_sliced"],
+    ["Bevanda di soia", [], "beverages"],
+    ["Bevanda all'avena", ["plant-based-beverages"], "beverages"],
+    ["Gnocchi di patate freschi", [], "pasta_fresh"],
+    ["Pizza margherita surgelata", [], "frozen_foods"],
+    ["Spinaci surgelati", [], "frozen_foods"],
+    ["Piadina romagnola", [], "bread_packaged"],
+    ["Mozzarella di bufala", [], "cheese_fresh"],
+    ["Parmigiano Reggiano 24 mesi", [], "cheese_aged"],
+    ["Tonno all'olio d'oliva", [], "canned_closed"],
+    ["Latte fresco intero", [], "milk_fresh"],
+    ["Latte UHT parzialmente scremato", [], "milk_uht"],
+    ["Cioccolato al latte", [], "snacks_dry"],
+    ["Barretta proteica cocco", [], "snacks_dry"],
+    ["Yogurt greco 0%", [], "yogurt"],
+    ["Qualcosa di sconosciuto", ["plant-based-foods", "snacks-dolci-strani"], "ready_meals"],
+  ];
+  it.each(cases)("%s", (name, categories, expected) => {
+    expect(p(name, ...categories).category).toBe(expected);
+  });
+
+  it("indica la fonte della proposta", () => {
+    expect(p("Mousse cacao protein")).toMatchObject({ matched: true, source: "name" });
+    expect(p("X", "mousses")).toMatchObject({ matched: true, source: "off" });
+    expect(p("Qualcosa di sconosciuto")).toMatchObject({ matched: false, source: "none" });
+  });
+
+  it("i tag di Open Food Facts hanno la precedenza sul nome", () => {
+    expect(p("Mousse speciale", "frozen-desserts").category).toBe("frozen_foods");
   });
 });

@@ -1,20 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { activeLots, estimatedPantryValue, type Location } from "@/core/ledger";
-import { useEventLog, usePantry } from "@/data";
+import { appendEvents, getDeviceId, useEventLog, usePantry } from "@/data";
 import { Figure, FigureGrid, Label, PantryRow, Tabs, Value } from "@/design";
-import { findCreationEvent } from "../actions";
+import { buildRemoveMany, type RemoveManyKind } from "../actions";
 import { dayOf, formatPrice } from "../format";
 import { LOCATION_LABELS } from "../labels";
+import { useNotice } from "../notice";
 import { evaluateLots, isExpiring, levelPercent } from "../lots";
+import { breakdownText, groupEntries, groupName } from "./groups";
 import { entryDetail, entryExpiry } from "./rows";
 import { orderForRealign } from "../realign";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
 import { LotSheet } from "./LotSheet";
+import { SelectionBar } from "./SelectionBar";
 import styles from "./Pantry.module.css";
 
 type Tab = "all" | Location;
@@ -31,7 +34,13 @@ export function Pantry() {
   const log = useEventLog();
   const now = useNow();
   const [tab, setTab] = useState<Tab>("all");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const notice = useNotice();
+  const pickIds = useId();
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   const entries = useMemo(
     () => (pantry.data && now ? evaluateLots(activeLots(pantry.data), now) : []),
@@ -42,6 +51,21 @@ export function Pantry() {
     [pantry.data, now],
   );
   const value = useMemo(() => (pantry.data ? estimatedPantryValue(pantry.data) : undefined), [pantry.data]);
+
+  const stopSelecting = () => {
+    setSelecting(false);
+    setPicked(new Set());
+    setRemoveError(null);
+  };
+  const togglePicked = (lotIds: readonly string[], on: boolean) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      for (const id of lotIds) {
+        if (on) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
 
   if (pantry.error) return <StorageError />;
   if (!pantry.data || !now) {
@@ -56,16 +80,66 @@ export function Pantry() {
   const today = dayOf(now);
   const shown = tab === "all" ? entries : entries.filter((e) => e.lot.location === tab);
   const expiring = entries.filter(isExpiring).length;
-  const selected = selectedId ? entries.find((e) => e.lot.lotId === selectedId) : undefined;
-  const creation =
-    selected && log.data ? findCreationEvent(log.data, selected.lot.lotId, pantry.data.voidedEventIds) : undefined;
+  const pickedLots = shown.filter((e) => picked.has(e.lot.lotId)).map((e) => e.lot);
+
+  async function removePicked(kind: RemoveManyKind) {
+    if (!pantry.data || !log.data) return;
+    setRemoving(true);
+    setRemoveError(null);
+    try {
+      const result = buildRemoveMany(pickedLots, kind, log.data, pantry.data.voidedEventIds, {
+        now: new Date().toISOString(),
+        deviceId: await getDeviceId(),
+      });
+      if (!result.ok) {
+        setRemoveError(result.error);
+        return;
+      }
+      const written = await appendEvents(result.events);
+      if (written.added === 0 || written.rejected.length > 0) {
+        setRemoveError("Non sono riuscito a salvare. Riprova.");
+        return;
+      }
+      stopSelecting();
+      notice.show({ message: result.message, undo: result.events });
+    } catch {
+      setRemoveError("Non sono riuscito a salvare sul telefono. Riprova.");
+    } finally {
+      setRemoving(false);
+    }
+  }
+
+  const groups = groupEntries(shown);
+  const selectedGroup = selectedKey ? groupEntries(entries).find((g) => g.key === selectedKey) : undefined;
 
   return (
     <div className={ui.screen}>
       <div className={ui.head}>
         <h1 className={ui.title}>Dispensa</h1>
-        <Label>{entries.length === 1 ? "1 voce" : `${entries.length} voci`}</Label>
+        <div className={styles.headTools}>
+          {entries.length > 0 && !selecting ? (
+            <button type="button" className={styles.tool} onClick={() => setSelecting(true)}>
+              Seleziona
+            </button>
+          ) : null}
+          <Label>{entries.length === 1 ? "1 voce" : `${entries.length} voci`}</Label>
+        </div>
       </div>
+      {selecting ? (
+        <div className={styles.headTools}>
+          <button
+            type="button"
+            className={styles.tool}
+            onClick={() => setPicked(new Set(shown.map((e) => e.lot.lotId)))}
+            disabled={shown.length === 0 || pickedLots.length === shown.length}
+          >
+            Seleziona tutti
+          </button>
+          <button type="button" className={styles.tool} onClick={stopSelecting}>
+            Annulla selezione
+          </button>
+        </div>
+      ) : null}
 
       {entries.length === 0 ? (
         <EmptyState
@@ -93,7 +167,10 @@ export function Pantry() {
           </FigureGrid>
 
           <div>
-            <Tabs label="Luogo" items={TAB_ITEMS} value={tab} onChange={(id) => setTab(id as Tab)} />
+            <Tabs label="Luogo" items={TAB_ITEMS} value={tab} onChange={(id) => {
+                setTab(id as Tab);
+                setPicked(new Set());
+              }} />
             <div role="tabpanel" aria-label={TAB_ITEMS.find((t) => t.id === tab)?.label}>
               {shown.length === 0 ? (
                 <EmptyState
@@ -102,23 +179,60 @@ export function Pantry() {
                 />
               ) : (
                 <ul className={styles.list}>
-                  {shown.map((entry) => (
-                    <li key={entry.lot.lotId} className={styles.item}>
+                  {groups.map((group) => {
+                    const entry = group.entries[0];
+                    const lotIds = group.entries.map((e) => e.lot.lotId);
+                    const allPicked = lotIds.every((id) => picked.has(id));
+                    const detailBreakdown = breakdownText(group);
+                    const row = (
                       <PantryRow
-                        name={entry.lot.productRef}
-                        detail={entryDetail(entry, today)}
+                        name={groupName(group)}
+                        detail={
+                          detailBreakdown ? (
+                            <>
+                              {LOCATION_LABELS[entry.lot.location]} · {detailBreakdown}
+                            </>
+                          ) : (
+                            entryDetail(entry, today)
+                          )
+                        }
                         level={levelPercent(entry.lot)}
                         levelLabel={`Rimasto circa il ${Math.round(levelPercent(entry.lot))} per cento`}
                         expiry={entryExpiry(entry)}
                       />
-                      <button
-                        type="button"
-                        className={styles.open}
-                        aria-label={`Apri ${entry.lot.productRef}`}
-                        onClick={() => setSelectedId(entry.lot.lotId)}
-                      />
-                    </li>
-                  ))}
+                    );
+                    return (
+                      <li key={group.key} className={selecting ? styles.itemPick : styles.item}>
+                        {selecting ? (
+                          <>
+                            <span className={styles.checkCell}>
+                              <input
+                                id={`${pickIds}-${group.key}`}
+                                type="checkbox"
+                                className={styles.check}
+                                checked={allPicked}
+                                onChange={() => togglePicked(lotIds, !allPicked)}
+                                aria-label={`Seleziona ${groupName(group)}`}
+                              />
+                            </span>
+                            <label htmlFor={`${pickIds}-${group.key}`} className={allPicked ? styles.picked : undefined}>
+                              {row}
+                            </label>
+                          </>
+                        ) : (
+                          <>
+                            {row}
+                            <button
+                              type="button"
+                              className={styles.open}
+                              aria-label={`Apri ${groupName(group)}`}
+                              onClick={() => setSelectedKey(group.key)}
+                            />
+                          </>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
@@ -157,8 +271,28 @@ export function Pantry() {
         </>
       )}
 
-      {selected ? (
-        <LotSheet key={selected.lot.lotId} entry={selected} creation={creation} now={now} onClose={() => setSelectedId(null)} />
+      {selecting ? (
+        <>
+          <div className={styles.barSpace} aria-hidden="true" />
+          <SelectionBar
+            key={pickedLots.length === 0 ? "empty" : "some"}
+            count={pickedLots.length}
+            busy={removing || !log.data}
+            error={removeError}
+            onRemove={(kind) => void removePicked(kind)}
+          />
+        </>
+      ) : null}
+
+      {selectedGroup ? (
+        <LotSheet
+          key={selectedGroup.key}
+          entry={selectedGroup.entries[0]}
+          creation={undefined}
+          group={selectedGroup.entries}
+          now={now}
+          onClose={() => setSelectedKey(null)}
+        />
       ) : null}
     </div>
   );

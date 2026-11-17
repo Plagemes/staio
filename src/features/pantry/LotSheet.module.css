@@ -180,3 +180,9 @@
   flex-direction: column;
   gap: var(--space-4);
 }
+
+.groupPick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
