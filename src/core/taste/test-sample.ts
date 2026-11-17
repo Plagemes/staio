@@ -1,7 +1,5 @@
-// INSIEME DI PROVA, scritto a mano. Non deriva da FlavorGraph né da altri dati statistici (vedi FONTI.md): sono
-// abbinamenti della cucina italiana e mediterranea comune, in tre fasce assegnate a mano. Va rivisto da una persona
-// prima di essere usato per consigliare. Quando ci sarà una fonte con licenza chiara, questo file si sostituisce con
-// dati dello stesso formato (`TasteData`) e si cambia solo il caricamento in `src/features/taste/useTasteData.ts`.
+// Insieme di prova scritto a mano, SOLO per i test (non è importato dall'app). Non deriva da FlavorGraph: tre fasce
+// assegnate a mano su abbinamenti comuni della cucina italiana, per provare ordinamento, casa e allergeni con dati noti.
 import type { TasteData, TasteFood } from "./types";
 
 type Row = readonly [key: string, name: string, foodIds: readonly string[], aliases?: readonly string[]];

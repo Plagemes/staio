@@ -1,0 +1,48 @@
+# Alimenti di Staio senza un nodo di FlavorGraph scelto con sicurezza. File generato da build_taste.py.
+camomilla | Camomilla, infuso
+latte-di-avena | Bevanda di avena, non zuccherata
+superalcolico | Superalcolico distillato 40% vol (gin, rum, vodka, whisky)
+pasta-integrale-secca | Pasta integrale, secca
+pasta-integrale-cotta | Pasta integrale, cotta
+pane-francese | Pane tipo francese (dato USA)
+gallette-di-riso | Gallette di riso
+corn-flakes | Fiocchi di mais, cereali da colazione
+fette-biscottate | Fette biscottate (zwieback)
+lasagne-surgelate | Lasagne al formaggio surgelate (dato USA)
+spaghetti-al-sugo-di-carne | Spaghetti con sugo di carne (piatto da ristorante USA)
+patatine-in-sacchetto | Patatine fritte in sacchetto, salate
+patatine-fritte-surgelate | Patatine fritte surgelate, da cuocere
+patatine-fritte-al-forno | Patatine fritte surgelate, cotte al forno
+prosciutto-di-tacchino | Prosciutto di tacchino
+bresaola | Manzo essiccato (tipo bresaola)
+wurstel-di-maiale | Wurstel di maiale
+latte-di-capra | Latte di capra
+uovo-di-quaglia | Uovo di quaglia, crudo
+baccala-secco | Baccala' (merluzzo salato e secco)
+nasello-crudo | Nasello (merluzzo bianco), crudo
+platessa-crudo | Pesce piatto (platessa, sogliola), crudo
+platessa-cotto | Pesce piatto (platessa, sogliola), cotto
+tilapia-cruda | Tilapia d'allevamento, cruda
+salmone-in-scatola | Salmone rosa in scatola, sgocciolato senza pelle e lische
+ribes-rosso-crudo | Ribes rosso e bianco, crudo
+fagioli-borlotti-lessati | Fagioli borlotti, cotti
+fagioli-borlotti-in-scatola | Fagioli borlotti in scatola
+lupini-lessati | Lupini, cotti
+lupini-secchi | Lupini, secchi
+minestrone-in-scatola | Minestrone in scatola, pronto (dato USA)
+manzo-fegato-crudo | Manzo, fegato, crudo
+pinoli | Pinoli, secchi
+semi-di-girasole | Semi di girasole, sgusciati secchi
+semi-di-zucca | Semi di zucca, sgusciati secchi
+semi-di-lino | Semi di lino
+semi-di-chia | Semi di chia, secchi
+biscotti-frollini-al-burro | Biscotti frollini al burro
+biscotti-avena | Biscotti all'avena
+budino-alla-vaniglia | Budino alla vaniglia
+creme-caramel | Crème caramel (flan)
+pomodoro-ciliegino-crudo | Pomodorini, crudi
+cetrioli-sottaceto | Cetriolini sottaceto
+pomodori-pelati | Pomodori pelati in conserva
+pomodori-a-pezzi | Pomodori a pezzi in conserva
+pomodori-secchi | Pomodori secchi
+cavolini-di-bruxelles-crudi | Cavolini di Bruxelles, crudi

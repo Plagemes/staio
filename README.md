@@ -41,7 +41,7 @@ Il progetto è in costruzione. Questa tabella dice cosa c'è davvero.
 | Conferma dell'etichetta per gli ingredienti non verificabili | Prima versione |
 | Avvisi senza server | Scritto, da provare sui telefoni |
 | Ricette da video condivisi all'app | Scritto; il servizio di estrazione non è ancora attivo |
-| Abbinamenti di gusto | Elenco di prova scritto a mano, in attesa di dati con licenza adatta |
+| Abbinamenti di gusto da FlavorGraph | Prima versione |
 | Sincronizzazione con file e con Drive | Scritto; Drive in attesa delle credenziali |
 | Tema Vivo a colori, modelli 3D a colori | In costruzione |
 
@@ -147,8 +147,12 @@ I valori nutrizionali degli alimenti generici vengono da USDA FoodData Central (
 
 Le durate degli alimenti senza data in etichetta sono stime prudenti. Non sostituiscono l'etichetta né il giudizio di chi apre il frigo.
 
+Gli abbinamenti di gusto derivano da FlavorGraph e FlavorDB, dati sotto CC BY-NC-SA 3.0: per questo l'app resta non commerciale.
+
 Il controllo di allergeni ed esclusioni aiuta ma non sostituisce la lettura dell'etichetta: non rileva tracce né contaminazioni, e gli elenchi di alimenti e derivati non sono esaustivi. Ciò che non si può verificare è segnalato come incerto, mai come compatibile.
 
 Le analisi mostrano andamenti e associazioni osservate con la loro incertezza: non dicono perché qualcosa accade. Le soglie "a semaforo" dell'indice di qualità vengono dallo schema volontario britannico per l'etichettatura frontale; ogni soglia usata ha la sua fonte in `src/core/quality/data/FONTI.md`.
 
-Il codice è pubblico per essere letto. Non ha ancora una licenza, quindi per ora non è riutilizzabile.
+## Licenza
+
+Il codice è pubblico e si può usare, modificare e ridistribuire per scopi non commerciali, secondo la [PolyForm Noncommercial License 1.0.0](LICENSE.md). L'uso commerciale non è permesso. Alcuni dati inclusi hanno una licenza propria: l'elenco è in [NOTICE](NOTICE).

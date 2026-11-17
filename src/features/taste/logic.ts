@@ -5,7 +5,6 @@ import {
   type PairingDoubt,
   type TasteFood,
   type TasteIndex,
-  type TasteSource,
   type TasteSubject,
 } from "@/core/taste";
 import type { Recipe } from "@/core/recipes";
@@ -80,12 +79,8 @@ export function scoreText(score: number): string {
   return score.toFixed(2).replace(".", ",");
 }
 
-/**
- * Quanto è forte l'abbinamento. Con l'insieme di prova le tre fasce hanno un nome; con i dati statistici si dà solo il
- * numero, senza etichette che sembrino un giudizio.
- */
-export function strengthText(score: number, source: TasteSource): string {
-  if (source === "sample") return score >= 0.85 ? "classico" : score >= 0.65 ? "buono" : score >= 0.45 ? "possibile" : "lieve";
+/** Quanto si somigliano, come numero da 0 a 1: senza etichette che sembrino un giudizio. */
+export function similarityText(score: number): string {
   return `somiglianza ${scoreText(score)}`;
 }
 

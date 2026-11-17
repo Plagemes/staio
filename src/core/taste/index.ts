@@ -1,4 +1,6 @@
 export { basisOf } from "./basis";
+export { decodeTasteData } from "./decode";
+export type { CompactTasteData } from "./decode";
 export { createTasteIndex, resolveTasteFood, searchTasteFoods } from "./index-build";
 export type { TasteIndex } from "./index-build";
 export { DEFAULT_PAIRING_LIMIT, pairingsForSet, pairingsOf } from "./pairings";

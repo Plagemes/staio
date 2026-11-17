@@ -8,7 +8,6 @@ import { activeLots } from "@/core/ledger";
 import { createFoodMatcher } from "@/core/nutrition";
 import type { Recipe } from "@/core/recipes";
 import {
-  basisOf,
   createTasteIndex,
   pairingsForSet,
   searchTasteFoods,
@@ -37,7 +36,7 @@ import {
   homeSubjects,
   homeText,
   recipeSubjects,
-  strengthText,
+  similarityText,
   supportText,
   unknownText,
   type ExpiringFood,
@@ -46,6 +45,8 @@ import {
 import { useTasteData } from "./useTasteData";
 
 const SET_LIMIT = 30;
+const SOURCE_URL = "https://github.com/lamypark/FlavorGraph";
+const MEANING = "Alimenti che nelle ricette e negli aromi stanno vicini a questo. A volte sono compagni, a volte sostituti.";
 
 export function Pairings() {
   const recipeId = useSearchParams().get("ricetta");
@@ -128,14 +129,16 @@ interface Common {
   hasPantry: boolean;
 }
 
-function SourceNotice({ index }: { index: TasteIndex }) {
-  const basis = basisOf(index.data.source);
-  return basis.statistical ? (
-    <p className={ui.hint}>{basis.text}</p>
-  ) : (
-    <div className={ui.callout} role="note">
-      <strong>Elenco di prova.</strong> {basis.text}
-    </div>
+function SourceNotice() {
+  return (
+    <p className={ui.hint}>
+      Abbinamenti da{" "}
+      <a href={SOURCE_URL} target="_blank" rel="noopener noreferrer" className={ui.textLink}>
+        FlavorGraph
+      </a>{" "}
+      (Park e altri, Scientific Reports, 2021), dati CC BY-NC-SA 3.0 derivati da FlavorDB e Recipe1M, solo per uso non
+      commerciale.
+    </p>
   );
 }
 
@@ -151,10 +154,11 @@ function ForRecipe({ recipe, index, home, allergens, excludedFoods, foodIdOf, ha
         <h1 className={ui.title}>Cosa ci starebbe bene</h1>
         <Label>Abbinamenti</Label>
       </div>
+      <p className={ui.lead}>{MEANING}</p>
       <p className={ui.lead}>
         Con gli ingredienti di «{recipe.title}». Tra gli abbinamenti ti dico quali hai già in casa.
       </p>
-      <SourceNotice index={index} />
+      <SourceNotice />
       <Results
         result={result}
         hasPantry={hasPantry}
@@ -216,10 +220,11 @@ function ForIngredient({
         <h1 className={ui.title}>Abbinamenti di gusto</h1>
         <Label>Ricettario</Label>
       </div>
+      <p className={ui.lead}>{MEANING}</p>
       <p className={ui.lead}>
         Scegli un alimento per vedere cosa gli sta bene vicino. Ti dico anche quali di questi hai già in casa.
       </p>
-      <SourceNotice index={index} />
+      <SourceNotice />
 
       <div className={ui.field}>
         <label className={ui.fieldLabel} htmlFor={`${ids}-q`}>
@@ -366,7 +371,7 @@ function Results({
           <div className={ui.field}>
             <h3 className={ui.fieldLabel}>Ce l&apos;hai in casa ({inHome.length})</h3>
             {inHome.length > 0 ? (
-              <PairingList items={inHome} memberCount={count} source={result.basis.source} />
+              <PairingList items={inHome} memberCount={count} />
             ) : (
               <p className={ui.hint}>
                 {hasPantry
@@ -385,7 +390,7 @@ function Results({
           {others.length > 0 ? (
             <div className={ui.field}>
               <h3 className={ui.fieldLabel}>Altri abbinamenti ({others.length})</h3>
-              <PairingList items={others} memberCount={count} source={result.basis.source} />
+              <PairingList items={others} memberCount={count} />
             </div>
           ) : null}
         </>
@@ -397,15 +402,7 @@ function Results({
   );
 }
 
-function PairingList({
-  items,
-  memberCount,
-  source,
-}: {
-  items: readonly Pairing[];
-  memberCount: number;
-  source: PairingResult["basis"]["source"];
-}) {
+function PairingList({ items, memberCount }: { items: readonly Pairing[]; memberCount: number }) {
   return (
     <ul className={recipeStyles.list}>
       {items.map((p) => {
@@ -414,7 +411,7 @@ function PairingList({
           <li key={p.food.key} className={recipeStyles.card}>
             <span className={recipeStyles.cardTitle}>{p.food.name}</span>
             <span className={recipeStyles.meta}>
-              <span>{strengthText(p.score, source)}</span>
+              <span>{similarityText(p.score)}</span>
             </span>
             {p.inHome ? <span className={recipeStyles.noteAccent}>{homeText(p)}</span> : null}
             {support ? <span className={recipeStyles.note}>{support}</span> : null}

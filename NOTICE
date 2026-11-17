@@ -1,0 +1,12 @@
+Required Notice: Copyright (c) 2026 Plagemes (https://github.com/Plagemes/staio)
+
+Il codice di questo progetto è distribuito secondo la PolyForm Noncommercial
+License 1.0.0 (vedi LICENSE.md): uso, modifica e ridistribuzione sono permessi
+per scopi non commerciali.
+
+Alcuni dati inclusi hanno una licenza propria, indicata accanto al file:
+- abbinamenti di gusto (src/core/taste): dati derivati da FlavorGraph e
+  FlavorDB, CC BY-NC-SA 3.0, vedi src/core/taste/FONTI.md;
+- valori nutrizionali generici: USDA FoodData Central, pubblico dominio.
+I dati dei prodotti confezionati non sono inclusi: l'app li chiede a
+Open Food Facts (Open Database License) quando leggi un codice a barre.

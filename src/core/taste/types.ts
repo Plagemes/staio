@@ -1,6 +1,6 @@
 // Abbinamenti di gusto: tipi dei dati e dei risultati. Logica pura, nessun dato qui dentro.
 
-/** `sample`: insieme di prova scritto a mano. `flavorgraph`: vettori statistici (solo se la licenza lo consente, vedi FONTI.md). */
+/** `flavorgraph`: somiglianze dai vettori pubblicati (vedi FONTI.md). `sample`: insieme scritto a mano, solo per i test. */
 export type TasteSource = "sample" | "flavorgraph";
 
 /** Un alimento dell'elenco degli abbinamenti, legato agli alimenti della tabella nutrizionale. */
@@ -15,13 +15,17 @@ export interface TasteFood {
   foodIds: readonly string[];
 }
 
-/** Dati degli abbinamenti. I vicini sono per chiave, con punteggio da 0 (escluso) a 1. */
+/**
+ * Dati degli abbinamenti. I vicini sono per chiave: `[chiave, punteggio da 0 (escluso) a 1, valore d'ordine?]`. Il
+ * punteggio è ciò che si mostra (il coseno); il valore d'ordine, se c'è, decide l'ordine (nei dati veri è il punteggio
+ * corretto per l'effetto hub) e senza vale il punteggio.
+ */
 export interface TasteData {
   source: TasteSource;
   /** Versione dei dati, per ricordare da dove vengono. */
   version: string;
   foods: readonly TasteFood[];
-  neighbors: Readonly<Record<string, readonly (readonly [string, number])[]>>;
+  neighbors: Readonly<Record<string, readonly (readonly [string, number] | readonly [string, number, number])[]>>;
 }
 
 /** Ciò che si sa di un ingrediente: nome, ed eventualmente l'alimento della tabella nutrizionale. */
@@ -50,8 +54,10 @@ export interface PairingDoubt {
 
 export interface Pairing {
   food: TasteFood;
-  /** Da 0 a 1. Per un insieme: media dei punteggi con i suoi alimenti, contando 0 dove non c'è legame. */
+  /** Da 0 a 1, quello che si mostra. Per un insieme: media dei punteggi con i suoi alimenti, contando 0 dove non c'è legame. */
   score: number;
+  /** Il valore con cui si ordina (media come sopra). Coincide con `score` se i dati non ne hanno uno proprio. */
+  rank: number;
   /** Con quali alimenti dell'insieme si abbina (nomi dell'elenco). */
   supportedBy: string[];
   /** C'è in casa: nomi come scritti in dispensa. */

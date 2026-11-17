@@ -3,7 +3,7 @@ import { FOODS } from "../nutrition/data/foods";
 import { basisOf } from "./basis";
 import { createTasteIndex, resolveTasteFood, searchTasteFoods } from "./index-build";
 import { pairingsForSet, pairingsOf } from "./pairings";
-import { SAMPLE_TASTE_DATA } from "./sample";
+import { SAMPLE_TASTE_DATA } from "./test-sample";
 import { screenFood } from "./safety";
 import type { TasteData } from "./types";
 
@@ -46,9 +46,10 @@ describe("insieme di prova", () => {
 
   it("i vicini sono simmetrici e con punteggio nelle tre fasce", () => {
     for (const [a, m] of index.links) {
-      for (const [b, s] of m) {
-        expect(index.links.get(b)?.get(a)).toBe(s);
-        expect([0.5, 0.7, 0.9]).toContain(s);
+      for (const [b, l] of m) {
+        expect(index.links.get(b)?.get(a)).toEqual(l);
+        expect([0.5, 0.7, 0.9]).toContain(l.score);
+        expect(l.rank).toBe(l.score);
       }
     }
   });
@@ -170,6 +171,29 @@ describe("abbinamenti di un insieme", () => {
     const r = pairingsForSet(index, [{ name: "Pomodoro" }, { name: "x", foodId: "passata-di-pomodoro" }]);
     if (r.status !== "ok") throw new Error("atteso ok");
     expect(r.members).toHaveLength(1);
+  });
+});
+
+describe("valore d'ordine", () => {
+  const data: TasteData = {
+    source: "flavorgraph",
+    version: "t",
+    foods: [
+      { key: "a", name: "Alfa", foodIds: ["x"] },
+      { key: "b", name: "Beta", foodIds: ["y"] },
+      { key: "c", name: "Gamma", foodIds: ["z"] },
+    ],
+    // b ha il coseno più alto ma l'ordine corretto mette c davanti
+    neighbors: { a: [["c", 0.5, 0.4], ["b", 0.8, 0.1]] },
+  };
+
+  it("si ordina per il valore d'ordine e si mostra il punteggio", () => {
+    const r = pairingsOf(createTasteIndex(data), { name: "Alfa" });
+    if (r.status !== "ok") throw new Error("atteso ok");
+    expect(r.pairings.map((p) => [p.food.key, p.score, p.rank])).toEqual([
+      ["c", 0.5, 0.4],
+      ["b", 0.8, 0.1],
+    ]);
   });
 });
 

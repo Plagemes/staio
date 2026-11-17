@@ -3,17 +3,22 @@ import { foldText } from "../allergens";
 import { nameTokens } from "../nutrition";
 import type { TasteData, TasteFood, TasteSubject } from "./types";
 
+export interface TasteLink {
+  score: number;
+  rank: number;
+}
+
 export interface TasteIndex {
   data: TasteData;
   byKey: ReadonlyMap<string, TasteFood>;
-  /** Punteggio da una chiave a un'altra, nei due sensi. */
-  links: ReadonlyMap<string, ReadonlyMap<string, number>>;
+  /** Punteggio e valore d'ordine da una chiave a un'altra, nei due sensi. */
+  links: ReadonlyMap<string, ReadonlyMap<string, TasteLink>>;
   /** Voci scartate perché mal formate o ambigue: per i test e la diagnosi, mai per l'utente. */
   problems: string[];
 }
 
 /**
- * Prepara i dati. I vicini sono letti nei due sensi con il punteggio più alto: se B è tra i vicini di A, A è tra i
+ * Prepara i dati. I vicini sono letti nei due sensi con il valore d'ordine più alto: se B è tra i vicini di A, A è tra i
  * vicini di B. Un nome o un alias che porterebbe a due alimenti diversi non vale per nessuno dei due.
  */
 export function createTasteIndex(data: TasteData): TasteIndex {
@@ -23,24 +28,26 @@ export function createTasteIndex(data: TasteData): TasteIndex {
     if (byKey.has(food.key)) problems.push(`chiave doppia: ${food.key}`);
     else byKey.set(food.key, food);
   }
-  const links = new Map<string, Map<string, number>>();
-  const link = (a: string, b: string, score: number) => {
+  const links = new Map<string, Map<string, TasteLink>>();
+  const link = (a: string, b: string, score: number, rank: number) => {
     let m = links.get(a);
     if (!m) links.set(a, (m = new Map()));
-    if (score > (m.get(b) ?? 0)) m.set(b, score);
+    const prev = m.get(b);
+    if (!prev || rank > prev.rank || (rank === prev.rank && score > prev.score)) m.set(b, { score, rank });
   };
   for (const [from, list] of Object.entries(data.neighbors)) {
     if (!byKey.has(from)) {
       problems.push(`vicini di una chiave sconosciuta: ${from}`);
       continue;
     }
-    for (const [to, score] of list) {
-      if (!byKey.has(to) || to === from || !Number.isFinite(score) || score <= 0 || score > 1) {
+    for (const [to, score, order] of list) {
+      const rank = order ?? score;
+      if (!byKey.has(to) || to === from || !Number.isFinite(score) || score <= 0 || score > 1 || !Number.isFinite(rank)) {
         problems.push(`vicino non valido: ${from} -> ${to}`);
         continue;
       }
-      link(from, to, score);
-      link(to, from, score);
+      link(from, to, score, rank);
+      link(to, from, score, rank);
     }
   }
   return { data, byKey, links, problems };

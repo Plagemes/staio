@@ -1,0 +1,288 @@
+# Corrispondenza tra i nodi ingrediente di FlavorGraph (nome inglese) e gli alimenti della tabella nutrizionale di Staio.
+# Una riga per nodo:  nome_flavorgraph | nome italiano mostrato | id Staio separati da virgola | [nomi alternativi italiani]
+# Regole: nessuna corrispondenza approssimata. Un id Staio compare al massimo una volta. Più id possono condividere un nodo
+# quando sono lo stesso alimento in stati diversi (crudo, cotto, secco) o tagli dello stesso animale. Ciò che non è qui
+# resta fuori e lo script lo conta. Lo script rifiuta nomi che non sono nodi ingrediente con vettore.
+
+# Bevande
+water | Acqua | acqua
+espresso | Caffè espresso | caffe-espresso
+black_tea | Tè nero | te-nero
+green_tea | Tè verde | te-verde
+orange_juice | Succo d'arancia | succo-d-arancia-spremuta, succo-d-arancia-confezionato
+apple_juice | Succo di mela | succo-di-mela
+grape_juice | Succo d'uva | succo-d-uva
+lemon_juice | Succo di limone | succo-di-limone
+cola | Cola | cola
+soymilk | Bevanda di soia | latte-di-soia
+rice_milk | Bevanda di riso | latte-di-riso
+almond_milk | Bevanda di mandorla | latte-di-mandorla
+chocolate_milk | Latte al cioccolato | latte-al-cioccolato
+red_wine | Vino rosso | vino-rosso
+white_wine | Vino bianco | vino-bianco
+beer | Birra | birra
+
+# Cereali e derivati
+pasta | Pasta | pasta-secca, pasta-cotta, pasta-fresca, pasta-fresca-cotta, pasta-all-uovo-secca, pasta-all-uovo-cotta | spaghetti, penne, fusilli, rigatoni, tagliatelle
+rice | Riso | riso-bianco-crudo, riso-bianco-lessato, riso-tondo-crudo, riso-tondo-lessato
+brown_rice | Riso integrale | riso-integrale-crudo, riso-integrale-lessato
+flour | Farina | farina-00
+whole_wheat_flour | Farina integrale | farina-integrale
+semolina | Semola | semola-di-grano-duro
+cornmeal | Farina di mais | farina-di-mais
+cornstarch | Amido di mais | amido-di-mais
+oat | Fiocchi d'avena | fiocchi-di-avena, fiocchi-di-avena-cotti
+barley | Orzo | orzo-perlato-crudo, orzo-perlato-lessato
+spelt | Farro | farro-crudo, farro-lessato
+bulgur | Bulgur | bulgur-secco, bulgur-lessato
+couscous | Cuscus | couscous-secco, couscous-lessato
+quinoa | Quinoa | quinoa-cruda, quinoa-lessata
+millet | Miglio | miglio-crudo, miglio-lessato
+white_bread | Pane bianco | pane-bianco-a-fette
+whole_wheat_bread | Pane integrale | pane-integrale
+breadcrumb | Pangrattato | pane-grattugiato
+cracker | Cracker | cracker-salati
+popcorn | Popcorn | popcorn
+pita_bread | Pane pita | pane-pita
+focaccia_bread | Focaccia | focaccia
+granola_cereal | Granola | granola
+
+# Condimenti, spezie, preparati
+salt | Sale | sale-da-cucina
+black_pepper | Pepe nero | pepe-nero
+red_wine_vinegar | Aceto di vino rosso | aceto-di-vino-rosso
+balsamic_vinegar | Aceto balsamico | aceto-balsamico
+soy_sauce | Salsa di soia | salsa-di-soia
+ketchup | Ketchup | ketchup
+mustard | Senape | senape
+mayonnaise | Maionese | maionese
+tomato_sauce | Sugo di pomodoro | salsa-di-pomodoro-pronta
+basil_pesto | Pesto | pesto
+chicken_broth | Brodo di pollo | brodo-di-pollo-fatto-in-casa
+beef_broth | Brodo di manzo | brodo-di-manzo-fatto-in-casa
+vegetable_broth | Brodo vegetale | brodo-vegetale-pronto
+basil | Basilico | basilico-fresco
+parsley | Prezzemolo | prezzemolo-fresco
+rosemary | Rosmarino | rosmarino-fresco
+thyme | Timo | timo-fresco
+ginger | Zenzero | zenzero-fresco
+oregano | Origano | origano-secco
+bay_leaf | Alloro | alloro
+paprika | Paprica | paprica
+chili_powder | Peperoncino in polvere | peperoncino-in-polvere
+cinnamon | Cannella | cannella
+nutmeg | Noce moscata | noce-moscata
+turmeric | Curcuma | curcuma
+curry_powder | Curry | curry-in-polvere
+cumin | Cumino | cumino
+saffron | Zafferano | zafferano
+fresh_yeast | Lievito di birra fresco | lievito-di-birra-fresco
+active_dry_yeast | Lievito di birra secco | lievito-di-birra-secco
+baking_powder | Lievito in polvere | lievito-in-polvere
+baking_soda | Bicarbonato | bicarbonato
+beef_bouillon_cube | Dado di carne | dado-di-carne
+
+# Salumi
+salami | Salame | salame-italiano
+mortadella | Mortadella | mortadella
+ham | Prosciutto cotto | prosciutto-cotto, prosciutto-cotto-magro
+bacon | Pancetta affumicata | pancetta-affumicata-cruda
+pork_belly | Pancetta fresca | maiale-pancetta-fresca-cruda
+italian_sausage | Salsiccia | salsiccia-fresca
+pate | Patè | pate-di-fegato
+
+# Latte e formaggi
+milk | Latte | latte-intero, latte-parzialmente-scremato
+skim_milk | Latte scremato | latte-scremato
+powdered_milk | Latte in polvere | latte-in-polvere-intero
+condensed_milk | Latte condensato | latte-condensato-zuccherato
+kefir | Kefir | kefir
+yogurt | Yogurt | yogurt-intero-naturale, yogurt-magro-naturale
+greek_yogurt | Yogurt greco | yogurt-greco-intero
+heavy_cream | Panna | panna-fresca | panna fresca
+sour_cream | Panna acida | panna-acida
+butter | Burro | burro
+parmesan_cheese | Parmigiano | parmigiano-reggiano | parmigiano reggiano
+romano_cheese | Pecorino romano | pecorino-romano | pecorino
+mozzarella_cheese | Mozzarella | mozzarella-fiordilatte, mozzarella-per-pizza
+ricotta_cheese | Ricotta | ricotta-intera
+gorgonzola | Gorgonzola | gorgonzola
+fontina_cheese | Fontina | fontina
+provolone_cheese | Provolone | provolone
+swiss_cheese | Emmental | emmental
+goat_cheese | Formaggio di capra | formaggio-di-capra-fresco
+cream_cheese | Formaggio spalmabile | formaggio-spalmabile
+cottage_cheese | Fiocchi di latte | fiocchi-di-latte
+cheddar_cheese | Cheddar | cheddar
+feta_cheese | Feta | feta
+brie_cheese | Brie | brie
+gouda_cheese | Gouda | gouda
+
+# Uova
+egg | Uova | uovo-intero-crudo, uovo-sodo | uovo
+egg_yolk | Tuorlo | uovo-tuorlo-crudo
+egg_white | Albume | uovo-albume-crudo
+
+# Pesce e frutti di mare
+salmon | Salmone | salmone-allevamento-crudo, salmone-allevamento-cotto
+smoked_salmon | Salmone affumicato | salmone-affumicato
+tuna | Tonno | tonno-fresco-crudo, tonno-al-naturale, tonno-sott-olio
+cod | Merluzzo | merluzzo-crudo, merluzzo-cotto
+sea_bass | Branzino | branzino-crudo
+trout | Trota | trota-allevamento-cruda, trota-allevamento-cotta
+swordfish | Pesce spada | pesce-spada-crudo
+mackerel | Sgombro | sgombro-atlantico-crudo
+anchovy | Acciughe | acciughe-crude, acciughe-sott-olio
+shrimp | Gamberi | gamberi-crudi, gamberi-lessati
+lobster | Astice | astice-crudo
+squid | Calamari | calamari-crudi
+octopus | Polpo | polpo-crudo
+cuttlefish | Seppia | seppia-cruda
+mussel | Cozze | cozze-crude
+clam | Vongole | vongole-crude
+oyster | Ostriche | ostriche-crude
+scallop | Capesante | capesante-crude
+sardine | Sardine | sardine-sott-olio
+
+# Frutta
+apple | Mela | mela-cruda
+pear | Pera | pera-cruda
+banana | Banana | banana-cruda
+orange | Arancia | arancia-cruda
+tangerine | Mandarino | mandarino-crudo
+lemon | Limone | limone-crudo
+grapefruit | Pompelmo | pompelmo-crudo
+strawberry | Fragola | fragola-cruda
+cherry | Ciliegia | ciliegia-cruda
+peach | Pesca | pesca-cruda
+nectarine | Nettarina | nettarina-cruda
+apricot | Albicocca | albicocca-cruda
+plum | Prugna | prugna-cruda
+grape | Uva | uva-cruda
+kiwi | Kiwi | kiwi-crudo
+pineapple | Ananas | ananas-crudo
+cantaloupe | Melone | melone-cantalupo-crudo
+watermelon | Anguria | anguria-cruda
+fig | Fico | fico-crudo, fichi-secchi
+persimmon | Cachi | cachi-crudo
+blueberry | Mirtillo | mirtillo-crudo
+raspberry | Lampone | lampone-crudo
+blackberry | Mora | mora-cruda
+pomegranate | Melagrana | melagrana-cruda
+avocado | Avocado | avocado-crudo
+mango | Mango | mango-crudo
+date | Dattero | datteri-secchi
+dried_apricot | Albicocche secche | albicocche-secche
+prune | Prugne secche | prugne-secche
+raisin | Uvetta | uvetta-sultanina
+lime | Lime | lime-crudo
+papaya | Papaia | papaia-cruda
+
+# Legumi
+lentil | Lenticchie | lenticchie-secche, lenticchie-lessate
+chickpea | Ceci | ceci-secchi, ceci-lessati, ceci-in-scatola
+cannellini | Fagioli cannellini | fagioli-cannellini-secchi, fagioli-cannellini-lessati, fagioli-cannellini-in-scatola
+kidney_bean | Fagioli rossi | fagioli-rossi-secchi, fagioli-rossi-lessati
+pea | Piselli | piselli-surgelati, piselli-freschi-crudi, piselli-secchi-spaccati, piselli-secchi-lessati
+broad_bean | Fave | fave-secche, fave-lessate
+soybean | Soia | soia-secca, soia-lessata
+edamame | Edamame | edamame-surgelati
+tofu | Tofu | tofu-crudo
+tempeh | Tempeh | tempeh
+hummus | Hummus | hummus
+
+# Carne
+ground_beef | Manzo macinato | manzo-macinato-85-crudo, manzo-macinato-85-cotto
+beef | Manzo | manzo-fesa-cruda, manzo-girello-crudo, manzo-girello-arrosto, manzo-filetto-crudo, manzo-controfiletto-crudo, manzo-spalla-cruda, manzo-sottofesa-cruda, manzo-scamone-crudo, manzo-costata-cruda, manzo-costata-cotta, manzo-brasato, manzo-punta-di-petto-brasata, manzo-stinco-cotto
+veal | Vitello | vitello-fesa-cruda, vitello-crudo, vitello-cotto, vitello-costoletta-grigliata
+pork | Maiale | maiale-lonza-cruda, maiale-lonza-arrosto, maiale-braciola-cruda, maiale-filetto-crudo, maiale-filetto-arrosto, maiale-spalla-cruda, maiale-spalla-arrosto, maiale-coscia-cruda, maiale-coscia-arrosto
+ground_pork | Maiale macinato | maiale-macinato-crudo, maiale-macinato-cotto
+sparerib | Costine di maiale | maiale-costine-crude
+pork_liver | Fegato di maiale | maiale-fegato-crudo
+lamb | Agnello | agnello-crudo, agnello-cosciotto-arrosto
+rabbit | Coniglio | coniglio-crudo, coniglio-arrosto
+chicken_breast | Petto di pollo | pollo-petto-crudo, pollo-petto-cotto | petto di pollo
+chicken | Pollo | pollo-coscia-con-pelle-cruda, pollo-coscia-con-pelle-arrosto, pollo-ala-con-pelle-cruda, pollo-intero-crudo, pollo-intero-arrosto
+turkey_breast | Petto di tacchino | tacchino-petto-crudo, tacchino-petto-arrosto
+duck | Anatra | anatra-senza-pelle-cruda
+
+# Frutta secca, semi, oli
+almond | Mandorle | mandorle
+walnut | Noci | noci
+hazelnut | Nocciole | nocciole
+pistachio | Pistacchi | pistacchi
+cashew | Anacardi | anacardi
+chestnut | Castagne | castagne-crude
+coconut | Cocco | cocco-fresco
+peanut | Arachidi | arachidi
+peanut_butter | Burro di arachidi | burro-di-arachidi
+sesame | Semi di sesamo | semi-di-sesamo
+olive_oil | Olio d'oliva | olio-d-oliva | olio extravergine, olio extravergine di oliva
+sunflower_oil | Olio di girasole | olio-di-semi-di-girasole
+corn_oil | Olio di mais | olio-di-mais
+canola_oil | Olio di colza | olio-di-colza
+coconut_oil | Olio di cocco | olio-di-cocco
+lard | Strutto | strutto
+margarine | Margarina | margarina
+
+# Dolci
+sugar | Zucchero | zucchero-semolato | zucchero semolato
+brown_sugar | Zucchero di canna | zucchero-di-canna
+honey | Miele | miele
+jam | Marmellata | marmellata
+chocolate_hazelnut_spread | Crema di nocciole e cacao | crema-di-nocciole-e-cacao
+dark_chocolate | Cioccolato fondente | cioccolato-fondente-45, cioccolato-fondente-70
+milk_chocolate | Cioccolato al latte | cioccolato-al-latte
+cocoa_powder | Cacao amaro | cacao-amaro
+ladyfinger | Savoiardi | savoiardi
+croissant | Cornetto | cornetto-al-burro
+pound_cake | Plumcake | plumcake
+sponge_cake | Pan di Spagna | pan-di-spagna
+cheesecake | Cheesecake | cheesecake
+vanilla_ice_cream | Gelato alla vaniglia | gelato-alla-vaniglia
+chocolate_ice_cream | Gelato al cioccolato | gelato-al-cioccolato
+
+# Verdura
+tomato | Pomodoro | pomodoro-crudo
+cucumber | Cetriolo | cetriolo-crudo
+iceberg_lettuce | Lattuga cappuccia | lattuga-cappuccia-cruda
+romaine_lettuce | Lattuga romana | lattuga-romana-cruda
+leaf_lettuce | Lattuga a foglia verde | lattuga-a-foglia-verde-cruda
+endive | Indivia | indivia-cruda
+radicchio | Radicchio | radicchio-crudo
+arugula | Rucola | rucola-cruda
+carrot | Carota | carota-cruda, carota-cotta
+potato | Patata | patata-cruda, patata-lessa
+sweet_potato | Patata dolce | patata-dolce-cruda
+onion | Cipolla | cipolla-cruda
+red_onion | Cipolla rossa | cipolla-rossa-cruda
+scallion | Cipollotto | cipollotto-crudo
+garlic | Aglio | aglio-crudo
+leek | Porro | porro-crudo
+red_bell_pepper | Peperone rosso | peperone-rosso-crudo
+yellow_bell_pepper | Peperone giallo | peperone-giallo-crudo
+green_bell_pepper | Peperone verde | peperone-verde-crudo
+red_chili_pepper | Peperoncino | peperoncino-rosso-crudo
+eggplant | Melanzana | melanzana-cruda
+zucchini | Zucchina | zucchina-cruda, zucchina-lessata
+pumpkin | Zucca | zucca-cruda
+spinach | Spinaci | spinaci-crudi, spinaci-lessati
+swiss_chard | Bietola | bietola-cruda, bietola-lessata
+broccoli | Broccoli | broccolo-crudo, broccolo-lessato
+cauliflower | Cavolfiore | cavolfiore-crudo, cavolfiore-lessato
+cabbage | Cavolo cappuccio | cavolo-cappuccio-crudo
+savoy_cabbage | Verza | verza-cruda
+celery | Sedano | sedano-crudo
+fennel | Finocchio | finocchio-crudo
+artichoke | Carciofo | carciofo-crudo
+asparagus | Asparagi | asparagi-crudi
+beet | Barbabietola | barbabietola-cruda
+mushroom | Funghi | funghi-champignon-crudi, funghi-champignon-lessati
+string_bean | Fagiolini | fagiolini-crudi, fagiolini-lessati
+corn | Mais dolce | mais-dolce-crudo
+caper | Capperi | capperi
+olive | Olive nere | olive-nere
+tomato_puree | Passata di pomodoro | passata-di-pomodoro
+tomato_paste | Concentrato di pomodoro | concentrato-di-pomodoro
+radish | Ravanello | rapanello-crudo
+kale | Cavolo riccio | cavolo-riccio-crudo

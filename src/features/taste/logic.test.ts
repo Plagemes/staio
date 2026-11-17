@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createFoodMatcher } from "@/core/nutrition";
 import { FOODS } from "@/core/nutrition/data/foods";
 import { createTasteIndex, pairingsForSet } from "@/core/taste";
-import { SAMPLE_TASTE_DATA } from "@/core/taste/sample";
+import { SAMPLE_TASTE_DATA } from "@/core/taste/test-sample";
 import {
   daysText,
   doubtText,
@@ -12,7 +12,7 @@ import {
   homeText,
   recipeSubjects,
   scoreText,
-  strengthText,
+  similarityText,
   supportText,
   unknownText,
   type FoodIdOf,
@@ -90,11 +90,10 @@ describe("testi", () => {
     expect(daysText(3)).toBe("scade tra 3 giorni");
   });
 
-  it("punteggio e forza: le fasce hanno nome solo per l'insieme di prova", () => {
+  it("punteggio", () => {
     expect(scoreText(0.9)).toBe("0,90");
-    expect(strengthText(0.9, "sample")).toBe("classico");
-    expect(strengthText(0.5, "sample")).toBe("possibile");
-    expect(strengthText(0.42, "flavorgraph")).toBe("somiglianza 0,42");
+    expect(scoreText(0.4)).toBe("0,40");
+    expect(similarityText(0.83)).toBe("somiglianza 0,83");
   });
 
   it("il dubbio non suona come un via libera", () => {
