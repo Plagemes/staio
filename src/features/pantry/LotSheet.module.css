@@ -132,6 +132,19 @@
   grid-column: 1 / -1;
 }
 
+.removeZone {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: var(--rule-width) solid var(--color-control-border);
+}
+
+.removeZone > button {
+  width: 100%;
+}
+
 .form {
   display: flex;
   flex-direction: column;

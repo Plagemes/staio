@@ -4,6 +4,8 @@ import {
   buildConsume,
   buildDiscard,
   buildEdit,
+  buildFinish,
+  buildRemoveMistaken,
   buildOpen,
   buildUndo,
   findCreationEvent,
@@ -313,5 +315,38 @@ describe("modifica del nome di un lotto con codice a barre", () => {
     const { lot, creation } = setup();
     expect(needsSameProductAnswer(lot, form(lot, { name: "Altro" }))).toBe(false);
     expect(buildEdit(creation, lot, form(lot, { name: "Altro" }), ctx()).ok).toBe(true);
+  });
+});
+
+describe("elimina dalla dispensa", () => {
+  it("inserito per sbaglio: il lotto sparisce, anche con eventi successivi, e Annulla lo ripristina", () => {
+    const { events, lot } = setup();
+    const ev = (r: ReturnType<typeof buildConsume>) => (r.ok ? r.events : []);
+    const more = [
+      ...events,
+      ...ev(buildConsume(lot, { kind: "half" }, ctx("2026-11-16T11:00:00.000Z"))),
+      ...ev(buildOpen(lot, ctx("2026-11-16T11:10:00.000Z"))),
+    ];
+    for (const log of [events, more]) {
+      const r = buildRemoveMistaken(lot, log, derivePantry(log).voidedEventIds, ctx());
+      if (!r.ok) throw new Error(r.error);
+      const after = derivePantry([...log, ...r.events]);
+      expect(after.lots).toEqual([]);
+      expect(after.anomalies).toEqual([]);
+      const restored = derivePantry([...log, ...r.events, ...buildUndo(r.events, ctx("2026-11-16T13:00:00.000Z"))]);
+      expect(restored.lots).toHaveLength(1);
+      expect(restored.anomalies).toEqual([]);
+    }
+  });
+
+  it("finito: azzera senza contare consumo né spreco", () => {
+    const { events, lot } = setup();
+    const r = buildFinish(lot, ctx());
+    if (!r.ok) throw new Error(r.error);
+    const l = derivePantry([...events, ...r.events]).lots[0];
+    expect(l.remaining).toBe(0);
+    expect(l.status).toBe("finished");
+    expect(l.consumed).toBe(0);
+    expect(l.discarded).toBe(0);
   });
 });

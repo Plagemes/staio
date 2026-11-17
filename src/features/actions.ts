@@ -284,3 +284,35 @@ export function findCreationEvent(
   }
   return undefined;
 }
+
+/**
+ * «Inserito per sbaglio»: un `void` per la creazione ancora valida del lotto e per ogni suo evento ancora valido
+ * (consumi, aperture, spostamenti, modifiche). Annullarne solo la creazione lascerebbe eventi senza lotto.
+ */
+export function buildRemoveMistaken(
+  lot: Pick<Lot, "lotId" | "productRef">,
+  events: readonly AnyEvent[],
+  voidedEventIds: readonly string[],
+  ctx: ActionContext,
+): ActionResult {
+  const voided = new Set(voidedEventIds);
+  const targets = events.filter(
+    (e) => e.type !== "void" && "lotId" in e && e.lotId === lot.lotId && !voided.has(e.id),
+  );
+  if (!targets.some((e) => e.type === "purchase" || e.type === "declare")) {
+    return { ok: false, error: "Non trovo l'inserimento di questo alimento." };
+  }
+  return { ok: true, events: buildUndo(targets, ctx), message: `Eliminato: ${lot.productRef}.` };
+}
+
+/** «Finito»: porta a zero il rimasto con un riallineamento, che non conta né come consumo né come spreco. */
+export function buildFinish(lot: Lot, ctx: ActionContext): ActionResult {
+  if (lot.remaining <= 0) return { ok: false, error: "Di questo alimento non resta niente." };
+  const event: LedgerEvent = {
+    ...baseOf(ctx),
+    type: "adjust",
+    lotId: lot.lotId,
+    remaining: { value: 0, unit: lot.unit },
+  };
+  return { ok: true, events: [event], message: `Eliminato: ${lot.productRef}.` };
+}

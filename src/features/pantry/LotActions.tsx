@@ -3,11 +3,14 @@
 import { useId, useState, type FormEvent } from "react";
 import type { DeclareEvent, DiscardReason, Location, PurchaseEvent } from "@/core/ledger";
 import { formatQuantity } from "@/core/units";
+import { useEventLog, usePantry } from "@/data";
 import { Button, ExpiryTag } from "@/design";
 import {
   buildConsume,
   buildDiscard,
   buildEdit,
+  buildFinish,
+  buildRemoveMistaken,
   buildMove,
   buildOpen,
   canEditPrice,
@@ -41,7 +44,7 @@ import styles from "./LotSheet.module.css";
  */
 export type Perform = (build: (ctx: ActionContext) => EditResult, inline?: boolean) => Promise<EditResult | null>;
 
-type Mode = "menu" | "eat" | "discard" | "move" | "edit";
+type Mode = "menu" | "eat" | "discard" | "move" | "edit" | "remove";
 
 interface LotActionsProps {
   entry: PantryEntry;
@@ -99,9 +102,15 @@ export function LotActions({ entry, creation, now, busy, perform, error }: LotAc
           <Button variant="outline" onClick={() => void addToList()}>
             Aggiungi alla spesa
           </Button>
+          <div className={styles.removeZone}>
+            <button type="button" className={ui.danger} onClick={() => setMode("remove")}>
+              Elimina dalla dispensa
+            </button>
+          </div>
         </div>
       ) : null}
 
+      {mode === "remove" ? <RemoveForm entry={entry} busy={busy} perform={perform} onBack={back} onDiscard={() => setMode("discard")} /> : null}
       {mode === "eat" ? <AmountForm entry={entry} kind="eat" busy={busy} perform={perform} onBack={back} /> : null}
       {mode === "discard" ? <AmountForm entry={entry} kind="discard" busy={busy} perform={perform} onBack={back} /> : null}
       {mode === "move" ? <MoveForm entry={entry} now={now} busy={busy} perform={perform} onBack={back} /> : null}
@@ -429,5 +438,43 @@ function EditFormView({
         </Button>
       </div>
     </form>
+  );
+}
+
+function RemoveForm({ entry, busy, perform, onBack, onDiscard }: SubFormProps & { onDiscard: () => void }) {
+  const { lot } = entry;
+  const log = useEventLog();
+  const pantry = usePantry();
+  const ready = log.data !== undefined && pantry.data !== undefined;
+
+  return (
+    <div className={styles.form}>
+      <h3 className={styles.formTitle}>Elimina dalla dispensa</h3>
+      <p className={ui.hint}>
+        Inserito per sbaglio: lo tolgo come se non l&apos;avessi mai aggiunto, senza contarlo come acquisto, spreco o spesa. Si
+        può annullare subito dopo.
+      </p>
+      <Button
+        variant="outline"
+        disabled={busy || !ready}
+        onClick={() =>
+          void perform((ctx) => buildRemoveMistaken(lot, log.data ?? [], pantry.data?.voidedEventIds ?? [], ctx))
+        }
+      >
+        Inserito per sbaglio
+      </Button>
+      <p className={ui.hint}>Non c&apos;è più: finito, regalato o buttato.</p>
+      <div className={ui.row}>
+        <Button variant="outline" disabled={busy} onClick={() => void perform((ctx) => buildFinish(lot, ctx))}>
+          Finito
+        </Button>
+        <Button variant="outline" disabled={busy} onClick={onDiscard}>
+          Buttato
+        </Button>
+      </div>
+      <Button variant="text" onClick={onBack}>
+        Indietro
+      </Button>
+    </div>
   );
 }
