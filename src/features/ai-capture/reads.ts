@@ -1,5 +1,9 @@
 // Le tre letture con l'intelligenza artificiale: richiesta, chiamata (con impostazioni, tetto di spesa e conteggio di
 // `callAi`), interpretazione. Nessuna scrive nel registro: restituiscono bozze da rivedere.
+import { buildExpiryDateRequest } from "@/core/ai/expiryDatePrompt";
+import { parseExpiryDates, type ExpiryReading } from "@/core/ai/expiryDateParse";
+import { buildLabelNutritionRequest } from "@/core/ai/labelNutritionPrompt";
+import { parseLabelNutrition, type LabelReading } from "@/core/ai/labelNutritionParse";
 import { buildMealPhraseRequest, type RecentMeal } from "@/core/ai/mealPhrase";
 import { parseMealPhrase, type MealPhraseDraft } from "@/core/ai/mealPhraseParse";
 import { buildPlatePhotoRequest } from "@/core/ai/platePhoto";
@@ -94,4 +98,28 @@ export async function readRecipeIdeas(args: ReadIdeasArgs): Promise<IdeasOutcome
   const reading = parseRecipeIdeas(result.response.text, target.refs, { truncated: result.response.truncated, servings });
   const { accepted, rejected } = checkIdeas(reading.ideas, criteria, target.refs);
   return { accepted, rejected, problems: reading.problems, info: infoOf(result) };
+}
+
+export interface ReadExpiryArgs extends Base {
+  image: AiImage;
+  /** Data di oggi `YYYY-MM-DD`. */
+  today: string;
+}
+
+/** Legge la data stampata. Non scrive nulla: restituisce opzioni da far scegliere e confermare. */
+export async function readExpiryDate(args: ReadExpiryArgs): Promise<{ reading: ExpiryReading; info: CallInfo }> {
+  const { image, today, ...rest } = args;
+  const result = await callAi({ ...rest, request: buildExpiryDateRequest({ image }) });
+  return { reading: parseExpiryDates(result.response.text, { today, truncated: result.response.truncated }), info: infoOf(result) };
+}
+
+export interface ReadLabelArgs extends Base {
+  image: AiImage;
+}
+
+/** Legge la tabella nutrizionale. Non scrive nulla: restituisce una bozza da rivedere campo per campo. */
+export async function readNutritionLabel(args: ReadLabelArgs): Promise<{ reading: LabelReading; info: CallInfo }> {
+  const { image, ...rest } = args;
+  const result = await callAi({ ...rest, request: buildLabelNutritionRequest({ image }) });
+  return { reading: parseLabelNutrition(result.response.text, { truncated: result.response.truncated }), info: infoOf(result) };
 }

@@ -21,6 +21,7 @@ import { availabilityLabel, pendingConfirmations, shortfallsWith, type Answers }
 import { PairingsRow } from "./PairingsRow";
 import { rateRecipe, retireRecipe } from "./model";
 import { FlagText, SafetyPanel } from "./SafetyPanel";
+import { prepHref } from "../prep/substitution";
 import { SubstituteOptions } from "./SubstituteOptions";
 import {
   SUBSTITUTE_BASIS,
@@ -479,7 +480,6 @@ function CookChoice({
   substitutions: readonly Substitution[];
   onClose: () => void;
 }) {
-  const id = encodeURIComponent(recipeId);
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   useEffect(() => {
@@ -513,7 +513,7 @@ function CookChoice({
           <span className={styles.optionTitle}>Registra il pasto</span>
           <span className={styles.optionText}>Scegli cosa togli dalla dispensa e segna il pasto.</span>
         </Link>
-        <Link className={styles.option} href={`/app/preparazioni/nuova?ricetta=${id}&porzioni=${servings}`}>
+        <Link className={styles.option} href={prepHref(recipeId, servings, substitutions)}>
           <span className={styles.optionTitle}>Preparane più porzioni</span>
           <span className={styles.optionText}>Cucini una volta e conservi le porzioni in frigo o in freezer.</span>
         </Link>

@@ -1,6 +1,7 @@
 // Dalla lettura dello scontrino alle righe da rivedere, e dalle righe confermate agli acquisti del registro.
 // Logica pura: la scrittura nel registro (`appendEvents`) la fa la schermata.
 import type { ReceiptReading } from "@/core/ai";
+import { normalizeLineKey, quantityKey, type LineState, type MemoryEntry } from "@/core/ai/receiptMemory";
 import {
   SCHEMA_VERSION,
   generateId,
@@ -31,6 +32,25 @@ export interface ReviewLine {
   discountCents: number;
   raw: string;
   isFood: boolean;
+  /** Prodotto collegato leggendo il codice a barre: il lotto porta il codice, e da lì i valori del prodotto. */
+  barcode?: string;
+  /** Il prodotto collegato è una scheda creata dal nome: il suo codice non è un codice a barre. */
+  localProduct?: true;
+  daysAfterOpening?: number;
+  /** Nome e marca del prodotto collegato, per mostrarli. */
+  productLabel?: string;
+  /** «Ignora sempre»: la riga non è cibo, in questo negozio la salto da sola. */
+  ignoreAlways?: boolean;
+  /** Testo della riga normalizzato: con il negozio, è la chiave della memoria. */
+  memoryKey?: string;
+  /** Quantità letta dalla foto (normalizzata), se c'era sullo scontrino: serve a vedere se il formato è lo stesso dell'ultima volta. */
+  seenQuantity?: string;
+  /** Ciò che aveva proposto la lettura, prima della memoria e delle correzioni. */
+  proposed?: LineState;
+  /** Cosa ricordo di questa riga e se l'ho applicata («come l'ultima volta») o solo proposta. */
+  remembered?: { source: "store" | "general"; applied: boolean; entry: MemoryEntry };
+  /** L'utente ha già toccato la riga: la memoria non la cambia più. */
+  touched?: boolean;
 }
 
 function quantityTextOf(line: ReceiptReading["lines"][number]): string {
@@ -43,14 +63,19 @@ function quantityTextOf(line: ReceiptReading["lines"][number]): string {
 export function toReviewLines(reading: ReceiptReading): ReviewLine[] {
   return reading.lines.map((line, index) => {
     const category = line.category ?? (line.isFood ? suggestCategory(line.name) : undefined);
+    const location = category ? defaultLocation(category) : "frigo";
+    const quantityText = quantityTextOf(line);
     return {
       key: `line-${index}`,
       include: line.isFood,
       name: line.name,
-      quantityText: quantityTextOf(line),
+      quantityText,
       quantityGuessed: line.quantity === undefined,
       category: category ?? "",
-      location: category ? defaultLocation(category) : "frigo",
+      location,
+      memoryKey: normalizeLineKey(line.raw, line.name),
+      ...(line.quantity ? { seenQuantity: quantityKey(quantityText) } : {}),
+      proposed: { name: line.name, category: category ?? "", quantity: quantityText, location, ignore: false },
       ...(line.priceCents !== undefined ? { priceCents: line.priceCents } : {}),
       discountCents: line.discountCents,
       raw: line.raw,
@@ -151,6 +176,8 @@ export function buildReceiptEvents(lines: readonly ReviewLine[], meta: ReceiptMe
       quantity: quantity.quantity,
       location: line.location,
       receiptId,
+      ...(line.barcode ? { barcode: line.barcode } : {}),
+      ...(line.daysAfterOpening !== undefined ? { daysAfterOpening: line.daysAfterOpening } : {}),
       ...(line.priceCents !== undefined && line.priceCents >= 0 ? { priceCents: line.priceCents } : {}),
       ...(store !== "" ? { store } : {}),
     };

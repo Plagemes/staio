@@ -7,7 +7,7 @@ import { buildMove } from "../actions";
 import { useNotice } from "../notice";
 import type { PantryEntry } from "../lots";
 import ui from "../ui.module.css";
-import { COOK_HREF, SAVE_LABELS, pairHref, saveActions } from "./saveActions";
+import { SAVE_LABELS, cookHref, pairHref, saveActions } from "./saveActions";
 import styles from "./SaveExpiring.module.css";
 
 interface LinksProps {
@@ -33,7 +33,7 @@ export function SaveExpiringLinks({ entry, onFreeze, disabled }: LinksProps) {
             );
           case "cook":
             return (
-              <Link key={action} href={COOK_HREF} className={ui.textLink}>
+              <Link key={action} href={cookHref(entry.lot.productRef)} className={ui.textLink}>
                 {SAVE_LABELS.cook}
               </Link>
             );

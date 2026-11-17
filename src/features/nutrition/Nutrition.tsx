@@ -20,6 +20,7 @@ import { toEngineProfile } from "./profile";
 import styles from "./nutrition.module.css";
 import { createFoodSearch, type FoodOption, type FoodSearch } from "./candidates";
 import { FoodPicker } from "./FoodCandidates";
+import { CostPerNutrientSection } from "./CostPerNutrient";
 import { UnresolvedList } from "./UnresolvedList";
 import { ProteinSpreadSection, VarietySection } from "./WeekSections";
 import { useFoodCorrection } from "./useCorrection";
@@ -287,6 +288,8 @@ export function Nutrition() {
       {data.intake && data.foods ? <VarietySection days={data.intake.days} foods={data.foods} today={today} /> : null}
 
       {data.intake && search ? <UnresolvedList days={data.intake.days} search={search} overrides={data.overrides} prepInfo={data.prepInfo} /> : null}
+
+      <CostPerNutrientSection foods={data.foods} overrides={data.overrides} today={today} />
 
       <WhatToKnow />
 

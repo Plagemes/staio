@@ -6,6 +6,7 @@ import type { Product } from "@/core/catalog";
 import { addDays } from "@/core/diary";
 import { diffDays } from "@/core/expiry";
 import type { DayIntake, IntakeLine } from "@/core/nutrition";
+import { isDoubtfulProduct } from "./codes";
 import { dietImpact, type ConsumptionEntry, type ImpactReport } from "@/core/quality";
 
 export const MAX_WINDOW_DAYS = 28;
@@ -22,6 +23,8 @@ export interface ConsumptionSummary {
   productLines: number;
   /** Consumi legati a un prodotto ma non utilizzabili (senza valori, in pezzi, prodotto non più salvato). */
   unusableLines: number;
+  /** Consumi di prodotti con la scheda di un codice interno del negozio: la scheda può non essere quella giusta, non entrano. */
+  restrictedLines: number;
   /** Altre voci risolte (alimenti generici dai pasti): non sono prodotti con codice e non entrano. */
   otherLines: number;
 }
@@ -46,6 +49,7 @@ export function consumptionEntries(days: readonly DayIntake[], products: Readonl
   const entries: ConsumptionEntry[] = [];
   let unusableLines = 0;
   let otherLines = 0;
+  let restrictedLines = 0;
 
   for (const day of days) {
     if (day.date < from || day.date > to) continue;
@@ -65,11 +69,15 @@ export function consumptionEntries(days: readonly DayIntake[], products: Readonl
         unusableLines += 1;
         continue;
       }
+      if (isDoubtfulProduct(product)) {
+        restrictedLines += 1;
+        continue;
+      }
       entries.push({ product, amount: line.quantity.value, unit, timesPerWeek });
     }
   }
 
-  return { entries, windowDays, from, to, productLines: entries.length, unusableLines, otherLines };
+  return { entries, windowDays, from, to, productLines: entries.length, unusableLines, restrictedLines, otherLines };
 }
 
 export interface DietImpactView {
@@ -80,4 +88,10 @@ export interface DietImpactView {
 export function buildDietImpact(days: readonly DayIntake[], products: ReadonlyMap<string, Product>, today: string): DietImpactView {
   const summary = consumptionEntries(days, products, today);
   return { summary, report: dietImpact(summary.entries, { topContributors: 3, maxChanges: 3 }) };
+}
+
+/** Una riga per dire quanti consumi restano fuori perché il codice è interno al negozio; vuota se nessuno. */
+export function restrictedExcludedText(count: number): string {
+  if (count <= 0) return "";
+  return `${count} ${count === 1 ? "consumo resta fuori" : "consumi restano fuori"}: il codice è interno al negozio e la scheda può non essere quella giusta.`;
 }

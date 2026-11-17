@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { validateBarcode, type Product } from "@/core/catalog";
+import { isLocalProduct, validateBarcode, type Product } from "@/core/catalog";
 import { Button, Label } from "@/design";
 import { captureHrefForCode } from "../barcode/links";
 import { lookupProduct } from "../barcode/lookup";
@@ -62,9 +62,19 @@ export function QualityProduct() {
         </div>
       ) : null}
 
+      {current?.status === "found" && isLocalProduct(current.product) ? (
+        <div className={ui.empty}>
+          <h2 className={ui.emptyTitle}>Valori inseriti da te</h2>
+          <p className={ui.emptyText}>Questo prodotto non ha un codice a barre: i valori li hai scritti tu, quindi non c&apos;è una scheda di Open Food Facts da valutare.</p>
+          <Button variant="outline" href={KNOWN_PRODUCTS_PATH}>
+            Prodotti che conosci
+          </Button>
+        </div>
+      ) : null}
+
       {check.ok && !current ? <LoadingLine text={`Cerco il prodotto ${code}…`} /> : null}
 
-      {current?.status === "found" ? (
+      {current?.status === "found" && !isLocalProduct(current.product) ? (
         <>
           <p className={ui.hint}>
             {current.from === "memory"

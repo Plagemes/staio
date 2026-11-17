@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { IMPACT_METRICS, type MetricImpact } from "@/core/quality";
+import { isLocalProduct, type Product } from "@/core/catalog";
 import { Button, Label, SectionHeader } from "@/design";
 import { LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
+import { restrictedExcludedText } from "./consumption";
 import { GOAL_OPTIONS, hasGoal, toggleGoal } from "./goals";
 import { KNOWN_PRODUCTS_PATH, SHELF_PATH, qualityHref } from "./links";
 import {
@@ -17,10 +19,11 @@ import {
   num,
   sharePercent,
 } from "./texts";
+import { useProducts } from "../nutrition/useNutrition";
 import { saveGoals, useDietImpact, useGoals } from "./useQuality";
 import styles from "./quality.module.css";
 
-function MetricBlock({ m }: { m: MetricImpact }) {
+function MetricBlock({ m, products }: { m: MetricImpact; products: ReadonlyMap<string, Product> | undefined }) {
   return (
     <li className={styles.metric}>
       <Label>{METRIC_TITLE[m.metric]}</Label>
@@ -36,6 +39,7 @@ function MetricBlock({ m }: { m: MetricImpact }) {
           {m.contributors.map((c) => (
             <div key={c.barcode} className={styles.contributor}>
               <Link href={qualityHref(c.barcode)}>{c.name}</Link>
+              {isLocalProduct(products?.get(c.barcode)) ? <span className={styles.small}>valori inseriti da te</span> : null}
               <span className={styles.share}>
                 {sharePercent(c.share)} · {metricAmountText(m.metric, c.perWeek)}
               </span>
@@ -74,6 +78,7 @@ function Goals() {
 
 function Impact() {
   const impact = useDietImpact();
+  const products = useProducts();
   if (impact.error) return <StorageError />;
   if (!impact.ready || !impact.view) return <LoadingLine text="Calcolo i consumi…" />;
   const { summary, report } = impact.view;
@@ -84,7 +89,7 @@ function Impact() {
         <h3 className={ui.emptyTitle}>Ancora niente da pesare</h3>
         <p className={ui.emptyText}>
           Nel registro non ci sono consumi di prodotti con codice a barre e valori nutrizionali negli ultimi {summary.windowDays} giorni. Leggi il codice
-          dei prodotti che compri e segna quando li mangi: poi qui vedi quali pesano di più.
+          dei prodotti che compri e segna quando li mangi: poi qui vedi quali pesano di più. {restrictedExcludedText(summary.restrictedLines)}
         </p>
         <Button href="/app/cattura/codice" variant="outline">
           Leggi un codice
@@ -104,9 +109,10 @@ function Impact() {
         {summary.otherLines > 0 ? ` Non entrano ${summary.otherLines} voci di alimenti generici dei pasti, che non sono prodotti con codice.` : ""} Se non
         registri tutto ciò che mangi, i totali sono più bassi del vero.
       </p>
+      {summary.restrictedLines > 0 ? <p className={styles.small}>{restrictedExcludedText(summary.restrictedLines)}</p> : null}
       <ul className={styles.list}>
         {IMPACT_METRICS.map((metric) => (
-          <MetricBlock key={metric} m={report.metrics[metric]} />
+          <MetricBlock key={metric} m={report.metrics[metric]} products={products} />
         ))}
       </ul>
 

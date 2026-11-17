@@ -231,3 +231,107 @@
   padding-left: 1.2em;
   font-size: var(--text-body-sm);
 }
+
+/* Letture dalle etichette: data di scadenza e tabella nutrizionale, dentro la scheda dove nasce il bisogno */
+
+.inline {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.warn {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+  color: var(--color-ochre);
+}
+
+.choices {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-4);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: var(--space-4) var(--space-6);
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--text-body-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.choice:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.choiceMeta {
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+}
+
+.nutGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.nutRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.nutInput {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.nutUnit {
+  min-width: 2.5em;
+  font-family: var(--font-data);
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+}
+
+.fieldMsg {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: 1.4;
+  color: var(--color-ochre);
+}
+
+.fieldMsgError {
+  composes: fieldMsg;
+  color: var(--color-signal);
+}
+
+:global([data-palette="vivo"]) .choice {
+  border-color: transparent;
+  border-radius: var(--radius-card);
+  background: var(--color-fill);
+}

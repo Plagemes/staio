@@ -47,6 +47,10 @@ Il progetto è in costruzione. Questa tabella dice cosa c'è davvero.
 | Durata dopo l'apertura per singolo prodotto, azioni per salvare ciò che scade | Prima versione, con revisione indipendente |
 | Sostituzione degli ingredienti mancanti nelle ricette, con controllo degli allergeni | Prima versione, con revisione indipendente |
 | Varietà vegetale della settimana, proteine nella giornata | Prima versione |
+| Valori nutrizionali scritti a mano o letti dalla foto dell'etichetta, data di scadenza da foto | Prima versione, con revisione indipendente; la lettura da foto è da provare con una chiave vera |
+| Lo scontrino che impara le righe di ogni negozio | Prima versione, con revisione indipendente |
+| Storico dei prezzi, spesa del periodo, costo per nutriente | Prima versione |
+| Ingresso guidato al primo avvio | Prima versione |
 | Sincronizzazione con file e con Drive | Scritto; Drive in attesa delle credenziali |
 | Tema Vivo a colori, modelli 3D a colori | In costruzione |
 

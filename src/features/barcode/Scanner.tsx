@@ -23,9 +23,11 @@ interface ScannerProps {
   /** Chiamata una sola volta per lettura, con un codice già validato (cifra di controllo compresa). */
   onCode: (code: string, info?: ScanInfo) => void;
   disabled?: boolean;
+  /** Accende la fotocamera appena la scheda compare, senza il tocco su «Leggi il codice». Predefinito: spento. */
+  autoStart?: boolean;
 }
 
-export function Scanner({ onCode, disabled = false }: ScannerProps) {
+export function Scanner({ onCode, disabled = false, autoStart = false }: ScannerProps) {
   const ids = useId();
   const [phase, setPhase] = useState<Phase>("idle");
   const [problem, setProblem] = useState<CameraProblem | null>(null);
@@ -69,6 +71,12 @@ export function Scanner({ onCode, disabled = false }: ScannerProps) {
       stop();
     };
   }, [stop]);
+
+  // l'avvio automatico vale solo alla comparsa della scheda
+  useEffect(() => {
+    if (autoStart && !disabled) void start();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function start() {
     stop();

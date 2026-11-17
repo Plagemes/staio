@@ -3,6 +3,7 @@ import type { AnyEvent } from "@/core/events";
 import type { LedgerEvent } from "@/core/ledger";
 import { buildUndo } from "../actions";
 import { buildCaptureEvents, type CaptureInput, type FieldErrors } from "../capture";
+import { manualLotEvents } from "./localProduct";
 
 export interface SaveDeps {
   appendEvents: (events: readonly AnyEvent[]) => Promise<{ added: number }>;
@@ -16,12 +17,14 @@ export type SaveResult =
   | { ok: false; errors: FieldErrors };
 
 /** Verifica i dati, scrive l'evento nel registro e restituisce gli eventi scritti. Non lancia per i dati non validi. */
-export async function saveCapture(input: CaptureInput, deps: SaveDeps): Promise<SaveResult> {
+export async function saveCapture(input: CaptureInput, deps: SaveDeps, options: { localCode?: string } = {}): Promise<SaveResult> {
   const result = buildCaptureEvents(input, { now: deps.now(), deviceId: await deps.getDeviceId() });
   if (!result.ok) return result;
-  const written = await deps.appendEvents(result.events);
+  // un codice locale collega il lotto ai valori nutrizionali scritti a mano, ma il lotto resta «a mano»
+  const events = options.localCode ? manualLotEvents(result.events, options.localCode) : result.events;
+  const written = await deps.appendEvents(events);
   if (written.added === 0) return { ok: false, errors: { form: "Non sono riuscito a salvare. Riprova." } };
-  return result;
+  return { ...result, events };
 }
 
 /** Annulla gli eventi appena scritti con un evento `void` ciascuno: il registro non cancella niente. */

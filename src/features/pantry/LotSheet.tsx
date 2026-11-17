@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { isLocalProduct } from "@/core/catalog";
 import type { DeclareEvent, PurchaseEvent } from "@/core/ledger";
 import { formatQuantity } from "@/core/units";
 import { appendEvents, getDeviceId, useEventLog, usePantry } from "@/data";
 import { LotNutrients } from "../nutrition/Per100";
+import { useProducts } from "../nutrition/useNutrition";
 import { ExpiryTag, Label, LevelBar, Value } from "@/design";
 import { recipeForUnknown } from "@/models3d/fallback";
 import ModelViewer from "@/models3d/ModelViewer";
@@ -46,6 +48,7 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const notice = useNotice();
+  const products = useProducts();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -220,7 +223,9 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
               Con cosa sta bene
             </Link>
           )}
-          {lot.barcode ? (
+          {lot.barcode && isLocalProduct(products?.get(lot.barcode)) ? (
+            <p className={ui.hint}>Valori inseriti da te</p>
+          ) : lot.barcode ? (
             <Link href={`/app/qualita/prodotto?codice=${encodeURIComponent(lot.barcode)}`} className={ui.textLink}>
               Qualità
             </Link>

@@ -3,8 +3,9 @@
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { BottomNav, type NavArea } from "@/design";
-import { useOnlineStatus } from "@/pwa";
+import { InstallHint, useOnlineStatus } from "@/pwa";
 import { NoticeProvider } from "../notice";
+import { Onboarding, useOnboardingGate } from "../onboarding";
 import { StyleChoice, StyleChoiceBoundary, useStyleChoiceGate } from "../settings/StyleChoice";
 import { BarcodeMigration } from "./BarcodeMigration";
 import styles from "./AppShell.module.css";
@@ -46,6 +47,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const online = useOnlineStatus();
   const area = areaOf(pathname);
   const styleChoice = useStyleChoiceGate(pathname);
+  const onboarding = useOnboardingGate(pathname);
   return (
     <NoticeProvider>
       <BarcodeMigration />
@@ -62,8 +64,15 @@ export function AppShell({ children }: { children: ReactNode }) {
             <StyleChoiceBoundary onError={styleChoice.close} fallback={children}>
               <StyleChoice onDone={styleChoice.close} />
             </StyleChoiceBoundary>
+          ) : onboarding.show ? (
+            <StyleChoiceBoundary onError={() => onboarding.close()} fallback={children}>
+              <Onboarding onDone={onboarding.close} />
+            </StyleChoiceBoundary>
           ) : (
-            children
+            <>
+              {pathname === "/app" || pathname === "/app/" ? <InstallHint /> : null}
+              {children}
+            </>
           )}
         </main>
         <div className={styles.nav}>

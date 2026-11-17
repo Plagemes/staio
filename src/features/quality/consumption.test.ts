@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Product } from "@/core/catalog";
 import type { DayIntake, IntakeLine } from "@/core/nutrition";
 import { withNutrients } from "@/core/quality/test-helpers";
-import { buildDietImpact, consumptionEntries, trackedWindow } from "./consumption";
+import { buildDietImpact, consumptionEntries, restrictedExcludedText, trackedWindow } from "./consumption";
 
 const TODAY = "2026-11-17";
 
@@ -92,5 +92,30 @@ describe("buildDietImpact", () => {
     expect(summary.entries).toHaveLength(0);
     expect(report.changes).toHaveLength(0);
     expect(report.metrics.sugars.entriesTotal).toBe(0);
+  });
+});
+
+describe("codici interni e locali nei consumi", () => {
+  const shop = withNutrients("2012345000000", { sugars: 50 }, { name: "Dolce del banco", nova: 4 });
+  const home = withNutrients("2990000012345", { sugars: 10 }, { name: "Torta di casa", source: "manual", localFromName: true });
+  const map = new Map<string, Product>([
+    ["2012345000000", shop],
+    ["2990000012345", home],
+  ]);
+  const days = [day(TODAY, [resolved("2012345000000", 100, "g"), resolved("2990000012345", 100, "g")])];
+
+  it("esclude le schede di codici interni del negozio e le conta a parte", () => {
+    const s = consumptionEntries(days, map, TODAY);
+    expect(s.entries.map((e) => e.product.barcode)).toEqual(["2990000012345"]);
+    expect(s.restrictedLines).toBe(1);
+  });
+  it("non le mette tra i prodotti che pesano di più", () => {
+    const view = buildDietImpact(days, map, TODAY);
+    const names = Object.values(view.report.metrics).flatMap((m) => m.contributors.map((c) => c.barcode));
+    expect(names).not.toContain("2012345000000");
+  });
+  it("dice quanti restano fuori", () => {
+    expect(restrictedExcludedText(0)).toBe("");
+    expect(restrictedExcludedText(2)).toContain("2 consumi restano fuori");
   });
 });

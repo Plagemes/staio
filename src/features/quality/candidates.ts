@@ -5,6 +5,7 @@ import { toGtin13, type Product } from "@/core/catalog";
 import type { Lot } from "@/core/ledger";
 import { shelfVerdict, type Candidate, type PantryStock, type PriceObservation } from "@/core/quality";
 import { normalizeName } from "@/core/shopping";
+import { isDoubtfulProduct } from "./codes";
 
 const key = (code: string): string => toGtin13(code);
 
@@ -32,6 +33,8 @@ export function buildCandidates(products: Iterable<Product>, lots: readonly Lot[
   const out: Candidate[] = [];
   for (const product of products) {
     if (typeof product.barcode !== "string" || product.barcode === "") continue;
+    // una scheda dubbia non si propone come alternativa migliore
+    if (isDoubtfulProduct(product)) continue;
     const own = prices.get(key(product.barcode));
     out.push(own ? { product, prices: own } : { product });
   }

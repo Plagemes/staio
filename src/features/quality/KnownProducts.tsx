@@ -5,9 +5,11 @@ import { useMemo, useState } from "react";
 import { assessProduct } from "@/core/quality";
 import { Button } from "@/design";
 import { usePantry } from "@/data";
+import { RESTRICTED_WARNING_TITLE } from "../barcode/safetyText";
 import { LoadingLine } from "../shell/EmptyState";
 import { useProducts } from "../nutrition/useNutrition";
 import ui from "../ui.module.css";
+import { isDoubtfulProduct, displayProductCode } from "./codes";
 import { knownProductRows } from "./candidates";
 import { SHELF_PATH, qualityHref } from "./links";
 import { DATA_NOTE, outcomeCountText } from "./texts";
@@ -66,8 +68,10 @@ export function KnownProducts() {
                   {product.name ?? "Nome non indicato"}
                   {product.brand ? ` (${product.brand})` : ""}
                 </Link>
-                <p className={styles.meta}>{product.barcode}</p>
-                <p className={styles.small}>{outcomeCountText(assessProduct(product))}</p>
+                <p className={styles.meta}>{displayProductCode(product)}</p>
+                <p className={styles.small}>
+                  {isDoubtfulProduct(product) ? RESTRICTED_WARNING_TITLE : outcomeCountText(assessProduct(product))}
+                </p>
                 {inLedger || inPantry ? (
                   <div className={styles.tags}>
                     {inPantry ? <span className={styles.tag}>In casa</span> : null}

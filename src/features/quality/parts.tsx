@@ -5,11 +5,25 @@ import { useState } from "react";
 import type { Product } from "@/core/catalog";
 import { OUTCOME_LABEL, type Dimension, type Outcome, type QualityAssessment, type SourceRef } from "@/core/quality";
 import { Button } from "@/design";
+import { RESTRICTED_WARNING_TEXT, RESTRICTED_WARNING_TITLE } from "../barcode/safetyText";
 import { useNotice } from "../notice";
 import { addManualEntries } from "../shopping";
 import { listEntryFor } from "./listEntry";
 import { OUTCOME_GLYPH, shortReason } from "./texts";
 import styles from "./quality.module.css";
+
+const USER_CARD_TEXT =
+  "I codici che cominciano per 2 (e per 02 o 04) li assegna ogni negozio ai suoi articoli: la scheda che hai scritto tu può essere di un altro prodotto. Non la valuto.";
+
+/** Avviso per la scheda trovata con un codice interno del negozio. */
+export function RestrictedNotice({ fromUser = false }: { fromUser?: boolean }) {
+  return (
+    <div className={styles.banner} role="note">
+      <strong>{RESTRICTED_WARNING_TITLE}</strong>
+      <p className={styles.small}>{fromUser ? USER_CARD_TEXT : RESTRICTED_WARNING_TEXT}</p>
+    </div>
+  );
+}
 
 /** Esito di una dimensione: simbolo e parole, mai solo il colore. */
 export function OutcomeBadge({ outcome, descriptive = false }: { outcome: Outcome; descriptive?: boolean }) {

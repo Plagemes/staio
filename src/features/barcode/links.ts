@@ -12,7 +12,8 @@ export function captureHref(product: Product): string {
   // La categoria passa solo se riconosciuta: il ripiego prudente non deve sostituire la proposta dal nome.
   const match = expiryCategoryMatch(product);
   if (match.matched) params.set("categoria", match.category);
-  params.set("barcode", product.barcode);
+  // il codice locale non è un codice a barre: il modulo lo ricava di nuovo dal nome
+  if (!product.localFromName) params.set("barcode", product.barcode);
   if (product.brand) params.set("marca", product.brand);
   if (usableDaysAfterOpening(product.daysAfterOpening) !== undefined) params.set("apertura", String(product.daysAfterOpening));
   return `${CAPTURE_PATH}?${params.toString()}`;

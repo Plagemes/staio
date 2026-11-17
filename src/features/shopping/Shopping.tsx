@@ -8,6 +8,8 @@ import { parseQuantityInUnit } from "../actions";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { Costs } from "./Costs";
+import { Prices } from "./Prices";
+import { Spending } from "./Spending";
 import { coveredText } from "./planNeeds";
 import { confirm, confirmAll, forgetRejections, reject, restore, setQuantity, unconfirm } from "./decisions";
 import { parseManualLines, toManualItems } from "./manual";
@@ -203,6 +205,10 @@ function ShoppingView({ data, undo }: { data: ShoppingData; undo: Undo }) {
 
       <Costs data={data} undo={undo} />
 
+      <Spending data={data} undo={undo} />
+
+      <Prices view={view} />
+
       <div className={ui.row}>
         <Link href="/app/spesa/scorte" className={ui.textLink}>
           Scorte minime
@@ -260,6 +266,7 @@ function ItemCard({
       <p className={styles.meta}>
         {v.stockText}. Costo stimato: {v.costText}.
       </p>
+      {v.priceNote ? <p className={styles.meta}>{v.priceNote}</p> : null}
       {v.forecastNote ? <p className={styles.meta}>{v.forecastNote}</p> : null}
       {v.notes.map((n) => (
         <p key={n} className={styles.meta}>

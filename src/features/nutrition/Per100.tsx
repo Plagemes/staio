@@ -8,6 +8,7 @@ import ui from "../ui.module.css";
 import { FOOD_SOURCE_NAME, NUTRIENT_COLOR, NUTRIENT_INFO, formatNutrient } from "./labels";
 import styles from "./nutrition.module.css";
 import { buildResolver } from "./resolver";
+import { labelSourceText } from "./sourceText";
 import { useFoodOverrides, useFoods, useProducts } from "./useNutrition";
 
 const SHOWN: readonly NutrientKey[] = ["energyKcal", "proteinG", "carbsG", "sugarsG", "fatG", "saturatedFatG", "fiberG", "saltG"];
@@ -73,7 +74,7 @@ export function LotNutrients({ lotId, productRef, barcode }: { lotId: string; pr
       estimated={composition.origin !== "label"}
       source={
         composition.origin === "label"
-          ? `Dall'etichetta del prodotto${barcode ? ` (codice a barre ${barcode})` : ""}.`
+          ? labelSourceText(barcode, barcode ? products?.get(barcode) : undefined)
           : `Stima da una tabella generica: «${composition.name}», ${FOOD_SOURCE_NAME}${food ? ` (n. ${food.source.id})` : ""}. Può differire dal prodotto reale.`
       }
     />

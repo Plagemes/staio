@@ -50,6 +50,7 @@ export interface ShoppingData {
   trip: TripState | null;
   lastTrip: TripState | null;
   budgetCents: number | null;
+  monthlyBudgetCents: number | null;
   decisions: Decisions;
   /** Ricette o preparazioni del piano di cui non si sono potuti contare gli ingredienti. */
   planUnresolved: number;
@@ -68,8 +69,9 @@ export function useShoppingData(store?: string): ShoppingData {
   const lastTrip = useChecked<TripState | null>(SETTING_KEYS.lastTrip, isTripOrNull, null);
   const budget = useChecked<number | null>(SETTING_KEYS.budget, isBudget, null);
   const decisions = useChecked(SETTING_KEYS.decisions, isDecisions, NO_DECISIONS);
+  const monthlyBudget = useChecked<number | null>(SETTING_KEYS.monthlyBudget, isBudget, null);
 
-  const settingsReady = ![rejections, manual, stock, history, trip, lastTrip, budget, decisions].some((s) => s.loading);
+  const settingsReady = ![rejections, manual, stock, history, trip, lastTrip, budget, decisions, monthlyBudget].some((s) => s.loading);
   const ready = plan.ready && settingsReady;
 
   const needs = useMemo<PlanNeedsResult>(
@@ -127,6 +129,7 @@ export function useShoppingData(store?: string): ShoppingData {
     trip: trip.value,
     lastTrip: lastTrip.value,
     budgetCents: budget.value,
+    monthlyBudgetCents: monthlyBudget.value,
     decisions: decisions.value,
     planUnresolved: needs.unresolved,
     coveredPreps: needs.covered,

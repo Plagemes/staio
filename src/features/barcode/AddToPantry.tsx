@@ -7,8 +7,10 @@ import { activeLots, type LedgerEvent, type Location } from "@/core/ledger";
 import { formatQuantity } from "@/core/units";
 import { appendEvents, getDeviceId, getSetting, setSetting, usePantry } from "@/data";
 import { Button } from "@/design";
+import { ExpiryFromPhoto } from "../ai-capture/ExpiryFromPhoto";
 import { readQuantity, type CaptureInput, type FieldErrors } from "../capture";
 import { singleFlight, undoCapture, type SaveDeps } from "../capture/saveCapture";
+import { manualLotEvents } from "../capture/localProduct";
 import { dayOf, formatCalendarDate } from "../format";
 import {
   EXPIRY_KIND_LABELS,
@@ -20,6 +22,7 @@ import {
 } from "../labels";
 import { useNow } from "../useNow";
 import ui from "../ui.module.css";
+import { EXPIRY_SHORTCUTS } from "./expiryShortcuts";
 import { captureHref } from "./links";
 import {
   buildPackEvents,
@@ -46,12 +49,6 @@ import styles from "./BarcodeCapture.module.css";
 const deps: SaveDeps = { appendEvents, getDeviceId, now: () => new Date().toISOString() };
 const choiceStore: ChoiceStore = { get: (key) => getSetting(key), set: (key, value) => setSetting(key, value) };
 const KINDS: readonly ChosenExpiryKind[] = ["use_by", "best_before"];
-const SHORTCUTS: readonly (readonly [string, number])[] = [
-  ["Tra 3 giorni", 3],
-  ["Tra 1 settimana", 7],
-  ["Tra 2 settimane", 14],
-  ["Tra 1 mese", 30],
-];
 
 interface Added {
   events: LedgerEvent[];
@@ -97,6 +94,8 @@ export function AddToPantry({
   const [piecesCount, setPiecesCount] = useState(() => (draft.piecesHint?.source === "label" ? draft.piecesHint.count : 0));
   const [eachText, setEachText] = useState<string | null>(null);
   const [piecesTouched, setPiecesTouched] = useState(false);
+  // data riempita dalla foto: la nota sotto il campo dice da dove viene finché non la si cambia
+  const [photoDate, setPhotoDate] = useState<string | null>(null);
 
   const piecesTouchedRef = useRef(false);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -161,11 +160,13 @@ export function AddToPantry({
       singleFlight(async (inputs: CaptureInput[]): Promise<PackEventsResult> => {
         const built = buildPackEvents(inputs, { now: deps.now(), deviceId: await deps.getDeviceId() });
         if (!built.ok) return built;
-        const written = await deps.appendEvents(built.events);
+        // un codice locale lega il lotto ai valori scritti a mano, ma il lotto resta «a mano»
+        const events = product.localFromName ? manualLotEvents(built.events, product.barcode) : built.events;
+        const written = await deps.appendEvents(events);
         if (written.added === 0) return { ok: false, errors: { form: "Non sono riuscito a salvare. Riprova." } };
-        return built;
+        return { ...built, events };
       }),
-    [],
+    [product.barcode, product.localFromName],
   );
   const undo = useMemo(() => singleFlight((events: LedgerEvent[]) => undoCapture(events, deps)), []);
 
@@ -452,13 +453,21 @@ export function AddToPantry({
             {err("expiryDate") ? <p className={ui.error}>{err("expiryDate")}</p> : null}
             {today ? (
               <div className={styles.shortcuts}>
-                {SHORTCUTS.map(([label, days]) => (
+                {EXPIRY_SHORTCUTS.map(([label, days]) => (
                   <button key={days} type="button" className={styles.shortcut} onClick={() => set({ expiryDate: addDays(today, days) })}>
                     {label}
                   </button>
                 ))}
               </div>
             ) : null}
+            <ExpiryFromPhoto
+              today={today}
+              currentKind={expiryKind}
+              onPick={(date, kind) => {
+                setPhotoDate(date);
+                set({ expiryDate: date, ...(kind ? { expiryKind: kind } : {}) });
+              }}
+            />
             {packs > 1 ? (
               <div className={ui.row}>
                 <Button variant="text" onClick={startDifferentDates}>
@@ -476,7 +485,9 @@ export function AddToPantry({
             : ""}
           {scannedExpiry && answers.expiryDate === scannedExpiry.date
             ? "Data letta dal codice: controllala."
-            : "Il codice a barre contiene solo il codice del prodotto, non la data."}
+            : photoDate !== null && answers.expiryDate === photoDate
+              ? "Data letta dalla foto: controllala."
+              : "Il codice a barre contiene solo il codice del prodotto, non la data."}
         </p>
       </fieldset>
 

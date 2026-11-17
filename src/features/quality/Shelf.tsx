@@ -9,9 +9,10 @@ import { captureHrefForCode } from "../barcode/links";
 import { lookupProduct } from "../barcode/lookup";
 import { LOOKUP_FAILURE_MESSAGES } from "../barcode/messages";
 import ui from "../ui.module.css";
+import { isDoubtfulProduct, displayProductCode } from "./codes";
 import { pantryStockFor, pricesFor } from "./candidates";
 import { compareTable } from "./compare";
-import { OutcomeBadge, AddToListButton, DimensionChips } from "./parts";
+import { OutcomeBadge, AddToListButton, DimensionChips, RestrictedNotice } from "./parts";
 import { qualityHref } from "./links";
 import { ShelfScanner } from "./ShelfScanner";
 import { bringToTop, removeEntry, resolveEntry, selectedProducts, startEntry, toggleSelected, type ShelfEntry } from "./shelfSession";
@@ -51,14 +52,36 @@ function ShelfCard({
   const refPrice = alternative ? bestUnitPrice(pricesFor(context.lots, product.barcode), alternative.unitPrice?.per) : undefined;
   const altLabel = alternative ? (assessment.dimensions.find((d) => d.id === alternative.dimension)?.label ?? alternative.dimension) : "";
 
+  if (isDoubtfulProduct(product)) {
+    return (
+      <article className={styles.shelfCard} aria-label={`Scheda dubbia: ${product.name ?? product.barcode}`}>
+        <RestrictedNotice fromUser={product.source !== "openfoodfacts"} />
+        <div className={styles.heading}>
+          <p className={styles.altName}>
+            {product.name ?? "Nome non indicato"}
+            {product.brand ? ` (${product.brand})` : ""}
+          </p>
+          <p className={styles.meta}>{product.barcode}</p>
+        </div>
+        <p className={styles.quiet}>Nessun verdetto e nessuna alternativa: la scheda potrebbe essere di un altro prodotto.</p>
+        <div className={ui.row}>
+          <AddToListButton product={product} label="Aggiungi alla spesa" />
+          <Button variant="text" onClick={onRemove}>
+            Togli
+          </Button>
+        </div>
+      </article>
+    );
+  }
+
   return (
-    <article className={styles.shelfCard} aria-label={`Verdetto: ${product.name ?? product.barcode}`}>
+    <article className={styles.shelfCard} aria-label={`Verdetto: ${product.name ?? displayProductCode(product)}`}>
       <div className={styles.heading}>
         <Link className={styles.altName} href={qualityHref(product.barcode)}>
           {product.name ?? "Nome non indicato"}
           {product.brand ? ` (${product.brand})` : ""}
         </Link>
-        <p className={styles.meta}>{product.barcode}</p>
+        <p className={styles.meta}>{displayProductCode(product)}</p>
       </div>
 
       <DimensionChips assessment={assessment} />
@@ -91,7 +114,7 @@ function ShelfCard({
         {alternative ? (
           <>
             <Link className={styles.altName} href={qualityHref(alternative.product.barcode)}>
-              {alternative.product.name ?? alternative.product.barcode}
+              {alternative.product.name ?? displayProductCode(alternative.product)}
               {alternative.product.brand ? ` (${alternative.product.brand})` : ""}
             </Link>
             {alternativeSentences(alternative, altLabel).map((s) => (
@@ -166,7 +189,8 @@ function StatusCard({ entry, onRetry, onRemove }: { entry: Exclude<ShelfEntry, {
   );
 }
 
-function CompareSection({ products }: { products: Product[] }) {
+function CompareSection({ products: all }: { products: Product[] }) {
+  const products = useMemo(() => all.filter((p) => !isDoubtfulProduct(p)), [all]);
   const table = useMemo(() => compareTable(products.map((product) => ({ product, assessment: assessProduct(product) }))), [products]);
   return (
     <section className={ui.section} aria-label="Confronto fianco a fianco">
@@ -307,7 +331,7 @@ export function Shelf() {
         )}
       </section>
 
-      {compared.length >= 2 ? <CompareSection products={compared} /> : null}
+      {compared.filter((p) => !isDoubtfulProduct(p)).length >= 2 ? <CompareSection products={compared} /> : null}
 
       <section className={ui.section} aria-label="Come leggere">
         <Label>Come leggere</Label>

@@ -82,3 +82,19 @@ export {
   zoneRank,
 } from "./zones";
 export type { ScanLocation, UsualZone, ZoneDef, ZoneMap, ZoneObservation, ZoneStat } from "./zones";
+export { DEFAULT_EXPIRY_DATE_MAX_TOKENS, buildExpiryDateRequest, expiryDateInstructions } from "./expiryDatePrompt";
+export {
+  EXPIRY_MIN_CONFIDENCE,
+  FAR_FUTURE_YEARS,
+  describeDate,
+  interpretDateText,
+  parseExpiryDates,
+  readExpiryKind,
+} from "./expiryDateParse";
+export type { Discarded, DiscardReason, ExpiryKind, ExpiryOption, ExpiryReading } from "./expiryDateParse";
+export { DEFAULT_LABEL_MAX_TOKENS, buildLabelNutritionRequest, labelNutritionInstructions } from "./labelNutritionPrompt";
+export { KJ_PER_KCAL, LABEL_MIN_CONFIDENCE, NUTRIENT_FIELDS, parseLabelNutrition } from "./labelNutritionParse";
+export type { LabelBasis, LabelNutrients, LabelReading, NutrientField } from "./labelNutritionParse";
+export { blocksConfirm, checkLabelNutrients, expectedKcal, kjToKcal, scaleToPer100 } from "./labelNutritionCheck";
+export type { CheckInput } from "./labelNutritionCheck";
+export type { ReadProblem, ReadProblemCode } from "./labelShared";

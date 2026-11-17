@@ -141,3 +141,71 @@
   color: var(--color-accent);
   font-weight: 600;
 }
+
+/* Lettura del codice a barre sotto una riga, e scadenze dei freschi: stessi tasti rapidi della scheda del prodotto. */
+.codePanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-6);
+  border: var(--rule-width) solid var(--color-rule);
+  border-radius: var(--radius-md);
+}
+
+.shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.shortcut {
+  min-height: var(--tap-min);
+  padding: 0 var(--space-6);
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--text-body-sm);
+  cursor: pointer;
+}
+
+.shortcut[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.shortcut:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Il campo data nativo: segue lo schema di colori dell'app e resta leggibile da vuoto. */
+.dateInput {
+  display: block;
+  min-width: 0;
+  color-scheme: inherit;
+  appearance: auto;
+  color: var(--color-ink);
+  background: var(--color-surface);
+  text-align: left;
+}
+
+:global([data-palette="vivo"]) .shortcut {
+  border-color: transparent;
+  border-radius: 999px;
+  background: var(--color-fill);
+  font-weight: 500;
+}
+
+:global([data-palette="vivo"]) .shortcut[aria-pressed="true"] {
+  background: var(--color-accent);
+  color: var(--color-paper);
+  font-weight: 600;
+}
+
+:global([data-palette="vivo"]) .codePanel {
+  border-color: transparent;
+  background: var(--color-fill);
+}

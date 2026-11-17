@@ -26,11 +26,13 @@ import {
   type StockConfig,
   type StoreComparison,
 } from "@/core/shopping";
+import { buildPriceHistories, type PriceHistoryResult } from "@/core/prices";
 import { formatQuantity } from "@/core/units";
 import { formatPrice } from "../format";
 import { dayHeading, whenText } from "../plan/dates";
 import { isDismissed, manualIdsOf } from "./decisions";
 import type { ManualItem } from "./manual";
+import { priceNote } from "./priceText";
 import { forecastNote, noteText, reasonText } from "./reasons";
 import type { Decisions } from "./settings";
 
@@ -69,6 +71,8 @@ export interface ViewItem {
   /** Costo stimato dall'ultimo prezzo osservato; `null` = nessun prezzo osservato. */
   costCents: number | null;
   costText: string;
+  /** «L'ultima volta 1,89 €/l, di solito 1,75 €/l»: solo con almeno due acquisti con prezzo. */
+  priceNote?: string;
 }
 
 /** Una voce da comprare senza quantità («q.b.»): c'è in lista, ma non si inventa un numero. */
@@ -86,6 +90,7 @@ export interface ShoppingView {
   suppressed: ViewItem[];
   issues: ListIssue[];
   book: PriceBook;
+  histories: PriceHistoryResult;
   forecasts: ConsumptionForecast[];
   cost: { totalCents: number; pricedCount: number; unpricedCount: number; text: string };
   comparison: StoreComparison;
@@ -120,6 +125,8 @@ export function buildShoppingView(input: ViewInput): ShoppingView {
   });
   const forecasts = forecastConsumption(pantry, today);
   const book = buildPriceBook(pantry);
+  const histories = buildPriceHistories(pantry);
+  const historyById = new Map(histories.products.map((h) => [h.id, h]));
 
   const toView = (item: ListItem): ViewItem => {
     const manualIds = manualIdsOf(input.manual, item.id, normalizeName);
@@ -128,6 +135,7 @@ export function buildShoppingView(input: ViewInput): ShoppingView {
     const isManual = item.reasons.some((r) => r.kind === "manual");
     const estimate = estimateCost(book, { key: item.key, barcode: item.barcode, unit: item.unit, ...(input.store ? { store: input.store } : {}) }, quantity);
     const hasRunningOut = item.reasons.some((r) => r.kind === "running_out");
+    const history = historyById.get(item.id);
     const note = hasRunningOut ? undefined : forecastNote(findForecast(forecasts, item.key, item.unit));
     return {
       item,
@@ -146,6 +154,7 @@ export function buildShoppingView(input: ViewInput): ShoppingView {
       ...(note ? { forecastNote: note } : {}),
       costCents: estimate ? estimate.cents : null,
       costText: costText(estimate ? estimate.cents : null),
+      ...(history ? { priceNote: priceNote(history) } : {}),
     };
   };
 
@@ -208,6 +217,7 @@ export function buildShoppingView(input: ViewInput): ShoppingView {
     suppressed,
     issues: list.issues,
     book,
+    histories,
     forecasts,
     cost: { totalCents, pricedCount: priced.length, unpricedCount, text: costSummary },
     comparison,

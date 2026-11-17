@@ -12,6 +12,8 @@ export const SETTING_KEYS = {
   trip: "shopping.trip",
   lastTrip: "shopping.lastTrip",
   budget: "shopping.budget",
+  /** Tetto di spesa mensile, facoltativo, in centesimi: diverso dal tetto della lista. */
+  monthlyBudget: "shopping.monthlyBudget",
   decisions: "shopping.decisions",
 } as const;
 

@@ -6,12 +6,16 @@ export { OFF_FIELDS, isStoredProduct, productFromOpenFoodFacts } from "./openFoo
 export type { FromOffOptions } from "./openFoodFacts";
 export { parsePeriodAfterOpening } from "./periodAfterOpening";
 export { parsePackageQuantity, quantityText } from "./quantity";
+export { applyLabelValues, hasFullNutrients, keepLabelValues } from "./labelValues";
+export type { LabelValues } from "./labelValues";
+export { LOCAL_CODE_PREFIX, isLocalCode, isLocalProduct, isRestrictedCode, needsStoreCodeConfirmation } from "./restrictedCode";
 export { piecesHintFrom } from "./piecesHint";
 export { locationFromStorage } from "./storage";
 export type { StoragePlace } from "./storage";
 export type {
   BaseUnit,
   ExpiryCategoryMatch,
+  LabelPhoto,
   NovaGroup,
   Nutrients,
   NutriScore,

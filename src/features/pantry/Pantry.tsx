@@ -145,9 +145,11 @@ export function Pantry() {
       {entries.length === 0 ? (
         <EmptyState
           title="La dispensa è vuota"
-          text="Qui comparirà ciò che aggiungi: quanto ne resta, dove sta e quando scade. Il resto lo ricostruisce il registro."
-          secondaryLabel="Ho già in casa: aggiunta rapida"
-          secondaryHref="/app/cattura/veloce"
+          text="Segna la prima cosa che hai in casa: poi vedrai quanto ne resta, dove sta e quando scade."
+          actionLabel="Aggiungi alla dispensa"
+          actionHref="/app/cattura/veloce"
+          secondaryLabel="Leggi un codice a barre"
+          secondaryHref="/app/cattura/codice"
         />
       ) : (
         <>

@@ -21,6 +21,7 @@ import { breakdownText, groupEntries, groupName } from "../pantry/groups";
 import { SaveExpiringRow } from "../pantry/SaveExpiring";
 import { entryDetail, entryExpiry } from "../pantry/rows";
 import { LoadingLine, StorageError } from "../shell/EmptyState";
+import { FirstStepToday } from "../shell/FirstStep";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
 import styles from "./Today.module.css";
@@ -134,6 +135,8 @@ export function Today() {
               Stai guardando {relativeDay(viewDate, today)}. Qui puoi segnare un pasto saltato o non registrato e aggiungere una bevanda dimenticata.
             </p>
           ) : null}
+
+          {!isPast && entries.length === 0 && log.data.length === 0 ? <FirstStepToday /> : null}
 
           <TodayDiary now={now} date={viewDate} pantry={pantry.data} log={log.data} />
 

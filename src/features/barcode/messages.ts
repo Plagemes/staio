@@ -1,4 +1,4 @@
-import type { BarcodeProblem } from "@/core/catalog";
+import { isLocalCode, type BarcodeProblem } from "@/core/catalog";
 import type { LookupFailure } from "./offClient";
 
 export const BARCODE_PROBLEM_MESSAGES: Record<BarcodeProblem, string> = {
@@ -54,6 +54,16 @@ export const NOVA_LABELS: Record<1 | 2 | 3 | 4, string> = {
 
 export function allergenLabel(id: string): string {
   return ALLERGEN_LABELS[id] ?? id.replace(/-/g, " ");
+}
+
+/** Come si mostra il codice di una scheda salvata: è la scheda a dire se il codice è locale. */
+export function displayProductCode(product: { barcode: string; localFromName?: true }): string {
+  return product.localFromName ? "Scheda tua, senza codice a barre" : product.barcode;
+}
+
+/** Solo dal codice, senza la scheda: si basa sulla forma e può sbagliare per un codice 299 di un negozio. Meglio `displayProductCode`. */
+export function displayCode(code: string): string {
+  return isLocalCode(code) ? "Scheda tua, senza codice a barre" : code;
 }
 
 export function formatNumber(value: number): string {

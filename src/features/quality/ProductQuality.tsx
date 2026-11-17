@@ -6,10 +6,11 @@ import type { Product } from "@/core/catalog";
 import { assessProduct, personalVerdict, type PersonalStatement, type PersonalVerdict, type QualityAssessment } from "@/core/quality";
 import { Label, SectionHeader } from "@/design";
 import ui from "../ui.module.css";
+import { isDoubtfulProduct, displayProductCode } from "./codes";
 import { alternativesView, type AlternativesView } from "./alternatives";
 import { pantryLineOf, pantryStockFor, pricesFor } from "./candidates";
 import { qualityHref } from "./links";
-import { AddToListButton, DimensionList } from "./parts";
+import { AddToListButton, DimensionList, RestrictedNotice } from "./parts";
 import { DATA_NOTE, NOT_MEDICAL, alternativeSentences, notAssessableText, outcomeCountText, priceLine } from "./texts";
 import { useQualityContext, type QualityContext } from "./useQuality";
 import styles from "./quality.module.css";
@@ -112,9 +113,9 @@ function Alternatives({ view, assessment }: { view: AlternativesView; assessment
         <div key={g.dimension} className={styles.group}>
           <h3 className={styles.groupTitle}>Meglio su {g.label.toLowerCase()}</h3>
           {g.alternatives.map((alt) => (
-            <article key={alt.product.barcode} className={styles.alt} aria-label={`Alternativa: ${alt.product.name ?? alt.product.barcode}`}>
+            <article key={alt.product.barcode} className={styles.alt} aria-label={`Alternativa: ${alt.product.name ?? displayProductCode(alt.product)}`}>
               <Link className={styles.altName} href={qualityHref(alt.product.barcode)}>
-                {alt.product.name ?? alt.product.barcode}
+                {alt.product.name ?? displayProductCode(alt.product)}
                 {alt.product.brand ? ` (${alt.product.brand})` : ""}
               </Link>
               {alternativeSentences(alt, g.label).map((s) => (
@@ -144,12 +145,33 @@ function ProductQualityView({ product, context }: { product: Product; context: Q
   }, [product, context.candidates, context.lots]);
   const stock = useMemo(() => pantryStockFor(context.lots, product.barcode, product.name), [context.lots, product.barcode, product.name]);
 
+  if (isDoubtfulProduct(product)) {
+    return (
+      <article className={styles.card} aria-label="Scheda di qualità del prodotto">
+        <RestrictedNotice fromUser={product.source !== "openfoodfacts"} />
+        <div className={styles.heading}>
+          <h2 className={styles.name}>{product.name ?? "Nome non indicato"}</h2>
+          {product.brand ? <p className={styles.meta}>{product.brand}</p> : null}
+          <p className={styles.meta}>{product.barcode}</p>
+        </div>
+        <p className={ui.paragraph}>Non valuto la qualità né cerco alternative su questa scheda: potrebbe essere di un altro prodotto.</p>
+        <section className={ui.section} aria-label="In casa">
+          <SectionHeader label="In casa" />
+          <p className={ui.paragraph}>{context.ready ? pantryLineOf(product, stock) : "Apro i dati del telefono…"}</p>
+        </section>
+        <div className={ui.row}>
+          <AddToListButton product={product} variant="primary" />
+        </div>
+      </article>
+    );
+  }
+
   return (
     <article className={styles.card} aria-label="Scheda di qualità del prodotto">
       <div className={styles.heading}>
         <h2 className={styles.name}>{product.name ?? "Nome non indicato"}</h2>
         {product.brand ? <p className={styles.meta}>{product.brand}</p> : null}
-        <p className={styles.meta}>{product.barcode}</p>
+        <p className={styles.meta}>{displayProductCode(product)}</p>
       </div>
 
       <section className={ui.section} aria-label="Dimensioni">

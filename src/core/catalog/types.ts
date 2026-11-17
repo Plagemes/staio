@@ -84,7 +84,27 @@ export interface Product {
   imageUrl?: string;
   /** Istante ISO 8601 UTC della lettura. */
   fetchedAt: string;
-  source: "openfoodfacts";
+  /** `label_photo` e `manual`: la scheda non esiste su Open Food Facts, l'ha creata l'utente (dalla foto dell'etichetta, o scrivendo i valori). */
+  source: "openfoodfacts" | "label_photo" | "manual";
+  /**
+   * La scheda l'ha creata l'app per un alimento aggiunto a mano senza codice a barre: il codice è locale, ricavato dal nome.
+   * È l'unica prova che un codice è locale: il solo prefisso non basta, un codice 299 letto in negozio è di quel negozio.
+   */
+  localFromName?: true;
+  /** Dati letti da una foto dell'etichetta e confermati dall'utente: sostituiscono quelli di Open Food Facts e li precedono. */
+  labelPhoto?: LabelPhoto;
+}
+
+/** Quali parti della scheda vengono da una foto dell'etichetta. Dove compare, la certezza dei valori è `label`. */
+export interface LabelPhoto {
+  /** Istante ISO 8601 UTC della conferma. */
+  readAt: string;
+  /** Come sono entrati: letti da una foto o scritti dall'utente. Assente: da foto. In entrambi i casi sono dati d'etichetta confermati da lui. */
+  by?: "photo" | "manual";
+  nutrients?: true;
+  ingredients?: true;
+  allergens?: true;
+  name?: true;
 }
 
 export interface ExpiryCategoryMatch {

@@ -1,6 +1,7 @@
 // Salvare ciò che sta scadendo: quali azioni già esistenti nell'app proporre per un lotto, nell'ordine utile.
 // Nessuna azione nuova e nessun consiglio: le durate vengono solo dalla tabella di `core/expiry`.
 import { canFreeze } from "@/core/expiry";
+import { ideasHref } from "../ai-capture/ideasFood";
 import { isFoodCategory, type PantryEntry } from "../lots";
 
 export type SaveAction = "freeze" | "cook" | "pair";
@@ -12,7 +13,8 @@ export const SAVE_LABELS: Record<SaveAction, string> = {
   pair: "Con cosa sta bene",
 };
 
-export const COOK_HREF = "/app/ricette/idee";
+/** «Cosa cucinare» parte dall'alimento del lotto: `?alimento=` è il punto di partenza delle idee. */
+export const cookHref = (name: string): string => ideasHref(name);
 export const pairHref = (name: string): string => `/app/ricette/abbinamenti?alimento=${encodeURIComponent(name)}`;
 
 /**

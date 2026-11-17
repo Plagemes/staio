@@ -3,10 +3,13 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState, type ChangeEvent } from "react";
 import { formatCost, isAiError, usageForMonth } from "@/core/ai";
+import { emptyMemory, entryCount, normalizeStoreKey, type LoadedMemory, type MemoryRow } from "@/core/ai/receiptMemory";
+import { expiryReviewRows } from "@/core/ai/receiptExpiry";
+import type { LedgerEvent, PurchaseEvent } from "@/core/ledger";
 import { appendEvents, getDeviceId } from "@/data";
 import { Button, Label, SectionHeader } from "@/design";
+import { buildUndo } from "../actions";
 import { dayOf, formatPrice } from "../format";
-import { FOOD_CATEGORY_GROUPS, FOOD_CATEGORY_LABELS, LOCATION_LABELS, LOCATION_ORDER } from "../labels";
 import { useNotice } from "../notice";
 import { useNow } from "../useNow";
 import ui from "../ui.module.css";
@@ -16,7 +19,12 @@ import { describeAiError } from "./messages";
 import { NotReady } from "./NotReady";
 import { PROVIDER_LABELS } from "./providers/types";
 import { readReceipt, type ReceiptReadResult } from "./readReceipt";
+import { ExpiryReview } from "./ExpiryReview";
 import { buildReceiptEvents, includedTotalCents, storeLabel, toReviewLines, type ReviewLine } from "./receiptEvents";
+import { applyMemory, reapplyMemory, rememberedCount, adoptRemembered } from "./receiptLearning";
+import { forgetIgnore, forgetMemory, loadMemory, rememberReceipt, restoreMemory } from "./receiptMemoryStore";
+import type { LinePatch } from "./receiptProduct";
+import { ReviewRow } from "./ReviewRow";
 import { useAiSettings } from "./useAiSettings";
 import styles from "./ReceiptCapture.module.css";
 
@@ -63,7 +71,14 @@ function Reader({ settings }: { settings: AiSettings }) {
   const [date, setDate] = useState("");
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
-  const [saved, setSaved] = useState<{ count: number; skipped: number } | null>(null);
+  const [saved, setSaved] = useState<{ count: number; skipped: number; purchases: PurchaseEvent[]; summary: string; reviewing: boolean } | null>(null);
+  const [memory, setMemory] = useState<LoadedMemory>(emptyMemory);
+  // le righe com'erano appena lette, prima della memoria: servono a rileggere la memoria se cambia il negozio
+  const baseRef = useRef<ReviewLine[]>([]);
+  // scadenze scritte dalla revisione: se lo scontrino viene annullato, si annullano con lui
+  const reviewEventsRef = useRef<readonly LedgerEvent[]>([]);
+  // com'era la memoria prima di questo scontrino: l'«Annulla» dello scontrino la rimette
+  const memoryBeforeRef = useRef<{ storeName: string; row: MemoryRow } | null>(null);
 
   useEffect(() => () => abortRef.current?.abort(), []);
   useEffect(() => {
@@ -119,9 +134,14 @@ function Reader({ settings }: { settings: AiSettings }) {
         today: dayOf(new Date().toISOString()),
         signal: controller.signal,
       });
+      const name = storeLabel(out.reading);
+      const base = toReviewLines(out.reading);
+      const learned = await loadMemory(name);
+      baseRef.current = base;
+      setMemory(learned);
       setResult(out);
-      setLines(toReviewLines(out.reading));
-      setStoreName(storeLabel(out.reading));
+      setLines(base.map((l) => applyMemory(l, learned)));
+      setStoreName(name);
       setDate(out.reading.date ?? "");
     } catch (e) {
       if (isAiError(e)) {
@@ -135,9 +155,70 @@ function Reader({ settings }: { settings: AiSettings }) {
     }
   }
 
-  function updateLine(key: string, patch: Partial<ReviewLine>) {
-    setLines((all) => all.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  function updateLine(key: string, patch: LinePatch) {
+    setLines((all) => all.map((l) => (l.key === key ? { ...l, ...patch, touched: true } : l)));
     if (rowErrors[key]) setRowErrors((e) => ({ ...e, [key]: "" }));
+  }
+
+  function adoptLineMemory(key: string) {
+    setLines((all) => all.map((l) => (l.key === key ? adoptRemembered(l) : l)));
+  }
+
+  // Il negozio è cambiato (o è stato scritto a mano): le righe non ancora toccate si rileggono dalla memoria di quel negozio.
+  async function onStoreBlur() {
+    if (normalizeStoreKey(storeName) === memory.storeKey) return;
+    const learned = await loadMemory(storeName);
+    setMemory(learned);
+    setLines((all) => reapplyMemory(all, baseRef.current, learned));
+  }
+
+  async function onForget() {
+    const name = storeName;
+    const old = await forgetMemory(name);
+    const learned = await loadMemory(name);
+    setMemory(learned);
+    setLines((all) => reapplyMemory(all, baseRef.current, learned).map((l) => (l.touched ? l : { ...l, remembered: undefined })));
+    notice.show({
+      message: memory.storeKey === "" ? "Ho dimenticato ciò che avevo imparato." : "Ho dimenticato ciò che avevo imparato per questo negozio.",
+      onUndo: async () => {
+        await restoreMemory(name, old);
+        const back = await loadMemory(name);
+        setMemory(back);
+        setLines((all) => reapplyMemory(all, baseRef.current, back));
+      },
+    });
+  }
+
+  /**
+   * Un solo avviso e un solo «Annulla» per tutto lo scontrino: toglie gli alimenti, le scadenze già scritte dalla
+   * revisione e ciò che la memoria ha imparato da questo scontrino, e chiude la revisione.
+   */
+  function showReceiptNotice(message: string, purchases: readonly LedgerEvent[]) {
+    notice.show({
+      message,
+      undo: purchases,
+      onUndo: async () => {
+        setSaved((s) => (s ? { ...s, reviewing: false } : s));
+        const extra = reviewEventsRef.current;
+        if (extra.length > 0) {
+          const voided = await appendEvents(buildUndo(extra, { now: new Date().toISOString(), deviceId: await getDeviceId() }));
+          if (voided.added === 0) throw new Error("annullamento non scritto");
+          reviewEventsRef.current = [];
+        }
+        const before = memoryBeforeRef.current;
+        if (before) {
+          await restoreMemory(before.storeName, before.row);
+          memoryBeforeRef.current = null;
+        }
+      },
+    });
+  }
+
+  async function onStopIgnoring(key: string) {
+    const line = lines.find((l) => l.key === key);
+    updateLine(key, { ignoreAlways: false });
+    if (!line?.memoryKey) return;
+    setMemory(await forgetIgnore(memory.storeKey, line.memoryKey));
   }
 
   async function onSave() {
@@ -158,8 +239,17 @@ function Reader({ settings }: { settings: AiSettings }) {
         setFormError("Non sono riuscito a salvare. Riprova.");
         return;
       }
-      notice.show({ message: `Aggiunti ${built.summary}.`, undo: built.events });
-      setSaved({ count: written.added, skipped: built.events.length - written.added });
+      reviewEventsRef.current = [];
+      const learned = await rememberReceipt(storeName, lines, new Date().toISOString());
+      memoryBeforeRef.current = { storeName, row: learned.before.row };
+      showReceiptNotice(`Aggiunti ${built.summary}.`, built.events);
+      setSaved({
+        count: written.added,
+        skipped: built.events.length - written.added,
+        purchases: built.events,
+        summary: built.summary,
+        reviewing: expiryReviewRows(built.events).length > 0,
+      });
     } catch {
       setFormError("Non sono riuscito a salvare sul telefono. Riprova.");
     } finally {
@@ -172,6 +262,8 @@ function Reader({ settings }: { settings: AiSettings }) {
     setPreviewUrl(null);
     setError(null);
     clearResult();
+    setMemory(emptyMemory());
+    baseRef.current = [];
   }
 
   const chosen = lines.filter((l) => l.include);
@@ -180,6 +272,7 @@ function Reader({ settings }: { settings: AiSettings }) {
   const infos = result?.reading.problems.filter((p) => p.severity === "info") ?? [];
   const cost = result && result.cost !== null ? formatCost(result.cost, result.currency) : null;
   const choosing = !image && !result;
+  const fromMemory = rememberedCount(lines);
 
   return (
     <div className={ui.screen}>
@@ -189,6 +282,7 @@ function Reader({ settings }: { settings: AiSettings }) {
       </div>
 
       {saved ? (
+        <>
         <div className={ui.empty} role="status">
           <h2 className={ui.emptyTitle}>Fatto</h2>
           <p className={ui.emptyText}>
@@ -196,13 +290,26 @@ function Reader({ settings }: { settings: AiSettings }) {
             hai sbagliato, «Annulla» nell&apos;avviso in basso li toglie.
             {saved.skipped > 0 ? ` ${saved.skipped} non sono stati salvati.` : ""}
           </p>
-          <div className={ui.row}>
-            <Button href="/app/dispensa">Vai alla dispensa</Button>
-            <Button variant="outline" onClick={startOver}>
-              Leggi un altro scontrino
-            </Button>
-          </div>
+          {saved.reviewing ? null : (
+            <div className={ui.row}>
+              <Button href="/app/dispensa">Vai alla dispensa</Button>
+              <Button variant="outline" onClick={startOver}>
+                Leggi un altro scontrino
+              </Button>
+            </div>
+          )}
         </div>
+        {saved.reviewing ? (
+          <ExpiryReview
+            purchases={saved.purchases}
+            onDone={() => setSaved((s) => (s ? { ...s, reviewing: false } : s))}
+            onWritten={(events) => {
+              reviewEventsRef.current = events;
+              showReceiptNotice(`Aggiunti ${saved.summary}, scadenze aggiornate: ${events.length}.`, saved.purchases);
+            }}
+          />
+        ) : null}
+        </>
       ) : (
         <>
           {result === null ? (
@@ -345,7 +452,20 @@ function Reader({ settings }: { settings: AiSettings }) {
                     <label className={ui.fieldLabel} htmlFor={`${ids}-store`}>
                       Negozio <span className={ui.optional}>(facoltativo)</span>
                     </label>
-                    <input id={`${ids}-store`} className={ui.input} type="text" value={storeName} onChange={(e) => setStoreName(e.target.value)} autoComplete="off" />
+                    <input
+                      id={`${ids}-store`}
+                      className={ui.input}
+                      type="text"
+                      value={storeName}
+                      onChange={(e) => setStoreName(e.target.value)}
+                      onBlur={() => void onStoreBlur()}
+                      autoComplete="off"
+                    />
+                    {entryCount(memory.row) > 0 ? (
+                      <Button variant="text" onClick={() => void onForget()}>
+                        {memory.storeKey === "" ? "Dimentica ciò che ho imparato" : "Dimentica ciò che ho imparato per questo negozio"}
+                      </Button>
+                    ) : null}
                   </div>
                   <div className={ui.field}>
                     <label className={ui.fieldLabel} htmlFor={`${ids}-date`}>
@@ -367,12 +487,25 @@ function Reader({ settings }: { settings: AiSettings }) {
                 ) : (
                   <ul className={styles.rows}>
                     {lines.map((line) => (
-                      <ReviewRow key={line.key} idBase={ids} line={line} error={rowErrors[line.key]} onChange={(patch) => updateLine(line.key, patch)} />
+                      <ReviewRow
+                        key={line.key}
+                        idBase={ids}
+                        line={line}
+                        error={rowErrors[line.key]}
+                        onChange={(patch) => updateLine(line.key, patch)}
+                        onUseRemembered={() => adoptLineMemory(line.key)}
+                        onStopIgnoring={() => void onStopIgnoring(line.key)}
+                      />
                     ))}
                   </ul>
                 )}
               </section>
 
+              {fromMemory > 0 ? (
+                <p className={ui.hint}>
+                  {fromMemory === 1 ? "Una riga è come l'ultima volta" : `${fromMemory} righe sono come l'ultima volta`}: sono già compilate, correggile se serve.
+                </p>
+              ) : null}
               {chosen.length > 0 ? (
                 <p className={ui.hint}>
                   Righe scelte: {chosen.length}, per {formatPrice(includedTotalCents(lines))}.
@@ -397,108 +530,5 @@ function Reader({ settings }: { settings: AiSettings }) {
         </>
       )}
     </div>
-  );
-}
-
-function ReviewRow({
-  idBase,
-  line,
-  error,
-  onChange,
-}: {
-  idBase: string;
-  line: ReviewLine;
-  error?: string;
-  onChange: (patch: Partial<ReviewLine>) => void;
-}) {
-  const id = `${idBase}-${line.key}`;
-  const priceText = line.priceCents !== undefined ? formatPrice(line.priceCents) : "prezzo non letto";
-  const discountText = line.discountCents > 0 ? `, già scontato di ${formatPrice(line.discountCents)}` : "";
-  return (
-    <li className={line.include ? styles.row : `${styles.row} ${styles.rowOff}`}>
-      <label className={ui.switch}>
-        <input type="checkbox" role="switch" checked={line.include} onChange={(e) => onChange({ include: e.target.checked })} />
-        <span className={ui.switchText}>
-          {line.name}
-          <span className={ui.hint}>
-            {priceText}
-            {discountText}
-            {line.isFood ? "" : " · non alimentare"}
-          </span>
-        </span>
-      </label>
-      {line.raw !== "" ? <p className={styles.raw}>Sullo scontrino: {line.raw}</p> : null}
-
-      {line.include ? (
-        <div className={styles.fields}>
-          <div className={ui.field}>
-            <label className={ui.fieldLabel} htmlFor={`${id}-name`}>
-              Nome
-            </label>
-            <input
-              id={`${id}-name`}
-              className={ui.input}
-              type="text"
-              value={line.name}
-              onChange={(e) => onChange({ name: e.target.value })}
-              autoComplete="off"
-              aria-invalid={error ? true : undefined}
-              aria-describedby={error ? `${id}-error` : undefined}
-            />
-          </div>
-          <div className={ui.field}>
-            <label className={ui.fieldLabel} htmlFor={`${id}-quantity`}>
-              Quantità
-            </label>
-            <input
-              id={`${id}-quantity`}
-              className={ui.input}
-              type="text"
-              value={line.quantityText}
-              onChange={(e) => onChange({ quantityText: e.target.value, quantityGuessed: false })}
-              autoComplete="off"
-              autoCapitalize="none"
-              aria-describedby={`${id}-quantity-hint`}
-            />
-            <p className={ui.hint} id={`${id}-quantity-hint`}>
-              {line.quantityGuessed ? "Non c'era sullo scontrino: ho messo 1 pezzo, correggila." : "Per esempio 500 g, 1 l, 6 pz."}
-            </p>
-          </div>
-          <div className={ui.field}>
-            <label className={ui.fieldLabel} htmlFor={`${id}-category`}>
-              Categoria
-            </label>
-            <select id={`${id}-category`} className={ui.input} value={line.category} onChange={(e) => onChange({ category: e.target.value })}>
-              <option value="">Scegli una categoria</option>
-              {FOOD_CATEGORY_GROUPS.map((g) => (
-                <optgroup key={g.label} label={g.label}>
-                  {g.categories.map((c) => (
-                    <option key={c} value={c}>
-                      {FOOD_CATEGORY_LABELS[c]}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </div>
-          <fieldset className={ui.field}>
-            <legend className={ui.fieldLabel}>Dove lo metti</legend>
-            <div className={ui.choices}>
-              {LOCATION_ORDER.map((l) => (
-                <label key={l} className={ui.choice}>
-                  <input type="radio" name={`${id}-location`} value={l} checked={line.location === l} onChange={() => onChange({ location: l })} />
-                  <span>{LOCATION_LABELS[l]}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          {error ? (
-            <p className={ui.error} id={`${id}-error`}>
-              {error}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-    </li>
   );
 }

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
 import { isAiError } from "@/core/ai";
 import {
   checkIdeas,
@@ -18,17 +18,21 @@ import { isStoredProduct } from "@/core/catalog";
 import { activeLots } from "@/core/ledger";
 import { totalMinutes } from "@/core/recipes";
 import { formatQuantity } from "@/core/units";
-import { appendEvents, getDeviceId, getProductRecord, usePantry, usePlan } from "@/data";
+import { appendEvents, getDeviceId, getProductRecord, usePantry, usePlan, useRecipes } from "@/data";
 import { Button, SectionHeader } from "@/design";
 import { dayOf } from "../format";
 import { describeAiError } from "../ai/messages";
 import { NotReady } from "../ai/NotReady";
 import { PROVIDER_LABELS } from "../ai/providers/types";
-import { activeModel, configIssue, dexieSettingsStore, type AiSettings } from "../ai/settings";
+import { activeModel, configIssue, dexieSettingsStore, type AiSettings, type ConfigIssue } from "../ai/settings";
 import { useAiSettings } from "../ai/useAiSettings";
 import { evaluateLots } from "../lots";
 import { useNotice } from "../notice";
+import { makeLinkOf, pantryFoods } from "../recipes/allergenLinks";
 import { fold, formatMinutes, formatServings, ingredientLine, splitList } from "../recipes/common";
+import { applyFilters, buildRows, confirmedRowText, countsText, hiddenText, missingText, pantryView } from "../recipes/list";
+import { SAVE_LABELS, pairHref } from "../pantry/saveActions";
+import { useProducts } from "../nutrition/useNutrition";
 import { useRecipePrefs, type RecipePrefs } from "../recipes/prefs";
 import recipeStyles from "../recipes/recipes.module.css";
 import { CONFIRMATION_NOTICE } from "../recipes/SafetyPanel";
@@ -41,6 +45,7 @@ import { ReadInfo, SendNotice } from "./AiNotices";
 import styles from "./AiCapture.module.css";
 import { AiHead } from "./MealDraftReview";
 import { recipeEventFromIdea } from "./ideaRecipe";
+import { FOOD_PARAM, foodFirst, ideasFoodFirst, parseFood, rowsUsing, sameFood } from "./ideasFood";
 import { toPantryTarget, type PantryTarget } from "./pantryRefs";
 import { readRecipeIdeas, type IdeasOutcome } from "./reads";
 
@@ -49,7 +54,17 @@ const TIME_OPTIONS = [0, 15, 30, 45, 60, 90];
 const HONEST_LINE =
   "Sono proposte generate da un modello: leggile con giudizio, soprattutto per cotture e conservazione (carne, pesce, uova, avanzi). Le controlli tu prima di cucinarle.";
 
+/** `/app/ricette/idee`, con `?alimento=Nome` per partire da un alimento (Oggi, scheda di un lotto). */
 export function RecipeIdeas() {
+  return (
+    <Suspense fallback={null}>
+      <IdeasEntry />
+    </Suspense>
+  );
+}
+
+function IdeasEntry() {
+  const food = parseFood(useSearchParams().get(FOOD_PARAM));
   const { settings, ready } = useAiSettings();
   if (!ready) {
     return (
@@ -63,9 +78,114 @@ export function RecipeIdeas() {
   }
   const issue = configIssue(settings);
   if (issue !== null) {
+    // con un alimento la pagina serve lo stesso: le ricette salvate non hanno bisogno della chiave
+    if (food) return <FoodWithoutAi food={food} issue={issue} />;
     return <NotReady issue={issue} title={TITLE} what="avere idee di ricette con ciò che hai in casa" alternative={{ href: "/app/ricette", label: "Torna al ricettario" }} />;
   }
-  return <Loader settings={settings} />;
+  return <Loader settings={settings} food={food} />;
+}
+
+/** Il punto di partenza: l'alimento scelto e, senza chiave né attesa, le ricette salvate che lo usano. */
+function FoodStart({ food }: { food: string }) {
+  const recipes = useRecipes();
+  const pantry = usePantry();
+  const plan = usePlan();
+  const products = useProducts();
+  const now = useNow();
+  const { prefs, ready } = useRecipePrefs();
+  const { byKey: confirmations } = useConfirmations();
+  const lots = useMemo(() => (pantry.data ? activeLots(pantry.data) : []), [pantry.data]);
+  const view = useMemo(() => (pantry.data && now ? pantryView(lots, now) : undefined), [pantry.data, now, lots]);
+  const planAllergens = plan.data?.structure?.allergens;
+  const planExcluded = plan.data?.structure?.excludedFoods;
+  const allergens = useMemo(() => union(prefs.allergens, planAllergens ?? []), [prefs.allergens, planAllergens]);
+  const excluded = useMemo(() => union(prefs.excludedFoods, planExcluded ?? []), [prefs.excludedFoods, planExcluded]);
+  const linkOf = useMemo(() => makeLinkOf(pantryFoods(lots, products)), [lots, products]);
+  // stesso controllo del ricettario: una ricetta con un allergene o un alimento escluso non compare, e si dice quante
+  const found = useMemo(() => {
+    if (!recipes.data || !view || !ready || !confirmations || !plan.data) return undefined;
+    const rows = rowsUsing(buildRows(recipes.data.recipes, view), food);
+    return applyFilters(rows, { query: "", tags: [], allergens, excludedFoods: excluded, linkOf, confirmations });
+  }, [recipes.data, view, ready, confirmations, plan.data, food, allergens, excluded, linkOf]);
+
+  return (
+    <>
+      <section className={ui.section}>
+        <SectionHeader label="Si parte da" />
+        <p className={ui.paragraph}>
+          <strong>«{food}»</strong>{" "}
+          <Link href="/app/ricette/idee" className={ui.textLink}>
+            Senza un alimento
+          </Link>
+        </p>
+      </section>
+
+      <section className={ui.section}>
+        <SectionHeader label="Le tue ricette salvate" />
+        {recipes.error || pantry.error ? (
+          <p className={ui.error} role="alert">
+            Non riesco a leggere il ricettario. Riprova.
+          </p>
+        ) : !found ? (
+          <LoadingLine />
+        ) : found.rows.length === 0 ? (
+          <p className={ui.paragraph}>Nessuna ricetta salvata usa «{food}»{found.hidden > 0 ? `, tra quelle che puoi usare (${hiddenText(found)})` : ""}.</p>
+        ) : (
+          <>
+            <p className={ui.hint} role="status">
+              {found.rows.length === 1 ? "1 ricetta" : `${found.rows.length} ricette`} con «{food}»{found.hidden > 0 ? ` · ${hiddenText(found)}` : ""}
+            </p>
+            <ul className={recipeStyles.list}>
+              {found.rows.map((row) => {
+                const missing = missingText(row);
+                const confirmedNote = confirmedRowText(found.confirmedBy.get(row.recipe.recipeId) ?? []);
+                return (
+                  <li key={row.recipe.recipeId}>
+                    <Link className={recipeStyles.card} href={`/app/ricette/vedi?id=${encodeURIComponent(row.recipe.recipeId)}`}>
+                      <span className={recipeStyles.cardTitle}>{row.recipe.title}</span>
+                      <span className={recipeStyles.meta}>
+                        <span>{formatServings(row.recipe.servings)}</span>
+                        {row.minutes !== undefined ? <span>{formatMinutes(row.minutes)}</span> : null}
+                      </span>
+                      <span className={recipeStyles.noteStrong}>{countsText(row)}</span>
+                      {missing ? <span className={recipeStyles.note}>{missing}</span> : null}
+                      {confirmedNote ? <span className={recipeStyles.noteStrong}>{confirmedNote}</span> : null}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+        <Link href={pairHref(food)} className={ui.textLink}>
+          {SAVE_LABELS.pair}
+        </Link>
+      </section>
+    </>
+  );
+}
+
+/** Senza la chiave la pagina serve comunque: ricette salvate con l'alimento e rimando agli abbinamenti. */
+function FoodWithoutAi({ food, issue }: { food: string; issue: ConfigIssue }) {
+  return (
+    <div className={ui.screen}>
+      <AiHead title={TITLE} />
+      <FoodStart food={food} />
+      <div className={ui.callout} role="note">
+        <p className={ui.paragraph}>
+          {issue === "missing_key"
+            ? "Per avere anche idee nuove con ciò che hai in casa serve la tua chiave personale di un fornitore di intelligenza artificiale. È facoltativa: senza, l'app funziona lo stesso."
+            : "Le impostazioni dell'intelligenza artificiale sono incomplete: completale per avere anche idee nuove."}
+        </p>
+        <Button href="/app/impostazioni/ai" variant="outline">
+          Vai alle impostazioni
+        </Button>
+      </div>
+      <Link href="/app/ricette" className={ui.textLink}>
+        Torna al ricettario
+      </Link>
+    </div>
+  );
 }
 
 /** Gli alimenti mandati al modello con, se il codice a barre è noto, il nome del prodotto e gli allergeni in etichetta. */
@@ -126,7 +246,7 @@ function union(...lists: readonly (readonly string[])[]): string[] {
   return out;
 }
 
-function Loader({ settings }: { settings: AiSettings }) {
+function Loader({ settings, food }: { settings: AiSettings; food: string | undefined }) {
   const now = useNow();
   const pantry = usePantry();
   const plan = usePlan();
@@ -150,6 +270,7 @@ function Loader({ settings }: { settings: AiSettings }) {
       planExcluded={plan.data.structure?.excludedFoods ?? []}
       lots={activeLots(pantry.data)}
       confirmations={confirmations}
+      food={food}
     />
   );
 }
@@ -162,7 +283,9 @@ function Ideas({
   planExcluded,
   lots,
   confirmations,
+  food,
 }: {
+  food: string | undefined;
   settings: AiSettings;
   now: string;
   prefs: RecipePrefs;
@@ -179,7 +302,9 @@ function Ideas({
 
   const allergens = useMemo(() => union(prefs.allergens, planAllergens), [prefs.allergens, planAllergens]);
   const excluded = useMemo(() => union(prefs.excludedFoods, planExcluded), [prefs.excludedFoods, planExcluded]);
-  const entries = useMemo(() => evaluateLots(lots, now), [lots, now]);
+  // con un alimento di partenza i suoi lotti sono i primi dell'elenco mandato al modello
+  const entries = useMemo(() => (food ? foodFirst(evaluateLots(lots, now), food) : evaluateLots(lots, now)), [lots, now, food]);
+  const foodInHome = food ? entries.some((e) => sameFood(e.lot.productRef, food)) : true;
 
   const [maxMinutes, setMaxMinutes] = useState(0);
   const [servings, setServings] = useState(2);
@@ -227,7 +352,8 @@ function Ideas({
         signal: controller.signal,
       });
       const labelled = await withProductLabels(target);
-      setAsked({ outcome: recheckWithLabels(out, criteria, labelled), criteria, pantry: labelled });
+      const checked = recheckWithLabels(out, criteria, labelled);
+      setAsked({ outcome: food ? { ...checked, accepted: ideasFoodFirst(checked.accepted, food) } : checked, criteria, pantry: labelled });
     } catch (e) {
       setError(isAiError(e) ? describeAiError(e, { provider: settings.provider, model }) : "La richiesta non è riuscita. Riprova.");
     } finally {
@@ -278,9 +404,18 @@ function Ideas({
   return (
     <div className={ui.screen}>
       <AiHead title={TITLE} />
+      {food ? <FoodStart food={food} /> : null}
+      {food ? <SectionHeader label="Idee nuove con l'intelligenza artificiale" /> : null}
       <p className={ui.lead}>
         Con un tocco ti propongo tre ricette con ciò che hai in casa, dando la precedenza a ciò che scade prima. Gli allergeni e le esclusioni li ricontrollo io sulla risposta, non mi fido del modello.
       </p>
+      {food ? (
+        <p className={ui.hint}>
+          {foodInHome
+            ? `«${food}» è il primo alimento dell'elenco che mando, e le idee che lo usano vengono per prime.`
+            : `«${food}» non risulta più tra gli alimenti in casa: le idee partono da ciò che hai.`}
+        </p>
+      ) : null}
       <p className={ui.hint}>{HONEST_LINE}</p>
 
       <SendNotice settings={settings} sends="L'elenco della tua dispensa (nomi, quantità, giorni alla scadenza), i tuoi allergeni ed esclusioni, il tempo e l'attrezzatura" now={now} />

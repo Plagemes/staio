@@ -2,17 +2,24 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useDeferredValue, useId, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useDeferredValue, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import { isStoredProduct, type Product } from "@/core/catalog";
 import type { Location } from "@/core/ledger";
+import { compositionFromProduct } from "@/core/nutrition";
 import { formatQuantity } from "@/core/units";
-import { appendEvents, getDeviceId } from "@/data";
+import { appendEvents, getDeviceId, getProductRecord } from "@/data";
 import { Button, Label } from "@/design";
 import { searchRecipes } from "@/models3d/catalog";
+import { ExpiryFromPhoto } from "../ai-capture/ExpiryFromPhoto";
+import { emptyForm, formFromProduct } from "../ai-capture/labelDraft";
+import { NutritionReview } from "../ai-capture/NutritionReview";
+import { Per100Table } from "../nutrition/Per100";
 import { readQuantity, type CaptureField, type CaptureInput, type FieldErrors } from "../capture";
 import { captureParamsKey, mergeCaptureParams, readCaptureParams, resolveCaptureFields, type CaptureEdits } from "../captureParams";
 import { buildPackEvents, checkPackGroups, clampPacks, packsSummary, resolvePieces, splitPackGroups, type PackGroup } from "../barcode/directAdd";
 import { pieceNameFor } from "../pieces";
 import { PackCounter, PackGroupsEditor, PiecesField } from "./PackControls";
+import { localCodeForName, lotCodeFor, manualLotEvents, nameKey, offeredStoreProduct, replacesSavedText, savedSummary } from "./localProduct";
 import { saveCapture } from "./saveCapture";
 import { dayOf } from "../format";
 import {
@@ -103,6 +110,42 @@ export function Capture() {
   // categoria: scelta dell'utente, poi parametro, poi proposta dal nome
   const category = fields.category ?? categoryFor(name);
 
+  // Valori nutrizionali facoltativi, legati a un codice: quello arrivato dal codice a barre, o uno locale ricavato dal nome.
+  // La scheda si ritrova per nome: aggiungendo di nuovo lo stesso prodotto i valori sono già lì.
+  // Due prodotti con lo stesso nome (due marche) sono due schede: «Non sono questi» passa alla variante successiva.
+  const [variantState, setVariantState] = useState<{ key: string; n: number }>({ key: "", n: 0 });
+  const variantOf = (n: string) => (variantState.key === nameKey(n) ? variantState.n : 0);
+  const nutritionCode = barcode ? barcode : localCodeForName(deferredName, variantOf(deferredName));
+  // Il collegamento a una scheda salvata lo sceglie l'utente, dopo averne visto i valori: mai in silenzio.
+  const [choice, setChoice] = useState<{ code: string; use: boolean } | null>(null);
+  const [stored, setStored] = useState<{ code: string; product: Product | undefined } | null>(null);
+  const [editingNutrition, setEditingNutrition] = useState(false);
+  useEffect(() => {
+    if (!nutritionCode) return;
+    let alive = true;
+    getProductRecord(nutritionCode)
+      .then((r) => alive && setStored({ code: nutritionCode, product: r && isStoredProduct(r.data) ? r.data : undefined }))
+      .catch(() => alive && setStored({ code: nutritionCode, product: undefined }));
+    return () => {
+      alive = false;
+    };
+  }, [nutritionCode]);
+  const loadedNutrition = nutritionCode !== undefined && stored?.code === nutritionCode;
+  const storedProduct = loadedNutrition ? stored.product : undefined;
+  const chosen = choice !== null && choice.code === nutritionCode ? choice.use : undefined;
+  // codice interno del negozio con una scheda già salvata: può essere di un altro prodotto, si usa solo se l'utente lo sceglie
+  const storeOffer = offeredStoreProduct(barcode, storedProduct);
+  const savedProduct = storeOffer && chosen !== true ? undefined : storedProduct;
+  const savedComposition = savedProduct?.nutrients ? compositionFromProduct(savedProduct) : undefined;
+  // scheda che l'app aveva creato per questo nome (non un codice a barre letto): va proposta, non applicata
+  const offeredProduct = !barcode && loadedNutrition && savedProduct?.localFromName && savedProduct.nutrients ? savedProduct : storeOffer;
+  const barcodeIsLocal = savedProduct?.localFromName === true && Boolean(barcode);
+  const rejectSaved = () => {
+    setChoice({ code: nutritionCode ?? "", use: false });
+    if (barcode) return;
+    setVariantState({ key: nameKey(name), n: variantOf(name) + 1 });
+  };
+
   const reading = quantityText.trim() === "" ? null : readQuantity(quantityText);
   const today = now ? dayOf(now) : null;
   const pieceName = pieceNameFor(name);
@@ -136,6 +179,12 @@ export function Capture() {
     }
     setSaving(true);
     try {
+      // senza codice a barre, i valori scritti a mano legano il lotto alla scheda locale di questo nome
+      const nameCode = localCodeForName(name, variantOf(name));
+      // il lotto prende la scheda locale solo se l'utente ha scelto di usarla (o l'ha appena scritta)
+      const localCode =
+        !barcode && nameCode && stored?.code === nameCode && stored.product?.nutrients && choice?.code === nameCode && choice.use ? nameCode : undefined;
+      const lotCode = lotCodeFor({ barcode, localCode, offered: storeOffer, chosen });
       const input: CaptureInput = {
         name,
         quantityText,
@@ -145,7 +194,7 @@ export function Capture() {
         expiryDate,
         priceText,
         alreadyHave,
-        barcode,
+        ...(lotCode ? { barcode: lotCode } : {}),
         brand,
         ...(daysAfterOpening !== undefined ? { daysAfterOpening } : {}),
         ...(resolvedPieces.pieces ? { pieces: resolvedPieces.pieces } : {}),
@@ -153,7 +202,7 @@ export function Capture() {
       const deps = { appendEvents, getDeviceId, now: () => new Date().toISOString() };
       let result: Awaited<ReturnType<typeof saveCapture>>;
       if (packs === 1) {
-        result = await saveCapture(input, deps);
+        result = await saveCapture(input, deps, localCode ? { localCode } : {});
       } else {
         const groupError = splitDates ? checkPackGroups(groups, packs) : null;
         if (groupError) {
@@ -167,13 +216,14 @@ export function Capture() {
         const built = buildPackEvents(inputs, { now: deps.now(), deviceId: await deps.getDeviceId() });
         if (!built.ok) result = built;
         else {
-          const written = await deps.appendEvents(built.events);
-          const first = built.events[0];
+          const events = localCode ? manualLotEvents(built.events, localCode) : built.events;
+          const written = await deps.appendEvents(events);
+          const first = events[0];
           const productName = first.type === "purchase" || first.type === "declare" ? first.productRef : name;
           result =
             written.added === 0
               ? { ok: false, errors: { form: "Non sono riuscito a salvare. Riprova." } }
-              : { ok: true, events: built.events, lotId: built.lotIds[0], summary: `${packs} confezioni di ${productName}` };
+              : { ok: true, events, lotId: built.lotIds[0], summary: `${packs} confezioni di ${productName}` };
         }
       }
       if (!result.ok) {
@@ -193,6 +243,7 @@ export function Capture() {
       setPiecesCount(0);
       setEachText(null);
       setDifferentDates(false);
+      setEditingNutrition(false);
       nameRef.current?.focus();
     } catch {
       setErrors({ form: "Non sono riuscito a salvare sul telefono. Riprova." });
@@ -215,7 +266,7 @@ export function Capture() {
       {barcode ? (
         <div className={ui.callout} role="status">
           <p className={ui.paragraph}>
-            Dati letti dal codice a barre {barcode}
+            {barcodeIsLocal ? "Valori inseriti da te" : `Dati letti dal codice a barre ${barcode}`}
             {brand ? ` (${brand})` : ""}. Controllali e completa il resto: verranno salvati come letti in etichetta.
           </p>
           <button
@@ -243,7 +294,7 @@ export function Capture() {
             Ho già in casa: aggiunta rapida di più alimenti
           </Link>
           <Link href="/app/qualita/scaffale" className={ui.textLink}>
-            In negozio? Confronta i prodotti sullo scaffale
+            In negozio? Confronta sullo scaffale
           </Link>
         </div>
       )}
@@ -282,6 +333,23 @@ export function Capture() {
                   {r.name}
                 </button>
               ))}
+            </div>
+          ) : null}
+          {offeredProduct ? (
+            <div className={ui.calloutStrong} role="status">
+              <p className={ui.paragraph}>
+                <strong>Ho valori salvati per «{offeredProduct.name?.trim() || name.trim()}».</strong> {savedSummary(offeredProduct)}{" "}
+                {chosen === true ? "Li uso per questo alimento." : "Sono quelli di questo prodotto?"}
+              </p>
+              <div className={ui.row}>
+                {chosen === true ? null : (
+                  <Button onClick={() => setChoice({ code: nutritionCode ?? "", use: true })}>Uso i valori salvati per «{offeredProduct.name?.trim() || name.trim()}»</Button>
+                )}
+                <Button variant="outline" onClick={rejectSaved}>
+                  Non sono questi
+                </Button>
+              </div>
+              {chosen === undefined ? <p className={ui.hint}>Finché non scegli, il lotto resta senza questi valori.</p> : null}
             </div>
           ) : null}
         </div>
@@ -459,6 +527,17 @@ export function Capture() {
           ) : (
             <p className={ui.hint}>Senza data, la scadenza sarà una stima dalla categoria e dal luogo, e si vedrà come stima.</p>
           )}
+          {splitDates ? null : (
+            <ExpiryFromPhoto
+              today={today}
+              currentKind={expiryKind}
+              onPick={(date, kind) => {
+                setExpiryDate(date);
+                if (kind) setExpiryKind(kind);
+                clearError("expiryDate");
+              }}
+            />
+          )}
         </fieldset>
 
         <div className={ui.field}>
@@ -508,6 +587,53 @@ export function Capture() {
             <p className={ui.hint}>{packs > 1 ? "Prezzo di una confezione, in euro." : "Prezzo totale in euro, per tutta la quantità."}</p>
           </div>
         )}
+
+        <details className={styles.nutrition}>
+          <summary>Valori nutrizionali (facoltativi)</summary>
+          {nutritionCode === undefined ? (
+            <p className={ui.hint}>Scrivi prima il nome dell&apos;alimento: i valori si ricordano per nome, e li ritrovi quando lo aggiungi di nuovo.</p>
+          ) : !loadedNutrition ? (
+            <p className={ui.hint}>Cerco i valori già salvati…</p>
+          ) : savedComposition && !editingNutrition ? (
+            <>
+              <Per100Table
+                per100={savedComposition.per100}
+                basis={savedComposition.basis}
+                estimated={false}
+                source={
+                  savedProduct?.labelPhoto?.by === "manual" || savedProduct?.source === "manual"
+                    ? `Inseriti da te, come stampati sull'etichetta. Li ritrovi aggiungendo di nuovo «${savedProduct?.name ?? name}».`
+                    : "Dall'etichetta del prodotto."
+                }
+              />
+              <div className={ui.row}>
+                <Button variant="outline" onClick={() => setEditingNutrition(true)}>
+                  Modifica i valori
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+            {storeOffer && chosen !== true ? <p className={ui.hint}>{replacesSavedText(storeOffer.name)}</p> : null}
+            <NutritionReview
+              key={nutritionCode}
+              barcode={nutritionCode}
+              product={savedProduct}
+              by="manual"
+              initial={savedProduct?.nutrients ? formFromProduct(savedProduct) : { ...emptyForm(), name: name.trim() }}
+              hideName
+              localFromName={!barcode}
+              onSaved={(next) => {
+                setStored({ code: nutritionCode, product: next });
+                // li ha appena scritti lui, per questo alimento: sono la sua scelta
+                setChoice({ code: nutritionCode, use: true });
+                setEditingNutrition(false);
+              }}
+              onCancel={() => setEditingNutrition(false)}
+            />
+            </>
+          )}
+        </details>
 
         {err("form") ? (
           <p className={ui.error} role="alert">

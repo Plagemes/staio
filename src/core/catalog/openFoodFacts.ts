@@ -273,6 +273,6 @@ export function isStoredProduct(data: unknown): data is Product {
     typeof data.barcode === "string" &&
     /^\d+$/.test(data.barcode) &&
     typeof data.fetchedAt === "string" &&
-    data.source === "openfoodfacts"
+    (data.source === "openfoodfacts" || data.source === "label_photo" || data.source === "manual")
   );
 }

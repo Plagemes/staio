@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useId, useState, type ChangeEvent } from "react";
 import { APP_NAME } from "@/config";
 import { exportBackup, exportSettings, importBackup, importSettings, useEventLog, wipeAll } from "@/data";
 import { Button, Label, SectionHeader } from "@/design";
 import { dayOf } from "../format";
+import { requestOnboardingRedo } from "../onboarding";
 import ui from "../ui.module.css";
 import { describeImport, describeSettingsImport } from "./backupMessages";
 import styles from "./Settings.module.css";
@@ -14,6 +16,7 @@ type Wipe = "idle" | "confirm" | "working" | "done";
 
 export function Settings() {
   const log = useEventLog();
+  const router = useRouter();
   const ids = useId();
   const [exportMessage, setExportMessage] = useState<string | null>(null);
   const [importMessage, setImportMessage] = useState<{ ok: boolean; text: string } | null>(null);
@@ -136,6 +139,20 @@ export function Settings() {
           <Link href="/app/pasti-abituali" className={ui.textLink}>
             Gestisci i pasti abituali
           </Link>
+        </div>
+        <div className={styles.block}>
+          <Label>Introduzione</Label>
+          <p className={ui.paragraph}>Le poche domande della prima apertura: cosa eviti, sesso ed età, da dove cominciare.</p>
+          <button
+            type="button"
+            className={ui.textLink}
+            onClick={() => {
+              requestOnboardingRedo();
+              router.push("/app");
+            }}
+          >
+            Rifai l&apos;introduzione
+          </button>
         </div>
       </section>
 
