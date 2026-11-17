@@ -108,3 +108,30 @@
   font-family: var(--font-data);
   font-size: var(--text-data);
 }
+
+.add,
+.added {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+  min-width: 0;
+}
+
+.more {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.more summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: var(--text-body-sm);
+  font-weight: 500;
+}
+
+.more[open] summary {
+  margin-bottom: var(--space-5);
+}

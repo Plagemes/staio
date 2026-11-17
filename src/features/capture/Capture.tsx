@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useDeferredValue, useId, useMemo, useRef, useState, type FormEvent } from "react";
+import { useDeferredValue, useId, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import type { Location } from "@/core/ledger";
 import { formatQuantity } from "@/core/units";
 import { appendEvents, getDeviceId } from "@/data";
 import { Button, Label } from "@/design";
 import { searchRecipes } from "@/models3d/catalog";
-import { buildCaptureEvents, readQuantity, type CaptureField, type CaptureInput, type FieldErrors } from "../capture";
-import { readCaptureParams } from "../captureParams";
+import { readQuantity, type CaptureField, type CaptureInput, type FieldErrors } from "../capture";
+import { captureParamsKey, mergeCaptureParams, readCaptureParams, resolveCaptureFields, type CaptureEdits } from "../captureParams";
+import { saveCapture } from "./saveCapture";
 import { dayOf } from "../format";
 import {
   EXPIRY_KIND_LABELS,
@@ -34,21 +35,37 @@ function categoryFor(name: string): string {
   return suggestCategory(name, model) ?? "";
 }
 
+const subscribeNothing = () => () => {};
+const readLocationSearch = () => window.location.search;
+const noLocationSearch = () => "";
+
 export function Capture() {
   const notice = useNotice();
   const now = useNow();
   const ids = useId();
   const search = useSearchParams();
-  // dati arrivati dal codice a barre: letti una sola volta, poi il modulo è dell'utente
-  const [prefill] = useState(() => readCaptureParams((key) => search.get(key)));
-  const [barcode, setBarcode] = useState(prefill.barcode);
-  const [brand, setBrand] = useState(prefill.brand);
+  // Dati arrivati dal codice a barre. Non si leggono una volta sola: la pagina può essere disegnata prima che i
+  // parametri siano disponibili (pagina statica, copia in cache), quindi si leggono a ogni disegno, anche
+  // dall'indirizzo reale del browser, e riempiono solo i campi che l'utente non ha ancora toccato.
+  const locationSearch = useSyncExternalStore(subscribeNothing, readLocationSearch, noLocationSearch);
+  const arrived = useMemo(
+    () =>
+      mergeCaptureParams(
+        readCaptureParams((key) => search.get(key)),
+        readCaptureParams((key) => new URLSearchParams(locationSearch).get(key)),
+      ),
+    [search, locationSearch],
+  );
+  const arrivedKey = captureParamsKey(arrived);
+  // dopo un salvataggio i parametri già usati non devono ricomparire
+  const [spentKey, setSpentKey] = useState<string | null>(null);
+  const prefill = spentKey === arrivedKey ? {} : arrived;
+  const [edits, setEdits] = useState<CaptureEdits>({});
+  const edit = (patch: CaptureEdits) => setEdits((e) => ({ ...e, ...patch }));
+  const fields = resolveCaptureFields(prefill, edits);
+  const { name, quantityText, barcode, brand } = fields;
 
-  const [name, setName] = useState(prefill.name ?? "");
-  const [quantityText, setQuantityText] = useState(prefill.quantityText ?? "");
   const [location, setLocation] = useState<Location>("frigo");
-  const [category, setCategory] = useState(() => prefill.category ?? (prefill.name ? categoryFor(prefill.name) : ""));
-  const [categoryTouched, setCategoryTouched] = useState(prefill.category !== undefined);
   const [expiryKind, setExpiryKind] = useState<ChosenExpiryKind | "none">("none");
   const [expiryDate, setExpiryDate] = useState("");
   const [priceText, setPriceText] = useState("");
@@ -75,18 +92,15 @@ export function Capture() {
     return list.length === 1 && fold(list[0].name) === fold(q) ? [] : list;
   }, [deferredName]);
 
+  // categoria: scelta dell'utente, poi parametro, poi proposta dal nome
+  const category = fields.category ?? categoryFor(name);
+
   const reading = quantityText.trim() === "" ? null : readQuantity(quantityText);
   const today = now ? dayOf(now) : null;
   const pastDate = expiryKind !== "none" && today !== null && /^\d{4}-\d{2}-\d{2}$/.test(expiryDate) && expiryDate < today;
 
-  function changeName(value: string) {
-    setName(value);
-    if (!categoryTouched) setCategory(categoryFor(value));
-  }
-
-  function pickSuggestion(recipeName: string, modelCategory: string) {
-    setName(recipeName);
-    if (!categoryTouched) setCategory(suggestCategory(recipeName, modelCategory) ?? "");
+  function pickSuggestion(recipeName: string) {
+    edit({ name: recipeName });
     quantityRef.current?.focus();
   }
 
@@ -100,26 +114,17 @@ export function Capture() {
     setSaving(true);
     try {
       const input: CaptureInput = { name, quantityText, location, category, expiryKind, expiryDate, priceText, alreadyHave, barcode, brand };
-      const result = buildCaptureEvents(input, { now: new Date().toISOString(), deviceId: await getDeviceId() });
+      const result = await saveCapture(input, { appendEvents, getDeviceId, now: () => new Date().toISOString() });
       if (!result.ok) {
         setErrors(result.errors);
         const first = (["name", "quantity", "category", "expiryDate", "price"] as const).find((f) => result.errors[f]);
         focusField(first ?? "name");
         return;
       }
-      const written = await appendEvents(result.events);
-      if (written.added === 0) {
-        setErrors({ form: "Non sono riuscito a salvare. Riprova." });
-        return;
-      }
       notice.show({ message: `Aggiunto: ${result.summary}.`, undo: result.events });
       setErrors({});
-      setName("");
-      setQuantityText("");
-      setCategory("");
-      setCategoryTouched(false);
-      setBarcode(undefined);
-      setBrand(undefined);
+      setSpentKey(arrivedKey);
+      setEdits({});
       setExpiryDate("");
       setExpiryKind("none");
       setPriceText("");
@@ -151,10 +156,7 @@ export function Capture() {
           <button
             type="button"
             className={styles.unlink}
-            onClick={() => {
-              setBarcode(undefined);
-              setBrand(undefined);
-            }}
+            onClick={() => edit({ barcode: null, brand: null })}
           >
             Non è questo prodotto: scollega
           </button>
@@ -190,7 +192,7 @@ export function Capture() {
             type="text"
             value={name}
             onChange={(e) => {
-              changeName(e.target.value);
+              edit({ name: e.target.value });
               clearError("name");
             }}
             autoComplete="off"
@@ -208,7 +210,7 @@ export function Capture() {
           {suggestions.length > 0 ? (
             <div id={`${ids}-suggest`} role="group" aria-label="Suggerimenti dal catalogo" className={styles.suggestions}>
               {suggestions.map((r) => (
-                <button key={r.id} type="button" className={styles.suggestion} onClick={() => pickSuggestion(r.name, r.category)}>
+                <button key={r.id} type="button" className={styles.suggestion} onClick={() => pickSuggestion(r.name)}>
                   {r.name}
                 </button>
               ))}
@@ -227,7 +229,7 @@ export function Capture() {
             type="text"
             value={quantityText}
             onChange={(e) => {
-              setQuantityText(e.target.value);
+              edit({ quantityText: e.target.value });
               clearError("quantity");
             }}
             autoComplete="off"
@@ -271,8 +273,7 @@ export function Capture() {
             className={ui.input}
             value={category}
             onChange={(e) => {
-              setCategory(e.target.value);
-              setCategoryTouched(true);
+              edit({ category: e.target.value });
               clearError("category");
             }}
             aria-invalid={err("category") ? true : undefined}
@@ -295,7 +296,7 @@ export function Capture() {
             </p>
           ) : null}
           <p className={ui.hint} id={`${ids}-category-hint`}>
-            {category !== "" && !categoryTouched
+            {category !== "" && fields.category === undefined
               ? "Proposta dal nome: cambiala se non va bene."
               : "Serve a stimare la scadenza quando manca la data."}
           </p>

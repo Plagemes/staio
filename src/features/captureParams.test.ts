@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createIdGenerator, derivePantry } from "@/core/ledger";
 import { buildCaptureEvents, type CaptureInput } from "./capture";
-import { readCaptureParams } from "./captureParams";
+import { captureParamsKey, mergeCaptureParams, readCaptureParams, resolveCaptureFields } from "./captureParams";
 
 const from = (query: string) => {
   const p = new URLSearchParams(query);
@@ -81,5 +81,39 @@ describe("cattura da codice a barre", () => {
     const r = buildCaptureEvents({ ...input, barcode: "123" }, ctx);
     expect(r.ok && r.events[0]).toMatchObject({ source: "manual" });
     expect(r.ok && r.events[0]).not.toHaveProperty("barcode");
+  });
+});
+
+describe("precompilato robusto", () => {
+  const arrived = from("nome=Farfalle%20n%C2%B0%20265&quantita=500%20g&categoria=pasta_dry&barcode=8076800195057&marca=Barilla");
+
+  it("i parametri che arrivano dopo il primo disegno riempiono i campi (con una lettura sola restava tutto vuoto)", () => {
+    const first = resolveCaptureFields(from(""), {});
+    expect(first).toMatchObject({ name: "", quantityText: "", barcode: undefined });
+    // difetto di prima: il primo valore veniva tenuto per sempre
+    const later = resolveCaptureFields(arrived, {});
+    expect(later).toMatchObject({ name: "Farfalle n° 265", quantityText: "500 g", category: "pasta_dry", barcode: "8076800195057", brand: "Barilla" });
+  });
+
+  it("non sovrascrive ciò che l'utente ha già scritto", () => {
+    const fields = resolveCaptureFields(arrived, { name: "Le mie farfalle", quantityText: "" });
+    expect(fields.name).toBe("Le mie farfalle");
+    expect(fields.quantityText).toBe("");
+    expect(fields.category).toBe("pasta_dry");
+  });
+
+  it("scollegare il codice vale anche se i parametri restano", () => {
+    expect(resolveCaptureFields(arrived, { barcode: null, brand: null })).toMatchObject({ barcode: undefined, brand: undefined });
+  });
+
+  it("l'indirizzo reale del browser riempie i campi quando useSearchParams non li ha", () => {
+    const merged = mergeCaptureParams(from(""), from("nome=Latte&barcode=8001234567890"));
+    expect(merged).toEqual({ name: "Latte", barcode: "8001234567890" });
+    expect(mergeCaptureParams(from("nome=Pane"), from("nome=Latte&quantita=1%20l"))).toEqual({ name: "Pane", quantityText: "1 l" });
+  });
+
+  it("la chiave cambia quando cambiano i parametri", () => {
+    expect(captureParamsKey(arrived)).not.toBe(captureParamsKey(from("")));
+    expect(captureParamsKey(arrived)).toBe(captureParamsKey({ ...arrived }));
   });
 });

@@ -31,3 +31,45 @@ export function readCaptureParams(get: (key: string) => string | null | undefine
   if (brand) params.brand = brand;
   return params;
 }
+
+/** Unisce due letture dei parametri: dove la prima ha un valore vince, altrimenti vale la seconda. */
+export function mergeCaptureParams(primary: CaptureParams, fallback: CaptureParams): CaptureParams {
+  return { ...fallback, ...primary };
+}
+
+/** Chiave stabile dei parametri: serve a sapere se sono gli stessi già usati. */
+export function captureParamsKey(params: CaptureParams): string {
+  return JSON.stringify([params.name, params.quantityText, params.category, params.barcode, params.brand]);
+}
+
+/**
+ * Ciò che l'utente ha scritto o scelto nel modulo. Un campo assente non è stato toccato e segue i parametri
+ * dell'indirizzo, anche se arrivano dopo il primo disegno della pagina; un campo presente non si sovrascrive mai.
+ * `null` su codice e marca vuol dire «scollegati».
+ */
+export interface CaptureEdits {
+  name?: string;
+  quantityText?: string;
+  category?: string;
+  barcode?: string | null;
+  brand?: string | null;
+}
+
+export interface ResolvedCaptureFields {
+  name: string;
+  quantityText: string;
+  /** `undefined`: nessuna scelta né parametro, la categoria si propone dal nome. */
+  category: string | undefined;
+  barcode: string | undefined;
+  brand: string | undefined;
+}
+
+export function resolveCaptureFields(params: CaptureParams, edits: CaptureEdits): ResolvedCaptureFields {
+  return {
+    name: edits.name ?? params.name ?? "",
+    quantityText: edits.quantityText ?? params.quantityText ?? "",
+    category: edits.category ?? params.category,
+    barcode: edits.barcode === undefined ? params.barcode : (edits.barcode ?? undefined),
+    brand: edits.brand === undefined ? params.brand : (edits.brand ?? undefined),
+  };
+}
