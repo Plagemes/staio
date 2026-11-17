@@ -11,6 +11,7 @@ import { translatePackaging } from "./packaging";
 import { Scanner, type ScanInfo } from "./Scanner";
 import { captureHrefForCode } from "./links";
 import { AddToPantry } from "./AddToPantry";
+import { ProductSafety } from "./ProductSafety";
 import { lookupProduct, type LookupOutcome } from "./lookup";
 import { LOOKUP_FAILURE_MESSAGES, NOVA_LABELS, allergenLabel } from "./messages";
 import type { LookupFailure } from "./offClient";
@@ -166,6 +167,14 @@ function ProductCard({
             <dd>{product.allergens.map(allergenLabel).join(", ")}</dd>
           </div>
         ) : null}
+        {product.traces ? (
+          <div className={styles.fact}>
+            <dt>
+              <Label>Possibili tracce</Label>
+            </dt>
+            <dd>{product.traces.map(allergenLabel).join(", ")}</dd>
+          </div>
+        ) : null}
         <div className={styles.fact}>
           <dt>
             <Label>{product.nutriScore || product.nova ? "Indici" : "Qualità"}</Label>
@@ -200,6 +209,8 @@ function ProductCard({
       <section aria-label="Valori nutrizionali">
         <ProductNutrients product={product} />
       </section>
+
+      <ProductSafety product={product} />
 
       <p className={ui.hint}>
         {from === "memory"

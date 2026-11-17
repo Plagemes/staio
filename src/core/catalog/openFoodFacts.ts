@@ -1,4 +1,5 @@
 import { piecesHintFrom, type PackagingPart } from "./piecesHint";
+import { parsePeriodAfterOpening } from "./periodAfterOpening";
 import { parsePackageQuantity } from "./quantity";
 import type { BaseUnit, NovaGroup, Nutrients, NutriScore, PackageQuantity, Product, ServingSize } from "./types";
 
@@ -24,6 +25,11 @@ export const OFF_FIELDS = [
   "nova_group",
   "nutriscore_grade",
   "allergens_tags",
+  "traces_tags",
+  "ingredients_text_it",
+  "ingredients_text",
+  "lang",
+  "periods_after_opening",
   "additives_tags",
   "additives_n",
   "image_front_small_url",
@@ -59,10 +65,32 @@ function tags(v: unknown): string[] {
   return [...out];
 }
 
+/** Tag di allergeni o tracce: come `tags`, senza i segnaposto «none» che qualche volontario inserisce. */
+function allergenTags(v: unknown): string[] {
+  return tags(v).filter((t) => t !== "none" && t !== "no-allergens");
+}
+
+const MAX_INGREDIENTS_LENGTH = 4000;
+
+/** L'elenco degli ingredienti, in italiano se c'è; altrimenti quello del prodotto, con la lingua dichiarata da Open Food Facts. */
+function ingredientsFrom(p: Json): { text: string; lang?: string; truncated?: true } | undefined {
+  const it = text(p.ingredients_text_it);
+  const other = it ? undefined : text(p.ingredients_text);
+  const full = it ?? other;
+  if (!full) return undefined;
+  const lang = it ? "it" : text(p.lang)?.toLowerCase().split(/[-_]/)[0];
+  return {
+    text: full.slice(0, MAX_INGREDIENTS_LENGTH),
+    ...(lang && /^[a-z]{2,3}$/.test(lang) ? { lang } : {}),
+    // il taglio non è silenzioso: chi controlla gli allergeni deve sapere che manca la fine dell'elenco
+    ...(full.length > MAX_INGREDIENTS_LENGTH ? { truncated: true as const } : {}),
+  };
+}
+
 /**
  * Elenco degli additivi. Un elenco vuoto vale "nessun additivo" solo se Open Food Facts ha analizzato gli
  * ingredienti: `additives_n` presente (anche 0), oppure `additives_tags` come elenco insieme a un testo degli
- * ingredienti non vuoto (quest'ultimo non si richiede all'API: un test della cattura vieta i campi degli ingredienti). Altrimenti il dato manca e `additives` resta assente.
+ * ingredienti non vuoto. Altrimenti il dato manca e `additives` resta assente.
  */
 function additivesFrom(p: Json): string[] | undefined {
   const list = tags(p.additives_tags).map((a) => a.toUpperCase());
@@ -194,7 +222,10 @@ export function productFromOpenFoodFacts(json: unknown, options: FromOffOptions 
   const quantity = quantityFrom(p);
   const categories = tags(p.categories_tags);
   const packaging = tags(p.packaging_tags);
-  const allergens = tags(p.allergens_tags);
+  const allergens = allergenTags(p.allergens_tags);
+  const traces = allergenTags(p.traces_tags);
+  const ingredients = ingredientsFrom(p);
+  const daysAfterOpening = parsePeriodAfterOpening(p.periods_after_opening);
   const additives = additivesFrom(p);
   const nutrients = nutrientsFrom(p, quantity?.unit);
   const serving = servingFrom(p);
@@ -219,6 +250,13 @@ export function productFromOpenFoodFacts(json: unknown, options: FromOffOptions 
   const nutriScore = nutriScoreFrom(p.nutriscore_grade);
   if (nutriScore) product.nutriScore = nutriScore;
   if (allergens.length > 0) product.allergens = allergens;
+  if (traces.length > 0) product.traces = traces;
+  if (ingredients) {
+    product.ingredientsText = ingredients.text;
+    if (ingredients.lang) product.ingredientsLang = ingredients.lang;
+    if (ingredients.truncated) product.ingredientsTruncated = true;
+  }
+  if (daysAfterOpening !== undefined) product.daysAfterOpening = daysAfterOpening;
   if (additives) product.additives = additives;
   if (serving) product.serving = serving;
   if (piecesHint) product.piecesHint = piecesHint;

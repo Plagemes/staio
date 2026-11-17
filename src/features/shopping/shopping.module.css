@@ -266,3 +266,64 @@
   background: var(--color-paper);
 }
 
+/* Vivo: schede piene, voci d'azione a pastiglia. L'area è Piano (data-area): --color-accent è il viola della sezione. */
+:global([data-palette="vivo"]) .card,
+:global([data-palette="vivo"]) .bigRow {
+  padding: var(--space-7) var(--space-8);
+  border-color: transparent;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .bigRow {
+  padding: var(--space-4) var(--space-7);
+}
+
+:global([data-palette="vivo"]) .bigRowDone {
+  background: var(--color-fill);
+  box-shadow: none;
+}
+
+:global([data-palette="vivo"]) .itemName {
+  font-weight: 600;
+}
+
+:global([data-palette="vivo"]) .tag {
+  align-self: flex-start;
+  padding: var(--space-1) var(--space-4);
+  border-radius: 999px;
+  background: var(--area-current-tint);
+  font-family: var(--font-ui);
+  font-weight: 600;
+}
+
+:global([data-palette="vivo"]) .action {
+  padding-inline: var(--space-6);
+  border-radius: 999px;
+  background: var(--button-quiet-fill);
+  color: var(--button-quiet-text);
+}
+
+:global([data-palette="vivo"]) .actionDanger {
+  background: var(--state-expired-tint);
+  color: var(--state-expired);
+}
+
+:global([data-palette="vivo"]) .actions {
+  gap: var(--space-3) var(--space-4);
+}
+
+:global([data-palette="vivo"]) .undo {
+  border-color: transparent;
+  border-radius: var(--radius-card);
+  background: var(--area-current-tint);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .totalBar {
+  border-color: var(--color-rule);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}

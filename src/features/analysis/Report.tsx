@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { buildReport, reportPeriod, type ReportKind } from "@/core/analysis";
 import { usePantry } from "@/data";
-import { Label, SectionHeader, Tabs, Value } from "@/design";
+import { SectionHeader, Tabs, Value } from "@/design";
 import { LoadingLine, StorageError } from "../shell/EmptyState";
 import { buildNutritionRows, inPeriod } from "../nutrition/prepare";
 import { toEngineProfile } from "../nutrition/profile";
@@ -78,7 +78,9 @@ export function Report() {
     <div className={ui.screen}>
       <div className={ui.head}>
         <h1 className={ui.title}>Rapporto</h1>
-        <Label>Riepilogo</Label>
+        <Link href="/app/salute" className={ui.textLink}>
+          Torna a Salute
+        </Link>
       </div>
       <p className={ui.lead}>
         Ciò che hai registrato nella settimana o nel mese, sezione per sezione, ciascuna con i giorni su cui poggia. Dove non c&apos;è un dato non c&apos;è uno zero.

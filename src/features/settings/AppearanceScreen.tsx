@@ -19,7 +19,7 @@ export function AppearanceScreen() {
       <div className={ui.head}>
         <h1 className={ui.title}>Aspetto</h1>
         <Link href="/app/impostazioni" className={ui.textLink}>
-          Impostazioni
+          Torna alle impostazioni
         </Link>
       </div>
 

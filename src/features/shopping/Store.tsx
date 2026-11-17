@@ -40,9 +40,14 @@ export function Store() {
         <Label>Anche senza rete</Label>
       </div>
       {data.trip ? <ActiveTrip data={data} trip={data.trip} undo={undo} /> : <Idle data={data} undo={undo} />}
-      <Link href="/app/spesa" className={ui.textLink}>
-        Torna alla lista della spesa
-      </Link>
+      <div className={ui.row}>
+        <Link href="/app/qualita/scaffale" className={ui.textLink}>
+          Confronta sullo scaffale
+        </Link>
+        <Link href="/app/spesa" className={ui.textLink}>
+          Torna alla lista della spesa
+        </Link>
+      </div>
       {undo.node}
     </div>
   );

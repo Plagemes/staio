@@ -101,7 +101,7 @@ function ShelfCard({
             ))}
             <p className={styles.dimReason}>{priceLine(alternative, refPrice)}</p>
             <div className={ui.row}>
-              <AddToListButton product={alternative.product} label="Aggiungi l'alternativa alla lista" variant="text" />
+              <AddToListButton product={alternative.product} label="Aggiungi l'alternativa alla spesa" variant="text" />
             </div>
           </>
         ) : (
@@ -110,7 +110,7 @@ function ShelfCard({
       </div>
 
       <div className={ui.row}>
-        <AddToListButton product={product} label="Aggiungi alla lista" />
+        <AddToListButton product={product} label="Aggiungi alla spesa" />
         <label className={styles.pick}>
           <input type="checkbox" checked={selected} disabled={!selected && !canSelect} onChange={onToggle} />
           Confronta
@@ -255,7 +255,9 @@ export function Shelf() {
     <div className={ui.screen}>
       <div className={ui.head}>
         <h1 className={ui.title}>Scaffale</h1>
-        <Label>Open Food Facts</Label>
+        <Link href="/app/spesa" className={ui.textLink}>
+          Torna alla spesa
+        </Link>
       </div>
       <p className={ui.lead}>
         In negozio leggi un codice dopo l&apos;altro: per ogni prodotto un verdetto breve, dimensione per dimensione, senza voto unico.

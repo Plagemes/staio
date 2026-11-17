@@ -48,7 +48,7 @@ export function Cook() {
   if (!recipe) {
     return (
       <div className={ui.screen}>
-        <EmptyState title="Ricetta non trovata" text="Torna al ricettario e scegline un'altra." actionLabel="Vai al ricettario" actionHref="/app/ricette" />
+        <EmptyState title="Ricetta non trovata" text="Torna al ricettario e scegline un'altra." actionLabel="Torna al ricettario" actionHref="/app/ricette" />
       </div>
     );
   }

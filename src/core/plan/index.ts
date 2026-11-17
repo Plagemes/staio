@@ -56,3 +56,14 @@ export type {
   ConstraintsResult,
   UnverifiedItem,
 } from "./constraints";
+export { dropMeal, freeSlots, missedMeals, moveMeal } from "./move";
+export type {
+  FreeSlotsOptions,
+  MissedMeal,
+  MissedOptions,
+  MissedReason,
+  MomentStatus,
+  MoveError,
+  MoveResult,
+  Slot,
+} from "./move";

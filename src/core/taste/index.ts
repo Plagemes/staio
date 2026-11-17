@@ -1,4 +1,6 @@
 export { basisOf } from "./basis";
+export { MIN_RECIPES_FOR_STAPLES, MIN_SHARED_RECIPES, cookedTogether } from "./cooked-together";
+export type { CookedPair, CookedTogether, RecipeFood } from "./cooked-together";
 export { decodeTasteData } from "./decode";
 export type { CompactTasteData } from "./decode";
 export { createTasteIndex, resolveTasteFood, searchTasteFoods } from "./index-build";

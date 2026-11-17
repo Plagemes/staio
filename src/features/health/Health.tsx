@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useDiary } from "@/data";
-import { Label, PromptCard, SectionHeader } from "@/design";
+import { Button, Label, SectionHeader } from "@/design";
 import { LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { DrinksCard, SupplementsCard } from "./IntakeCards";
@@ -25,6 +25,26 @@ export function Health() {
 
       {diary.error ? <StorageError /> : null}
       {diary.loading ? <LoadingLine /> : null}
+
+      {diary.data ? (
+        <nav className={ui.row} aria-label="Capire i dati">
+          <Button href="/app/salute/nutrizione" variant="outline">
+            Nutrizione
+          </Button>
+          <Button href="/app/salute/analisi" variant="outline">
+            Analisi
+          </Button>
+          <Button href="/app/salute/esperimenti" variant="outline">
+            Esperimenti
+          </Button>
+          <Button href="/app/salute/rapporto" variant="outline">
+            Rapporto
+          </Button>
+          <Button href="/app/qualita" variant="outline">
+            Qualità dei prodotti
+          </Button>
+        </nav>
+      ) : null}
 
       {diary.data ? (
         <>
@@ -52,10 +72,6 @@ export function Health() {
             <SectionHeader label="Caffeina e alcol" />
             <DrinksCard />
           </section>
-          <PromptCard title="Nutrizione" description="Medie e confronto con i valori di riferimento, giorno per giorno" href="/app/salute/nutrizione" />
-          <PromptCard title="Analisi" description="Che cosa emerge dai dati che hai scritto" href="/app/salute/analisi" />
-          <PromptCard title="Esperimenti" description="Prova un cambiamento e guarda che cosa succede" href="/app/salute/esperimenti" />
-          <PromptCard title="Rapporto" description="Un riepilogo del periodo, da leggere o condividere" href="/app/salute/rapporto" />
           <Link href="/app/pasto" className={ui.textLink}>
             Registra un pasto
           </Link>

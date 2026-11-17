@@ -112,7 +112,7 @@ export function DimensionChips({ assessment }: { assessment: QualityAssessment }
 }
 
 /** Aggiunge il prodotto alla lista della spesa (una confezione), con «Annulla». */
-export function AddToListButton({ product, label = "Aggiungi alla lista della spesa", variant = "outline" }: { product: Product; label?: string; variant?: "primary" | "outline" | "text" }) {
+export function AddToListButton({ product, label = "Aggiungi alla spesa", variant = "outline" }: { product: Product; label?: string; variant?: "primary" | "outline" | "text" }) {
   const notice = useNotice();
   const [busy, setBusy] = useState(false);
 

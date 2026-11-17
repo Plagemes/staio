@@ -209,7 +209,9 @@ export function Nutrition() {
     <div className={ui.screen}>
       <div className={ui.head}>
         <h1 className={ui.title}>Nutrizione</h1>
-        <Label>Stima</Label>
+        <Link href="/app/salute" className={ui.textLink}>
+          Torna a Salute
+        </Link>
       </div>
       <p className={ui.lead}>
         Quanto assumi rispetto ai valori di riferimento. Non è un giudizio e non serve a dire come stai: serve a vedere dove sei.

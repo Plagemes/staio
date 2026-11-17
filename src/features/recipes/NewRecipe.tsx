@@ -37,7 +37,7 @@ function Edit({ id }: { id: string }) {
         <EmptyState
           title="Ricetta non trovata"
           text="Non trovo la ricetta da modificare: potrebbe essere stata ritirata."
-          actionLabel="Vai al ricettario"
+          actionLabel="Torna al ricettario"
           actionHref="/app/ricette"
         />
       </div>

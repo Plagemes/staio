@@ -15,7 +15,7 @@ export function TodayNotices({ limit = 4 }: { limit?: number }) {
   if (!facts || facts.length === 0) return null;
   return (
     <section className={ui.section} aria-label="Avvisi di oggi">
-      <SectionHeader label="Da guardare oggi" actionLabel="Impostazioni" actionHref="/app/impostazioni/avvisi" />
+      <SectionHeader label="Da guardare oggi" actionLabel="Avvisi" actionHref="/app/impostazioni/avvisi" />
       <NoticesList facts={facts} limit={limit} />
       {facts.length > limit ? (
         <Link href="/app/impostazioni/avvisi" className={ui.textLink}>

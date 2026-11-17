@@ -228,7 +228,7 @@ export function ProfileForm() {
       <div className={ui.head}>
         <h1 className={ui.title}>Profilo</h1>
         <Link href="/app/impostazioni" className={ui.textLink}>
-          Impostazioni
+          Torna alle impostazioni
         </Link>
       </div>
       <p className={ui.lead}>

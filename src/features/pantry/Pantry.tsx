@@ -239,10 +239,32 @@ export function Pantry() {
               )}
             </div>
           </div>
+          {toConfirm > 0 ? (
+            <div className={`${styles.realign} ${ui.tile} ${ui.tone}`} data-tone="near">
+              <div className={styles.realignText}>
+                <span className={styles.realignTitle}>
+                  {toConfirm === 1 ? "1 quantità da controllare" : `${toConfirm} quantità da controllare`}
+                </span>
+                <span className={styles.realignHint}>Sono stime o non le guardi da una settimana. Basta un minuto.</span>
+              </div>
+              <Link href="/app/dispensa/riallinea" className={styles.realignLink}>
+                Riallinea
+              </Link>
+            </div>
+          ) : null}
+          <div className={`${styles.photoRow} ${ui.tile} ${ui.tone}`} data-tone="plan">
+            <span className={styles.realignText}>
+              <span className={styles.realignTitle}>Cosa cucinare</span>
+              <span className={styles.realignHint}>Idee di ricette con ciò che hai, a partire da ciò che scade.</span>
+            </span>
+            <Link href="/app/ricette/idee" className={styles.realignLink}>
+              Apri
+            </Link>
+          </div>
           <div className={`${styles.photoRow} ${ui.tile} ${ui.tone}`} data-tone="pantry">
             <span className={styles.realignText}>
               <span className={styles.realignTitle}>Vedi in 3D</span>
-              <span className={styles.realignHint}>Il frigo come lo trovi aprendolo, con i modelli degli alimenti.</span>
+              <span className={styles.realignHint}>Il frigo come lo trovi aprendolo.</span>
             </span>
             <Link href="/app/dispensa/frigo" className={styles.realignLink}>
               Apri
@@ -257,19 +279,6 @@ export function Pantry() {
               Apri
             </Link>
           </div>
-          {toConfirm > 0 ? (
-            <div className={`${styles.realign} ${ui.tile} ${ui.tone}`} data-tone="near">
-              <div className={styles.realignText}>
-                <span className={styles.realignTitle}>
-                  {toConfirm === 1 ? "1 quantità da controllare" : `${toConfirm} quantità da controllare`}
-                </span>
-                <span className={styles.realignHint}>Sono stime o non le guardi da una settimana. Basta un minuto.</span>
-              </div>
-              <Link href="/app/dispensa/riallinea" className={styles.realignLink}>
-                Riallinea
-              </Link>
-            </div>
-          ) : null}
         </>
       )}
 

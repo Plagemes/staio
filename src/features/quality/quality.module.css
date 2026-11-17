@@ -436,3 +436,103 @@
 :global([data-palette="vivo"]) .metricTotal {
   font-weight: var(--weight-display);
 }
+
+/* Vivo: elenchi in schede; l'esito di ogni dimensione ha il colore dello stato (a posto / attenzione / pericolo)
+   su fondo tinto, sempre con la parola e il simbolo accanto; «non valutabile» resta grigio e tratteggiato. Area Piano. */
+:global([data-palette="vivo"]) .list,
+:global([data-palette="vivo"]) .known {
+  padding-inline: var(--space-8);
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .list > :last-child,
+:global([data-palette="vivo"]) .known > :last-child {
+  margin-bottom: calc(var(--rule-width) * -1);
+}
+
+/* dentro una scheda già piena non serve un secondo riquadro */
+:global([data-palette="vivo"]) .shelfCard .list {
+  padding-inline: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+:global([data-palette="vivo"]) .badge {
+  border-color: transparent;
+  border-radius: 999px;
+  padding-inline: var(--space-5);
+}
+
+:global([data-palette="vivo"]) .badge[data-outcome="favorable"] {
+  background: var(--state-ok-tint);
+  color: var(--state-ok);
+}
+
+:global([data-palette="vivo"]) .badge[data-outcome="intermediate"] {
+  background: var(--state-near-tint);
+  color: var(--state-near);
+}
+
+:global([data-palette="vivo"]) .badge[data-outcome="unfavorable"] {
+  background: var(--state-expired-tint);
+  color: var(--state-expired);
+}
+
+:global([data-palette="vivo"]) .badge[data-outcome="not_assessable"],
+:global([data-palette="vivo"]) .badge[data-outcome="descriptive"] {
+  border-color: var(--color-graphite);
+  background: var(--color-fill);
+  color: var(--color-graphite);
+}
+
+:global([data-palette="vivo"]) .alt,
+:global([data-palette="vivo"]) .shelfCard {
+  padding: var(--space-7) var(--space-8);
+  border-color: transparent;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .shelfCard .alt {
+  padding: var(--space-5) 0;
+  background: none;
+  box-shadow: none;
+}
+
+:global([data-palette="vivo"]) .groupTitle,
+:global([data-palette="vivo"]) .dimLabel {
+  font-weight: 600;
+}
+
+:global([data-palette="vivo"]) .tag {
+  border-color: transparent;
+  border-radius: 999px;
+  background: var(--color-fill);
+}
+
+:global([data-palette="vivo"]) .banner {
+  border: none;
+  border-radius: var(--radius-card);
+  background: var(--area-current-tint);
+}
+
+:global([data-palette="vivo"]) .viewport {
+  border-color: transparent;
+  border-radius: var(--radius-card);
+}
+
+:global([data-palette="vivo"]) .tableWrap {
+  border-color: transparent;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .table tbody th {
+  background: var(--color-surface);
+}

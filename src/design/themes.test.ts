@@ -410,6 +410,17 @@ describe("Vivo: coppie delle schermate", () => {
           expect(c(v, "--color-paper")).toBeGreaterThanOrEqual(3);
         }
       });
+      it("«scaduto» come testo sul fondo tinto di Piano (attività in ritardo nelle preparazioni) >= 4,5", () => {
+        for (const a of ["plan"]) {
+          expect(c("--state-expired", `--area-${a}-tint`), a).toBeGreaterThanOrEqual(4.5);
+        }
+      });
+      it("testo e testo secondario sul fondo tinto di ogni area, e sul fondo neutro --color-fill >= 4,5", () => {
+        for (const bg of ["today", "pantry", "capture", "plan", "health"].map((a) => `--area-${a}-tint`).concat("--color-fill")) {
+          expect(c("--color-ink", bg), bg).toBeGreaterThanOrEqual(4.5);
+          expect(c("--color-graphite", bg), bg).toBeGreaterThanOrEqual(4.5);
+        }
+      });
       it("pulsante pieno dentro una scheda tinta (testo sopra il colore della scheda) e pulsante chiaro (colore su superficie) >= 4,5", () => {
         for (const v of SEMANTIC) {
           expect(c("--color-on-fill", v)).toBeGreaterThanOrEqual(4.5);

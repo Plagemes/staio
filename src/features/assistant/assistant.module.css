@@ -247,3 +247,52 @@
   gap: var(--space-6);
   min-width: 0;
 }
+
+/* Vivo: ogni vista è una scheda; grafico nel colore dell'area (Oggi, o quella della pagina da cui si apre). */
+:global([data-palette="vivo"]) .view {
+  padding: var(--space-7) var(--space-8);
+  border-top: none;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .rows > :last-child {
+  border-bottom: none;
+}
+
+:global([data-palette="vivo"]) .chartLine {
+  stroke: var(--color-accent);
+  stroke-width: 2.5;
+}
+
+:global([data-palette="vivo"]) .chartDot {
+  fill: var(--color-accent);
+}
+
+:global([data-palette="vivo"]) .rowName {
+  font-weight: 600;
+}
+
+:global([data-palette="vivo"]) .privacy {
+  padding: var(--space-7) var(--space-8);
+  border-color: transparent;
+  border-radius: var(--radius-card);
+  background: var(--area-current-tint);
+}
+
+:global([data-palette="vivo"]) .example {
+  padding-inline: var(--space-6);
+  border-color: transparent;
+  border-radius: 999px;
+  background: var(--button-quiet-fill);
+  color: var(--button-quiet-text);
+  font-weight: 600;
+}
+
+:global([data-palette="vivo"]) .insufficientTag {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}

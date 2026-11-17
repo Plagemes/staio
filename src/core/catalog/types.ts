@@ -61,6 +61,18 @@ export interface Product {
   nutriScore?: NutriScore;
   /** Identificatori degli allergeni dichiarati (per esempio "milk", "gluten"). */
   allergens?: string[];
+  /** Tracce dichiarate («può contenere»), con gli stessi identificatori di `allergens`. */
+  traces?: string[];
+  /** Elenco degli ingredienti com'è scritto su Open Food Facts (italiano se c'è). Scritto da volontari: può essere sbagliato. */
+  ingredientsText?: string;
+  /** Lingua di `ingredientsText` (per esempio "it"), se nota. */
+  ingredientsLang?: string;
+  /** Vero se il testo degli ingredienti era troppo lungo ed è stato tagliato: la fine dell'elenco manca. */
+  ingredientsTruncated?: true;
+  /** Giorni di consumo dopo l'apertura, se Open Food Facts li riporta in un formato interpretabile. */
+  daysAfterOpening?: number;
+  /** Messo da chi legge dal servizio: la scheda è stata chiesta con ingredienti e tracce. Manca nelle schede salvate prima. */
+  safetyFields?: true;
   /** Additivi nella forma "E330". */
   additives?: string[];
   /** Porzione dichiarata. */

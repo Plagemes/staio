@@ -4,6 +4,11 @@ import { FOODS } from "@/core/nutrition/data/foods";
 import { createTasteIndex, pairingsForSet } from "@/core/taste";
 import { SAMPLE_TASTE_DATA } from "@/core/taste/test-sample";
 import {
+  cookedBasisText,
+  cookedEmptyText,
+  cookedView,
+  recipeFoods,
+  togetherText,
   daysText,
   doubtText,
   expiringPicks,
@@ -112,5 +117,39 @@ describe("testi", () => {
     expect(hiddenText(4)).toMatch(/^4 abbinamenti non sono mostrati/);
     expect(unknownText([])).toBeUndefined();
     expect(unknownText(["Sale", "Acqua", "Pepe"])).toBe("Non sono nell'elenco degli abbinamenti: Sale, Acqua e Pepe.");
+  });
+});
+
+describe("dalle ricette salvate", () => {
+  const foodNameOf = (id: string) => FOODS.find((f) => f.id === id)?.name;
+  const rec = (...names: string[]) => ({ ingredients: names.map((name) => ({ name })) });
+  const pomodoro = index.byKey.get("pomodoro");
+  if (!pomodoro) throw new Error("pomodoro");
+
+  it("riconduce gli ingredienti agli alimenti, una volta ciascuno, e ignora ciò che non conosce", () => {
+    const foods = recipeFoods(rec("Pomodori", "pomodoro-crudo", "Basilico", "cosa strana"), index, foodIdOf, foodNameOf);
+    expect(foods.map((f) => f.name)).toEqual(["Pomodoro", "Pomodoro", "Basilico"]);
+  });
+
+  it("conta le coppie con l'alimento scelto", () => {
+    const recipes = [rec("Pomodori", "Basilico"), rec("pomodoro-crudo", "Basilico", "Aglio"), rec("Aglio")];
+    const view = cookedView(recipes, pomodoro, index, foodIdOf, foodNameOf, { allergens: [], excludedFoods: [] });
+    expect(view.pairs.map((p) => [p.food.name, p.together])).toEqual([["Basilico", 2]]);
+    expect(view.seenOnce).toBe(1);
+    expect(togetherText(2)).toBe("in 2 delle tue ricette");
+  });
+
+  it("nasconde le coppie escluse e conta quante", () => {
+    const recipes = [rec("Pomodori", "Basilico"), rec("Pomodori", "Basilico")];
+    const view = cookedView(recipes, pomodoro, index, foodIdOf, foodNameOf, { allergens: [], excludedFoods: ["basilico"] });
+    expect(view.pairs).toEqual([]);
+    expect(view.hiddenCount).toBe(1);
+  });
+
+  it("testi: una riga che invita a salvare ricette, e la base dichiarata", () => {
+    expect(cookedEmptyText({ recipeCount: 0, withFood: 0, seenOnce: 0 }, "Pomodoro")).toMatch(/salvane/);
+    expect(cookedEmptyText({ recipeCount: 3, withFood: 1, seenOnce: 2 }, "Pomodoro")).toMatch(/una volta/);
+    expect(cookedBasisText({ recipeCount: 8, seenOnce: 0, staples: [{ key: "x", name: "Sale" }] })).toMatch(/sale: sono in più di metà/);
+    expect(cookedBasisText({ recipeCount: 3, seenOnce: 1, staples: [] })).toMatch(/Con meno di 6 ricette/);
   });
 });

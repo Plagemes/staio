@@ -10,8 +10,10 @@ import {
   getWeek,
   weekDates,
   type PlannedEntry,
+  type Slot,
   type PlannedItem,
 } from "@/core/plan";
+import { DEFAULT_TIME_ZONE } from "@/core/expiry";
 import { Button, Label, Tabs } from "@/design";
 import { readQuantity } from "../capture";
 import { MEAL_KIND_LABELS, MEAL_KIND_ORDER } from "../meals";
@@ -33,6 +35,8 @@ import {
   withoutEntry,
 } from "./edit";
 import { EatSheet } from "./EatSheet";
+import { MoveSheet } from "./MoveSheet";
+import { buildMoveMeal, slotsToMoveTo } from "./moveMeal";
 import { Sheet } from "./Sheet";
 import { parseAmount } from "./targets";
 import { usePlanData, type PlanData } from "./usePlanData";
@@ -44,6 +48,7 @@ import styles from "./plan.module.css";
 type SheetState =
   | { type: "add"; date: string }
   | { type: "eat"; entry: PlannedEntry }
+  | { type: "move"; from: Slot }
   | { type: "amount"; index: number }
   | { type: "copyDay"; date: string }
   | { type: "copyWeek" }
@@ -224,6 +229,9 @@ function WeekView({ data, weeks, week, weekId, setWeekId, sheet, setSheet }: Vie
                             <button type="button" className={styles.action} onClick={() => setSheet({ type: "eat", entry })}>
                               Registralo come mangiato
                             </button>
+                            <button type="button" className={styles.action} onClick={() => setSheet({ type: "move", from: { date: entry.date, meal: entry.meal } })}>
+                              Sposta
+                            </button>
                             <button type="button" className={styles.action} onClick={() => setSheet({ type: "amount", index })}>
                               Quantità
                             </button>
@@ -267,6 +275,34 @@ function WeekView({ data, weeks, week, weekId, setWeekId, sheet, setSheet }: Vie
             }}
           />
         </Sheet>
+      ) : null}
+
+      {sheet?.type === "move" && data.diary && data.now ? (
+        <MoveSheet
+          what={entries
+            .filter((e) => e.date === sheet.from.date && e.meal === sheet.from.meal)
+            .map((e) => itemLabel(e.item, data.catalog))
+            .join(", ")}
+          from={sheet.from}
+          today={data.today}
+          options={slotsToMoveTo({
+            weekEntries: entries,
+            diary: data.diary,
+            now: data.now,
+            timeZone: data.diary.timeZone ?? DEFAULT_TIME_ZONE,
+            today: data.today,
+            weekStart: week.start,
+            kinds: plan.structure?.meals.map((m) => m.kind),
+            from: sheet.from,
+          })}
+          onClose={close}
+          onMove={async (to) => {
+            const failure = await write((ctx) => buildMoveMeal(week.start, entries, sheet.from, to, ctx));
+            setError(failure);
+            if (!failure) close();
+            return failure;
+          }}
+        />
       ) : null}
 
       {sheet?.type === "eat" ? <EatSheet data={data} entry={sheet.entry} onClose={close} /> : null}

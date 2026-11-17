@@ -49,7 +49,7 @@ export function RecipeView() {
               ? "Non compare più nel ricettario. Puoi rimetterla dall'elenco, in fondo alla pagina."
               : "Potrebbe essere stata ritirata o annullata. Torna al ricettario per sceglierne un'altra."
           }
-          actionLabel="Vai al ricettario"
+          actionLabel="Torna al ricettario"
           actionHref="/app/ricette"
         />
       </div>
@@ -166,7 +166,7 @@ function Detail({ recipe }: { recipe: Recipe }) {
           Modifica
         </Button>
         <Button href={`/app/ricette/abbinamenti?ricetta=${encodeURIComponent(recipe.recipeId)}`} variant="outline">
-          Cosa ci starebbe bene
+          Con cosa sta bene
         </Button>
       </div>
 

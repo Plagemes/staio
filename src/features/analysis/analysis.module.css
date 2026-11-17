@@ -390,3 +390,109 @@
 :global([data-palette="vivo"]) .insufficientTitle {
   font-weight: var(--weight-display);
 }
+
+/* Vivo: ogni blocco è una scheda; l'area è Salute (data-area), quindi --color-accent è il rosa della sezione.
+   I valori calcolati dicono «stima» con il colore delle stime; il colore non basta mai: restano testo e forma. */
+:global([data-palette="vivo"]) .card {
+  padding: var(--space-7) var(--space-8);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .bigNumber {
+  color: var(--color-accent);
+}
+
+:global([data-palette="vivo"]) .insufficient {
+  border: none;
+  border-radius: var(--radius-card);
+  background: var(--state-estimate-tint);
+}
+
+:global([data-palette="vivo"]) .disclaimer {
+  padding: var(--space-6) var(--space-7);
+  border-top: none;
+  border-radius: var(--radius-md);
+  background: var(--color-fill);
+}
+
+:global([data-palette="vivo"]) .rows > :last-child {
+  border-bottom: none;
+}
+
+:global([data-palette="vivo"]) .rowName,
+:global([data-palette="vivo"]) .rowValue {
+  font-weight: 600;
+}
+
+:global([data-palette="vivo"]) .tag,
+:global([data-palette="vivo"]) .tagAccent {
+  border-color: transparent;
+  border-radius: 999px;
+  padding-inline: var(--space-5);
+  font-family: var(--font-ui);
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  background: var(--color-fill);
+  color: var(--color-ink);
+}
+
+:global([data-palette="vivo"]) .tagAccent {
+  background: var(--area-current-tint);
+  color: var(--color-accent);
+}
+
+/* Grafico del peso: media nel colore dell'area, proiezione e bande nel colore delle stime (la proiezione resta tratteggiata) */
+:global([data-palette="vivo"]) .avgLine {
+  stroke: var(--color-accent);
+  stroke-width: 2.5;
+}
+
+:global([data-palette="vivo"]) .expectedLine {
+  stroke: var(--state-estimate);
+}
+
+:global([data-palette="vivo"]) .trendBand,
+:global([data-palette="vivo"]) .dailyBand {
+  fill: var(--state-estimate);
+}
+
+:global([data-palette="vivo"]) .table th {
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+/* Esperimenti: una scheda ciascuno; il periodo e la conferma hanno fondi propri */
+:global([data-palette="vivo"]) .experiment {
+  padding: var(--space-7) var(--space-8);
+  margin-bottom: var(--space-6);
+  border-bottom: none;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .experiment .card {
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+
+:global([data-palette="vivo"]) .periodBox {
+  border-color: transparent;
+  background: var(--color-fill);
+}
+
+:global([data-palette="vivo"]) .confirm {
+  border-color: transparent;
+  border-radius: var(--radius-card);
+  background: var(--state-expired-tint);
+}
+
+:global([data-palette="vivo"]) .navButton {
+  border-color: transparent;
+  background: var(--area-current-tint);
+  color: var(--color-accent);
+}

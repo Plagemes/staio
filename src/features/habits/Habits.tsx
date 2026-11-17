@@ -136,8 +136,8 @@ export function Habits() {
     <div className={ui.screen}>
       <div className={ui.head}>
         <h1 className={ui.title}>Pasti abituali</h1>
-        <Link href="/app/impostazioni" className={ui.textLink}>
-          Impostazioni
+        <Link href="/app" className={ui.textLink}>
+          Torna a Oggi
         </Link>
       </div>
       <p className={ui.lead}>I pasti che ripeti: Staio te li propone in Oggi all&apos;ora giusta, da registrare con un tocco.</p>

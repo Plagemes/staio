@@ -78,7 +78,8 @@ export async function fetchProduct(barcode: string, options: OffClientOptions = 
     const product = productFromOpenFoodFacts(body, { barcode: check.code, fetchedAt: now() });
     if (!product) return { status: "not_found" };
     // Il codice richiesto resta la chiave: un UPC-A torna a 13 cifre dall'API.
-    return { status: "found", product: { ...product, barcode: check.code } };
+    // `safetyFields` dice alle letture future che questa scheda ha già ingredienti e tracce (se Open Food Facts li ha).
+    return { status: "found", product: { ...product, barcode: check.code, safetyFields: true } };
   } catch {
     if (timedOut) return failed("timeout");
     if (options.signal?.aborted) return failed("aborted");

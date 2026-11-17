@@ -21,11 +21,29 @@ describe("productUrl", () => {
     expect(url.origin).toBe("https://world.openfoodfacts.org");
     expect(url.pathname).toBe("/api/v2/product/0036000291452.json");
     expect(url.searchParams.get("fields")).toContain("product_name");
-    expect(url.searchParams.get("fields")).not.toContain("ingredients");
+    for (const f of ["allergens_tags", "traces_tags", "ingredients_text_it"]) expect(url.searchParams.get("fields")).toContain(f);
+  });
+
+  it("riservatezza: la richiesta porta solo l'elenco dei campi, nient'altro dell'utente", () => {
+    const url = new URL(productUrl("8076800195057"));
+    expect([...url.searchParams.keys()]).toEqual(["fields"]);
+    expect(url.username + url.password + url.hash).toBe("");
   });
 });
 
 describe("fetchProduct", () => {
+  it("non invia cookie né referrer", async () => {
+    let seen: RequestInit | undefined;
+    await fetchProduct("8076800195057", {
+      fetchImpl: fakeFetch(async (_url, init) => {
+        seen = init;
+        return json(FOUND);
+      }),
+    });
+    expect(seen).toMatchObject({ credentials: "omit", referrerPolicy: "no-referrer", headers: { Accept: "application/json" } });
+    expect(seen?.body).toBeUndefined();
+  });
+
   it("trova un prodotto", async () => {
     const result = await fetchProduct("8076800195057", { fetchImpl: fakeFetch(async () => json(FOUND)), now: NOW });
     expect(result).toMatchObject({ status: "found", product: { barcode: "8076800195057", name: "Spaghetti n. 5", fetchedAt: NOW() } });

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   getDay,
@@ -19,6 +20,7 @@ import { Button, Label, SectionHeader, Value } from "@/design";
 import { buildUndo } from "../actions";
 import { dayOf, formatTime, relativeDay } from "../format";
 import { drinkCounts } from "../drinks";
+import { DrinkPantrySuggestion, useDrinkSuggestion } from "../health/DrinkPantry";
 import { DrinkPresetChips, useDrinkActions } from "../health/Drinks";
 import { WaterCard } from "../health/WaterCard";
 import { evaluateLots } from "../lots";
@@ -28,13 +30,14 @@ import {
   buildMealFromHabit,
   itemText,
   minutesOfTime,
-  momentsOf,
   summarizeDay,
 } from "../meals";
 import { useNotice } from "../notice";
 import ui from "../ui.module.css";
 import { useRecord } from "../useRecord";
+import { missedThisWeek } from "../plan/moveMeal";
 import { MealMoments } from "./MealMoments";
+import { MissedPlanned } from "./MissedPlanned";
 import { useTodayPlan } from "./useTodayPlan";
 import styles from "./Today.module.css";
 
@@ -58,6 +61,7 @@ export function TodayDiary({ now, date, pantry, log }: Props) {
   const plan = useTodayPlan();
   const timeZone = diary.data?.timeZone ?? DEFAULT_TIME_ZONE;
   const drinkActions = useDrinkActions(timeZone);
+  const drinkSuggestion = useDrinkSuggestion();
   const [openMeal, setOpenMeal] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [undoing, setUndoing] = useState(false);
@@ -78,12 +82,19 @@ export function TodayDiary({ now, date, pantry, log }: Props) {
     [diary.data, log, date],
   );
 
+  const missed = useMemo(
+    () => (diary.data && !pastDay && plan.ready ? missedThisWeek({ weekEntries: plan.weekEntries, diary: diary.data, now, timeZone, today }) : []),
+    [diary.data, pastDay, plan.ready, plan.weekEntries, now, timeZone, today],
+  );
+
   if (!diary.data) return null;
   const day = getDay(diary.data, date);
   const summary = summarizeDay(day);
-  const skippedKinds = new Set(momentsOf(day).filter((m) => m.status === "skipped").map((m) => m.kind));
   const lotNames = new Map(pantry.lots.map((l) => [l.lotId, l.productRef]));
   const drinkLine = drinkCounts(day?.drinks ?? []);
+  // un pasto già nella sezione «non fatti» non si ripete tra quelli di oggi
+  const missedToday = new Set(missed.filter((m) => m.date === today).map((m) => m.meal));
+  const planned = plan.planned.filter((p) => !missedToday.has(p.meal));
 
   // Una bevanda dimenticata di un giorno passato: serve l'ora in cui è stata bevuta.
   const pastTime = pastTimeEdit ?? TYPICAL_MEAL_TIME[pastMoment];
@@ -213,6 +224,12 @@ export function TodayDiary({ now, date, pantry, log }: Props) {
         </div>
       ))}
 
+      {proposals.length > 0 ? (
+        <Link href="/app/pasti-abituali" className={ui.textLink}>
+          Pasti abituali
+        </Link>
+      ) : null}
+
       <MealMoments
         date={date}
         now={now}
@@ -229,25 +246,20 @@ export function TodayDiary({ now, date, pantry, log }: Props) {
         }}
       />
 
-      {plan.planned.length > 0 && !pastDay ? (
+      {planned.length > 0 && !pastDay ? (
         <section className={ui.section}>
           <SectionHeader label="Pianificato per oggi" actionLabel="Settimana" actionHref="/app/piano/settimana" />
           <ul className={`${styles.list} ${ui.group}`}>
-            {plan.planned.map((p, i) => (
+            {planned.map((p, i) => (
               <li key={`${p.meal}-${i}`} className={styles.meal}>
                 <div className={styles.mealHead}>
                   <span className={styles.mealTitle}>{p.text}</span>
                   <span className={styles.mealTime}>{MEAL_KIND_LABELS[p.meal].toLowerCase()}</span>
                 </div>
                 {p.note ? <p className={styles.note}>{p.note}</p> : null}
-                {skippedKinds.has(p.meal as "breakfast" | "lunch" | "dinner") ? (
-                  <p className={styles.notDone}>
-                    Non fatto: {MEAL_KIND_LABELS[p.meal].toLowerCase()} saltato. Resta nel piano e dalla dispensa non si scala niente.
-                  </p>
-                ) : null}
                 <div>
                   <Button variant="text" href="/app/piano/settimana">
-                    {skippedKinds.has(p.meal as "breakfast" | "lunch" | "dinner") ? "Rimandalo dalla settimana" : "Registralo"}
+                    Registralo
                   </Button>
                 </div>
               </li>
@@ -255,6 +267,20 @@ export function TodayDiary({ now, date, pantry, log }: Props) {
           </ul>
         </section>
       ) : null}
+
+      {pastDay ? null : (
+        <MissedPlanned
+          missed={missed}
+          weekStart={plan.weekStart}
+          weekEntries={plan.weekEntries}
+          kinds={plan.kinds}
+          catalog={plan.catalog}
+          diary={diary.data}
+          now={now}
+          timeZone={timeZone}
+          today={today}
+        />
+      )}
 
       <details className={`${styles.drinksBox} ${ui.tone}`} data-tone="water">
         <summary className={styles.drinksSummary}>
@@ -305,11 +331,14 @@ export function TodayDiary({ now, date, pantry, log }: Props) {
               actions={drinkActions}
               onError={setError}
               when={pastDay && pastAt ? { at: pastAt, dayLabel: relativeDay(date, today) } : undefined}
+              onAdded={drinkSuggestion.offer}
             />
           )}
           <p className={ui.hint}>Una bevanda va nel momento a cui appartiene per orario. Non vale un pasto registrato.</p>
         </div>
       </details>
+
+      {pastDay ? null : <DrinkPantrySuggestion suggestion={drinkSuggestion.suggestion} timeZone={timeZone} onDone={drinkSuggestion.dismiss} />}
 
       {pastDay ? null : (
         <section className={ui.section}>

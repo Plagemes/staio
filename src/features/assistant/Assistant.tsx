@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { QUESTION_MAX_CHARS, viewNeedsNutrition, type PinnedView, type ViewProblem, type ViewSpec } from "@/core/views";
-import { Button, Label, SectionHeader } from "@/design";
+import { Button, SectionHeader } from "@/design";
 import { configIssue, dexieSettingsStore } from "../ai/settings";
 import { useAiSettings } from "../ai/useAiSettings";
 import ui from "../ui.module.css";
@@ -71,7 +72,9 @@ export function Assistant() {
     <div className={ui.screen}>
       <div className={ui.head}>
         <h1 className={ui.title}>Assistente</h1>
-        <Label>Domande ai tuoi dati</Label>
+        <Link href="/app" className={ui.textLink}>
+          Torna a Oggi
+        </Link>
       </div>
       <p className={ui.lead}>
         Chiedi a parole, per esempio «com&apos;è andato il ferro questo mese?». L&apos;assistente compone una schermata con i pezzi che l&apos;app sa calcolare; i numeri vengono sempre dai tuoi dati, mai dall&apos;intelligenza artificiale.

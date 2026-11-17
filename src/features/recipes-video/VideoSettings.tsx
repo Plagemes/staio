@@ -133,7 +133,7 @@ function VideoSettingsForm({ service }: { service: VideoServiceSettings }) {
       <div className={ui.head}>
         <h1 className={ui.title}>Lettura dei video</h1>
         <Link href="/app/impostazioni" className={ui.textLink}>
-          Impostazioni
+          Torna alle impostazioni
         </Link>
       </div>
 

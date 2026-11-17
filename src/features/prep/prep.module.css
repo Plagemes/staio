@@ -205,3 +205,43 @@
 :global([data-palette="vivo"]) .itemName {
   font-weight: var(--weight-display);
 }
+
+/* Vivo: elenchi raggruppati in una scheda (come ui.group), finestre con angoli delle schede. Area Piano. */
+:global([data-palette="vivo"]) .list,
+:global([data-palette="vivo"]) .picks,
+:global([data-palette="vivo"]) .data {
+  padding-inline: var(--space-8);
+  overflow: hidden;
+  border-top: none;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .list > :last-child,
+:global([data-palette="vivo"]) .picks > :last-child,
+:global([data-palette="vivo"]) .data > :last-child {
+  margin-bottom: calc(var(--rule-width) * -1);
+}
+
+:global([data-palette="vivo"]) .task {
+  padding: var(--space-6) var(--space-8);
+  border-bottom: none;
+  border-radius: var(--radius-card);
+  background: var(--area-current-tint);
+}
+
+:global([data-palette="vivo"]) .taskOverdue {
+  color: var(--state-expired);
+}
+
+:global([data-palette="vivo"]) .preview {
+  border-color: transparent;
+  border-radius: var(--radius-card);
+  background: var(--area-current-tint);
+}
+
+:global([data-palette="vivo"]) .sheet {
+  border-top: none;
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+}

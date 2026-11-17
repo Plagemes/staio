@@ -109,6 +109,89 @@
   font-size: var(--text-data);
 }
 
+/* Esito del controllo di allergeni ed esclusioni: «contiene» ben evidente, gli altri più sobri */
+
+.safetyContains,
+.safetyTraces,
+.safetyOpen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-6) var(--space-7);
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+}
+
+.safetyContains {
+  border: 2px solid var(--color-signal);
+}
+
+.safetyTraces {
+  border-color: var(--color-ochre);
+}
+
+.safetyTitle {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.safetyContains .safetyTitle {
+  color: var(--color-signal);
+}
+
+.safetyList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.safetyItem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  overflow-wrap: anywhere;
+}
+
+.safetyText {
+  flex-basis: 100%;
+  color: var(--color-graphite);
+}
+
+.flagContains,
+.flagTraces,
+.flagOpen {
+  font-size: var(--text-caption);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.flagContains {
+  color: var(--color-signal);
+}
+
+.flagTraces {
+  color: var(--color-ink);
+}
+
+.flagOpen {
+  color: var(--color-graphite);
+}
+
+.safetyNote {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+}
+
 .add,
 .added {
   display: flex;

@@ -18,7 +18,7 @@ import { buildJournal } from "../journal";
 import { evaluateLots, expiryTagView, levelPercent } from "../lots";
 import { breakdownText, groupEntries, groupName } from "../pantry/groups";
 import { entryDetail, entryExpiry } from "../pantry/rows";
-import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
+import { LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
 import styles from "./Today.module.css";
@@ -123,20 +123,11 @@ export function Today() {
 
           <TodayDiary now={now} date={viewDate} pantry={pantry.data} log={log.data} />
 
-          {isPast ? null : <TodayNutrition now={now} />}
-
           {isPast ? null : (
           <>
+          {entries.length === 0 ? null : (
           <section className={ui.section}>
             <SectionHeader label="Da mangiare prima" actionLabel="Tutta la dispensa" actionHref="/app/dispensa" />
-            {entries.length === 0 ? (
-              <EmptyState
-                title="Ancora niente da mangiare"
-                text="Qui comparirà ciò che scade per primo, in ordine. Comincia aggiungendo quello che hai in casa."
-                secondaryLabel="Ho già in casa: aggiunta rapida"
-                secondaryHref="/app/cattura/veloce"
-              />
-            ) : (
               <ul className={`${styles.list} ${ui.group}`}>
                 {eatFirst.map((group) => {
                   const entry = group.entries[0];
@@ -162,18 +153,23 @@ export function Today() {
                   );
                 })}
               </ul>
-            )}
+            <div className={ui.row}>
+              <Link href="/app/ricette/idee" className={ui.textLink}>
+                Idee di ricette con ciò che hai
+              </Link>
+            </div>
           </section>
+          )}
 
+          <TodayNutrition now={now} />
+
+          <PinnedViews />
+
+          <PromptCard title="Chiedi" description="Domande sui tuoi dati, con la risposta e da dove viene" href="/app/assistente" />
+
+          {rows.length === 0 ? null : (
           <section className={ui.section}>
             <SectionHeader label="Registro di oggi" />
-            {rows.length === 0 ? (
-              <EmptyState
-                title="Oggi non è ancora successo niente"
-                text="Quando aggiungi, mangi, apri, sposti o butti qualcosa, lo trovi qui con l'orario e la quantità."
-                actionLabel="Aggiungi il primo alimento"
-              />
-            ) : (
               <ul className={`${styles.list} ${ui.group}`}>
                 {rows.map((row) => (
                   <li key={row.id}>
@@ -232,12 +228,8 @@ export function Today() {
                   </li>
                 ))}
               </ul>
-            )}
           </section>
-
-          <PinnedViews />
-
-          <PromptCard title="Chiedi" description="Domande sui tuoi dati, con la risposta e da dove viene" href="/app/assistente" />
+          )}
           </>
           )}
         </>

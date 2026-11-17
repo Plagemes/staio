@@ -8,7 +8,7 @@ import { dayTypeOf, type PlanState } from "@/core/plan";
 import { ALLERGEN_CHECK_NOTICE, allergenLabels, confirmationLapse } from "@/core/allergens";
 import { ALLERGEN_STEMS } from "@/core/recipes";
 import { getDeviceId, usePlan } from "@/data";
-import { Button, Label, SectionHeader } from "@/design";
+import { Button, SectionHeader } from "@/design";
 import { MEAL_KIND_LABELS } from "../meals";
 import { NUTRIENT_INFO } from "../nutrition/labels";
 import { toEngineProfile } from "../nutrition/profile";
@@ -42,7 +42,9 @@ export function Goals() {
     <div className={ui.screen}>
       <div className={ui.head}>
         <h1 className={ui.title}>Obiettivi e struttura</h1>
-        <Label>Scelti da te</Label>
+        <Link href="/app/piano" className={ui.textLink}>
+          Torna al piano
+        </Link>
       </div>
       <p className={ui.lead}>
         Gli obiettivi sono quelli che scrivi tu, per ogni tipo di giornata: Staio non ne propone e non dà pareri medici. Servono a confrontare il piano con ciò che hai deciso.

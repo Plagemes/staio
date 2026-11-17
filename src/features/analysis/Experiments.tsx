@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { deriveExperiments } from "@/core/analysis";
 import { useEventLog } from "@/data";
-import { Button, Label, SectionHeader } from "@/design";
+import { Button, SectionHeader } from "@/design";
 import { LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { ExperimentCard } from "./ExperimentCard";
@@ -25,7 +26,9 @@ export function Experiments() {
     <div className={ui.screen}>
       <div className={ui.head}>
         <h1 className={ui.title}>Esperimenti</h1>
-        <Label>Confronti</Label>
+        <Link href="/app/salute" className={ui.textLink}>
+          Torna a Salute
+        </Link>
       </div>
       <p className={ui.lead}>
         Cambi una cosa per un periodo e guardi alcune misure. Il confronto è con i giorni immediatamente prima, di pari durata: dice se la differenza si distingue

@@ -241,6 +241,9 @@ export function Capture() {
           <Link href="/app/cattura/veloce" className={ui.textLink}>
             Ho già in casa: aggiunta rapida di più alimenti
           </Link>
+          <Link href="/app/qualita/scaffale" className={ui.textLink}>
+            In negozio? Confronta i prodotti sullo scaffale
+          </Link>
         </div>
       )}
 
@@ -515,6 +518,10 @@ export function Capture() {
           {saving ? "Salvo…" : packs > 1 ? `Aggiungi ${packs} confezioni alla dispensa` : "Aggiungi alla dispensa"}
         </Button>
       </form>
+
+      <Link href="/app/dispensa" className={ui.textLink}>
+        Vai alla dispensa
+      </Link>
     </div>
   );
 }

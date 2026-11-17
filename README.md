@@ -41,7 +41,9 @@ Il progetto è in costruzione. Questa tabella dice cosa c'è davvero.
 | Conferma dell'etichetta per gli ingredienti non verificabili | Prima versione |
 | Avvisi senza server | Scritto, da provare sui telefoni |
 | Ricette da video condivisi all'app | Scritto; il servizio di estrazione non è ancora attivo |
-| Abbinamenti di gusto da FlavorGraph | Prima versione |
+| Allergeni dei prodotti letti dal codice, con ingredienti e tracce di Open Food Facts | Prima versione, con revisione indipendente |
+| Abbinamenti di gusto da FlavorGraph e dalle proprie ricette | Prima versione |
+| Tè e caffè scalati dalla dispensa, pasto pianificato da spostare | Prima versione |
 | Sincronizzazione con file e con Drive | Scritto; Drive in attesa delle credenziali |
 | Tema Vivo a colori, modelli 3D a colori | In costruzione |
 

@@ -63,7 +63,7 @@ export function RecipeIdeas() {
   }
   const issue = configIssue(settings);
   if (issue !== null) {
-    return <NotReady issue={issue} title={TITLE} what="avere idee di ricette con ciò che hai in casa" alternative={{ href: "/app/ricette", label: "Vai al ricettario" }} />;
+    return <NotReady issue={issue} title={TITLE} what="avere idee di ricette con ciò che hai in casa" alternative={{ href: "/app/ricette", label: "Torna al ricettario" }} />;
   }
   return <Loader settings={settings} />;
 }

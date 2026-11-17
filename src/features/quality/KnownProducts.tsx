@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { assessProduct } from "@/core/quality";
-import { Button, Label } from "@/design";
+import { Button } from "@/design";
 import { usePantry } from "@/data";
 import { LoadingLine } from "../shell/EmptyState";
 import { useProducts } from "../nutrition/useNutrition";
@@ -32,7 +32,9 @@ export function KnownProducts() {
     <div className={ui.screen}>
       <div className={ui.head}>
         <h1 className={ui.title}>Prodotti che conosci</h1>
-        <Label>Sul telefono</Label>
+        <Link href="/app/qualita" className={ui.textLink}>
+          Torna a Qualità
+        </Link>
       </div>
       <p className={ui.lead}>
         Quelli che hai già letto con la fotocamera o comprato. Le alternative migliori si cercano soltanto qui: nessun prodotto che non conosci.

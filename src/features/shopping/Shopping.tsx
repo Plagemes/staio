@@ -160,6 +160,10 @@ function ShoppingView({ data, undo }: { data: ShoppingData; undo: Undo }) {
         </Button>
       ) : null}
 
+      <Link href="/app/qualita/scaffale" className={ui.textLink}>
+        Confronta sullo scaffale
+      </Link>
+
       {view.suppressed.length > 0 ? (
         <section className={ui.section} aria-label="Proposte sospese">
           <SectionHeader label={`Sospese (${view.suppressed.length})`} />
@@ -202,9 +206,6 @@ function ShoppingView({ data, undo }: { data: ShoppingData; undo: Undo }) {
       <div className={ui.row}>
         <Link href="/app/spesa/scorte" className={ui.textLink}>
           Scorte minime
-        </Link>
-        <Link href="/app/qualita/scaffale" className={ui.textLink}>
-          Confronta sullo scaffale
         </Link>
         <Link href="/app/qualita" className={ui.textLink}>
           Qualità di ciò che mangi

@@ -278,7 +278,7 @@ function AiSettingsForm({ settings }: { settings: AiSettings }) {
       <div className={ui.head}>
         <h1 className={ui.title}>Intelligenza artificiale</h1>
         <Link href="/app/impostazioni" className={ui.textLink}>
-          Impostazioni
+          Torna alle impostazioni
         </Link>
       </div>
 

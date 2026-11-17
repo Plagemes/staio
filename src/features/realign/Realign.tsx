@@ -121,7 +121,7 @@ export function Realign() {
           <EmptyState
             title="Niente da controllare"
             text="Le quantità sono state confermate da poco. Qui compariranno le voci stimate o non controllate da una settimana."
-            actionLabel="Vai alla dispensa"
+            actionLabel="Torna alla dispensa"
             actionHref="/app/dispensa"
           />
         ) : (

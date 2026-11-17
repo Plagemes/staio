@@ -4,6 +4,7 @@ export { FALLBACK_CATEGORY, expiryCategoryFor, expiryCategoryFromName, expiryCat
 export type { ExpiryCategoryProposal, ExpiryCategorySource } from "./expiryCategory";
 export { OFF_FIELDS, isStoredProduct, productFromOpenFoodFacts } from "./openFoodFacts";
 export type { FromOffOptions } from "./openFoodFacts";
+export { parsePeriodAfterOpening } from "./periodAfterOpening";
 export { parsePackageQuantity, quantityText } from "./quantity";
 export { piecesHintFrom } from "./piecesHint";
 export { locationFromStorage } from "./storage";

@@ -122,12 +122,20 @@ export function Settings() {
       </div>
 
       <section className={ui.section}>
-        <SectionHeader label="I tuoi dati" />
+        <SectionHeader label="Persona" />
         <div className={styles.block}>
-          <p className={ui.paragraph}>
-            Tutto resta su questo telefono e funziona anche senza rete. I dati escono dal telefono solo se lo chiedi tu: una copia, la sincronizzazione, una domanda all&apos;AI con la tua chiave.
-            {count !== undefined ? ` Eventi registrati: ${count}.` : ""}
-          </p>
+          <Label>Profilo</Label>
+          <p className={ui.paragraph}>Sesso ed età servono a scegliere i valori di riferimento per la nutrizione. Restano sul telefono.</p>
+          <Link href="/app/impostazioni/profilo" className={ui.textLink}>
+            Profilo per la nutrizione
+          </Link>
+        </div>
+        <div className={styles.block}>
+          <Label>Pasti abituali</Label>
+          <p className={ui.paragraph}>I pasti che ripeti e che Staio ti propone all&apos;ora giusta. Qui li rinomini o li ritiri; li trovi anche in Oggi.</p>
+          <Link href="/app/pasti-abituali" className={ui.textLink}>
+            Gestisci i pasti abituali
+          </Link>
         </div>
       </section>
 
@@ -142,16 +150,6 @@ export function Settings() {
       </section>
 
       <section className={ui.section}>
-        <SectionHeader label="Profilo" />
-        <div className={styles.block}>
-          <p className={ui.paragraph}>Sesso ed età servono a scegliere i valori di riferimento per la nutrizione. Restano sul telefono.</p>
-          <Link href="/app/impostazioni/profilo" className={ui.textLink}>
-            Profilo per la nutrizione
-          </Link>
-        </div>
-      </section>
-
-      <section className={ui.section}>
         <SectionHeader label="Intelligenza artificiale" />
         <div className={styles.block}>
           <p className={ui.paragraph}>Facoltativa: serve a leggere gli scontrini. Decidi tu se usarla e con quale servizio.</p>
@@ -159,21 +157,8 @@ export function Settings() {
             Intelligenza artificiale
           </Link>
         </div>
-      </section>
-
-      <section className={ui.section}>
-        <SectionHeader label="Avvisi" />
         <div className={styles.block}>
-          <p className={ui.paragraph}>Promemoria per le scadenze e per ciò che hai deciso di non dimenticare. Li scegli tu.</p>
-          <Link href="/app/impostazioni/avvisi" className={ui.textLink}>
-            Avvisi
-          </Link>
-        </div>
-      </section>
-
-      <section className={ui.section}>
-        <SectionHeader label="Ricette da video" />
-        <div className={styles.block}>
+          <Label>Ricette da video</Label>
           <p className={ui.paragraph}>Il servizio che scarica i video condivisi all&apos;app, per leggerne la ricetta.</p>
           <Link href="/app/impostazioni/video" className={ui.textLink}>
             Ricette da video
@@ -182,28 +167,30 @@ export function Settings() {
       </section>
 
       <section className={ui.section}>
-        <SectionHeader label="Sincronizzazione" />
+        <SectionHeader label="Dati e dispositivi" />
         <div className={styles.block}>
+          <Label>I tuoi dati</Label>
+          <p className={ui.paragraph}>
+            Tutto resta su questo telefono e funziona anche senza rete. I dati escono dal telefono solo se lo chiedi tu: una copia, la sincronizzazione, una domanda all&apos;AI con la tua chiave.
+            {count !== undefined ? ` Eventi registrati: ${count}.` : ""}
+          </p>
+        </div>
+        <div className={styles.block}>
+          <Label>Sincronizzazione</Label>
           <p className={ui.paragraph}>Porta i tuoi dati su un altro dispositivo, con un file o con Drive.</p>
           <Link href="/app/impostazioni/sincronizzazione" className={ui.textLink}>
             Sincronizzazione
           </Link>
         </div>
-      </section>
-
-      <section className={ui.section}>
-        <SectionHeader label="Pasti abituali" />
         <div className={styles.block}>
-          <p className={ui.paragraph}>I pasti che ripeti e che Staio ti propone all&apos;ora giusta. Qui li rinomini o li ritiri.</p>
-          <Link href="/app/pasti-abituali" className={ui.textLink}>
-            Gestisci i pasti abituali
+          <Label>Avvisi</Label>
+          <p className={ui.paragraph}>Promemoria per le scadenze e per ciò che hai deciso di non dimenticare. Li scegli tu.</p>
+          <Link href="/app/impostazioni/avvisi" className={ui.textLink}>
+            Avvisi
           </Link>
         </div>
-      </section>
-
-      <section className={ui.section}>
-        <SectionHeader label="Copia di sicurezza" />
         <div className={styles.block}>
+          <Label>Copia di sicurezza</Label>
           <p className={ui.paragraph}>
             Esporta una copia di tutto ciò che hai registrato, oppure importane una. Importare non cancella niente: gli eventi
             già presenti restano.
@@ -228,11 +215,8 @@ export function Settings() {
             </p>
           ) : null}
         </div>
-      </section>
-
-      <section className={ui.section}>
-        <SectionHeader label="Copia delle impostazioni" />
         <div className={styles.block}>
+          <Label>Copia delle impostazioni</Label>
           <p className={ui.paragraph}>
             Le impostazioni non sensibili (profilo, obiettivi, lista della spesa, scelte ricordate) in un file a parte. La chiave
             dell&apos;intelligenza artificiale non viene mai esportata, e se è in un file che importi viene ignorata.
@@ -252,11 +236,8 @@ export function Settings() {
             </p>
           ) : null}
         </div>
-      </section>
-
-      <section className={ui.section}>
-        <SectionHeader label="Cancella tutto" />
         <div className={styles.block}>
+          <Label>Cancella tutto</Label>
           {wipe === "idle" ? (
             <>
               <p className={ui.paragraph}>Toglie dal telefono tutti i dati dell&apos;app. Non si può annullare.</p>

@@ -53,3 +53,9 @@
 .captureCurrent {
   box-shadow: 0 0 0 2px var(--color-paper), 0 0 0 4px var(--capture-fill);
 }
+
+/* Vivo: l'icona di ogni voce ha il colore della sua area (data-area sulla voce), anche quando non è quella corrente;
+   l'etichetta resta grigia, o colorata se corrente: il significato non sta solo nel colore */
+:global([data-palette="vivo"]) .item svg {
+  color: var(--area-current);
+}

@@ -104,3 +104,40 @@
   gap: var(--space-7);
   padding-top: var(--space-4);
 }
+
+/* Vivo: area Cattura (indaco). Scelta del file come pulsante pieno chiaro, righe lette in una scheda. */
+:global([data-palette="vivo"]) .file {
+  border-color: transparent;
+  background: var(--button-quiet-fill);
+  color: var(--button-quiet-text);
+  font-weight: 600;
+}
+
+:global([data-palette="vivo"]) .preview {
+  border-color: transparent;
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .rows {
+  padding-inline: var(--space-8);
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .rows > :last-child {
+  margin-bottom: calc(var(--rule-width) * -1);
+}
+
+:global([data-palette="vivo"]) .meta {
+  padding: var(--space-7) var(--space-8);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .notes summary {
+  color: var(--color-accent);
+  font-weight: 600;
+}

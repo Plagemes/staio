@@ -153,7 +153,7 @@ export function NotificationsScreen() {
       <div className={ui.head}>
         <h1 className={ui.title}>Avvisi</h1>
         <Link href="/app/impostazioni" className={ui.textLink}>
-          Impostazioni
+          Torna alle impostazioni
         </Link>
       </div>
 

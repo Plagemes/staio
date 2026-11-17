@@ -210,11 +210,16 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
           <LotNutrients lotId={lot.lotId} productRef={lot.productRef} barcode={lot.barcode} />
         </section>
 
-        {lot.barcode ? (
-          <Link href={`/app/qualita/prodotto?codice=${encodeURIComponent(lot.barcode)}`} className={ui.textLink}>
-            Qualità
+        <div className={ui.row}>
+          <Link href={`/app/ricette/abbinamenti?alimento=${encodeURIComponent(lot.productRef)}`} className={ui.textLink}>
+            Con cosa sta bene
           </Link>
-        ) : null}
+          {lot.barcode ? (
+            <Link href={`/app/qualita/prodotto?codice=${encodeURIComponent(lot.barcode)}`} className={ui.textLink}>
+              Qualità
+            </Link>
+          ) : null}
+        </div>
 
         {lot.remaining > 0 ? (
           <LotActions entry={entry} creation={creation} group={members} now={now} busy={busy} perform={perform} error={error} />

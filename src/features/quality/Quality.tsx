@@ -147,7 +147,9 @@ export function Quality() {
     <div className={ui.screen}>
       <div className={ui.head}>
         <h1 className={ui.title}>Qualità</h1>
-        <Label>Stima</Label>
+        <Link href="/app/spesa" className={ui.textLink}>
+          Torna alla spesa
+        </Link>
       </div>
       <p className={ui.lead}>
         Ogni prodotto si guarda dimensione per dimensione, con il suo perché e la sua fonte. Non c&apos;è un voto unico, e ciò che non si può valutare resta

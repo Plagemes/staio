@@ -6,6 +6,7 @@ import { DEFAULT_TIME_ZONE } from "@/core/expiry";
 import { useDiary } from "@/data";
 import { Button, Label, Value } from "@/design";
 import { dayOf, formatTime } from "../format";
+import { DrinkPantrySuggestion, useDrinkSuggestion } from "./DrinkPantry";
 import { DrinkEntries, DrinkPresetChips, useDrinkActions } from "./Drinks";
 import { recentSupplementNames } from "../health";
 import ui from "../ui.module.css";
@@ -130,6 +131,7 @@ export function DrinksCard() {
   const diary = useDiary();
   const now = useNow();
   const actions = useDrinkActions(diary.data?.timeZone ?? DEFAULT_TIME_ZONE);
+  const suggestion = useDrinkSuggestion();
   const ids = useId();
   const [name, setName] = useState("");
   const [ml, setMl] = useState("");
@@ -153,6 +155,7 @@ export function DrinksCard() {
     setError(null);
     const result = await actions.add({ name: name.trim(), ml: volume, caffeineMg, alcoholG }, "label");
     if (result.ok) {
+      suggestion.offer(name, result.events);
       setName("");
       setMl("");
       setCaffeine("");
@@ -162,7 +165,8 @@ export function DrinksCard() {
 
   return (
     <div className={styles.card}>
-      <DrinkPresetChips actions={actions} onError={setError} />
+      <DrinkPresetChips actions={actions} onError={setError} onAdded={suggestion.offer} />
+      <DrinkPantrySuggestion suggestion={suggestion.suggestion} timeZone={diary.data.timeZone ?? DEFAULT_TIME_ZONE} onDone={suggestion.dismiss} />
       <p className={ui.hint}>
         Caffeina, alcol ed energia delle scelte rapide sono valori tipici, non misure: valgono come stime. La bevanda compare in Oggi, nel momento
         a cui appartiene per orario.

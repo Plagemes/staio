@@ -108,13 +108,35 @@ I `font-weight: 400` scritti accanto a `--font-display` sono diventati `var(--we
   avvisi del piano tinti «scaduto», esiti nei colori degli stati, elenchi delle ricette e ingredienti raggruppati, passi
   numerati in un tondo colorato, voci delle impostazioni come schede.
 - **Comuni**: `.empty`, `.callout`, `.danger`, avviso a comparsa con angoli e ombra delle schede.
+- **Terza tappa, solo CSS** (regole `:global([data-palette="vivo"])` nei moduli, nessun markup nuovo):
+  - **Analisi, esperimenti, rapporto** (area Salute): ogni blocco `.card` è una scheda; cifra grande nel colore dell'area;
+    «dati insufficienti» su fondo `--state-estimate-tint`; etichette (`.tag`) a pastiglia; grafico del peso con la media nel
+    colore dell'area e proiezione e bande nel colore delle stime (la proiezione resta tratteggiata); esperimenti come schede,
+    conferma di chiusura su `--state-expired-tint`, frecce del periodo in tinta.
+  - **Spesa** (Piano): voci e giorni come schede, azioni a pastiglia (`--button-quiet-*`, pericolo su `--state-expired-tint`),
+    «in negozio» con righe-scheda (fatte su `--color-fill`), barra del totale e annulla come schede.
+  - **Preparazioni** (Piano): elenchi raggruppati in scheda, attività su fondo dell'area (in ritardo `--state-expired`),
+    anteprima tinta, finestra con angoli delle schede.
+  - **Qualità** (Piano): elenchi in scheda; esito di ogni dimensione in pastiglia con il colore dello stato (a posto, attenzione,
+    pericolo; «non valutabile» grigio e tratteggiato; la parola e il simbolo restano); alternative, schede dello scaffale, tabella.
+  - **Assistente** (Oggi): viste generate come schede, grafico nel colore dell'area, esempi a pastiglia, nota sulla privacy tinta.
+  - **Scontrino** (Cattura): scelta del file come pulsante chiaro nel colore dell'area, righe lette in una scheda, dati del negozio
+    in scheda.
+  - **Menu**: le icone della barra in basso hanno il colore della loro area anche quando non sono quelle correnti
+    (`BottomNav.module.css`); l'avviso «senza rete» della shell è una striscia tinta d'attenzione.
+  - Contrasto: ogni coppia nuova usa solo coppie già garantite da `themes.test.ts`, più due aggiunte lì («scaduto» su `--area-plan-tint`;
+    `--color-ink` e `--color-graphite` su ogni `-tint` di area e su `--color-fill`, ≥ 4,5 in chiaro e in scuro).
+    Il testo colorato sta solo su superficie, carta o sul proprio fondo tinto.
 
 ### Resta
 
-- Icone colorate nelle voci di menu: le Impostazioni non hanno icone, quindi non ne ho aggiunte (sarebbe markup nuovo).
+- Icone nelle voci delle Impostazioni: non hanno icone, aggiungerle è markup nuovo (fuori dall'area dei moduli CSS).
 - Anelli per energia e macronutrienti: non c'è un obiettivo con cui confrontarli (scelta del prodotto), quindi solo cifre
   colorate. Quando esisteranno gli obiettivi del Piano su Oggi, `ProgressRing` / `ProgressLine` hanno già i toni dei nutrienti.
-- Non ancora ritoccate: Analisi (grafici con `--nutrient-*` e `--state-*`), spesa, preparazioni, qualità, assistente,
-  cattura con IA e scontrino (ereditano titoli, campi, scelte e avvisi comuni), pagina `/modelli`.
+- Non ritoccate (non erano nell'elenco): cattura con IA (frase e piatto, `AiCapture.module.css`), foto della dispensa, impostazioni
+  dell'IA, pagina `/modelli`.
+- Non viste a schermo (nessun server avviato): tutte le schermate di questa tappa; i controlli sono solo i test, i tipi e il lint.
+  Da guardare in particolare: righe con striscia di stato nelle preparazioni e in Qualità (non ne hanno: non c'è un attributo di stato
+  nel markup), esperimenti con stato «in corso» (solo la pastiglia, niente striscia), scheda dentro scheda nelle schermate di Qualità.
 - Schermate con moduli dentro una sezione (per esempio la ricerca del Ricettario) non hanno i campi in scheda: la regola vale
-  per `.screen > .form` e `ui.fields`.
+  per `.screen > .form` e `ui.fields`; vale anche per i campi di Spesa, Preparazioni e Qualità.

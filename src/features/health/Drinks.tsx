@@ -6,10 +6,21 @@
 import { useState } from "react";
 import { InvalidDiaryEventError, type DiaryDrink } from "@/core/diary";
 import type { AnyEvent } from "@/core/events";
-import { voidEvent } from "@/core/ledger";
-import { appendEvents, getDeviceId } from "@/data";
+import type { ConsumeEvent } from "@/core/ledger";
+import { appendEvents, getAllEvents, getDeviceId, getPantry } from "@/data";
 import { Button, Value } from "@/design";
-import { buildDrink, drinkCounts, drinkDetail, drinkMomentWord, inputOfPreset, retimeDrink, shortTime, type DrinkInput } from "../drinks";
+import {
+  buildDrink,
+  drinkCounts,
+  drinkDetail,
+  drinkMomentWord,
+  inputOfPreset,
+  linkedConsumes,
+  removeDrink,
+  retimeDrink,
+  shortTime,
+  type DrinkInput,
+} from "../drinks";
 import { formatMl, DRINK_PRESETS, type DrinkPreset } from "../health";
 import { useNotice } from "../notice";
 import ui from "../ui.module.css";
@@ -23,7 +34,18 @@ function presetHint(p: DrinkPreset): string {
   return parts.join(" · ");
 }
 
-export type DrinkAction = { ok: true } | { ok: false; error: string };
+/** `events`: ciò che è stato scritto, per chi vuole proporre qualcosa subito dopo. */
+export type DrinkAction = { ok: true; events: AnyEvent[] } | { ok: false; error: string };
+
+/** I consumi della dispensa legati a una bevanda (scalati con «Scala una bustina»); nessuno se non si riesce a leggere. */
+async function consumesOfDrink(drinkEventId: string): Promise<ConsumeEvent[]> {
+  try {
+    const [events, pantry] = await Promise.all([getAllEvents(), getPantry()]);
+    return linkedConsumes(drinkEventId, events, pantry.voidedEventIds);
+  } catch {
+    return [];
+  }
+}
 
 /** Scrive, annulla e sposta le bevande. Ogni scrittura mostra l'avviso con «Annulla». */
 export function useDrinkActions(timeZone: string) {
@@ -39,7 +61,7 @@ export function useDrinkActions(timeZone: string) {
       const written = await appendEvents(built.events);
       if (written.added === 0 || written.rejected.length > 0) return { ok: false, error: "Non sono riuscito a salvare. Riprova." };
       notice.show({ message: built.message, undo: built.events });
-      return { ok: true };
+      return { ok: true, events: built.events };
     } catch (e) {
       if (e instanceof InvalidDiaryEventError) return { ok: false, error: "Questo valore non è accettabile: controlla il numero." };
       return { ok: false, error: "Non sono riuscito a salvare sul telefono. Riprova." };
@@ -57,16 +79,18 @@ export function useDrinkActions(timeZone: string) {
     addPreset: (p: DrinkPreset, when?: { at: string; dayLabel: string }) =>
       write((deviceId, now) => buildDrink(inputOfPreset(p), { deviceId, now, timeZone, ...(when ?? {}) })),
     /** «Annulla» su una bevanda già segnata: un `void`, e l'avviso permette di tornare indietro. */
-    remove: (drink: DiaryDrink) =>
-      write((deviceId, now) => ({
-        events: [voidEvent({ id: drink.eventId, deviceId }, { deviceId, now: () => now })],
-        message: `Annullato: ${drink.name.toLowerCase()} delle ${shortTime(drink.at, timeZone)}.`,
-      })),
-    retime: (drink: DiaryDrink, date: string, timeText: string) =>
-      write((deviceId, now) => {
-        const r = retimeDrink(drink, date, timeText, { deviceId, now, timeZone });
+    /** Annulla anche ciò che era stato scalato dalla dispensa per questa bevanda. */
+    remove: async (drink: DiaryDrink) => {
+      const linked = await consumesOfDrink(drink.eventId);
+      return write((deviceId, now) => removeDrink(drink, linked, { deviceId, now, timeZone }));
+    },
+    retime: async (drink: DiaryDrink, date: string, timeText: string) => {
+      const linked = await consumesOfDrink(drink.eventId);
+      return write((deviceId, now) => {
+        const r = retimeDrink(drink, date, timeText, { deviceId, now, timeZone }, linked);
         return r.ok ? { events: r.events, message: r.message } : { error: r.error };
-      }),
+      });
+    },
   };
 }
 
@@ -77,11 +101,14 @@ export function DrinkPresetChips({
   actions,
   onError,
   when,
+  onAdded,
 }: {
   actions: Actions;
   onError: (message: string | null) => void;
   /** Per una bevanda dimenticata di un giorno passato: l'istante in cui è stata bevuta. */
   when?: { at: string; dayLabel: string };
+  /** Dopo una bevanda segnata adesso (non per un giorno passato): per proporre di scalarla dalla dispensa. */
+  onAdded?: (name: string, events: readonly AnyEvent[]) => void;
 }) {
   return (
     <div className={styles.buttons}>
@@ -95,6 +122,7 @@ export function DrinkPresetChips({
             onError(null);
             const result = await actions.addPreset(p, when);
             if (!result.ok) onError(result.error);
+            else if (!when) onAdded?.(p.name, result.events);
           }}
         >
           {p.name}

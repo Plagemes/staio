@@ -29,6 +29,9 @@ import recipeStyles from "../recipes/recipes.module.css";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
 import {
+  cookedBasisText,
+  cookedEmptyText,
+  cookedView,
   daysText,
   doubtText,
   expiringPicks,
@@ -38,9 +41,12 @@ import {
   recipeSubjects,
   similarityText,
   supportText,
+  togetherText,
   unknownText,
   type ExpiringFood,
   type FoodIdOf,
+  type FoodNameOf,
+  type CookedView,
 } from "./logic";
 import { useTasteData } from "./useTasteData";
 
@@ -49,7 +55,9 @@ const SOURCE_URL = "https://github.com/lamypark/FlavorGraph";
 const MEANING = "Alimenti che nelle ricette e negli aromi stanno vicini a questo. A volte sono compagni, a volte sostituti.";
 
 export function Pairings() {
-  const recipeId = useSearchParams().get("ricetta");
+  const params = useSearchParams();
+  const recipeId = params.get("ricetta");
+  const startFood = params.get("alimento") ?? "";
   const taste = useTasteData();
   const recipes = useRecipes();
   const pantry = usePantry();
@@ -67,6 +75,11 @@ export function Pairings() {
       // solo nomi uguali a meno di maiuscole, accenti e plurali: niente corrispondenze approssimate
       return m && m.confidence >= 0.95 ? m.food.id : undefined;
     };
+  }, [foods]);
+
+  const foodNameOf = useMemo<FoodNameOf>(() => {
+    const names = new Map((foods ?? []).map((f) => [f.id, f.name]));
+    return (id) => names.get(id);
   }, [foods]);
 
   const lots = useMemo(() => (pantry.data ? activeLots(pantry.data) : []), [pantry.data]);
@@ -98,7 +111,7 @@ export function Pairings() {
     );
   }
 
-  const common: Common = { index, home, allergens, excludedFoods, foodIdOf, hasPantry: lots.length > 0 };
+  const common: Common = { index, home, allergens, excludedFoods, foodIdOf, foodNameOf, hasPantry: lots.length > 0 };
   if (recipeId) {
     const recipe = recipes.data.recipes.find((r) => r.recipeId === recipeId);
     if (!recipe) {
@@ -109,7 +122,7 @@ export function Pairings() {
             text="Potrebbe essere stata ritirata o annullata. Puoi scegliere un ingrediente da solo."
             actionLabel="Scegli un ingrediente"
             actionHref="/app/ricette/abbinamenti"
-            secondaryLabel="Vai al ricettario"
+            secondaryLabel="Torna al ricettario"
             secondaryHref="/app/ricette"
           />
         </div>
@@ -117,7 +130,7 @@ export function Pairings() {
     }
     return <ForRecipe key={recipe.recipeId} recipe={recipe} {...common} />;
   }
-  return <ForIngredient {...common} expiring={expiring} />;
+  return <ForIngredient {...common} expiring={expiring} recipes={recipes.data.recipes} startFood={startFood} />;
 }
 
 interface Common {
@@ -126,6 +139,7 @@ interface Common {
   allergens: string[];
   excludedFoods: string[];
   foodIdOf: FoodIdOf;
+  foodNameOf: FoodNameOf;
   hasPantry: boolean;
 }
 
@@ -151,7 +165,7 @@ function ForRecipe({ recipe, index, home, allergens, excludedFoods, foodIdOf, ha
   return (
     <div className={ui.screen}>
       <div className={ui.head}>
-        <h1 className={ui.title}>Cosa ci starebbe bene</h1>
+        <h1 className={ui.title}>Con cosa sta bene</h1>
         <Label>Abbinamenti</Label>
       </div>
       <p className={ui.lead}>{MEANING}</p>
@@ -188,12 +202,26 @@ function ForIngredient({
   allergens,
   excludedFoods,
   foodIdOf,
+  foodNameOf,
   hasPantry,
   expiring,
-}: Common & { expiring: readonly ExpiringFood[] }) {
+  recipes,
+  startFood,
+}: Common & { expiring: readonly ExpiringFood[]; recipes: readonly Recipe[]; startFood: string }) {
   const ids = useId();
-  const [query, setQuery] = useState("");
-  const [pick, setPick] = useState<Pick | null>(null);
+  // `?alimento=` arriva dalla scheda di un alimento in dispensa: si parte già con quel nome cercato e il primo trovato scelto
+  const start = useMemo(() => {
+    const full = startFood.trim();
+    if (full === "") return { query: "", food: undefined };
+    const found = searchTasteFoods(index, full)[0];
+    if (found) return { query: full, food: found };
+    // un nome lungo come «Latte intero Brand» spesso non c'è tutto: si prova con la prima parola
+    const firstWord = full.split(/\s+/)[0] ?? full;
+    const byWord = searchTasteFoods(index, firstWord)[0];
+    return byWord ? { query: firstWord, food: byWord } : { query: full, food: undefined };
+  }, [index, startFood]);
+  const [query, setQuery] = useState(start.query);
+  const [pick, setPick] = useState<Pick | null>(start.food ? { kind: "food", key: start.food.key } : null);
 
   const candidates = useMemo(() => searchTasteFoods(index, query), [index, query]);
   const expiringInfo = useMemo(() => expiringPicks(index, expiring, foodIdOf), [index, expiring, foodIdOf]);
@@ -208,6 +236,12 @@ function ForIngredient({
     }
     return pairingsForSet(index, expiringInfo.picks.map((p) => subjectOfFood(p.food)), { ...options, limit: SET_LIMIT });
   }, [pick, index, home, allergens, excludedFoods, expiringInfo.picks]);
+
+  const pickedFood = pick?.kind === "food" ? index.byKey.get(pick.key) : undefined;
+  const cooked = useMemo(
+    () => (pickedFood ? cookedView(recipes, pickedFood, index, foodIdOf, foodNameOf, { allergens, excludedFoods }) : undefined),
+    [pickedFood, recipes, index, foodIdOf, foodNameOf, allergens, excludedFoods],
+  );
 
   const choose = (key: string) => setPick({ kind: "food", key });
   const chosenKey = pick?.kind === "food" ? pick.key : undefined;
@@ -306,6 +340,8 @@ function ForIngredient({
         )}
       </section>
 
+      {pickedFood && cooked ? <FromRecipes view={cooked} foodName={pickedFood.name} declared={declared} /> : null}
+
       {result ? (
         <Results
           result={result}
@@ -321,6 +357,35 @@ function ForIngredient({
         Torna al ricettario
       </Link>
     </div>
+  );
+}
+
+function FromRecipes({ view, foodName, declared }: { view: CookedView; foodName: string; declared: boolean }) {
+  const hidden = hiddenText(view.hiddenCount);
+  return (
+    <section className={ui.section} aria-live="polite">
+      <h2 className={ui.fieldLabel}>Dalle tue ricette</h2>
+      {view.pairs.length === 0 ? (
+        <p className={ui.hint}>{cookedEmptyText(view, foodName)}</p>
+      ) : (
+        <>
+          <ul className={recipeStyles.list}>
+            {view.pairs.map((p) => (
+              <li key={p.food.key} className={recipeStyles.card}>
+                <span className={recipeStyles.cardTitle}>{p.food.name}</span>
+                <span className={recipeStyles.meta}>
+                  <span>{togetherText(p.together)}</span>
+                </span>
+                {p.doubt ? <span className={recipeStyles.noteStrong}>{doubtText(p.doubt)}</span> : null}
+              </li>
+            ))}
+          </ul>
+          {hidden ? <p className={ui.hint}>{hidden}</p> : null}
+          {declared ? <p className={ui.hint}>{ALLERGEN_CHECK_NOTICE}</p> : null}
+          <p className={ui.hint}>{cookedBasisText(view)}</p>
+        </>
+      )}
+    </section>
   );
 }
 

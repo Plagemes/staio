@@ -52,6 +52,8 @@ export type {
   TextHit,
   Verdict,
 } from "./engine";
+export { PRODUCT_CHECK_NOTICE, assessProduct } from "./product";
+export type { ProductAssessment, ProductCriteria, ProductFacts, ProductOutcome, ProductReason, ProductVerdict } from "./product";
 export { HYPONYM_GROUPS } from "./hyponyms";
 export type { HyponymGroup } from "./hyponyms";
 export { foldText, segments, stemWord } from "./normalize";

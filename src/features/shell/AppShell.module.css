@@ -30,3 +30,10 @@
   bottom: 0;
   z-index: 5;
 }
+
+/* Vivo: avviso «senza rete» come striscia tinta d'attenzione (a parole resta scritto) */
+:global([data-palette="vivo"]) .offline {
+  border-bottom: none;
+  background: var(--state-near-tint);
+  color: var(--color-ink);
+}

@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo } from "react";
-import { Label, PromptCard, SectionHeader } from "@/design";
+import { PromptCard, SectionHeader } from "@/design";
 import { LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { AssociationsSection } from "./AssociationsSection";
@@ -28,7 +29,9 @@ export function Analysis() {
     <div className={ui.screen}>
       <div className={ui.head}>
         <h1 className={ui.title}>Analisi</h1>
-        <Label>Stime</Label>
+        <Link href="/app/salute" className={ui.textLink}>
+          Torna a Salute
+        </Link>
       </div>
       <p className={ui.lead}>
         Andamenti e associazioni osservati nei tuoi dati. Ogni numero dice su quanti giorni si basa e quanto è affidabile; dove i dati non bastano, lo dice

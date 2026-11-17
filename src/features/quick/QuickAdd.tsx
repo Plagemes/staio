@@ -198,9 +198,14 @@ export function QuickAdd() {
         ) : null}
       </div>
 
-      <Link href="/app/cattura" className={ui.textLink}>
-        Aggiungi un alimento con tutti i dettagli
-      </Link>
+      <div className={ui.row}>
+        <Link href="/app/cattura" className={ui.textLink}>
+          Aggiungi un alimento con tutti i dettagli
+        </Link>
+        <Link href="/app/dispensa" className={ui.textLink}>
+          Vai alla dispensa
+        </Link>
+      </div>
     </div>
   );
 }

@@ -125,7 +125,7 @@ function Alternatives({ view, assessment }: { view: AlternativesView; assessment
               {alt.alsoBetter.length > 0 ? <p className={styles.dimReason}>Meglio anche su: {alt.alsoBetter.map(labelOf).join(", ")}.</p> : null}
               <p className={styles.dimReason}>{priceLine(alt, view.referenceUnitPrice)}</p>
               <div className={ui.row}>
-                <AddToListButton product={alt.product} label="Aggiungi l'alternativa alla lista" />
+                <AddToListButton product={alt.product} label="Aggiungi l'alternativa alla spesa" />
               </div>
             </article>
           ))}

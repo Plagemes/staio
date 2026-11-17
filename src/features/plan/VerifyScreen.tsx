@@ -8,7 +8,7 @@ import { Label, SectionHeader, Tabs } from "@/design";
 import { NUTRITION_DISCLAIMER_SHORT, CERTAINTY_LABELS } from "../nutrition/labels";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
-import { WEEK_LABELS, dayHeading, weekChoices, weekRangeText, type WeekId } from "./dates";
+import { WEEK_LABELS, dayHeading, weekChoices, type WeekId } from "./dates";
 import { itemName } from "./describe";
 import { checkWeekConstraints } from "./safety";
 import { usePlanData } from "./usePlanData";
@@ -61,7 +61,9 @@ export function Verify() {
     <div className={ui.screen}>
       <div className={ui.head}>
         <h1 className={ui.title}>Verifica del piano</h1>
-        <Label>{weekRangeText(week.start)}</Label>
+        <Link href="/app/piano" className={ui.textLink}>
+          Torna al piano
+        </Link>
       </div>
       <p className={ui.lead}>Il piano confrontato con gli obiettivi che hai scelto, e con ciò che hai registrato davvero. Sono stime: dove il dato manca, lo dico.</p>
       <Tabs label="Settimana" items={TABS} value={weekId} onChange={(id) => setWeekId(id as WeekId)} />
