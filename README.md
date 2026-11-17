@@ -51,6 +51,11 @@ Il progetto è in costruzione. Questa tabella dice cosa c'è davvero.
 | Lo scontrino che impara le righe di ogni negozio | Prima versione, con revisione indipendente |
 | Storico dei prezzi, spesa del periodo, costo per nutriente | Prima versione |
 | Ingresso guidato al primo avvio | Prima versione |
+| Proposta della settimana dalle proprie ricette, con ciò che scade per primo | Prima versione, con revisione indipendente |
+| Riepilogo del giorno e coda «Da rivedere» in Oggi | Prima versione, con revisione indipendente |
+| Voti ai piatti e profilo dei propri gusti | Prima versione, con revisione indipendente |
+| Riepilogo del mese e dell'anno, con lo spreco, stampabile | Prima versione |
+| Consumo rapido dalla dispensa registrato nel diario del giorno | Prima versione, con revisione indipendente |
 | Sincronizzazione con file e con Drive | Scritto; Drive in attesa delle credenziali |
 | Tema Vivo a colori, modelli 3D a colori | In costruzione |
 

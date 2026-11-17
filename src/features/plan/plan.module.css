@@ -138,6 +138,52 @@
   padding-left: var(--space-9);
 }
 
+/* Proposta di una settimana: la scheda e le voci proposte, distinte da quelle confermate (bordo tratteggiato) */
+
+.proposalCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-6) var(--space-7);
+  border: var(--rule-width) dashed var(--color-accent);
+  border-radius: var(--radius-md);
+}
+
+.proposalOptions > summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  color: var(--color-accent);
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.proposalBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+  padding-bottom: var(--space-5);
+}
+
+.proposed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border: var(--rule-width) dashed var(--color-accent);
+  border-radius: var(--radius-md);
+}
+
+.proposedTag {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
 /* Verifica */
 
 .checkLines {
@@ -327,4 +373,16 @@
 
 :global([data-palette="vivo"]) .pick:first-child {
   border-top: none;
+}
+
+:global([data-palette="vivo"]) .proposalCard {
+  border-style: solid;
+  border-color: transparent;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow), inset 6px 0 0 var(--color-accent);
+}
+
+:global([data-palette="vivo"]) .proposed {
+  border-style: dashed;
 }

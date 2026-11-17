@@ -9,6 +9,7 @@ import {
   mealsWithPantry,
   voidMeal,
   type DiaryHabit,
+  type DiaryState,
   type MealKind,
   type MealWithPantry,
 } from "@/core/diary";
@@ -24,6 +25,7 @@ import { DrinkPantrySuggestion, useDrinkSuggestion } from "../health/DrinkPantry
 import { DrinkPresetChips, useDrinkActions } from "../health/Drinks";
 import { WaterCard } from "../health/WaterCard";
 import { evaluateLots } from "../lots";
+import { looseConsumesOf } from "../pantry/eaten";
 import {
   MEAL_KIND_LABELS,
   TYPICAL_MEAL_TIME,
@@ -36,9 +38,10 @@ import { useNotice } from "../notice";
 import ui from "../ui.module.css";
 import { useRecord } from "../useRecord";
 import { missedThisWeek } from "../plan/moveMeal";
+import { LooseLine, PantryLine, useLineIntake } from "./MealLines";
 import { MealMoments } from "./MealMoments";
 import { MissedPlanned } from "./MissedPlanned";
-import { useTodayPlan } from "./useTodayPlan";
+import type { TodayPlan } from "./useTodayPlan";
 import styles from "./Today.module.css";
 
 interface Props {
@@ -47,6 +50,8 @@ interface Props {
   date: string;
   pantry: PantryState;
   log: readonly AnyEvent[];
+  /** Ciò che Oggi sa del piano: lo calcola la schermata, una volta, anche per il riepilogo. */
+  plan: TodayPlan;
 }
 
 /**
@@ -54,11 +59,10 @@ interface Props {
  * rapide delle bevande, acqua. Per un giorno passato restano solo le cose che hanno senso dopo: segnare un momento
  * saltato o non registrato, aggiungere una bevanda dimenticata, annullare.
  */
-export function TodayDiary({ now, date, pantry, log }: Props) {
+export function TodayDiary({ now, date, pantry, log, plan }: Props) {
   const diary = useDiary();
   const notice = useNotice();
   const { recordWith, busy } = useRecord();
-  const plan = useTodayPlan();
   const timeZone = diary.data?.timeZone ?? DEFAULT_TIME_ZONE;
   const drinkActions = useDrinkActions(timeZone);
   const drinkSuggestion = useDrinkSuggestion();
@@ -79,6 +83,12 @@ export function TodayDiary({ now, date, pantry, log }: Props) {
             .filter((m) => m.date === date)
             .sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))
         : [],
+    [diary.data, log, date],
+  );
+
+  const lineOf = useLineIntake(date);
+  const loose = useMemo(
+    () => (diary.data ? looseConsumesOf(log, diary.data, date) : undefined),
     [diary.data, log, date],
   );
 
@@ -144,9 +154,16 @@ export function TodayDiary({ now, date, pantry, log }: Props) {
         </div>
         <ul className={styles.items}>
           {meal.pantryConsumes.map((c) => (
-            <li key={c.id}>
-              <Value certainty={c.certainty === "estimated" ? "estimated" : "measured"}>{itemText(lotNames.get(c.lotId) ?? "Alimento", c.quantity)}</Value>
-            </li>
+            <PantryLine
+              key={c.id}
+              consume={c}
+              name={lotNames.get(c.lotId) ?? "Alimento"}
+              date={date}
+              diary={diary.data as DiaryState}
+              line={lineOf(c.id)}
+              kind={meal.kind}
+              onError={setError}
+            />
           ))}
           {meal.items.map((i, index) => (
             <li key={`${i.name}-${index}`}>
@@ -238,6 +255,10 @@ export function TodayDiary({ now, date, pantry, log }: Props) {
         habits={diary.data.habits}
         meals={meals}
         renderMeal={renderMeal}
+        loose={loose}
+        renderLoose={(c) => (
+          <LooseLine key={c.id} consume={c} name={lotNames.get(c.lotId) ?? "Alimento"} date={date} diary={diary.data as DiaryState} line={lineOf(c.id)} onError={setError} />
+        )}
         pastDay={pastDay}
         onError={setError}
         onRemoveDeclaration={(eventId, description) => {
@@ -343,7 +364,7 @@ export function TodayDiary({ now, date, pantry, log }: Props) {
       {pastDay ? null : <DrinkPantrySuggestion suggestion={drinkSuggestion.suggestion} timeZone={timeZone} onDone={drinkSuggestion.dismiss} />}
 
       {pastDay ? null : (
-        <section className={ui.section}>
+        <section className={ui.section} id="acqua">
           <SectionHeader label="Acqua" actionLabel="Salute" actionHref="/app/salute" />
           <WaterCard />
         </section>

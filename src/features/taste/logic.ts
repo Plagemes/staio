@@ -1,11 +1,18 @@
 // Dalle schermate al nucleo degli abbinamenti: soggetti, testi, scadenze. Logica pura.
 import {
+  MIN_DISHES_FOR_FOOD,
+  MIN_RECIPES_FOR_FOOD,
   MIN_RECIPES_FOR_STAPLES,
   MIN_SHARED_RECIPES,
   cookedTogether,
+  rankByTaste,
   resolveTasteFood,
   screenFood,
+  tasteProfile as buildTasteProfileCore,
+  type CookedDish,
   type CookedTogether,
+  type TasteProfile,
+  type VotedDish,
   type Pairing,
   type PairingDoubt,
   type TasteFood,
@@ -13,7 +20,8 @@ import {
   type TasteIndex,
   type TasteSubject,
 } from "@/core/taste";
-import type { Recipe } from "@/core/recipes";
+import { allergenLabels } from "@/core/allergens";
+import { exclusionReasons, type Cooking, type IngredientLink, type Recipe } from "@/core/recipes";
 import type { PantryFood } from "../recipes/allergenLinks";
 
 /** Dal nome scritto all'identificativo della tabella nutrizionale, solo se è la stessa cosa a parole uguali. */
@@ -221,4 +229,185 @@ export function cookedBasisText(view: Pick<CookedTogether, "recipeCount" | "seen
     parts.push(`Con meno di ${MIN_RECIPES_FOR_STAPLES} ricette conto tutti gli alimenti, anche quelli di base come sale e olio.`);
   }
   return parts.join(" ");
+}
+
+// ---- I tuoi gusti: dai voti ai piatti ----
+
+/** I piatti votati e le cotture, con gli ingredienti ricondotti ad alimenti. Le ricette non più trovate sono lasciate fuori. */
+export function dishesFromCookings(
+  cookings: readonly Pick<Cooking, "recipeId" | "rating">[],
+  recipes: readonly Pick<Recipe, "recipeId" | "ingredients">[],
+  index: TasteIndex,
+  foodIdOf: FoodIdOf,
+  foodNameOf: FoodNameOf,
+): { voted: VotedDish[]; cooked: CookedDish[] } {
+  const foodsOf = new Map<string, RecipeFood[]>();
+  for (const r of recipes) foodsOf.set(r.recipeId, recipeFoods(r, index, foodIdOf, foodNameOf));
+  const voted: VotedDish[] = [];
+  const cooked: CookedDish[] = [];
+  for (const c of cookings) {
+    const foods = foodsOf.get(c.recipeId);
+    if (!foods) continue;
+    cooked.push({ recipeId: c.recipeId, foods });
+    if (c.rating) voted.push({ recipeId: c.recipeId, good: c.rating !== "poor", foods });
+  }
+  return { voted, cooked };
+}
+
+/** Il profilo dai piatti votati e dalle cotture. */
+export function buildTasteProfile(voted: readonly VotedDish[], cooked: readonly CookedDish[]): TasteProfile {
+  return buildTasteProfileCore(voted, cooked);
+}
+
+export interface TasteItemView {
+  /** «Carciofi» o «Carciofi + limone». */
+  label: string;
+  /** «bene in 4 piatti, male in 1». */
+  counts: string;
+  doubt?: PairingDoubt;
+}
+
+export type TasteProfileView =
+  | { status: "few"; text: string }
+  | {
+      status: "ok";
+      liked: TasteItemView[];
+      disliked: TasteItemView[];
+      mixed: TasteItemView[];
+      likedPairs: TasteItemView[];
+      dislikedPairs: TasteItemView[];
+      often: string | undefined;
+      /** Elementi non mostrati perché contengono un allergene o un alimento escluso. */
+      hiddenCount: number;
+      /** Quando nessun ingrediente ha ancora abbastanza piatti votati. */
+      empty: string | undefined;
+      basis: string;
+    };
+
+const SHOWN_FOODS = 6;
+const SHOWN_PAIRS = 4;
+
+export function fewDataText(voted: number, needed: number): string {
+  const have = voted === 0 ? "Nessun piatto votato" : voted === 1 ? "1 piatto votato" : `${voted} piatti votati`;
+  return `Pochi dati: ${have}, ne servono almeno ${needed} per dirti cosa ti piace. Dopo aver cucinato rispondi a «Com'era?»: basta un tocco.`;
+}
+
+function countsOf(t: { good: number; bad: number }): string {
+  const plates = (n: number) => (n === 1 ? "1 piatto" : `${n} piatti`);
+  if (t.bad === 0) return `bene in ${plates(t.good)}`;
+  if (t.good === 0) return `male in ${plates(t.bad)}`;
+  return `bene in ${plates(t.good)}, male in ${t.bad}`;
+}
+
+/** Cosa si conta, dichiarato nella schermata. */
+export function tasteBasisText(p: { voted: number; good: number; bad: number; staples: readonly RecipeFood[] }): string {
+  const parts = [
+    `Conto i tuoi ${p.voted} piatti votati: ${p.good} bene («buono» e «ottimo»), ${p.bad} male («non buono»).`,
+    `Un ingrediente o una coppia compare da ${MIN_DISHES_FOR_FOOD} piatti votati in almeno ${MIN_RECIPES_FOR_FOOD} ricette diverse.`,
+    "«Di solito ti piace» da due piatti su tre votati bene, «di solito no» da due su tre votati male.",
+  ];
+  if (p.staples.length > 0) parts.push(`Non conto ${list(p.staples.map((s) => s.name.toLowerCase()))}: sono in più di metà dei piatti.`);
+  parts.push("Sono conteggi sulle tue ricette, non una previsione: gli ingredienti che di solito non ti piacciono non vengono nascosti.");
+  return parts.join(" ");
+}
+
+/** La nota sull'ordine degli abbinamenti, quando il profilo lo ha cambiato. */
+export const TASTE_ORDER_NOTE = "In cima ciò che di solito ti piace; ciò che di solito non ti piace viene dopo, ma c'è.";
+
+/** Il profilo come lo mostra la schermata, passato dagli stessi controlli allergeni degli abbinamenti. */
+export function tasteProfileView(
+  profile: TasteProfile,
+  index: TasteIndex,
+  options: {
+    allergens: readonly string[];
+    excludedFoods: readonly string[];
+    /** Alimenti di dispensa e prodotti collegati all'ingrediente: lo stesso collegamento del ricettario. */
+    linkOf?: (ingredient: { name: string; foodId?: string }) => IngredientLink | undefined;
+  },
+): TasteProfileView {
+  if (profile.status === "few") return { status: "few", text: fewDataText(profile.voted, profile.needed) };
+  let hiddenCount = 0;
+  const screen = (foods: readonly RecipeFood[]): { doubt?: PairingDoubt } | undefined => {
+    let doubt: PairingDoubt | undefined;
+    for (const f of foods) {
+      const v = screenFood(tasteFoodOf(index, f), options);
+      if (v.status === "excluded") return undefined;
+      if (v.status === "uncertain" && !doubt) doubt = v.doubt;
+      // lo stesso controllo completo del ricettario: alimento collegato, nome ed etichetta del prodotto in dispensa
+      const taste = tasteFoodOf(index, f);
+      const ingredient = { name: taste.name, ...(taste.foodIds[0] ? { foodId: taste.foodIds[0] } : {}) };
+      const reasons = exclusionReasons(
+        { ingredients: [ingredient] },
+        {
+          allergens: options.allergens,
+          excludedFoods: options.excludedFoods,
+          ...(options.linkOf ? { linkOf: options.linkOf } : {}),
+        },
+      );
+      if (reasons.some((r) => r.code === "allergen" || r.code === "excluded_food")) return undefined;
+      const unsure = reasons.flatMap((r) => (r.code === "allergen_uncertain" ? [r.allergen] : []));
+      if (unsure.length > 0 && !doubt) {
+        doubt = { allergens: allergenLabels(unsure), reasons: ["ingrediente collegato a un prodotto o generico: controlla l'etichetta"] };
+      }
+    }
+    return doubt ? { doubt } : {};
+  };
+  const foodItems = (lean: "liked" | "disliked" | "mixed"): TasteItemView[] => {
+    const out: TasteItemView[] = [];
+    for (const f of profile.foods) {
+      if (f.lean !== lean) continue;
+      const s = screen([f.food]);
+      if (!s) hiddenCount++;
+      else if (out.length < SHOWN_FOODS) out.push({ label: f.food.name, counts: countsOf(f), ...s });
+    }
+    return out;
+  };
+  const pairItems = (lean: "liked" | "disliked"): TasteItemView[] => {
+    const out: TasteItemView[] = [];
+    for (const p of profile.pairs) {
+      if (p.lean !== lean) continue;
+      const s = screen([p.a, p.b]);
+      if (!s) hiddenCount++;
+      else if (out.length < SHOWN_PAIRS) out.push({ label: `${p.a.name} + ${p.b.name}`, counts: countsOf(p), ...s });
+    }
+    return out;
+  };
+  const often = profile.often
+    .slice(0, 5)
+    .filter((o) => screen([o.food]) !== undefined)
+    .map((o) => `${o.food.name} (${o.times} volte)`);
+  return {
+    status: "ok",
+    liked: foodItems("liked"),
+    disliked: foodItems("disliked"),
+    mixed: foodItems("mixed"),
+    likedPairs: pairItems("liked"),
+    dislikedPairs: pairItems("disliked"),
+    often: often.length > 0 ? `Cucini spesso: ${list(often)}.` : undefined,
+    hiddenCount,
+    empty:
+      profile.foods.length === 0
+        ? `Nessun ingrediente compare ancora in ${MIN_DISHES_FOR_FOOD} piatti votati di ricette diverse: continua a votare e qui comparirà cosa ti piace.`
+        : undefined,
+    basis: tasteBasisText(profile),
+  };
+}
+
+/** Gli abbinamenti riordinati secondo i gusti; le chiavi sono quelle di `tasteFoodKey`. */
+export function rankPairingsByTaste<T extends { food: Pick<TasteFood, "key"> }>(
+  items: readonly T[],
+  profile: TasteProfile,
+  focus: readonly Pick<TasteFood, "key">[] = [],
+): T[] {
+  return rankByTaste(items, (p) => tasteFoodKey(p.food), profile, focus.map(tasteFoodKey));
+}
+
+/** Vero se i gusti cambiano l'ordine di almeno un abbinamento: solo allora si dichiara «in cima ciò che di solito ti piace». */
+export function tasteChangesOrder<T extends { food: Pick<TasteFood, "key"> }>(
+  items: readonly T[],
+  profile: TasteProfile,
+  focus: readonly Pick<TasteFood, "key">[] = [],
+): boolean {
+  const ranked = rankPairingsByTaste(items, profile, focus);
+  return ranked.some((p, i) => p !== items[i]);
 }

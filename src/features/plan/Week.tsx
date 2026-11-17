@@ -7,6 +7,7 @@ import type { MealKind } from "@/core/diary";
 import {
   checkPlanWeek,
   dayTypeOf,
+  derivePlan,
   getWeek,
   weekDates,
   type PlannedEntry,
@@ -14,9 +15,11 @@ import {
   type PlannedItem,
 } from "@/core/plan";
 import { DEFAULT_TIME_ZONE } from "@/core/expiry";
+import { getAllEvents } from "@/data";
 import { Button, Label, Tabs } from "@/design";
 import { readQuantity } from "../capture";
 import { MEAL_KIND_LABELS, MEAL_KIND_ORDER } from "../meals";
+import { useDeclared } from "../recipes/useRecipeSafety";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { AddEntry } from "./AddEntry";
@@ -36,10 +39,13 @@ import {
 } from "./edit";
 import { EatSheet } from "./EatSheet";
 import { MoveSheet } from "./MoveSheet";
+import { ProposalCard } from "./ProposalCard";
 import { buildMoveMeal, slotsToMoveTo } from "./moveMeal";
 import { Sheet } from "./Sheet";
+import { UNCERTAIN_WARNING, reasonLine } from "./proposal";
 import { parseAmount } from "./targets";
 import { usePlanData, type PlanData } from "./usePlanData";
+import { useProposal } from "./useProposal";
 import { useWriter } from "./useWriter";
 import { checkWeekConstraints } from "./safety";
 import { constraintLines, dayCheckView, daySummaryText } from "./verify";
@@ -91,7 +97,7 @@ function WeekView({ data, weeks, week, weekId, setWeekId, sheet, setSheet }: Vie
   const [error, setError] = useState<string | null>(null);
   const state = getWeek(plan, week.start);
   const entries = useMemo(() => state?.entries ?? [], [state]);
-  const dates = weekDates(week.start);
+  const dates = useMemo(() => weekDates(week.start), [week.start]);
   const mealOrder: MealKind[] = plan.structure ? plan.structure.meals.map((m) => m.kind) : [...MEAL_KIND_ORDER];
   const mealTime = new Map((plan.structure?.meals ?? []).map((m) => [m.kind, m.time]));
   const nameOfRef = (via: { kind: "recipe" | "prep"; id: string }) =>
@@ -103,6 +109,9 @@ function WeekView({ data, weeks, week, weekId, setWeekId, sheet, setSheet }: Vie
     () => checkWeekConstraints(plan.structure, state, { expandForChecks: data.expandForChecks, linkOf: data.linkOf, confirmations }),
     [plan.structure, state, data.expandForChecks, data.linkOf, confirmations],
   );
+  const { declared, ready: declaredReady } = useDeclared();
+  const proposal = useProposal({ data, weekStart: week.start, weekDates: dates, entries, declared, declaredReady, confirmations });
+  const [using, setUsing] = useState(false);
   const constraintItems = constraintLines(constraints, nameOfRef);
   const violations = constraintItems.filter((l) => l.kind === "violation");
   const unverified = constraintItems.filter((l) => l.kind === "unverified");
@@ -112,6 +121,23 @@ function WeekView({ data, weeks, week, weekId, setWeekId, sheet, setSheet }: Vie
     const failure = await write((ctx) => buildWeek(weekStart, next, ctx, message));
     setError(failure);
     return failure;
+  }
+
+  async function applyProposal() {
+    // le voci della settimana si rileggono dall'archivio del telefono: quelle aggiunte nel frattempo non si perdono
+    const fresh = getWeek(derivePlan(await getAllEvents()), week.start)?.entries ?? entries;
+    const done = proposal.finalize(fresh);
+    if (!done) return;
+    if (done.added === 0) {
+      proposal.discard();
+      setError("Non ho scritto niente: i posti sono stati occupati o il controllo di allergeni ed esclusioni ha fermato le proposte.");
+      return;
+    }
+    const held = done.dropped > 0 ? ` ${done.dropped} ${done.dropped === 1 ? "non è stata scritta" : "non sono state scritte"}: posto occupato o fermata dal controllo di allergeni.` : "";
+    setUsing(true);
+    const failure = await save(done.entries, `Aggiunti al piano ${done.added} ${done.added === 1 ? "pasto proposto" : "pasti proposti"}.${held}`);
+    setUsing(false);
+    if (!failure) proposal.discard();
   }
 
   const close = () => setSheet(null);
@@ -139,6 +165,10 @@ function WeekView({ data, weeks, week, weekId, setWeekId, sheet, setSheet }: Vie
           Verifica e confronto
         </Link>
       </div>
+      {proposal.available && !proposal.active ? <Button onClick={proposal.start}>Proponi una settimana</Button> : null}
+      {proposal.active ? (
+        <ProposalCard view={proposal} weekDates={dates} today={data.today} structureMeals={plan.structure?.meals.map((m) => m.kind)} onUse={() => void applyProposal()} busy={using} />
+      ) : null}
 
       {violations.length > 0 ? (
         <div className={styles.alert} role="alert">
@@ -184,7 +214,7 @@ function WeekView({ data, weeks, week, weekId, setWeekId, sheet, setSheet }: Vie
         </p>
       ) : null}
 
-      {entries.length === 0 ? (
+      {entries.length === 0 && !proposal.active ? (
         <EmptyState
           title="Niente di pianificato"
           text="Aggiungi alimenti, ricette o preparazioni ai pasti di ogni giorno: qui compariranno giorno per giorno, e da qui si registrano come mangiati."
@@ -200,6 +230,7 @@ function WeekView({ data, weeks, week, weekId, setWeekId, sheet, setSheet }: Vie
           const fromDefault = !plan.dayTypes.some((d) => d.date === date);
           const view = check ? dayCheckView(check.days.find((d) => d.date === date)!) : undefined;
           const summary = view && view.checked ? daySummaryText(view) : "";
+          const proposedOn = proposal.proposal?.meals.filter((m) => m.slot.date === date) ?? [];
           return (
             <li key={date} className={styles.day}>
               <div className={styles.dayHead}>
@@ -210,10 +241,11 @@ function WeekView({ data, weeks, week, weekId, setWeekId, sheet, setSheet }: Vie
               </div>
               {summary ? <p className={styles.dayNote}>{summary}. Sono stime sui dati che ci sono.</p> : null}
 
-              {dayEntries.length === 0 ? <p className={styles.dayNote}>Niente di pianificato.</p> : null}
+              {dayEntries.length === 0 && proposedOn.length === 0 ? <p className={styles.dayNote}>Niente di pianificato.</p> : null}
               {mealOrder.concat(MEAL_KIND_ORDER.filter((k) => !mealOrder.includes(k))).map((meal) => {
                 const here = dayEntries.filter((x) => x.entry.meal === meal);
-                if (here.length === 0) return null;
+                const suggested = proposedOn.filter((m) => m.slot.meal === meal);
+                if (here.length === 0 && suggested.length === 0) return null;
                 return (
                   <div key={meal} className={styles.mealBlock}>
                     <Label>
@@ -236,6 +268,22 @@ function WeekView({ data, weeks, week, weekId, setWeekId, sheet, setSheet }: Vie
                               Quantità
                             </button>
                             <button type="button" className={styles.actionDanger} onClick={() => void save(withoutEntry(entries, index), `Tolto dal piano: ${itemLabel(entry.item, data.catalog)}.`)}>
+                              Togli
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                      {suggested.map((m) => (
+                        <li key={`proposta-${m.slot.meal}`} className={styles.proposed}>
+                          <span className={styles.proposedTag}>Proposta</span>
+                          <span className={styles.entryName}>{itemLabel({ kind: "recipe", recipeId: m.recipeId, servings: m.servings }, data.catalog)}</span>
+                          <span className={styles.entryNote}>{reasonLine(m, data.today)}</span>
+                          {m.warning ? <span className={styles.entryNote}>{UNCERTAIN_WARNING}</span> : null}
+                          <div className={styles.actions}>
+                            <button type="button" className={styles.action} onClick={() => proposal.swap(m.slot)}>
+                              Un&apos;altra
+                            </button>
+                            <button type="button" className={styles.actionDanger} onClick={() => proposal.drop(m.slot)}>
                               Togli
                             </button>
                           </div>

@@ -4,6 +4,7 @@ import {
   sortEvents,
   type MergeConflict,
 } from "./merge";
+import { supersededConsumes } from "./supersede";
 import { instantMs } from "./time";
 import {
   isPantryEvent,
@@ -375,6 +376,7 @@ export function derivePantry(
   }
 
   const voided = resolveVoids(included, new Set([...byId.keys(), ...foreignIds]), anomalies);
+  for (const id of supersededConsumes(included, voided)) voided.add(id);
   const live = included.filter((e) => e.type !== "void" && !voided.has(e.id));
 
   // Legami `replaces` tra creazioni (anche annullate: la sostituita lo è quasi sempre).

@@ -71,7 +71,7 @@ export function buildDropMeal(weekStart: string, entries: readonly PlannedEntry[
 }
 
 /** Come leggere il diario e l'ora per sapere quali momenti di oggi sono passati e che cosa c'è già scritto. */
-function momentReaders(args: { diary: DiaryState; now: string; timeZone: string; today: string }): Pick<MissedOptions, "status" | "overdue"> {
+export function momentReaders(args: { diary: DiaryState; now: string; timeZone: string; today: string }): Pick<MissedOptions, "status" | "overdue"> {
   const minutes = localMoment(args.now, args.timeZone)?.minutes ?? 0;
   return {
     status: (date, meal) => mealMoments(getDay(args.diary, date)).find((m) => m.kind === meal)?.status ?? "none",
@@ -119,4 +119,9 @@ export function slotsToMoveTo(args: WeekArgs & { weekStart: string; kinds?: read
   if (!args.nextWeek) return thisWeek;
   const later = freeSlots(args.nextWeek.entries, { today: args.today, weekStart: args.nextWeek.weekStart, kinds, ...readers });
   return [...thisWeek, ...later];
+}
+
+/** I posti liberi di una settimana, da oggi a domenica, per i momenti scelti: dove «Proponi una settimana» può mettere una ricetta. */
+export function slotsToFill(args: WeekArgs & { weekStart: string; kinds: readonly MealKind[] }): Slot[] {
+  return freeSlots(args.weekEntries, { today: args.today, weekStart: args.weekStart, kinds: args.kinds, ...momentReaders(args) });
 }

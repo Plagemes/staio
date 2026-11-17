@@ -69,3 +69,32 @@ export type {
   Slot,
   WeekEntries,
 } from "./move";
+export {
+  DEFAULT_PROPOSAL_OPTIONS,
+  FEW_RECIPES,
+  PROPOSAL_WEIGHTS,
+  alternativesFor,
+  explainProposal,
+  inHomeOn,
+  isQuickDayType,
+  proposalEntries,
+  proposeWeek,
+  staleOn,
+  swapPick,
+} from "./propose";
+export type {
+  ProposalDay,
+  ProposalExpiring,
+  ProposalIngredient,
+  ProposalInput,
+  ProposalNutrients,
+  ProposalOptions,
+  ProposalPick,
+  ProposalReason,
+  ProposalRecipe,
+  ProposalSlot,
+  ProposalSummary,
+  ProposedMeal,
+  RecipeSafetyVerdict,
+  WeekProposal,
+} from "./propose";

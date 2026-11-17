@@ -29,7 +29,7 @@ export interface RecipesState {
 type Rec = Record<string, unknown>;
 const isRecord = (v: unknown): v is Rec => typeof v === "object" && v !== null && !Array.isArray(v);
 
-interface VoidRef {
+export interface VoidRef {
   id: string;
   targetEventId: string;
 }
@@ -38,7 +38,7 @@ interface VoidRef {
  * Un evento annullato non conta; un annullamento annullato a sua volta ripristina l'originale.
  * Il risultato dipende solo dall'insieme dei `void`, non dal loro ordine.
  */
-function resolveVoids(refs: readonly VoidRef[], anomalies: RecipeAnomaly[]): Set<string> {
+export function resolveVoids(refs: readonly VoidRef[], anomalies: RecipeAnomaly[]): Set<string> {
   const voids = new Map<string, VoidRef>();
   for (const v of refs) voids.set(v.id, v);
 

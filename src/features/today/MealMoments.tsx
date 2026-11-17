@@ -7,8 +7,10 @@ import {
   type DiaryDay,
   type DiaryHabit,
   type MealDeclarationStatus,
+  type MealKind,
   type MealWithPantry,
 } from "@/core/diary";
+import type { ConsumeEvent } from "@/core/ledger";
 import { Button, SectionHeader } from "@/design";
 import { formatTime } from "../format";
 import { DrinkEntries, useDrinkActions } from "../health/Drinks";
@@ -36,6 +38,9 @@ interface Props {
   meals: readonly MealWithPantry[];
   /** Come si mostra un pasto registrato (alimenti, annulla). */
   renderMeal: (meal: MealWithPantry) => ReactNode;
+  /** Gli alimenti mangiati senza un pasto, nel momento della loro ora, e come si mostrano (con «In quale momento?»). */
+  loose?: Readonly<Record<MealKind, readonly ConsumeEvent[]>>;
+  renderLoose?: (consume: ConsumeEvent) => ReactNode;
   /** Un giorno già passato: ogni momento è dichiarabile e non si propone di registrare adesso. */
   pastDay?: boolean;
   /** Toglie una dichiarazione o un «non tracciato» (un `void`, con «Annulla» sull'avviso). */
@@ -48,7 +53,7 @@ interface Props {
  * se non c'è un pasto registrato, una riga compatta con «Registra», «Saltato» e, meno in evidenza, «Mangiato, non
  * registrato». Lo stato scelto resta scritto («Pranzo · saltato») e si può cambiare. Una bevanda non vale un pasto.
  */
-export function MealMoments({ date, now, timeZone, day, habits, meals, renderMeal, pastDay = false, onRemoveDeclaration, onError }: Props) {
+export function MealMoments({ date, now, timeZone, day, habits, meals, renderMeal, loose, renderLoose, pastDay = false, onRemoveDeclaration, onError }: Props) {
   const { recordWith, busy } = useRecord();
   const drinkActions = useDrinkActions(timeZone);
   const [changing, setChanging] = useState<DeclarableKind | null>(null);
@@ -68,13 +73,15 @@ export function MealMoments({ date, now, timeZone, day, habits, meals, renderMea
     const usualTime = habits.find((h) => h.kind === moment.kind && h.usualTime !== undefined)?.usualTime;
     const offer = momentOffer(moment.kind, nowMinutes, { pastDay, usualTime });
     // Un momento con qualcosa dentro o dichiarato si mostra sempre; uno non ancora cominciato, no.
-    if (offer === "hidden" && moment.status === "none" && kindDrinks.length === 0) return [];
+    const kindLoose = loose?.[moment.kind] ?? [];
+    if (offer === "hidden" && moment.status === "none" && kindDrinks.length === 0 && kindLoose.length === 0) return [];
     const legacy = (day?.untrackedMeals ?? []).filter((u) => u.kind === moment.kind);
-    return [{ moment, kindMeals, kindDrinks, offer, legacy }];
+    return [{ moment, kindMeals, kindDrinks, kindLoose, offer, legacy }];
   });
   const snackMeals = meals.filter((m) => m.kind === "snack");
   const snackLegacy = (day?.untrackedMeals ?? []).filter((u) => u.kind === "snack");
-  const hasLoose = snackMeals.length > 0 || drinks.offMeal.length > 0 || snackLegacy.length > 0;
+  const snackLoose = loose?.snack ?? [];
+  const hasLoose = snackMeals.length > 0 || drinks.offMeal.length > 0 || snackLegacy.length > 0 || snackLoose.length > 0;
 
   if (rows.length === 0 && !hasLoose) {
     return pastDay ? null : (
@@ -89,7 +96,7 @@ export function MealMoments({ date, now, timeZone, day, habits, meals, renderMea
     <section className={ui.section} aria-label="Momenti del giorno">
       <SectionHeader label={pastDay ? "Pasti del giorno" : "Momenti di oggi"} />
       <ul className={`${styles.list} ${styles.momentList}`}>
-        {rows.map(({ moment, kindMeals, kindDrinks, offer, legacy }) => {
+        {rows.map(({ moment, kindMeals, kindDrinks, kindLoose, offer, legacy }) => {
           const { kind, status } = moment;
           const declared = status === "skipped" || status === "untracked";
           const recorded = status === "recorded";
@@ -123,6 +130,8 @@ export function MealMoments({ date, now, timeZone, day, habits, meals, renderMea
               {kindMeals.map((m) => (
                 <div key={m.mealId}>{renderMeal(m)}</div>
               ))}
+
+              {kindLoose.map((c) => renderLoose?.(c))}
 
               {recorded
                 ? legacy.map((u) => (
@@ -174,6 +183,7 @@ export function MealMoments({ date, now, timeZone, day, habits, meals, renderMea
             {snackMeals.map((m) => (
               <div key={m.mealId}>{renderMeal(m)}</div>
             ))}
+            {snackLoose.map((c) => renderLoose?.(c))}
             {snackLegacy.map((u) => (
               <p key={u.eventId} className={styles.note}>
                 Fuori, non tracciato · {formatTime(u.at, timeZone)}{" "}

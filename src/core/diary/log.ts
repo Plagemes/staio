@@ -5,6 +5,7 @@ import {
   canonicalStringify,
   isPantryEvent,
   mergeEvents,
+  supersededConsumes,
   validateEvent,
   type ConsumeEvent,
   type EventLike,
@@ -99,6 +100,8 @@ export function voidsOfLog(events: readonly unknown[]): VoidsOfLog {
     }
   }
   const { voided, findings } = resolveVoids(refs, knownIds);
+  // due sostituti dello stesso consumo (due dispositivi): ne vale uno solo, come nella dispensa
+  for (const id of supersededConsumes(events.filter(isValidKnownEvent), voided)) voided.add(id);
   return { voided, findings };
 }
 

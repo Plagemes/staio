@@ -6,6 +6,17 @@ export type { CompactTasteData } from "./decode";
 export { createTasteIndex, resolveTasteFood, searchTasteFoods } from "./index-build";
 export type { TasteIndex } from "./index-build";
 export { DEFAULT_PAIRING_LIMIT, pairingsForSet, pairingsOf } from "./pairings";
+export {
+  LIKED_SHARE,
+  MIN_COOKINGS_OFTEN,
+  MIN_DISHES_FOR_FOOD,
+  MIN_RECIPES_FOR_FOOD,
+  MIN_VOTED_DISHES,
+  foodLeanings,
+  rankByTaste,
+  tasteProfile,
+} from "./profile";
+export type { CookedDish, FoodTaste, Lean, PairTaste, TasteProfile, VotedDish } from "./profile";
 export { screenFood } from "./safety";
 export type { PairingVerdict } from "./safety";
 export type {

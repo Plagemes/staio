@@ -13,6 +13,8 @@ export interface TodayPlan {
   ready: boolean;
   /** Voci proposte nella lista della spesa. */
   shoppingCount: number;
+  /** Nomi di ciò che manca in dispensa per il piano di oggi (voci della spesa nate dal piano e già necessarie oggi). */
+  missingToday: string[];
   /** Pasti pianificati per oggi, già descritti; vuoto se non c'è un piano. */
   planned: { meal: PlannedEntry["meal"]; text: string; note?: string }[];
   /** Lunedì della settimana in corso. */
@@ -52,6 +54,13 @@ export function useTodayPlan(): TodayPlan {
       ...(e.note ? { note: e.note } : {}),
     }));
   }, [plan.plan, plan.today, plan.catalog, weekStart]);
+  const missingToday = useMemo(
+    () =>
+      plan.today
+        ? (data.view?.items ?? []).filter((i) => i.item.reasons.some((r) => r.kind === "plan" && r.earliestDate <= plan.today)).map((i) => i.name)
+        : [],
+    [data.view, plan.today],
+  );
   const kinds = useMemo(() => plan.plan?.structure?.meals.map((m) => m.kind), [plan.plan]);
-  return { ready: data.ready, shoppingCount: data.view?.items.length ?? 0, planned, weekStart, weekEntries, nextWeekStart: nextStart, nextWeekEntries, adherence, kinds, catalog: plan.catalog };
+  return { ready: data.ready, shoppingCount: data.view?.items.length ?? 0, missingToday, planned, weekStart, weekEntries, nextWeekStart: nextStart, nextWeekEntries, adherence, kinds, catalog: plan.catalog };
 }

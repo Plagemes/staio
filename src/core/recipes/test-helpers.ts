@@ -46,3 +46,25 @@ export function voidEvent(
     ...extra,
   };
 }
+
+import type { DishRatingEvent } from "./types";
+
+export function dishRatingEvent(
+  id: string,
+  recordedAt: string,
+  fields: Partial<Omit<DishRatingEvent, "type">> = {},
+): DishRatingEvent {
+  return {
+    id,
+    type: "dishRating",
+    at: recordedAt,
+    recordedAt,
+    deviceId: "dev-a",
+    schemaVersion: 1,
+    certainty: "measured",
+    source: "manual",
+    mealId: "m1",
+    recipeId: "r1",
+    ...fields,
+  };
+}

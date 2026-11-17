@@ -233,3 +233,84 @@
 :global([data-palette="vivo"]) .removeZone {
   border-top: none;
 }
+
+/* ------------------------------------------------------------------------------------------------
+   «Segnato a pranzo…»: l'ultima cosa mangiata da questa scheda, sempre in vista in fondo al foglio finché è aperto.
+   ------------------------------------------------------------------------------------------------ */
+
+.marked {
+  position: sticky;
+  bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--space-7);
+  border: var(--rule-width) solid var(--color-rule-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.14);
+}
+
+.markedText {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.moments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.momentLabel {
+  display: block;
+  margin: 0;
+  font-size: var(--text-label);
+  color: var(--color-graphite);
+}
+
+.momentChip {
+  min-height: var(--tap-min);
+  padding: 0 var(--space-5);
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--text-body-sm);
+  cursor: pointer;
+}
+
+.momentChip[aria-pressed="true"] {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.momentChip:disabled {
+  opacity: 0.5;
+}
+
+.momentChip:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+:global([data-palette="vivo"]) .marked {
+  border-color: transparent;
+  border-radius: var(--radius-card);
+}
+
+:global([data-palette="vivo"]) .momentChip {
+  border-color: transparent;
+  border-radius: 999px;
+  background: var(--color-fill);
+}
+
+:global([data-palette="vivo"]) .momentChip[aria-pressed="true"] {
+  background: var(--color-accent);
+  color: var(--color-paper);
+}

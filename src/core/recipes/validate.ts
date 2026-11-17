@@ -5,11 +5,11 @@ import {
 } from "../ledger";
 import { UNITS } from "../units";
 import {
+  DISH_RATINGS,
   FOOD_ID_MAX_LENGTH,
-  RECIPE_EVENT_TYPES,
   RECIPE_LIMITS,
+  type DishRatingEvent,
   type RecipeEvent,
-  type RecipeEventType,
 } from "./types";
 
 type Rec = Record<string, unknown>;
@@ -22,12 +22,19 @@ const isNonEmptyString = (v: unknown): v is string =>
 
 const FOOD_ID_RE = /^[a-z0-9-]+$/;
 
-/** Il tipo dichiarato è un tipo del ricettario. */
+/** Il tipo dichiarato è `recipe` (una versione di ricetta). */
 export function isRecipeEvent(e: unknown): e is RecipeEvent {
   try {
-    return (
-      isRecord(e) && (RECIPE_EVENT_TYPES as readonly string[]).includes(e.type as RecipeEventType)
-    );
+    return isRecord(e) && e.type === "recipe";
+  } catch {
+    return false;
+  }
+}
+
+/** Il tipo dichiarato è `dishRating` (com'è andata una cottura). */
+export function isDishRatingEvent(e: unknown): e is DishRatingEvent {
+  try {
+    return isRecord(e) && e.type === "dishRating";
   } catch {
     return false;
   }
@@ -88,6 +95,16 @@ function validateUnsafe(event: unknown): ValidationError[] {
 
   if (event.type === "void") {
     requireString(event, "targetEventId");
+    return dedupe(errors);
+  }
+  if (isDishRatingEvent(event)) {
+    requireString(event, "mealId");
+    requireString(event, "recipeId");
+    const rating = event.rating;
+    if (rating !== undefined && !(DISH_RATINGS as readonly unknown[]).includes(rating)) {
+      add("rating", typeof rating === "string" ? "invalid_value" : "invalid_type");
+    }
+    if (event.again !== undefined && typeof event.again !== "boolean") add("again", "invalid_type");
     return dedupe(errors);
   }
   if (!isRecipeEvent(event)) {

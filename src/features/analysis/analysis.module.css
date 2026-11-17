@@ -496,3 +496,44 @@
   background: var(--area-current-tint);
   color: var(--color-accent);
 }
+
+/* Solo in stampa (A4, tema chiaro forzato da PrintSupport): fuori i comandi, schede intere, niente fondi. */
+.printOnly {
+  display: none;
+  margin: 0;
+}
+
+@media print {
+  .noPrint {
+    display: none !important;
+  }
+
+  .printOnly {
+    display: block;
+    font-size: var(--text-body-sm);
+    color: #000;
+  }
+
+  .card,
+  .insufficient,
+  .rowItem {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .card,
+  .insufficient,
+  .nav,
+  .navTitle {
+    background: #fff !important;
+    color: #000;
+    box-shadow: none !important;
+  }
+
+  .basis,
+  .note,
+  .disclaimer,
+  .unit {
+    color: #333;
+  }
+}

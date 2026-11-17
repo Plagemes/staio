@@ -4,7 +4,7 @@
 import type { EventBase } from "../ledger";
 import type { Quantity } from "../units";
 
-export const RECIPE_EVENT_TYPES = ["recipe"] as const;
+export const RECIPE_EVENT_TYPES = ["recipe", "dishRating"] as const;
 export type RecipeEventType = (typeof RECIPE_EVENT_TYPES)[number];
 
 export const FOOD_ID_MAX_LENGTH = 80;
@@ -66,6 +66,25 @@ export interface RecipeEvent extends EventBase {
   /** Voto personale, da 1 a 5. */
   rating?: number;
   archived?: boolean;
+}
+
+export const DISH_RATINGS = ["poor", "good", "great"] as const;
+/** Com'era un piatto cucinato: non buono, buono, ottimo. */
+export type DishRating = (typeof DISH_RATINGS)[number];
+
+/**
+ * Com'è andata una cottura: lega un pasto (`mealId`) a una ricetta (`recipeId`). Il primo evento di un pasto lo
+ * segna come «cucinata» anche senza voto; un evento successivo con lo stesso `mealId` lo corregge (vale l'ultimo
+ * per `recordedAt`, poi `id`): senza `rating` il voto è tolto, senza `again` il «lo rifarei» è tolto.
+ * Un `void` annulla un evento; se il pasto è annullato la cottura non conta.
+ */
+export interface DishRatingEvent extends EventBase {
+  type: "dishRating";
+  mealId: string;
+  recipeId: string;
+  rating?: DishRating;
+  /** «Lo rifarei». */
+  again?: boolean;
 }
 
 /** Ricetta in vigore, ricavata dagli eventi. */

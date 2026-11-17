@@ -2,7 +2,7 @@ import { validateEvent, type LedgerEvent, type ValidationError } from "../ledger
 import { validateDiaryEvent, type DiaryEvent } from "../diary";
 import { validatePlanEvent, type PlanEvent } from "../plan";
 import { validatePrepEvent, type PrepEvent } from "../prep";
-import { validateRecipeEvent, type RecipeEvent } from "../recipes";
+import { validateRecipeEvent, type DishRatingEvent, type RecipeEvent } from "../recipes";
 import { validateExperimentEvent, type ExperimentEvent } from "../analysis";
 import { validateConfirmationEvent, type AllergenConfirmationEvent } from "../allergens";
 import { familyOf, type EventFamily } from "./families";
@@ -14,6 +14,7 @@ export type AnyEvent =
   | PlanEvent
   | PrepEvent
   | RecipeEvent
+  | DishRatingEvent
   | ExperimentEvent
   | AllergenConfirmationEvent;
 

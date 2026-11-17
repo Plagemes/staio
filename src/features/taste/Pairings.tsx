@@ -11,6 +11,7 @@ import {
   createTasteIndex,
   pairingsForSet,
   searchTasteFoods,
+  type TasteProfile,
   type Pairing,
   type PairingResult,
   type TasteFood,
@@ -21,7 +22,8 @@ import { usePantry, usePlan, useRecipes } from "@/data";
 import { Label } from "@/design";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
 import { useFoods, useProducts } from "../nutrition/useNutrition";
-import { pantryFoods } from "../recipes/allergenLinks";
+import { makeLinkOf, pantryFoods } from "../recipes/allergenLinks";
+import { useDishHistory } from "../recipes/useDishHistory";
 import { pantryView } from "../recipes/list";
 import { useRecipePrefs } from "../recipes/prefs";
 import { unionDeclared } from "../recipes/safety";
@@ -29,6 +31,13 @@ import recipeStyles from "../recipes/recipes.module.css";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
 import {
+  TASTE_ORDER_NOTE,
+  buildTasteProfile,
+  dishesFromCookings,
+  rankPairingsByTaste,
+  tasteChangesOrder,
+  tasteProfileView,
+  type TasteItemView,
   cookedBasisText,
   cookedEmptyText,
   cookedView,
@@ -82,8 +91,22 @@ export function Pairings() {
     return (id) => names.get(id);
   }, [foods]);
 
+  const dishHistory = useDishHistory();
+  const profile = useMemo<TasteProfile | undefined>(() => {
+    if (!index || !recipes.data) return undefined;
+    const { voted, cooked } = dishesFromCookings(
+      dishHistory.cookings,
+      [...recipes.data.recipes, ...recipes.data.archived],
+      index,
+      foodIdOf,
+      foodNameOf,
+    );
+    return buildTasteProfile(voted, cooked);
+  }, [index, recipes.data, dishHistory.cookings, foodIdOf, foodNameOf]);
+
   const lots = useMemo(() => (pantry.data ? activeLots(pantry.data) : []), [pantry.data]);
   const home = useMemo(() => homeSubjects(pantryFoods(lots, products), foodIdOf), [lots, products, foodIdOf]);
+  const linkOf = useMemo(() => makeLinkOf(pantryFoods(lots, products)), [lots, products]);
   const expiring = useMemo(() => (now ? pantryView(lots, now).expiring : []), [lots, now]);
 
   const planAllergens = plan.data?.structure?.allergens;
@@ -102,7 +125,7 @@ export function Pairings() {
       </div>
     );
   }
-  if (!index || !recipes.data || !pantry.data || !plan.data || !products || !foods || !now || !ready) {
+  if (!index || !recipes.data || !pantry.data || !plan.data || !products || !foods || !now || !ready || !profile || !dishHistory.ready) {
     return (
       <div className={ui.screen}>
         <h1 className={ui.title}>Abbinamenti di gusto</h1>
@@ -111,7 +134,7 @@ export function Pairings() {
     );
   }
 
-  const common: Common = { index, home, allergens, excludedFoods, foodIdOf, foodNameOf, hasPantry: lots.length > 0 };
+  const common: Common = { index, home, allergens, excludedFoods, foodIdOf, foodNameOf, hasPantry: lots.length > 0, profile, linkOf };
   if (recipeId) {
     const recipe = recipes.data.recipes.find((r) => r.recipeId === recipeId);
     if (!recipe) {
@@ -141,6 +164,8 @@ interface Common {
   foodIdOf: FoodIdOf;
   foodNameOf: FoodNameOf;
   hasPantry: boolean;
+  profile: TasteProfile;
+  linkOf: ReturnType<typeof makeLinkOf>;
 }
 
 function SourceNotice() {
@@ -156,7 +181,7 @@ function SourceNotice() {
   );
 }
 
-function ForRecipe({ recipe, index, home, allergens, excludedFoods, foodIdOf, hasPantry }: Common & { recipe: Recipe }) {
+function ForRecipe({ recipe, index, home, allergens, excludedFoods, foodIdOf, hasPantry, profile, linkOf }: Common & { recipe: Recipe }) {
   const result = useMemo(
     () => pairingsForSet(index, recipeSubjects(recipe, foodIdOf), { home, allergens, excludedFoods, limit: SET_LIMIT }),
     [index, recipe, foodIdOf, home, allergens, excludedFoods],
@@ -173,10 +198,12 @@ function ForRecipe({ recipe, index, home, allergens, excludedFoods, foodIdOf, ha
         Con gli ingredienti di «{recipe.title}». Tra gli abbinamenti ti dico quali hai già in casa.
       </p>
       <SourceNotice />
+      <YourTastes profile={profile} index={index} allergens={allergens} excludedFoods={excludedFoods} linkOf={linkOf} />
       <Results
         result={result}
         hasPantry={hasPantry}
         declared={declared}
+        profile={profile}
         emptyHint="Nessun ingrediente di questa ricetta è nell'elenco degli abbinamenti."
       />
       <Link href={`/app/ricette/vedi?id=${encodeURIComponent(recipe.recipeId)}`} className={ui.textLink}>
@@ -204,6 +231,8 @@ function ForIngredient({
   foodIdOf,
   foodNameOf,
   hasPantry,
+  profile,
+  linkOf,
   expiring,
   recipes,
   startFood,
@@ -340,6 +369,8 @@ function ForIngredient({
         )}
       </section>
 
+      <YourTastes profile={profile} index={index} allergens={allergens} excludedFoods={excludedFoods} linkOf={linkOf} />
+
       {pickedFood && cooked ? <FromRecipes view={cooked} foodName={pickedFood.name} declared={declared} /> : null}
 
       {result ? (
@@ -347,6 +378,7 @@ function ForIngredient({
           result={result}
           hasPantry={hasPantry}
           declared={declared}
+          profile={profile}
           emptyHint="Questo alimento non è nell'elenco degli abbinamenti."
         />
       ) : (
@@ -357,6 +389,67 @@ function ForIngredient({
         Torna al ricettario
       </Link>
     </div>
+  );
+}
+
+function TasteList({ title, items }: { title: string; items: readonly TasteItemView[] }) {
+  if (items.length === 0) return null;
+  return (
+    <div className={ui.field}>
+      <h3 className={ui.fieldLabel}>{title}</h3>
+      <ul className={recipeStyles.list}>
+        {items.map((i) => (
+          <li key={i.label} className={recipeStyles.card}>
+            <span className={recipeStyles.cardTitle}>{i.label}</span>
+            <span className={recipeStyles.meta}>
+              <span>{i.counts}</span>
+            </span>
+            {i.doubt ? <span className={recipeStyles.noteStrong}>{doubtText(i.doubt)}</span> : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Dai voti dati dopo aver cucinato: cosa compare nei piatti votati bene e in quelli votati male. Sopra i dati generali. */
+function YourTastes({
+  profile,
+  index,
+  allergens,
+  excludedFoods,
+  linkOf,
+}: {
+  profile: TasteProfile;
+  index: TasteIndex;
+  allergens: string[];
+  excludedFoods: string[];
+  linkOf: ReturnType<typeof makeLinkOf>;
+}) {
+  const view = useMemo(
+    () => tasteProfileView(profile, index, { allergens, excludedFoods, linkOf }),
+    [profile, index, allergens, excludedFoods, linkOf],
+  );
+  const hidden = view.status === "ok" ? hiddenText(view.hiddenCount) : undefined;
+  return (
+    <section className={ui.section} aria-live="polite">
+      <h2 className={ui.fieldLabel}>I tuoi gusti</h2>
+      {view.status === "few" ? (
+        <p className={ui.hint}>{view.text}</p>
+      ) : (
+        <>
+          {view.empty ? <p className={ui.hint}>{view.empty}</p> : null}
+          <TasteList title="Di solito ti piace" items={view.liked} />
+          <TasteList title="Di solito no" items={view.disliked} />
+          <TasteList title="In piatti buoni e cattivi" items={view.mixed} />
+          <TasteList title="Coppie che di solito ti piacciono" items={view.likedPairs} />
+          <TasteList title="Coppie che di solito no" items={view.dislikedPairs} />
+          {view.often ? <p className={ui.hint}>{view.often}</p> : null}
+          {hidden ? <p className={ui.hint}>{hidden}</p> : null}
+          <p className={ui.hint}>{view.basis}</p>
+        </>
+      )}
+    </section>
   );
 }
 
@@ -393,11 +486,13 @@ function Results({
   result,
   hasPantry,
   declared,
+  profile,
   emptyHint,
 }: {
   result: PairingResult;
   hasPantry: boolean;
   declared: boolean;
+  profile: TasteProfile;
   emptyHint: string;
 }) {
   if (result.status === "not_in_list") {
@@ -411,8 +506,10 @@ function Results({
       </div>
     );
   }
-  const inHome = result.pairings.filter((p) => p.inHome);
-  const others = result.pairings.filter((p) => !p.inHome);
+  // i gusti riordinano soltanto: nulla viene tolto, e il controllo allergeni è già passato
+  const inHome = rankPairingsByTaste(result.pairings.filter((p) => p.inHome), profile, result.members);
+  const others = rankPairingsByTaste(result.pairings.filter((p) => !p.inHome), profile, result.members);
+  const ordered = tasteChangesOrder(result.pairings.filter((p) => p.inHome), profile, result.members) || tasteChangesOrder(result.pairings.filter((p) => !p.inHome), profile, result.members);
   const memberNames = result.members.map((m) => m.name).join(", ");
   const hidden = hiddenText(result.hiddenCount);
   const unknown = unknownText(result.unknown);
@@ -460,6 +557,7 @@ function Results({
           ) : null}
         </>
       )}
+      {ordered ? <p className={ui.hint}>{TASTE_ORDER_NOTE}</p> : null}
       {hidden ? <p className={ui.hint}>{hidden}</p> : null}
       {declared ? <p className={ui.hint}>{ALLERGEN_CHECK_NOTICE}</p> : null}
       <p className={ui.hint}>{result.basis.text}</p>

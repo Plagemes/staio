@@ -18,6 +18,8 @@ import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
 import { useRecord } from "../useRecord";
+import { DishRatingRow } from "./DishRatingRow";
+import { dishRatingEvent, type DishVote } from "./dishRating";
 import { makeContextFor, makeLookup } from "./facts";
 import { FlagText, SafetyPanel } from "./SafetyPanel";
 import { SUBSTITUTE_NOTICE, SUBSTITUTION_PARAM, chosenText, missingIndices, parseSubstitutions, recipeHref, unappliedNote, validSubstitutions } from "./substitutes";
@@ -157,6 +159,7 @@ function Form({
   const [free, setFree] = useState<FreeRow[]>(start.free);
   const [kind, setKind] = useState<MealKind | null>(null);
   const [errors, setErrors] = useState<MealErrors | null>(null);
+  const [vote, setVote] = useState<DishVote>({});
   const effectiveKind = kind ?? suggestMealKind(now);
   const byId = useMemo(() => new Map(entries.map((e) => [e.lot.lotId, e.lot])), [entries]);
 
@@ -182,7 +185,10 @@ function Form({
         failed = built.errors;
         throw new Error("invalid");
       }
-      return { events: built.events, message: built.message };
+      // il pasto è sempre legato alla ricetta: così conta come «cucinata», col voto se l'hai dato
+      const meal = built.events.find((e) => e.type === "meal");
+      const rated = meal && "mealId" in meal ? dishRatingEvent(meal.mealId, written.recipeId, vote, { now: new Date().toISOString(), deviceId }) : undefined;
+      return { events: rated?.ok ? [...built.events, rated.event] : built.events, message: built.message };
     });
     if (result.ok) router.push("/app");
     else setErrors(failed ?? { picks: {}, free: {}, general: result.error });
@@ -292,6 +298,9 @@ function Form({
             {errors.general}
           </p>
         ) : null}
+
+        <DishRatingRow value={vote} onChange={setVote} disabled={busy} />
+        <p className={ui.hint}>Si salta: la ritrovi nella scheda della ricetta e la puoi cambiare quando vuoi.</p>
 
         <Button type="submit" disabled={busy}>
           {busy ? "Salvo…" : "Registra il pasto"}

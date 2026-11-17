@@ -8,10 +8,12 @@ import { activeLots } from "@/core/ledger";
 import { appendEvents, getDeviceId, useEventLog, usePantry } from "@/data";
 import { Button, LedgerRow, Label, PantryRow, PromptCard, SectionHeader, Value, Wordmark } from "@/design";
 import { PinnedViews } from "@/features/assistant";
-import { TodayNotices } from "@/features/notifications";
 import { buildUndo } from "../actions";
 import { TodayNutrition } from "../nutrition/TodayNutrition";
+import { DayBriefing } from "./DayBriefing";
 import { TodayDiary } from "./TodayDiary";
+import { useBriefing } from "./useBriefing";
+import { useTodayPlan } from "./useTodayPlan";
 import { useNotice } from "../notice";
 import { dayOf, formatDayLabel, relativeDay } from "../format";
 import { LOCATION_LABELS } from "../labels";
@@ -85,6 +87,8 @@ export function Today() {
   const daysBack = chosenDaysBack ?? daysBackFromParam(today, requestedDay);
   const viewDate = today ? addDays(today, -daysBack) : "";
   const isPast = daysBack > 0;
+  const todayPlan = useTodayPlan();
+  const briefing = useBriefing({ now, viewDate, pantry: pantry.data, log: log.data, plan: todayPlan });
 
   return (
     <div className={ui.screen}>
@@ -126,7 +130,7 @@ export function Today() {
       {pantry.error || log.error ? <StorageError /> : null}
       {!ready && !pantry.error && !log.error ? <LoadingLine /> : null}
 
-      {isPast ? null : <TodayNotices limit={4} />}
+      {isPast ? null : <DayBriefing view={briefing} />}
 
       {ready && pantry.data && log.data && now ? (
         <>
@@ -138,7 +142,7 @@ export function Today() {
 
           {!isPast && entries.length === 0 && log.data.length === 0 ? <FirstStepToday /> : null}
 
-          <TodayDiary now={now} date={viewDate} pantry={pantry.data} log={log.data} />
+          <TodayDiary now={now} date={viewDate} pantry={pantry.data} log={log.data} plan={todayPlan} />
 
           {isPast ? null : (
           <>

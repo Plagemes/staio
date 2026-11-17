@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { appendEvents, getDeviceId } from "@/data";
 import type { AnyEvent } from "@/core/events";
@@ -12,6 +13,8 @@ interface NoticeInput {
   undo?: readonly AnyEvent[];
   /** In alternativa agli eventi: un'azione che rimette le cose com'erano (per esempio per le impostazioni). */
   onUndo?: () => Promise<void>;
+  /** Un rimando con un tocco, per esempio «Vedi in Oggi»: dopo il tocco l'avviso si chiude. */
+  link?: { label: string; href: string };
 }
 
 interface NoticeState {
@@ -19,6 +22,7 @@ interface NoticeState {
   message: string;
   undo?: readonly AnyEvent[];
   onUndo?: () => Promise<void>;
+  link?: { label: string; href: string };
   busy: boolean;
 }
 
@@ -42,7 +46,7 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
 
   const show = useCallback((input: NoticeInput) => {
     counter.current += 1;
-    setNotice({ id: counter.current, message: input.message, undo: input.undo, onUndo: input.onUndo, busy: false });
+    setNotice({ id: counter.current, message: input.message, undo: input.undo, onUndo: input.onUndo, link: input.link, busy: false });
   }, []);
 
   const api = useMemo(() => ({ show }), [show]);
@@ -81,6 +85,11 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
               <button type="button" className={styles.undo} onClick={undo} disabled={notice.busy}>
                 Annulla
               </button>
+            ) : null}
+            {notice.link ? (
+              <Link href={notice.link.href} className={styles.link} onClick={() => setNotice(null)}>
+                {notice.link.label}
+              </Link>
             ) : null}
             <button type="button" className={styles.close} onClick={() => setNotice(null)} aria-label="Chiudi avviso">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">

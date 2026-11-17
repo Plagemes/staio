@@ -35,7 +35,8 @@ export function Pantry() {
   const log = useEventLog();
   const now = useNow();
   const [tab, setTab] = useState<Tab>("all");
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  /** La scheda aperta: il gruppo scelto e i suoi lotti, per ritrovarla quando mangiare un po' cambia il gruppo (non è più intatta). */
+  const [selected, setSelected] = useState<{ key: string; lotIds: readonly string[] } | null>(null);
   const notice = useNotice();
   const pickIds = useId();
   const [selecting, setSelecting] = useState(false);
@@ -111,7 +112,10 @@ export function Pantry() {
   }
 
   const groups = groupEntries(shown);
-  const selectedGroup = selectedKey ? groupEntries(entries).find((g) => g.key === selectedKey) : undefined;
+  const allGroups = selected ? groupEntries(entries) : [];
+  const selectedGroup = selected
+    ? (allGroups.find((g) => g.key === selected.key) ?? allGroups.find((g) => g.entries.some((e) => selected.lotIds.includes(e.lot.lotId))))
+    : undefined;
 
   return (
     <div className={ui.screen}>
@@ -230,7 +234,7 @@ export function Pantry() {
                               type="button"
                               className={styles.open}
                               aria-label={`Apri ${groupName(group)}`}
-                              onClick={() => setSelectedKey(group.key)}
+                              onClick={() => setSelected({ key: group.key, lotIds: lotIds })}
                             />
                           </>
                         )}
@@ -300,12 +304,12 @@ export function Pantry() {
 
       {selectedGroup ? (
         <LotSheet
-          key={selectedGroup.key}
+          key={selected?.key}
           entry={selectedGroup.entries[0]}
           creation={undefined}
           group={selectedGroup.entries}
           now={now}
-          onClose={() => setSelectedKey(null)}
+          onClose={() => setSelected(null)}
         />
       ) : null}
     </div>

@@ -1,18 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { buildReport, reportPeriod, type ReportKind } from "@/core/analysis";
+import { useId, useMemo, useState } from "react";
+import { buildReportFor, buildSummary, customPeriod, customPeriodProblem, reportPeriod, type ReportKind, type ReportPeriod } from "@/core/analysis";
+import { addDays } from "@/core/diary";
 import { usePantry } from "@/data";
-import { SectionHeader, Tabs, Value } from "@/design";
+import { Button, SectionHeader, Tabs, Value } from "@/design";
+import { formatCalendarDate } from "../format";
 import { LoadingLine, StorageError } from "../shell/EmptyState";
 import { buildNutritionRows, inPeriod } from "../nutrition/prepare";
 import { toEngineProfile } from "../nutrition/profile";
 import { useNutritionProfile, useReferences } from "../nutrition/useNutrition";
 import ui from "../ui.module.css";
 import { REPORT_MIN } from "./config";
+import { PrintSupport } from "./PrintSupport";
 import { basisText, formatPercent, plural, reliabilityText } from "./present";
 import {
+  RANGE_MAX_DAYS,
   REPORT_KINDS,
   canGoNext,
   mealsText,
@@ -20,16 +24,13 @@ import {
   nutrientsInsufficientView,
   periodTitle,
   shiftPeriod,
-  spendText,
   trackingText,
-  occurrencesText,
   partialNote,
-  wasteCostText,
-  wasteItemText,
   weightInsufficientView,
   weightReportText,
 } from "./reportView";
 import { AnalysisDisclaimer, BasisLine, InsufficientBox } from "./shared";
+import { DishesSection, FoodFlowSection, MoodSection, PeriodComparison, WasteReport } from "./SummarySections";
 import { useAnalysisBase } from "./useAnalysisBase";
 import styles from "./analysis.module.css";
 
@@ -41,21 +42,45 @@ function Chevron({ direction }: { direction: "left" | "right" }) {
   );
 }
 
+const KIND_NAMES: Record<ReportKind, { previous: string; next: string }> = {
+  week: { previous: "Settimana precedente", next: "Settimana successiva" },
+  month: { previous: "Mese precedente", next: "Mese successivo" },
+  year: { previous: "Anno precedente", next: "Anno successivo" },
+  range: { previous: "Intervallo precedente", next: "Intervallo successivo" },
+};
+
 export function Report() {
   const { diary, intakeDays, today, error, ready } = useAnalysisBase();
   const pantry = usePantry();
   const refs = useReferences();
   const { profile, ready: profileReady } = useNutritionProfile();
+  const ids = useId();
   const [kind, setKind] = useState<ReportKind>("week");
   const [anchor, setAnchor] = useState<string | null>(null);
+  const [range, setRange] = useState<{ from: string; to: string } | null>(null);
 
-  const period = useMemo(() => (today ? reportPeriod(kind, anchor ?? today) : undefined), [kind, anchor, today]);
+  const effectiveRange = useMemo(() => range ?? (today ? { from: addDays(today, -29), to: today } : null), [range, today]);
+  const problem = kind === "range" && effectiveRange ? customPeriodProblem(effectiveRange.from, effectiveRange.to) : undefined;
+  const rangeProblem =
+    problem === "too_long"
+      ? `L'intervallo può durare al massimo ${RANGE_MAX_DAYS} giorni.`
+      : problem !== undefined
+        ? "Scegli due date valide, la prima non dopo la seconda."
+        : undefined;
+
+  const period = useMemo<ReportPeriod | undefined>(() => {
+    if (!today) return undefined;
+    if (kind === "range") {
+      if (!effectiveRange || rangeProblem) return undefined;
+      return customPeriod(effectiveRange.from, effectiveRange.to);
+    }
+    return reportPeriod(kind, anchor ?? today);
+  }, [kind, anchor, today, effectiveRange, rangeProblem]);
 
   const report = useMemo(() => {
     if (!ready || !diary || !intakeDays || !pantry.data || !today || !period) return undefined;
-    return buildReport(
-      kind,
-      period.from,
+    return buildReportFor(
+      period,
       {
         diary,
         pantry: pantry.data,
@@ -64,7 +89,12 @@ export function Report() {
       },
       { minWeighIns: REPORT_MIN.weighIns, minCompleteDays: REPORT_MIN.completeDays, today },
     );
-  }, [ready, diary, intakeDays, pantry.data, today, period, kind, refs, profile]);
+  }, [ready, diary, intakeDays, pantry.data, today, period, refs, profile]);
+
+  const summary = useMemo(() => {
+    if (!diary || !pantry.data || !today || !period) return undefined;
+    return buildSummary(period, { diary, pantry: pantry.data }, { today });
+  }, [diary, pantry.data, today, period]);
 
   const nutrientRows = useMemo(() => {
     if (!report?.nutrients || report.nutrients.status !== "ok" || !intakeDays) return undefined;
@@ -72,41 +102,95 @@ export function Report() {
   }, [report, intakeDays]);
 
   const failed = error || Boolean(pantry.error);
-  const loading = !failed && (!report || !profileReady || !period || !today);
+  const loading = !failed && !rangeProblem && (!report || !summary || !profileReady || !period || !today);
+
+  function changeKind(next: ReportKind) {
+    setKind(next);
+    if (next === "range") {
+      // Si parte dall'ultimo mese, o dal periodo che si stava guardando se era più lungo di un giorno.
+      if (!range && period && period.days > 1) setRange({ from: period.from, to: period.to > (today ?? period.to) ? (today ?? period.to) : period.to });
+      return;
+    }
+    setAnchor(period && today && period.to >= today ? null : (period?.from ?? null));
+  }
+
+  function shift(direction: -1 | 1) {
+    if (!period) return;
+    const next = shiftPeriod(period, direction);
+    if (kind === "range") setRange({ from: next.from, to: next.to });
+    else setAnchor(next.from);
+  }
 
   return (
     <div className={ui.screen}>
+      <PrintSupport />
       <div className={ui.head}>
         <h1 className={ui.title}>Rapporto</h1>
-        <Link href="/app/salute" className={ui.textLink}>
+        <Link href="/app/salute" className={`${ui.textLink} ${styles.noPrint}`}>
           Torna a Salute
         </Link>
       </div>
       <p className={ui.lead}>
-        Ciò che hai registrato nella settimana o nel mese, sezione per sezione, ciascuna con i giorni su cui poggia. Dove non c&apos;è un dato non c&apos;è uno zero.
+        Ciò che hai registrato nella settimana, nel mese, nell&apos;anno o in un intervallo che scegli, sezione per sezione, ciascuna con i giorni su cui poggia. Dove non c&apos;è un dato non c&apos;è uno zero.
       </p>
       <AnalysisDisclaimer />
 
       {failed ? <StorageError /> : null}
       {loading ? <LoadingLine text="Preparo il rapporto…" /> : null}
 
-      {report && period && today ? (
+      {today ? (
+        <div className={`${styles.card} ${styles.noPrint}`}>
+          <Tabs label="Periodo del rapporto" items={REPORT_KINDS} value={kind} onChange={(id) => changeKind(id as ReportKind)} />
+          {kind === "range" && effectiveRange ? (
+            <>
+              <div className={styles.twoCols}>
+                <div className={ui.field}>
+                  <label className={ui.fieldLabel} htmlFor={`${ids}-from`}>
+                    Dal
+                  </label>
+                  <input
+                    id={`${ids}-from`}
+                    className={ui.input}
+                    type="date"
+                    value={effectiveRange.from}
+                    max={today}
+                    onChange={(e) => setRange({ from: e.target.value, to: effectiveRange.to })}
+                    aria-invalid={rangeProblem ? true : undefined}
+                  />
+                </div>
+                <div className={ui.field}>
+                  <label className={ui.fieldLabel} htmlFor={`${ids}-to`}>
+                    Al
+                  </label>
+                  <input
+                    id={`${ids}-to`}
+                    className={ui.input}
+                    type="date"
+                    value={effectiveRange.to}
+                    max={today}
+                    onChange={(e) => setRange({ from: effectiveRange.from, to: e.target.value })}
+                    aria-invalid={rangeProblem ? true : undefined}
+                  />
+                </div>
+              </div>
+              {rangeProblem ? (
+                <p className={ui.error} role="alert">
+                  {rangeProblem}
+                </p>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      ) : null}
+
+      {report && summary && period && today ? (
         <>
-          <Tabs
-            label="Periodo del rapporto"
-            items={REPORT_KINDS}
-            value={kind}
-            onChange={(id) => {
-              setKind(id as ReportKind);
-              setAnchor(period.to >= today ? null : period.from);
-            }}
-          />
           <div className={styles.nav}>
             <button
               type="button"
-              className={styles.navButton}
-              onClick={() => setAnchor(shiftPeriod(period, -1).from)}
-              aria-label={kind === "week" ? "Settimana precedente" : "Mese precedente"}
+              className={`${styles.navButton} ${styles.noPrint}`}
+              onClick={() => shift(-1)}
+              aria-label={KIND_NAMES[kind].previous}
             >
               <Chevron direction="left" />
             </button>
@@ -115,15 +199,28 @@ export function Report() {
             </h2>
             <button
               type="button"
-              className={styles.navButton}
-              onClick={() => setAnchor(shiftPeriod(period, 1).from)}
+              className={`${styles.navButton} ${styles.noPrint}`}
+              onClick={() => shift(1)}
               disabled={!canGoNext(period, today)}
-              aria-label={kind === "week" ? "Settimana successiva" : "Mese successivo"}
+              aria-label={KIND_NAMES[kind].next}
             >
               <Chevron direction="right" />
             </button>
           </div>
+          <p className={styles.printOnly}>
+            Dal {formatCalendarDate(period.from)} al {formatCalendarDate(period.to)}
+          </p>
           {partialNote(report.period) ? <p className={ui.hint}>{partialNote(report.period)}</p> : null}
+          <p className={styles.basis}>
+            Giorni con qualcosa di registrato (diario o dispensa): {summary.recordedDays} su {summary.basis.periodDays}
+            {summary.basis.partial ? " trascorsi" : ""}.
+          </p>
+          <div className={styles.noPrint}>
+            <Button variant="outline" onClick={() => window.print()}>
+              Stampa
+            </Button>
+            <p className={ui.hint}>Si stampa su foglio A4, in tema chiaro, senza la barra in basso.</p>
+          </div>
 
           <section className={ui.section}>
             <SectionHeader label="Giorni tracciati" />
@@ -137,6 +234,8 @@ export function Report() {
             </div>
           </section>
 
+          <FoodFlowSection summary={summary} />
+
           <section className={ui.section}>
             <SectionHeader label="Pasti" />
             <div className={styles.card}>
@@ -144,6 +243,8 @@ export function Report() {
               <BasisLine>{basisText(report.meals.basis, { used: "Giorni completi" })}</BasisLine>
             </div>
           </section>
+
+          <DishesSection summary={summary} />
 
           <section className={ui.section}>
             <SectionHeader label="Acqua" />
@@ -185,54 +286,11 @@ export function Report() {
             </div>
           </section>
 
-          <section className={ui.section}>
-            <SectionHeader label="Spesa" />
-            <div className={styles.card}>
-              {report.spend.status === "ok" ? (
-                <>
-                  {spendText(report.spend).map((line) => (
-                    <p key={line} className={styles.range}>
-                      {line}
-                    </p>
-                  ))}
-                  <BasisLine>
-                    <Value certainty={report.spend.certainty}>
-                      {occurrencesText(report.spend.basis.observations, "acquisto", "acquisti", report.spend.basis.usedDays)}
-                    </Value>
-                  </BasisLine>
-                </>
-              ) : (
-                <InsufficientBox view={noRecordsView("gli acquisti")} />
-              )}
-            </div>
-          </section>
+          <MoodSection summary={summary} />
 
-          <section className={ui.section}>
-            <SectionHeader label="Cibo buttato" />
-            <div className={styles.card}>
-              {report.waste.status === "ok" ? (
-                <>
-                  <ul className={styles.list}>
-                    {report.waste.items.map((item) => (
-                      <li key={`${item.reason}|${item.unit}`}>{wasteItemText(item)}</li>
-                    ))}
-                  </ul>
-                  {wasteCostText(report.waste).map((line) => (
-                    <p key={line} className={styles.range}>
-                      {line}
-                    </p>
-                  ))}
-                  <BasisLine>
-                    <Value certainty={report.waste.certainty}>
-                      {occurrencesText(report.waste.basis.observations, "registrazione", "registrazioni", report.waste.basis.usedDays)}
-                    </Value>
-                  </BasisLine>
-                </>
-              ) : (
-                <InsufficientBox view={noRecordsView("gli scarti")} />
-              )}
-            </div>
-          </section>
+          <WasteReport summary={summary} />
+
+          <PeriodComparison summary={summary} />
 
           <section className={ui.section}>
             <SectionHeader label="Nutrienti rispetto ai riferimenti" />
@@ -272,7 +330,7 @@ export function Report() {
                   {nutrientRows && nutrientRows.insufficient.length > 0 ? (
                     <p className={styles.note}>
                       {nutrientRows.insufficient.length} nutrienti non hanno abbastanza giorni con il dato e non sono mostrati.{" "}
-                      <Link href="/app/salute/nutrizione" className={ui.textLink}>
+                      <Link href="/app/salute/nutrizione" className={`${ui.textLink} ${styles.noPrint}`}>
                         Vedi la schermata Nutrizione
                       </Link>
                     </p>

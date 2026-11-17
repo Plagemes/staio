@@ -1,4 +1,5 @@
 // Registro di oggi: gli eventi del giorno, in ordine di orario, già in parole.
+import { QUICK_CONSUME_NOTE } from "@/core/diary";
 import { DEFAULT_TIME_ZONE } from "@/core/expiry";
 import { sortEvents, type LotPatch, type PantryState } from "@/core/ledger";
 import { formatQuantity, type Quantity } from "@/core/units";
@@ -105,7 +106,9 @@ export function buildJournal(
     // annullare l'ingresso di un alimento lascerebbe senza lotto i movimenti che lo seguono
     const isCreation = e.type === "purchase" || e.type === "declare";
     const blocked =
-      e.type === "consume" && e.mealId
+      e.type === "consume" && e.mealId && e.note === QUICK_CONSUME_NOTE
+        ? "Sta nel momento in cui l'hai segnato: lo annulli o lo sposti da «Momenti di oggi»."
+        : e.type === "consume" && e.mealId
         ? "Fa parte di un pasto: annulla il pasto da «Momenti di oggi», così tornano a posto anche gli altri alimenti."
         : isCreation && (lots.get(e.lotId)?.history.length ?? 0) > 1
           ? "Questo alimento ha già altri movimenti: annullali prima, poi potrai annullare l'ingresso."

@@ -12,7 +12,7 @@ import type { PrepRecord, PrepState } from "@/core/prep";
 import type { Recipe } from "@/core/recipes";
 import { useDiary, useEventLog, usePantry, usePlan, usePreps, useRecipes } from "@/data";
 import { useFoodOverrides, useFoods, useProducts } from "../nutrition/useNutrition";
-import { barcodesOfLots, buildResolverWithInfo } from "../nutrition/resolver";
+import { barcodesOfLots, buildResolverWithInfo, type FoodOverrides } from "../nutrition/resolver";
 import { dayOf } from "../format";
 import { useNow } from "../useNow";
 import type { Catalog } from "./describe";
@@ -41,6 +41,8 @@ export interface PlanData {
   linkOf: LinkOf;
   foods: readonly FoodComposition[] | undefined;
   resolver: CompositionResolver | undefined;
+  /** Alimenti scelti dall'utente per gli ingredienti, come nel ricettario. */
+  overrides: FoodOverrides;
   /** Disponibile quando la tabella degli alimenti è caricata. */
   nutrientsOf: NutrientsOfEntry | undefined;
 }
@@ -109,6 +111,7 @@ export function usePlanData(): PlanData {
     linkOf,
     foods,
     resolver,
+    overrides,
     nutrientsOf,
   };
 }

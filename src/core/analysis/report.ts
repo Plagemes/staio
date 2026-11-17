@@ -31,11 +31,11 @@ import {
 } from "./common";
 import { mean, round } from "./stats";
 
-export type ReportKind = "week" | "month";
+export type ReportKind = "week" | "month" | "year" | "range";
 
 export interface ReportPeriod {
   kind: ReportKind;
-  /** Primo e ultimo giorno (inclusi). La settimana va da lunedì a domenica, il mese è di calendario. */
+  /** Primo e ultimo giorno (inclusi). Settimana da lunedì a domenica; mese e anno di calendario; l'intervallo è quello scelto. */
   from: string;
   to: string;
   days: number;
@@ -47,19 +47,52 @@ export interface ReportPeriod {
   elapsedDays?: number;
 }
 
-/** Il periodo (settimana da lunedì a domenica, o mese di calendario) che contiene la data. */
-export function reportPeriod(kind: ReportKind, date: string): ReportPeriod {
+/** Il periodo (settimana da lunedì a domenica, mese o anno di calendario) che contiene la data. */
+export function reportPeriod(kind: Exclude<ReportKind, "range">, date: string): ReportPeriod {
   let from: string;
   let to: string;
   if (kind === "week") {
     from = addDays(date, -weekdayMonday0(date));
     to = addDays(from, 6);
+  } else if (kind === "year") {
+    from = `${date.slice(0, 4)}-01-01`;
+    to = `${date.slice(0, 4)}-12-31`;
   } else {
     from = `${date.slice(0, 7)}-01`;
     const [y, m] = date.split("-").map(Number);
     to = addDays(`${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, "0")}-01`, -1);
   }
   return { kind, from, to, days: daysBetween(from, to) + 1 };
+}
+
+/** Giorni al massimo di un intervallo scelto a mano. */
+export const CUSTOM_PERIOD_MAX_DAYS = 366;
+
+const isDay = (d: string): boolean => /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(d) && addDays(d, 0) === d;
+
+/** Perché un intervallo non è accettabile, senza calcolare nulla sui giorni in mezzo. */
+export function customPeriodProblem(from: string, to: string): "invalid" | "inverted" | "too_long" | undefined {
+  if (!isDay(from) || !isDay(to)) return "invalid";
+  const span = daysBetween(from, to);
+  if (span < 0) return "inverted";
+  return span + 1 > CUSTOM_PERIOD_MAX_DAYS ? "too_long" : undefined;
+}
+
+/** Un intervallo scelto a mano, estremi inclusi. `undefined` se le date non sono valide, sono invertite o l'intervallo supera il limite. */
+export function customPeriod(from: string, to: string): ReportPeriod | undefined {
+  if (customPeriodProblem(from, to) !== undefined) return undefined;
+  return { kind: "range", from, to, days: daysBetween(from, to) + 1 };
+}
+
+/**
+ * Il periodo con i giorni contati: se `today` cade prima della fine, i giorni futuri non contano (periodo parziale).
+ * Un periodo non ancora iniziato ha zero giorni contati.
+ */
+export function countedPeriod(full: ReportPeriod, today?: string): ReportPeriod {
+  const partial = today !== undefined && today < full.to;
+  const through = partial ? (today < full.from ? undefined : today) : full.to;
+  const elapsed = through === undefined ? 0 : daysBetween(full.from, through) + 1;
+  return { ...full, partial, ...(through !== undefined ? { through } : {}), elapsedDays: elapsed };
 }
 
 export interface ReportOptions {
@@ -199,26 +232,23 @@ type BasisFactory = (used: number, observations: number) => DataBasis;
  * ha un prezzo registrato e lo dicono.
  */
 export function buildReport(
-  kind: ReportKind,
+  kind: Exclude<ReportKind, "range">,
   date: string,
   input: ReportInput,
   options: ReportOptions = {},
 ): PeriodicReport {
-  const fullPeriod = reportPeriod(kind, date);
+  return buildReportFor(reportPeriod(kind, date), input, options);
+}
+
+/** Come `buildReport`, per un periodo qualsiasi (anche un anno o un intervallo scelto). */
+export function buildReportFor(fullPeriod: ReportPeriod, input: ReportInput, options: ReportOptions = {}): PeriodicReport {
   const { diary } = input;
   const { from } = fullPeriod;
-  const today = options.today;
-  const partial = today !== undefined && today < fullPeriod.to;
-  // Ultimo giorno contato: i giorni futuri del periodo in corso non sono giorni con vuoti.
-  const through = partial ? (today < from ? undefined : today) : fullPeriod.to;
+  const period = countedPeriod(fullPeriod, options.today);
+  const partial = period.partial === true;
+  const through = period.through;
   const to = through ?? addDays(from, -1);
-  const elapsed = through === undefined ? 0 : daysBetween(from, through) + 1;
-  const period: ReportPeriod = {
-    ...fullPeriod,
-    partial,
-    ...(through !== undefined ? { through } : {}),
-    elapsedDays: elapsed,
-  };
+  const elapsed = period.elapsedDays ?? 0;
   const basis = (used: number, observations: number): DataBasis =>
     basisOf(elapsed, used, observations, {
       ...(partial ? { partial: true } : {}),

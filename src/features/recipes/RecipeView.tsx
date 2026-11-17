@@ -16,6 +16,9 @@ import { useNotice } from "../notice";
 import ui from "../ui.module.css";
 import { useRecord } from "../useRecord";
 import { formatMinutes, formatServings, safeSourceUrl } from "./common";
+import { DishRatingRow } from "./DishRatingRow";
+import { countsText, dishRatingEvent, historyText, type DishVote } from "./dishRating";
+import { useDishHistory } from "./useDishHistory";
 import { computeFacts, costText, coverageText, makeContextFor, makeLookup, nutrientLines } from "./facts";
 import { availabilityLabel, pendingConfirmations, shortfallsWith, type Answers } from "./list";
 import { PairingsRow } from "./PairingsRow";
@@ -88,6 +91,8 @@ function Detail({ recipe: written, initialSubstitutions }: { recipe: Recipe; ini
   const [error, setError] = useState<string | null>(null);
   const [cooking, setCooking] = useState(false);
   const [answers, setAnswers] = useState<Answers>({});
+  const history = useDishHistory();
+  const past = history.byRecipe.get(written.recipeId);
 
   const typed = servingsText === null ? written.servings : Number(servingsText.replace(",", "."));
   const servingsValid = Number.isFinite(typed) && typed > 0 && typed <= 1000;
@@ -168,6 +173,17 @@ function Detail({ recipe: written, initialSubstitutions }: { recipe: Recipe; ini
       const res = rateRecipe(written, next, { now: new Date().toISOString(), deviceId });
       if (!res.ok) throw new Error(res.error);
       return { events: [res.event], message: next === undefined ? "Voto tolto." : `Voto: ${next} su 5.` };
+    });
+    if (!r.ok) setError(r.error);
+  }
+
+  /** Corregge il voto dell'ultima cottura: un nuovo evento, «Annulla» riporta quello di prima. */
+  async function rateLast(vote: DishVote) {
+    if (!past) return;
+    const r = await recordWith((deviceId) => {
+      const res = dishRatingEvent(past.last.mealId, written.recipeId, vote, { now: new Date().toISOString(), deviceId });
+      if (!res.ok) throw new Error(res.error);
+      return { events: [res.event], message: vote.rating ? "Voto salvato." : "Voto tolto." };
     });
     if (!r.ok) setError(r.error);
   }
@@ -416,9 +432,25 @@ function Detail({ recipe: written, initialSubstitutions }: { recipe: Recipe; ini
         </div>
       </section>
 
+      {past ? (
+        <section className={ui.section} aria-labelledby={`${ids}-cooked`}>
+          <h2 id={`${ids}-cooked`} className={ui.fieldLabel}>
+            Le volte che l&apos;hai cucinata
+          </h2>
+          <p className={ui.lead}>{historyText(past)}</p>
+          {countsText(past) ? <p className={ui.hint}>{countsText(past)}</p> : null}
+          <DishRatingRow
+            label="Com'era l'ultima volta?"
+            value={{ ...(past.last.rating ? { rating: past.last.rating } : {}), ...(past.last.again ? { again: true } : {}) }}
+            onChange={(v) => void rateLast(v)}
+            disabled={busy}
+          />
+        </section>
+      ) : null}
+
       <section className={ui.section} aria-labelledby={`${ids}-rate`}>
         <h2 id={`${ids}-rate`} className={ui.fieldLabel}>
-          Il tuo voto
+          Il tuo voto alla ricetta
         </h2>
         <div className={styles.rating} role="group" aria-label="Voto da 1 a 5">
           {[1, 2, 3, 4, 5].map((n) => (

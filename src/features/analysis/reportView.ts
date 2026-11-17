@@ -18,7 +18,12 @@ import { RELIABILITY_LABELS, days, formatDecimal, formatKgValue, plural, weighIn
 export const REPORT_KINDS: { id: ReportKind; label: string }[] = [
   { id: "week", label: "Settimana" },
   { id: "month", label: "Mese" },
+  { id: "year", label: "Anno" },
+  { id: "range", label: "Intervallo" },
 ];
+
+/** Un intervallo scelto non supera un anno bisestile: oltre, il rapporto non è più leggibile né stampabile. */
+export const RANGE_MAX_DAYS = 366;
 
 const MONTHS = [
   "gennaio",
@@ -37,8 +42,9 @@ const MONTHS = [
 
 const dayMonth = (date: string): string => formatCalendarDate(date).replace(/ \d{4}$/, "");
 
-/** "9 – 15 nov 2026" per la settimana, "novembre 2026" per il mese. */
+/** "9 – 15 nov 2026" per la settimana e l'intervallo, "novembre 2026" per il mese, "2026" per l'anno. */
 export function periodTitle(period: ReportPeriod): string {
+  if (period.kind === "year") return period.from.slice(0, 4);
   if (period.kind === "month") {
     const [y, m] = period.from.split("-").map(Number);
     return `${MONTHS[m - 1]} ${y}`;
@@ -50,6 +56,10 @@ export function periodTitle(period: ReportPeriod): string {
 
 /** Il periodo precedente (`-1`) o successivo (`1`) allo stesso tipo. */
 export function shiftPeriod(period: ReportPeriod, direction: -1 | 1): ReportPeriod {
+  if (period.kind === "range") {
+    const from = direction === -1 ? addDays(period.from, -period.days) : addDays(period.to, 1);
+    return { kind: "range", from, to: addDays(from, period.days - 1), days: period.days };
+  }
   return reportPeriod(period.kind, direction === -1 ? addDays(period.from, -1) : addDays(period.to, 1));
 }
 

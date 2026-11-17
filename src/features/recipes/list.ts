@@ -3,6 +3,7 @@ import type { ConfirmationMap, ConfirmedHit } from "@/core/allergens";
 import type { Lot } from "@/core/ledger";
 import {
   ALLERGEN_STEMS,
+  compareByFavorite,
   compareWithPantry,
   exclusionReasons,
   type ExclusionReason,
@@ -16,6 +17,7 @@ import {
   type PantryComparison,
   type PantryStock,
   type Quantity,
+  type RecipeHistory,
   type Recipe,
   type RecipeIngredient,
 } from "@/core/recipes";
@@ -58,10 +60,16 @@ export interface RecipeRow {
   /** Quota di ingredienti disponibili, da 0 a 1. */
   coverage: number;
   minutes?: number;
+  /** Cucinata e votata: dal registro; assente se mai cucinata. */
+  history?: RecipeHistory;
 }
 
 /** Una riga per ricetta, con il confronto con la dispensa e l'uso di ciò che scade. */
-export function buildRows(recipes: readonly Recipe[], pantry: PantryView): RecipeRow[] {
+export function buildRows(
+  recipes: readonly Recipe[],
+  pantry: PantryView,
+  histories: ReadonlyMap<string, RecipeHistory> = new Map(),
+): RecipeRow[] {
   const ranks = new Map<string, { score: number; uses: { name: string; daysLeft: number }[] }>();
   for (const r of rankByExpiring(recipes, pantry.expiring)) {
     ranks.set(r.recipe.recipeId, {
@@ -76,6 +84,8 @@ export function buildRows(recipes: readonly Recipe[], pantry: PantryView): Recip
     const cmp = compareWithPantry(recipe, pantry.stock);
     const rank = ranks.get(recipe.recipeId);
     const minutes = totalMinutes(recipe);
+    const past = histories.get(recipe.recipeId);
+    const history = past ? { history: past } : {};
     if (!cmp.ok) {
       return {
         recipe,
@@ -90,6 +100,7 @@ export function buildRows(recipes: readonly Recipe[], pantry: PantryView): Recip
         expiringScore: rank?.score ?? 0,
         coverage: 0,
         ...(minutes !== undefined ? { minutes } : {}),
+        ...history,
       };
     }
     const c = cmp.value;
@@ -106,16 +117,18 @@ export function buildRows(recipes: readonly Recipe[], pantry: PantryView): Recip
       expiringScore: rank?.score ?? 0,
       coverage: c.coverage,
       ...(minutes !== undefined ? { minutes } : {}),
+      ...history,
     };
   });
 }
 
-export type SortKey = "title" | "pantry" | "expiring";
+export type SortKey = "title" | "pantry" | "expiring" | "favorites";
 
 export const SORT_LABELS: Record<SortKey, string> = {
   title: "Nome",
   pantry: "Con ciò che hai",
   expiring: "Per usare ciò che scade",
+  favorites: "Le tue preferite",
 };
 
 const byTitle = (a: RecipeRow, b: RecipeRow): number =>
@@ -124,6 +137,9 @@ const byTitle = (a: RecipeRow, b: RecipeRow): number =>
 export function sortRows(rows: readonly RecipeRow[], key: SortKey): RecipeRow[] {
   const out = [...rows];
   if (key === "title") return out.sort(byTitle);
+  if (key === "favorites") {
+    return out.sort((a, b) => compareByFavorite(a.history, b.history) || (b.recipe.rating ?? 0) - (a.recipe.rating ?? 0) || byTitle(a, b));
+  }
   if (key === "pantry") {
     return out.sort((a, b) => b.coverage - a.coverage || a.missing + a.partial - (b.missing + b.partial) || byTitle(a, b));
   }

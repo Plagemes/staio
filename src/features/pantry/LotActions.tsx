@@ -1,14 +1,12 @@
 "use client";
 
 import { useId, useState, type FormEvent } from "react";
-import type { DeclareEvent, DiscardReason, Location, PurchaseEvent } from "@/core/ledger";
+import type { DeclareEvent, DiscardReason, Location, Lot, PurchaseEvent } from "@/core/ledger";
 import { formatQuantity } from "@/core/units";
 import { useEventLog, usePantry } from "@/data";
 import { Button, ExpiryTag } from "@/design";
 import {
   findCreationEvent,
-  buildConsume,
-  buildConsumeMany,
   buildDiscard,
   buildEdit,
   buildEditMany,
@@ -56,6 +54,12 @@ import styles from "./LotSheet.module.css";
  */
 export type Perform = (build: (ctx: ActionContext) => EditResult, inline?: boolean) => Promise<EditResult | null>;
 
+/**
+ * «Mangiato»: scrive il consumo nel diario del giorno, nel momento giusto (vedi `eaten.ts`), e la scheda lo racconta.
+ * Come `Perform`, restituisce il risultato solo se è fallita.
+ */
+export type Eat = (lots: readonly Lot[], choice: AmountChoice, inline?: boolean) => Promise<EditResult | null>;
+
 type Mode = "menu" | "eat" | "discard" | "move" | "edit" | "remove" | "dates";
 
 interface LotActionsProps {
@@ -66,11 +70,12 @@ interface LotActionsProps {
   now: string;
   busy: boolean;
   perform: Perform;
+  eat: Eat;
   /** Il pannello mostra qui gli errori generici di un'azione. */
   error: string | null;
 }
 
-export function LotActions({ entry, creation, group = [], now, busy, perform, error }: LotActionsProps) {
+export function LotActions({ entry, creation, group = [], now, busy, perform, eat, error }: LotActionsProps) {
   const [mode, setMode] = useState<Mode>("menu");
   const [listError, setListError] = useState<string | null>(null);
   /** Luogo con cui si apre «Sposta»: il freezer se si arriva da «Sposta in freezer». */
@@ -114,10 +119,10 @@ export function LotActions({ entry, creation, group = [], now, busy, perform, er
         <div className={styles.menu}>
           {grouped ? (
             <>
-              <Button disabled={busy} onClick={() => void perform((ctx) => buildConsume(lot, { kind: "all" }, ctx))}>
+              <Button disabled={busy} onClick={() => void eat([lot], { kind: "all" })}>
                 {pieces.length > 0 ? "Una confezione mangiata" : "Una mangiata"}
               </Button>
-              <Button variant="outline" disabled={busy} onClick={() => void perform((ctx) => buildConsumeMany(group.map((g) => g.lot), ctx))}>
+              <Button variant="outline" disabled={busy} onClick={() => void eat(group.map((g) => g.lot), { kind: "all" })}>
                 {`Tutte mangiate (${group.length})`}
               </Button>
               <Button variant="outline" onClick={() => setMode("dates")}>
@@ -127,14 +132,14 @@ export function LotActions({ entry, creation, group = [], now, busy, perform, er
           ) : null}
           {pieces.length > 0 ? (
             <>
-              <Button disabled={busy} onClick={() => void perform((ctx) => buildConsume(lot, { kind: "value", value: pieces[0].quantity.value }, ctx))}>
+              <Button disabled={busy} onClick={() => void eat([lot], { kind: "value", value: pieces[0].quantity.value })}>
                 Un pezzo mangiato
               </Button>
               {pieces.some((p) => p.id === "pieces-half") ? (
                 <Button
                   variant="outline"
                   disabled={busy}
-                  onClick={() => void perform((ctx) => buildConsume(lot, { kind: "value", value: pieces.find((p) => p.id === "pieces-half")!.quantity.value, estimated: true }, ctx))}
+                  onClick={() => void eat([lot], { kind: "value", value: pieces.find((p) => p.id === "pieces-half")!.quantity.value, estimated: true })}
                 >
                   Mezzo pezzo
                 </Button>
@@ -181,8 +186,8 @@ export function LotActions({ entry, creation, group = [], now, busy, perform, er
       ) : null}
 
       {mode === "remove" ? <RemoveForm entry={entry} group={group} busy={busy} perform={perform} onBack={back} onDiscard={() => setMode("discard")} /> : null}
-      {mode === "eat" ? <AmountForm entry={entry} kind="eat" busy={busy} perform={perform} onBack={back} /> : null}
-      {mode === "discard" ? <AmountForm entry={entry} kind="discard" busy={busy} perform={perform} onBack={back} /> : null}
+      {mode === "eat" ? <AmountForm entry={entry} kind="eat" busy={busy} perform={perform} eat={eat} onBack={back} /> : null}
+      {mode === "discard" ? <AmountForm entry={entry} kind="discard" busy={busy} perform={perform} eat={eat} onBack={back} /> : null}
       {mode === "dates" ? <DatesForm entry={entry} group={group} busy={busy} perform={perform} onBack={back} /> : null}
       {mode === "move" ? <MoveForm entry={entry} group={group} now={now} initialTo={moveTo} busy={busy} perform={perform} onBack={back} /> : null}
       {mode === "edit" && creation ? (
@@ -232,7 +237,7 @@ function ScopePick({ count, value, onChange }: { count: number; value: Scope; on
 
 const packsText = (n: number) => (n === 1 ? "1 confezione" : `${n} confezioni`);
 
-function AmountForm({ entry, kind, busy, perform, onBack }: SubFormProps & { kind: "eat" | "discard" }) {
+function AmountForm({ entry, kind, busy, perform, eat, onBack }: SubFormProps & { kind: "eat" | "discard"; eat: Eat }) {
   const { lot } = entry;
   const ids = useId();
   const [text, setText] = useState("");
@@ -244,11 +249,12 @@ function AmountForm({ entry, kind, busy, perform, onBack }: SubFormProps & { kin
   const verb = kind === "eat" ? "mangiato" : "buttato";
 
   async function go(choice: AmountChoice) {
-    const failed = await perform(
-      (ctx) => (kind === "eat" ? buildConsume(lot, choice, ctx) : buildDiscard(lot, choice, reason, ctx)),
-      choice.kind === "text",
-    );
+    const failed = await (kind === "eat"
+      ? eat([lot], choice, choice.kind === "text")
+      : perform((ctx) => buildDiscard(lot, choice, reason, ctx), choice.kind === "text"));
     if (failed && choice.kind === "text") setFieldError(failed.ok ? null : failed.error);
+    // mangiato: la scheda resta aperta con l'avviso di dove è finito, e si torna alle azioni
+    if (!failed && kind === "eat") onBack();
   }
 
   function onSubmit(event: FormEvent) {

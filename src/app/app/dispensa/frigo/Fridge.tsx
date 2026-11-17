@@ -142,7 +142,7 @@ export function Fridge() {
 
       {sheetEntry ? (
         <LotSheet
-          key={sheetGroup ? sheetGroup.key : sheetEntry.lot.lotId}
+          key={sheetId}
           entry={sheetGroup ? sheetGroup.entries[0] : sheetEntry}
           creation={creation}
           group={sheetGroup?.entries}

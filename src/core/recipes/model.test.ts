@@ -16,7 +16,7 @@ describe("validateRecipeEvent", () => {
   });
 
   it("espone i tipi e il riconoscimento", () => {
-    expect(RECIPE_EVENT_TYPES).toEqual(["recipe"]);
+    expect(RECIPE_EVENT_TYPES).toEqual(["recipe", "dishRating"]);
     expect(isRecipeEvent(recipeEvent("e1", T1))).toBe(true);
     expect(isRecipeEvent({ type: "meal" })).toBe(false);
     expect(isRecipeEvent(null)).toBe(false);

@@ -58,6 +58,18 @@
   text-decoration: underline;
 }
 
+.link {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding-inline: var(--space-4);
+  color: inherit;
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
 .undo:disabled {
   opacity: 0.5;
 }

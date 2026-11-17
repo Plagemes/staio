@@ -1,6 +1,8 @@
 export * from "./types";
-export { isRecipeEvent, validateRecipeEvent } from "./validate";
+export { isDishRatingEvent, isRecipeEvent, validateRecipeEvent } from "./validate";
 export { deriveRecipes } from "./derive";
+export { DISH_RATING_VALUE, compareByFavorite, deriveDishHistory, favoriteScore, summarizeCookings } from "./dishHistory";
+export type { Cooking, DishHistory, RecipeHistory } from "./dishHistory";
 export type { RecipeAnomaly, RecipeAnomalyCode, RecipesState } from "./derive";
 export { roundQuantity, scaleRecipe, scaleToWholePackages } from "./scale";
 export type {

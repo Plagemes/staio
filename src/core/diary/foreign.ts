@@ -9,6 +9,7 @@ export const OTHER_FAMILY_EVENT_TYPES = [
   "dayType",
   "prep",
   "recipe",
+  "dishRating",
   "experiment",
   "allergenConfirmation",
 ] as const;

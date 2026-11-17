@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { isLocalProduct } from "@/core/catalog";
+import { dayBefore, deriveDiary, localMoment, type DiaryState, type MealKind } from "@/core/diary";
+import type { AnyEvent } from "@/core/events";
+import { DEFAULT_TIME_ZONE } from "@/core/expiry";
 import type { DeclareEvent, PurchaseEvent } from "@/core/ledger";
 import { formatQuantity } from "@/core/units";
-import { appendEvents, getDeviceId, useEventLog, usePantry } from "@/data";
-import { LotNutrients } from "../nutrition/Per100";
+import { appendEvents, getAllEvents, getDeviceId, getPantry, useDiary, useEventLog, usePantry } from "@/data";
 import { useProducts } from "../nutrition/useNutrition";
 import { ExpiryTag, Label, LevelBar, Value } from "@/design";
 import { recipeForUnknown } from "@/models3d/fallback";
@@ -18,7 +20,10 @@ import { FOOD_CATEGORY_LABELS, LOCATION_LABELS, MODEL_CATEGORY_OF } from "../lab
 import { expiryExplanation, expiryTagView, isFoodCategory, levelPercent, type PantryEntry } from "../lots";
 import { useNotice } from "../notice";
 import ui from "../ui.module.css";
-import { LotActions, type Perform } from "./LotActions";
+import { buildChangeMoment, buildEaten, eatenDayOf, eventsOfMarked, undoPlacement, type Marked } from "./eaten";
+import { EatenPanel, UndoneNote } from "./EatenPanel";
+import { LotActions, type Eat, type Perform } from "./LotActions";
+import { LotNutrition, useLotValues } from "./LotNutrition";
 import { saveActions } from "./saveActions";
 import styles from "./LotSheet.module.css";
 
@@ -49,8 +54,16 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
   const titleId = useId();
   const notice = useNotice();
   const products = useProducts();
+  const diary = useDiary();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** L'ultima cosa mangiata da questa scheda: resta visibile finché la scheda è aperta. */
+  const [last, setLast] = useState<{ marked: Marked; message: string } | null>(null);
+  const [undoneText, setUndoneText] = useState<string | null>(null);
+  /** Ciò che l'avviso dirà quando la scheda si chiude (anche perché l'alimento è finito): testo, eventi da annullare, rimando. */
+  const closing = useRef<{ message: string; events: readonly AnyEvent[]; href: string } | null>(null);
+  const toToday = useRef(false);
+  const values = useLotValues(lot);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -59,6 +72,22 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
       if (dialog?.open) dialog.close();
     };
   }, []);
+
+  // la scheda si chiude (o sparisce, se l'alimento è finito): l'avviso con «Annulla» e il rimando a Oggi
+  useEffect(
+    () => () => {
+      const c = closing.current;
+      if (c && !toToday.current) {
+        // «Annulla» guarda il registro com'è in quel momento: il pasto si annulla solo se nessun altro consumo lo usa
+        const onUndo = async () => {
+          const [events, pantry] = await Promise.all([getAllEvents(), getPantry()]);
+          await appendEvents(undoPlacement(c.events, events, pantry.voidedEventIds, { now: new Date().toISOString(), deviceId: await getDeviceId() }));
+        };
+        notice.show({ message: c.message, onUndo, link: { label: "Vedi in Oggi", href: c.href } });
+      }
+    },
+    [notice],
+  );
 
   const close = () => dialogRef.current?.close();
 
@@ -99,8 +128,71 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
     }
   };
 
+  const diaryNow = (): DiaryState | undefined => diary.data ?? (log.data ? deriveDiary(log.data) : undefined);
+  const timeZone = diary.data?.timeZone ?? DEFAULT_TIME_ZONE;
+  const today = dayOf(now, timeZone);
+
+  /** Scrive eventi e racconta che cosa è successo: nella scheda subito, e nell'avviso quando si chiude. */
+  async function write(
+    build: (ctx: { now: string; deviceId: string }, state: DiaryState | undefined) => ReturnType<typeof buildEaten>,
+    inline: boolean,
+  ): Promise<EditResult | null> {
+    setBusy(true);
+    setError(null);
+    const fail = (message: string): EditResult => {
+      if (!inline) setError(message);
+      return { ok: false, error: message };
+    };
+    try {
+      const state = diaryNow();
+      if (!state) return fail("Un attimo, sto ancora caricando. Riprova.");
+      const result = build({ now: new Date().toISOString(), deviceId: await getDeviceId() }, state);
+      if (!result.ok) return fail(result.error);
+      const written = await appendEvents(result.events);
+      if (written.added === 0 || written.rejected.length > 0) return fail("Non sono riuscito a salvare. Riprova.");
+      setLast({ marked: result.marked, message: result.message });
+      setUndoneText(null);
+      const date = result.marked.date;
+      closing.current = { message: result.message, events: result.events, href: date === dayOf(new Date().toISOString(), timeZone) ? "/app" : `/app?giorno=${date}` };
+      return null;
+    } catch {
+      return fail("Non sono riuscito a salvare sul telefono. Riprova.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // il giorno di un cambio di momento è quello in cui si è mangiato, non quello di adesso (pannello aperto a cavallo della mezzanotte)
+  const eatenAt = last?.marked.consumes[0]?.at;
+  const eatenDay = last ? eatenDayOf(last.marked, timeZone, today) : today;
+  const eatenMinutes = (eatenAt ? localMoment(eatenAt, timeZone)?.minutes : undefined) ?? 1440;
+
+  const eat: Eat = (lots, choice, inline = false) => write((ctx, state) => buildEaten(lots, choice, ctx, state), inline);
+
+  function changeMoment(kind: MealKind, date: string) {
+    if (!last) return;
+    void write((ctx, state) => buildChangeMoment(last.marked, { kind, date }, ctx, state), false);
+  }
+
+  async function undoLast() {
+    if (!last) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const { marked } = last;
+      const [events, pantry] = await Promise.all([getAllEvents(), getPantry()]);
+      await appendEvents(undoPlacement(eventsOfMarked(marked, events), events, pantry.voidedEventIds, { now: new Date().toISOString(), deviceId: await getDeviceId() }));
+      setLast(null);
+      closing.current = null;
+      setUndoneText(`Annullato: ${marked.amount} di ${marked.name} sono tornati in dispensa e non sono più in Oggi.`);
+    } catch {
+      setError("Non sono riuscito ad annullare. Riprova.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const tag = expiryTagView(entry);
-  const today = dayOf(now);
   const partial = lot.remaining < lot.initial;
   const remainingText = formatQuantity({ value: lot.remaining, unit: lot.unit });
   const initialText = formatQuantity({ value: lot.initial, unit: lot.unit });
@@ -213,7 +305,7 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
         </dl>
 
         <section className={styles.nutrients} aria-label="Nutrienti">
-          <LotNutrients lotId={lot.lotId} productRef={lot.productRef} barcode={lot.barcode} />
+          <LotNutrition lot={lot} />
         </section>
 
         {pairsShown && !lot.barcode ? null : (
@@ -234,10 +326,30 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
         )}
 
         {lot.remaining > 0 ? (
-          <LotActions entry={entry} creation={creation} group={members} now={now} busy={busy} perform={perform} error={error} />
+          <LotActions entry={entry} creation={creation} group={members} now={now} busy={busy} perform={perform} eat={eat} error={error} />
         ) : (
           <p className={ui.hint}>Di questo alimento non resta niente.</p>
         )}
+
+        {last ? (
+          <EatenPanel
+            message={last.message}
+            marked={last.marked}
+            hasValues={values.status === "loading" ? undefined : values.status === "found"}
+            today={today}
+            eatenDay={eatenDay}
+            yesterday={dayBefore(eatenDay)}
+            offerYesterday={eatenMinutes < 4 * 60}
+            busy={busy}
+            onMove={changeMoment}
+            onUndo={() => void undoLast()}
+            onOpenToday={() => {
+              toToday.current = true;
+            }}
+          />
+        ) : undoneText ? (
+          <UndoneNote text={undoneText} />
+        ) : null}
       </div>
     </dialog>
   );

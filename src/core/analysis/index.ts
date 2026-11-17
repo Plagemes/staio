@@ -89,7 +89,28 @@ export type {
   GroupStats,
 } from "./associations";
 
-export { buildReport, reportPeriod } from "./report";
+export { buildReport, buildReportFor, countedPeriod, customPeriod, customPeriodProblem, CUSTOM_PERIOD_MAX_DAYS, reportPeriod } from "./report";
+export { buildSummary, comparisonMinDays, SUMMARY_MIN } from "./summary";
+export type {
+  ComparisonId,
+  ComparisonMetric,
+  ComparisonSection,
+  DishesSection,
+  EnteredSection,
+  FlowSection,
+  FoodCount,
+  MoodSection,
+  PeriodSummary,
+  QuantityTotal,
+  SavedSection,
+  SummaryInput,
+  SummaryOptions,
+  TopFoodsSection,
+  WasteCategoryItem,
+  WasteDiscards,
+  WasteReasonItem,
+  WasteSummary,
+} from "./summary";
 export type {
   MealsSection,
   NutrientsSection,

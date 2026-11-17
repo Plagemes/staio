@@ -426,6 +426,20 @@ export interface EditTarget {
 }
 
 /**
+ * Lega delle confezioni a una scheda prodotto (i valori scritti a mano per un alimento senza codice a barre): il codice
+ * sul lotto è ciò che lo collega ai valori, il calcolo della nutrizione non cambia. Chi ha già quel codice resta com'è.
+ */
+export function buildAttachCode(targets: readonly EditTarget[], code: string, ctx: ActionContext): ActionResult {
+  const events: LedgerEvent[] = [];
+  for (const { creation, lot } of targets) {
+    events.push(...correctLot(creation, { barcode: code }, { lot, deviceId: ctx.deviceId, now: () => ctx.now, idGenerator: ctx.idGenerator }));
+  }
+  if (events.some((e) => validateEvent(e).length > 0)) return { ok: false, error: "Non riesco a salvare il collegamento." };
+  const name = targets[0]?.lot.productRef ?? "";
+  return { ok: true, events, message: `Valori nutrizionali salvati per ${name}.` };
+}
+
+/**
  * Modifica di più confezioni uguali: a ognuna si applicano solo i campi che l'utente ha cambiato rispetto
  * alla confezione di partenza, così le altre non perdono la loro data.
  */

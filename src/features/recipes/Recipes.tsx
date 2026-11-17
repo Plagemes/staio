@@ -36,10 +36,12 @@ import {
 import { rateRecipe } from "./model";
 import { useRecipePrefs, type RecipePrefs } from "./prefs";
 import { reasonLines, unionDeclared } from "./safety";
+import { historyText, SORT_FAVORITES_HINT } from "./dishRating";
 import { useConfirmations } from "./useConfirmations";
+import { useDishHistory } from "./useDishHistory";
 import styles from "./recipes.module.css";
 
-const SORTS: SortKey[] = ["title", "pantry", "expiring"];
+const SORTS: SortKey[] = ["title", "pantry", "expiring", "favorites"];
 const TIME_OPTIONS = [20, 30, 45, 60];
 
 export function Recipes() {
@@ -50,6 +52,7 @@ export function Recipes() {
   const now = useNow();
   const { prefs, ready, save } = useRecipePrefs();
   const { byKey: confirmations } = useConfirmations();
+  const dishes = useDishHistory();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("title");
   const [tags, setTags] = useState<string[]>([]);
@@ -60,7 +63,10 @@ export function Recipes() {
     () => (pantry.data && now ? pantryView(activeLots(pantry.data), now) : undefined),
     [pantry.data, now],
   );
-  const rows = useMemo(() => (recipes.data && view ? buildRows(recipes.data.recipes, view) : []), [recipes.data, view]);
+  const rows = useMemo(
+    () => (recipes.data && view ? buildRows(recipes.data.recipes, view, dishes.byRecipe) : []),
+    [recipes.data, view, dishes.byRecipe],
+  );
 
   // gli allergeni e le esclusioni dichiarati nel ricettario e nel piano contano insieme
   const planAllergens = plan.data?.structure?.allergens;
@@ -161,6 +167,7 @@ export function Recipes() {
                 </label>
               ))}
             </div>
+            {sort === "favorites" ? <p className={ui.hint}>{SORT_FAVORITES_HINT}</p> : null}
             {sort === "expiring" && view.expiring.length === 0 ? (
               <p className={ui.hint}>Niente in dispensa sta per scadere: l&apos;ordine resta per nome.</p>
             ) : null}
@@ -219,6 +226,7 @@ export function Recipes() {
                         <span className={styles.noteStrong}>{countsText(row)}</span>
                         {missing ? <span className={styles.note}>{missing}</span> : null}
                         {expiring ? <span className={styles.noteAccent}>{expiring}</span> : null}
+                        {historyText(row.history) ? <span className={styles.note}>{historyText(row.history)}</span> : null}
                         {confirmedNote ? <span className={styles.noteStrong}>{confirmedNote}</span> : null}
                       </Link>
                     </li>
