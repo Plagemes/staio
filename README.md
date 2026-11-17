@@ -38,8 +38,12 @@ Il progetto è in costruzione. Questa tabella dice cosa c'è davvero.
 | Assistente: domande a parole, viste da fissare in Oggi | Scritto, da provare con una chiave vera |
 | Temi: Registro, Bottega, Ardesia, Netto | Fatto |
 | Frigo, freezer e credenza in 3D dai dati della dispensa | Prima versione |
-| Ricette da video, abbinamenti di gusto | Da fare |
-| Sincronizzazione tra dispositivi | Da fare |
+| Conferma dell'etichetta per gli ingredienti non verificabili | Prima versione |
+| Avvisi senza server | Scritto, da provare sui telefoni |
+| Ricette da video condivisi all'app | Scritto; il servizio di estrazione non è ancora attivo |
+| Abbinamenti di gusto | Elenco di prova scritto a mano, in attesa di dati con licenza adatta |
+| Sincronizzazione con file e con Drive | Scritto; Drive in attesa delle credenziali |
+| Tema Vivo a colori, modelli 3D a colori | In costruzione |
 
 ## Com'è
 
@@ -96,6 +100,10 @@ Per un prodotto senza ricetta l'app sceglie una forma adatta alla confezione e a
 | `src/core/analysis` | Stime e associazioni con la loro incertezza, esperimenti |
 | `src/core/quality` | Qualità dei prodotti per dimensioni, ogni soglia con la fonte |
 | `src/core/views` | Viste dichiarative: l'AI sceglie cosa mostrare, i numeri li calcola l'app |
+| `src/core/notify` | Avvisi: cosa notificare e quando, senza server |
+| `src/core/sync` | Unione dei dati tra dispositivi, con file e con Drive |
+| `src/core/taste` | Abbinamenti di gusto tra ingredienti |
+| `worker/video` | Servizio che estrae il testo dai video condivisi |
 | `src/data` | Archivio sul dispositivo (IndexedDB), copia e ripristino |
 | `src/design` | Tema e componenti dell'interfaccia |
 | `src/models3d` | Generatore dei modelli, materiale a incisione, catalogo |

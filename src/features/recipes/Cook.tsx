@@ -198,6 +198,11 @@ function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
           {safety.safety.verdict === "contains" ? "Questa ricetta contiene qualcosa che hai dichiarato." : "In questa ricetta c'è almeno un ingrediente non verificabile."} Il dettaglio è nella scheda della ricetta.
         </p>
       ) : null}
+      {safety.status === "ready" && safety.safety.verdict === "clear" && safety.safety.confirmed.length > 0 ? (
+        <p className={styles.flagConfirmed} role="note">
+          Hai confermato tu {safety.safety.confirmed.length === 1 ? "un ingrediente" : `${safety.safety.confirmed.length} ingredienti`}: {safety.safety.confirmed.map((c) => `«${c.name}»`).join(", ")}. L&apos;app non li ha verificati. Il dettaglio è nella scheda della ricetta.
+        </p>
+      ) : null}
 
       <p className={styles.cookText}>{step.text}</p>
 

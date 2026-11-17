@@ -1,5 +1,6 @@
+import { piecesHintFrom, type PackagingPart } from "./piecesHint";
 import { parsePackageQuantity } from "./quantity";
-import type { BaseUnit, NovaGroup, Nutrients, NutriScore, PackageQuantity, Product } from "./types";
+import type { BaseUnit, NovaGroup, Nutrients, NutriScore, PackageQuantity, Product, ServingSize } from "./types";
 
 /** Campi richiesti all'API: solo quelli che la scheda usa. */
 export const OFF_FIELDS = [
@@ -12,6 +13,12 @@ export const OFF_FIELDS = [
   "product_quantity",
   "product_quantity_unit",
   "packaging_tags",
+  "serving_size",
+  "serving_quantity",
+  "serving_quantity_unit",
+  "packagings",
+  "conservation_conditions",
+  "conservation_conditions_it",
   "categories_tags",
   "nutriments",
   "nova_group",
@@ -82,6 +89,33 @@ function quantityFrom(p: Json): PackageQuantity | undefined {
   // Senza l'unità dichiarata non si sa se sono grammi o millilitri: non si indovina.
   if (numeric !== undefined && numeric > 0 && unit) return { ...(parsed ?? {}), value: numeric, unit };
   return parsed;
+}
+
+function servingFrom(p: Json): ServingSize | undefined {
+  const value = amount(p.serving_quantity);
+  const unitText = text(p.serving_quantity_unit)?.toLowerCase();
+  if (value !== undefined && value > 0 && (unitText === "g" || unitText === "ml")) return { value, unit: unitText };
+  const parsed = text(p.serving_size) ? parsePackageQuantity(text(p.serving_size) as string) : undefined;
+  if (parsed?.value !== undefined && parsed.unit && parsed.unit !== "pz" && parsed.count === undefined) {
+    return { value: parsed.value, unit: parsed.unit };
+  }
+  return undefined;
+}
+
+/** Imballaggi con più unità e la quantità di ciascuna (per esempio 2 bustine da 100 g). */
+function packagingPartsFrom(p: Json): PackagingPart[] {
+  if (!Array.isArray(p.packagings)) return [];
+  const out: PackagingPart[] = [];
+  for (const item of p.packagings) {
+    if (!isRecord(item)) continue;
+    const count = amount(item.number_of_units);
+    const each = amount(item.quantity_per_unit_value);
+    const unitText = text(item.quantity_per_unit_unit)?.toLowerCase();
+    if (count && count >= 2 && Number.isInteger(count) && each && each > 0 && (unitText === "g" || unitText === "ml")) {
+      out.push({ count, each, unit: unitText });
+    }
+  }
+  return out;
 }
 
 function nutrientsFrom(p: Json, unit: BaseUnit | undefined): Nutrients | undefined {
@@ -163,6 +197,9 @@ export function productFromOpenFoodFacts(json: unknown, options: FromOffOptions 
   const allergens = tags(p.allergens_tags);
   const additives = additivesFrom(p);
   const nutrients = nutrientsFrom(p, quantity?.unit);
+  const serving = servingFrom(p);
+  const piecesHint = piecesHintFrom(quantity, serving, packagingPartsFrom(p));
+  const storageText = text(p.conservation_conditions_it) ?? text(p.conservation_conditions);
 
   const product: Product = {
     barcode: code,
@@ -183,6 +220,9 @@ export function productFromOpenFoodFacts(json: unknown, options: FromOffOptions 
   if (nutriScore) product.nutriScore = nutriScore;
   if (allergens.length > 0) product.allergens = allergens;
   if (additives) product.additives = additives;
+  if (serving) product.serving = serving;
+  if (piecesHint) product.piecesHint = piecesHint;
+  if (storageText) product.storageText = storageText.slice(0, 300);
   const imageUrl = imageFrom(p);
   if (imageUrl) product.imageUrl = imageUrl;
   return product;

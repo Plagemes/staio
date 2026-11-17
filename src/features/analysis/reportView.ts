@@ -76,9 +76,21 @@ export function trackingText(section: PeriodicReport["tracking"]): string {
   return parts.join(" · ");
 }
 
+/** «3 pranzi saltati, 1 cena saltata»: solo un conteggio di ciò che hai dichiarato, senza giudizio. */
+export function skippedText(skipped: PeriodicReport["meals"]["skipped"]): string | undefined {
+  if (skipped.total === 0) return undefined;
+  const parts: string[] = [];
+  if (skipped.breakfast > 0) parts.push(plural(skipped.breakfast, "colazione saltata", "colazioni saltate"));
+  if (skipped.lunch > 0) parts.push(plural(skipped.lunch, "pranzo saltato", "pranzi saltati"));
+  if (skipped.dinner > 0) parts.push(plural(skipped.dinner, "cena saltata", "cene saltate"));
+  return parts.join(", ");
+}
+
 export function mealsText(section: PeriodicReport["meals"]): string {
   const parts = [`${plural(section.tracked, "pasto tracciato", "pasti tracciati")}`];
   if (section.untracked > 0) parts.push(`${plural(section.untracked, "pasto segnato", "pasti segnati")} come non tracciato`);
+  const skipped = skippedText(section.skipped);
+  if (skipped !== undefined) parts.push(skipped);
   if (section.trackedPerCompleteDay !== undefined) {
     parts.push(`${formatDecimal(section.trackedPerCompleteDay, 1)} al giorno nei giorni completi`);
   }

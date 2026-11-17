@@ -8,10 +8,12 @@ import {
 import { isOtherFamilyEvent } from "./foreign";
 import { cloneMealItems } from "./items";
 import { isValidTimeZone, localDate } from "./calendar";
-import { isVoid, prepareLog, rejectedErrors, rejectedKey, voidsOfLog } from "./log";
+import { isValidKnownEvent, isVoid, prepareLog, rejectedErrors, rejectedKey, voidsOfLog } from "./log";
 import {
   DEFAULT_TIME_ZONE,
   type DiaryEvent,
+  type MealDeclarationEvent,
+  type MealDeclarationStatus,
   type MealItem,
   type MealKind,
   type SymptomKind,
@@ -58,10 +60,31 @@ export interface DiaryMeal extends DiaryEntry {
   title?: string;
   items: MealItem[];
   habitId?: string;
+  /**
+   * Righe del pasto che erano consumi della dispensa e sono state annullate (per esempio con «Inserito per
+   * sbaglio»). Assente se nessuna. Un pasto fatto solo di righe annullate non compare affatto.
+   */
+  removedLines?: number;
 }
 
 export interface DiaryUntrackedMeal extends DiaryEntry {
   kind: MealKind;
+}
+
+/**
+ * Dichiarazione in vigore per un giorno e un momento (la più recente per `recordedAt`, poi `id`).
+ * Le dichiarazioni battute da quella più recente non compaiono: restano nel registro.
+ */
+export interface DiaryMealDeclaration extends DiaryEntry {
+  kind: MealKind;
+  status: MealDeclarationStatus;
+  recordedAt: string;
+  /**
+   * Perché non conta: `meal` se in quel momento c'è un pasto registrato (il pasto vince),
+   * `newer` se un pasto «non tracciato» (evento `untrackedMeal`) più recente la contraddice.
+   * Assente se conta.
+   */
+  supersededBy?: "meal" | "newer";
 }
 
 export interface DiaryDrink extends DiaryEntry {
@@ -69,6 +92,8 @@ export interface DiaryDrink extends DiaryEntry {
   ml: number;
   caffeineMg?: number;
   alcoholG?: number;
+  energyKcal?: number;
+  sugarsG?: number;
 }
 
 export interface DiaryWeight extends DiaryEntry {
@@ -97,6 +122,8 @@ export interface DiaryDay {
   date: string;
   meals: DiaryMeal[];
   untrackedMeals: DiaryUntrackedMeal[];
+  /** Dichiarazioni «saltato» / «mangiato, non registrato» di questo giorno, una per momento. */
+  declarations: DiaryMealDeclaration[];
   /** Somma degli eventi `water` (le bevande stanno a parte, in `drinks`). */
   waterMl: number;
   /** La meno affidabile tra le certezze degli eventi sommati; assente senza eventi. */
@@ -152,6 +179,7 @@ function emptyDay(date: string): DiaryDay {
     date,
     meals: [],
     untrackedMeals: [],
+    declarations: [],
     waterMl: 0,
     drinks: [],
     caffeineMg: 0,
@@ -161,6 +189,54 @@ function emptyDay(date: string): DiaryDay {
     symptoms: [],
     supplements: [],
   };
+}
+
+/** `a` è più recente di `b`: per `recordedAt`, poi per `id`. */
+function isNewer(a: { recordedAt: string; id: string }, b: { recordedAt: string; id: string }): boolean {
+  const ta = Date.parse(a.recordedAt);
+  const tb = Date.parse(b.recordedAt);
+  if (ta !== tb) return ta > tb;
+  return a.id > b.id;
+}
+
+/**
+ * Per ogni giorno e momento vale la dichiarazione più recente, qualunque sia l'ordine di arrivo.
+ * Un pasto registrato nello stesso momento prevale. Un evento `untrackedMeal` (il vecchio «ho mangiato
+ * fuori») è una dichiarazione «non registrato» fatta alla data del suo `at`: se è più recente
+ * dell'ultima dichiarazione, vince lui; se è più vecchio, sparisce dall'elenco dei non tracciati.
+ */
+function resolveDeclarations(
+  events: readonly MealDeclarationEvent[],
+  days: Map<string, DiaryDay>,
+  untrackedRecordedAt: ReadonlyMap<string, string>,
+): void {
+  const winners = new Map<string, MealDeclarationEvent>();
+  for (const e of events) {
+    const key = `${e.date}|${e.kind}`;
+    const cur = winners.get(key);
+    if (!cur || isNewer(e, cur)) winners.set(key, e);
+  }
+  for (const e of winners.values()) {
+    let day = days.get(e.date);
+    if (!day) days.set(e.date, (day = emptyDay(e.date)));
+    const hasMeal = day.meals.some((m) => m.kind === e.kind);
+    const legacy = day.untrackedMeals.filter((u) => u.kind === e.kind);
+    const newerLegacy = legacy.some((u) => isNewer({ recordedAt: untrackedRecordedAt.get(u.eventId) ?? u.at, id: u.eventId }, e));
+    if (!newerLegacy) {
+      day.untrackedMeals = day.untrackedMeals.filter((u) => u.kind !== e.kind);
+    }
+    const base = entryOf(e);
+    day.declarations.push({
+      ...base,
+      kind: e.kind,
+      status: e.status,
+      recordedAt: e.recordedAt,
+      ...(hasMeal ? { supersededBy: "meal" as const } : newerLegacy ? { supersededBy: "newer" as const } : {}),
+    });
+  }
+  for (const day of days.values()) {
+    day.declarations.sort((a, b) => cmp(a.kind, b.kind));
+  }
 }
 
 function entryOf(e: DiaryEvent): DiaryEntry {
@@ -238,6 +314,19 @@ export function deriveDiary(
   }
   const live = valid.filter((e) => !voided.has(e.id));
 
+  // Consumi della dispensa legati a un pasto: attivi e annullati. Un pasto senza voci scritte nel diario
+  // e con tutti i consumi annullati è un pasto fantasma: il suo contenuto è sparito, non vale come registrato.
+  const mealConsumes = new Map<string, { active: number; removed: number }>();
+  for (const e of log.events) {
+    const c = e as { id?: unknown; type?: unknown; mealId?: unknown };
+    if (c.type !== "consume" || typeof c.mealId !== "string" || c.mealId === "" || typeof c.id !== "string") continue;
+    if (!isValidKnownEvent(e)) continue;
+    const entry = mealConsumes.get(c.mealId) ?? { active: 0, removed: 0 };
+    if (voided.has(c.id)) entry.removed++;
+    else entry.active++;
+    mealConsumes.set(c.mealId, entry);
+  }
+
   const days = new Map<string, DiaryDay>();
   const dayOf = (e: DiaryEvent): DiaryDay | undefined => {
     const date = localDate(e.at, timeZone);
@@ -248,6 +337,8 @@ export function deriveDiary(
   };
 
   const mealIds = new Set<string>();
+  const declarationEvents: MealDeclarationEvent[] = [];
+  const untrackedRecordedAt = new Map<string, string>();
   const habitWinners = new Map<string, Extract<DiaryEvent, { type: "habit" }>>();
 
   // `live` è già in ordine canonico (at, recordedAt, id): le somme sono deterministiche.
@@ -263,7 +354,13 @@ export function deriveDiary(
       }
       continue;
     }
+    if (e.type === "mealDeclaration") {
+      declarationEvents.push(e);
+      continue;
+    }
     if (e.type === "meal") {
+      const consumes = mealConsumes.get(e.mealId);
+      if ((e.items?.length ?? 0) === 0 && consumes !== undefined && consumes.active === 0 && consumes.removed > 0) continue;
       if (mealIds.has(e.mealId)) {
         anomalies.push({ code: "duplicate_meal", eventId: e.id, mealId: e.mealId });
         continue;
@@ -282,10 +379,12 @@ export function deriveDiary(
           ...(e.title !== undefined ? { title: e.title } : {}),
           items: cloneMealItems(e.items),
           ...(e.habitId !== undefined ? { habitId: e.habitId } : {}),
+          ...((mealConsumes.get(e.mealId)?.removed ?? 0) > 0 ? { removedLines: mealConsumes.get(e.mealId)!.removed } : {}),
         });
         break;
       case "untrackedMeal":
         day.untrackedMeals.push({ ...base, kind: e.kind });
+        untrackedRecordedAt.set(e.id, e.recordedAt);
         break;
       case "water":
         day.waterMl = norm(day.waterMl + e.ml);
@@ -300,6 +399,8 @@ export function deriveDiary(
           ml: e.ml,
           ...(e.caffeineMg !== undefined ? { caffeineMg: e.caffeineMg } : {}),
           ...(e.alcoholG !== undefined ? { alcoholG: e.alcoholG } : {}),
+          ...(e.energyKcal !== undefined ? { energyKcal: e.energyKcal } : {}),
+          ...(e.sugarsG !== undefined ? { sugarsG: e.sugarsG } : {}),
         });
         if (e.caffeineMg !== undefined) {
           day.caffeineMg = norm(day.caffeineMg + e.caffeineMg);
@@ -339,6 +440,8 @@ export function deriveDiary(
         break;
     }
   }
+
+  resolveDeclarations(declarationEvents, days, untrackedRecordedAt);
 
   const habits: DiaryHabit[] = [];
   for (const h of habitWinners.values()) {

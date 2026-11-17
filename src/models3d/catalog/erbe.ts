@@ -98,8 +98,8 @@ export const erbeRecipes: readonly Recipe[] = [
     heightCm: 22,
     params: {
       parts: [
-        { recipe: { archetype: "lathe", params: { smooth: false, profile: [[0, 0], [0.3, 0], [0.32, 0.04], [0.42, 0.96], [0.46, 1], [0.46, 1.05], [0.4, 1.05]] } } },
-        { recipe: { archetype: "leaf", params: { layout: "bunch", count: 14, width: 0.6, spread: 0.65, curl: 0.2, frill: 0.1, stalk: 0.6 } }, position: [0, 0.95, 0], scale: 1.5 },
+        { recipe: { archetype: "lathe", params: { smooth: false, profile: [[0, 0], [0.3, 0], [0.32, 0.04], [0.42, 0.96], [0.46, 1], [0.46, 1.05], [0.4, 1.05]] }, color: { main: "#c9663a" } } },
+        { recipe: { archetype: "leaf", params: { layout: "bunch", count: 14, width: 0.6, spread: 0.65, curl: 0.2, frill: 0.1, stalk: 0.6 }, color: { main: "#3f9f4a", stem: "#8cc66a" } }, position: [0, 0.95, 0], scale: 1.5 },
       ],
     },
   },

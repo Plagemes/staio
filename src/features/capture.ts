@@ -32,6 +32,8 @@ export interface CaptureInput {
   /** Codice a barre da cui arrivano i dati: la fonte diventa `barcode` e la quantità vale come letta in etichetta. */
   barcode?: string;
   brand?: string;
+  /** Pezzi dentro la confezione (2 piadine da 100 g); la quantità resta quella della confezione. */
+  pieces?: { count: number; each: number; name?: string };
 }
 
 export type CaptureField = "name" | "quantity" | "category" | "expiryDate" | "price" | "form";
@@ -84,6 +86,14 @@ export function cleanName(text: string): string {
 
 /** Cifre, da 8 a 14 come nel libro mastro: altro non è un codice a barre. */
 const BARCODE_RE = /^\d{8,14}$/;
+
+/** I pezzi si portano nell'evento solo se sono almeno due e la quantità della confezione è in g o ml. */
+function piecesOf(pieces: CaptureInput["pieces"], quantity: Quantity): NonNullable<CaptureInput["pieces"]> | undefined {
+  if (!pieces || quantity.unit === "pz") return undefined;
+  if (!Number.isInteger(pieces.count) || pieces.count < 2 || !(pieces.each > 0)) return undefined;
+  const name = pieces.name?.trim();
+  return { count: pieces.count, each: pieces.each, ...(name ? { name } : {}) };
+}
 
 export function buildCaptureEvents(input: CaptureInput, ctx: CaptureContext): CaptureResult {
   const errors: FieldErrors = {};
@@ -139,6 +149,7 @@ export function buildCaptureEvents(input: CaptureInput, ctx: CaptureContext): Ca
     productRef: name,
     category: input.category,
     quantity: reading.quantity,
+    ...(piecesOf(input.pieces, reading.quantity) ? { pieces: piecesOf(input.pieces, reading.quantity) } : {}),
     location: input.location,
     ...(expiry ? { expiry } : {}),
   };

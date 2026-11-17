@@ -5,8 +5,10 @@
   box-sizing: border-box;
   height: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px));
   padding: 0 var(--space-4) env(safe-area-inset-bottom, 0px);
-  border-top: var(--rule-width) solid var(--color-rule);
-  background: var(--color-paper);
+  border-top: var(--nav-rule-width) solid var(--color-rule);
+  background: var(--nav-fill);
+  -webkit-backdrop-filter: var(--nav-backdrop);
+  backdrop-filter: var(--nav-backdrop);
 }
 
 .item {
@@ -20,11 +22,18 @@
   font-weight: 500;
   color: var(--color-graphite);
   text-decoration: none;
+  transition: transform var(--motion-fast) ease;
 }
 
+.item:active,
+.capture:active {
+  transform: var(--press-transform);
+}
+
+/* In Vivo --nav-current è il colore dell'area della voce (data-area sulla voce) */
 .current {
   font-weight: 600;
-  color: var(--color-ink);
+  color: var(--nav-current);
 }
 
 .capture {
@@ -35,11 +44,12 @@
   width: var(--capture-size);
   height: var(--capture-size);
   border-radius: var(--radius-round);
-  background: var(--color-ink);
-  color: var(--color-on-ink);
+  background: var(--capture-fill);
+  color: var(--capture-text);
   text-decoration: none;
+  transition: transform var(--motion-fast) ease;
 }
 
 .captureCurrent {
-  box-shadow: 0 0 0 2px var(--color-paper), 0 0 0 4px var(--color-ink);
+  box-shadow: 0 0 0 2px var(--color-paper), 0 0 0 4px var(--capture-fill);
 }

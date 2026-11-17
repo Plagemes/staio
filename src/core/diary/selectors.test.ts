@@ -163,6 +163,7 @@ describe("giorni completi e giorni con vuoti", () => {
       status: "gaps",
       tracked: 0,
       untracked: 0,
+      skipped: [],
       missing: ["breakfast", "lunch", "dinner"],
     });
   });
@@ -193,6 +194,7 @@ describe("giorni completi e giorni con vuoti", () => {
       status: "gaps",
       tracked: 3,
       untracked: 0,
+      skipped: [],
       missing: ["lunch", "dinner"],
     });
 

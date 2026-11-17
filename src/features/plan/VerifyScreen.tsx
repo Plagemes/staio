@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { compareWeek, checkPlanWeek, getWeek, type LotRef } from "@/core/plan";
-import { ALLERGEN_CHECK_NOTICE } from "@/core/allergens";
+import { ALLERGEN_CHECK_NOTICE, deriveConfirmations } from "@/core/allergens";
 import { Label, SectionHeader, Tabs } from "@/design";
 import { NUTRITION_DISCLAIMER_SHORT, CERTAINTY_LABELS } from "../nutrition/labels";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
@@ -27,12 +27,13 @@ export function Verify() {
   const plan = data.plan;
 
   const check = useMemo(() => (plan && week && data.nutrientsOf ? checkPlanWeek(plan, week.start, data.nutrientsOf) : undefined), [plan, week, data.nutrientsOf]);
+  const confirmations = useMemo(() => deriveConfirmations(data.log ?? []).byKey, [data.log]);
   const constraints = useMemo(
     () =>
       plan && week
-        ? checkWeekConstraints(plan.structure, getWeek(plan, week.start), { expandForChecks: data.expandForChecks, linkOf: data.linkOf })
+        ? checkWeekConstraints(plan.structure, getWeek(plan, week.start), { expandForChecks: data.expandForChecks, linkOf: data.linkOf, confirmations })
         : undefined,
-    [plan, week, data.expandForChecks, data.linkOf],
+    [plan, week, data.expandForChecks, data.linkOf, confirmations],
   );
   const adherence = useMemo(() => {
     if (!plan || !week || !data.diary || !data.log || !data.pantry || weekId === "next") return undefined;
@@ -84,6 +85,7 @@ export function Verify() {
               <ul className={styles.rows}>
                 {lines.map((l, i) => (
                   <li key={i} className={`${styles.row} ${l.kind === "violation" ? styles.toneAttention : styles.toneUnknown}`}>
+                    {l.kind === "confirmed" ? <strong>Confermato da te. </strong> : null}
                     {dayHeading(l.date, data.today).replace(/, (oggi|domani)$/, "")}: {l.text}
                   </li>
                 ))}

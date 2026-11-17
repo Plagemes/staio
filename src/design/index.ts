@@ -16,9 +16,14 @@ export { Wordmark } from "./components/Wordmark";
 export { contrastRatio, relativeLuminance } from "./contrast";
 export {
   APPEARANCE_STORAGE_KEY,
+  STYLE_CHOICE_ATTR,
+  STYLE_CHOICE_MAX_WAIT,
   SYSTEM_DARK_QUERY,
   applyTheme,
+  isStorageAvailable,
   readStoredChoice,
+  readStoredRaw,
+  storedStyleChosen,
   systemPrefersDark,
   writeStoredChoice,
 } from "./applyTheme";

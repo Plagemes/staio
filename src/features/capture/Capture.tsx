@@ -10,6 +10,9 @@ import { Button, Label } from "@/design";
 import { searchRecipes } from "@/models3d/catalog";
 import { readQuantity, type CaptureField, type CaptureInput, type FieldErrors } from "../capture";
 import { captureParamsKey, mergeCaptureParams, readCaptureParams, resolveCaptureFields, type CaptureEdits } from "../captureParams";
+import { buildPackEvents, checkPackGroups, clampPacks, packsSummary, resolvePieces, splitPackGroups, type PackGroup } from "../barcode/directAdd";
+import { pieceNameFor } from "../pieces";
+import { PackCounter, PackGroupsEditor, PiecesField } from "./PackControls";
 import { saveCapture } from "./saveCapture";
 import { dayOf } from "../format";
 import {
@@ -72,6 +75,11 @@ export function Capture() {
   const [alreadyHave, setAlreadyHave] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [saving, setSaving] = useState(false);
+  const [packs, setPacks] = useState(1);
+  const [piecesCount, setPiecesCount] = useState(0);
+  const [eachText, setEachText] = useState<string | null>(null);
+  const [differentDates, setDifferentDates] = useState(false);
+  const [groups, setGroups] = useState<PackGroup[]>([]);
 
   const nameRef = useRef<HTMLInputElement>(null);
   const quantityRef = useRef<HTMLInputElement>(null);
@@ -97,7 +105,18 @@ export function Capture() {
 
   const reading = quantityText.trim() === "" ? null : readQuantity(quantityText);
   const today = now ? dayOf(now) : null;
+  const pieceName = pieceNameFor(name);
+  const resolvedPieces = resolvePieces(reading?.ok ? reading.quantity : undefined, piecesCount, eachText, pieceName);
   const pastDate = expiryKind !== "none" && today !== null && /^\d{4}-\d{2}-\d{2}$/.test(expiryDate) && expiryDate < today;
+
+  const splitDates = differentDates && packs > 1 && expiryKind !== "none";
+
+  function changePacks(next: number) {
+    const n = clampPacks(next);
+    setPacks(n);
+    if (n === 1) setDifferentDates(false);
+    else if (differentDates) setGroups(splitPackGroups(n, expiryDate));
+  }
 
   function pickSuggestion(recipeName: string) {
     edit({ name: recipeName });
@@ -111,10 +130,51 @@ export function Capture() {
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (saving) return;
+    if (resolvedPieces.error) {
+      setErrors({ form: resolvedPieces.error });
+      return;
+    }
     setSaving(true);
     try {
-      const input: CaptureInput = { name, quantityText, location, category, expiryKind, expiryDate, priceText, alreadyHave, barcode, brand };
-      const result = await saveCapture(input, { appendEvents, getDeviceId, now: () => new Date().toISOString() });
+      const input: CaptureInput = {
+        name,
+        quantityText,
+        location,
+        category,
+        expiryKind,
+        expiryDate,
+        priceText,
+        alreadyHave,
+        barcode,
+        brand,
+        ...(resolvedPieces.pieces ? { pieces: resolvedPieces.pieces } : {}),
+      };
+      const deps = { appendEvents, getDeviceId, now: () => new Date().toISOString() };
+      let result: Awaited<ReturnType<typeof saveCapture>>;
+      if (packs === 1) {
+        result = await saveCapture(input, deps);
+      } else {
+        const groupError = splitDates ? checkPackGroups(groups, packs) : null;
+        if (groupError) {
+          setErrors({ form: groupError });
+          return;
+        }
+        const effective: PackGroup[] = splitDates ? groups.filter((g) => g.count > 0) : [{ count: packs, expiryDate }];
+        const inputs = effective.flatMap((g) =>
+          Array.from({ length: g.count }, () => ({ ...input, expiryDate: g.expiryDate, expiryKind: g.expiryDate === "" && splitDates ? ("none" as const) : expiryKind })),
+        );
+        const built = buildPackEvents(inputs, { now: deps.now(), deviceId: await deps.getDeviceId() });
+        if (!built.ok) result = built;
+        else {
+          const written = await deps.appendEvents(built.events);
+          const first = built.events[0];
+          const productName = first.type === "purchase" || first.type === "declare" ? first.productRef : name;
+          result =
+            written.added === 0
+              ? { ok: false, errors: { form: "Non sono riuscito a salvare. Riprova." } }
+              : { ok: true, events: built.events, lotId: built.lotIds[0], summary: `${packs} confezioni di ${productName}` };
+        }
+      }
       if (!result.ok) {
         setErrors(result.errors);
         const first = (["name", "quantity", "category", "expiryDate", "price"] as const).find((f) => result.errors[f]);
@@ -128,6 +188,10 @@ export function Capture() {
       setExpiryDate("");
       setExpiryKind("none");
       setPriceText("");
+      setPacks(1);
+      setPiecesCount(0);
+      setEachText(null);
+      setDifferentDates(false);
       nameRef.current?.focus();
     } catch {
       setErrors({ form: "Non sono riuscito a salvare sul telefono. Riprova." });
@@ -251,6 +315,26 @@ export function Capture() {
           </p>
         </div>
 
+        <PackCounter packs={packs} onChange={changePacks} quantityOne={quantityText.trim()} />
+
+        <PiecesField
+          total={reading?.ok ? reading.quantity : undefined}
+          count={piecesCount}
+          onCount={(n) => {
+            setPiecesCount(n);
+            if (n < 2) setEachText(null);
+          }}
+          eachText={eachText}
+          onEachText={setEachText}
+          resolved={resolvedPieces}
+          pieceName={pieceName}
+        />
+        {reading?.ok && (packs > 1 || resolvedPieces.pieces) ? (
+          <p className={ui.paragraph} aria-live="polite">
+            {packsSummary(packs, reading.quantity, resolvedPieces.pieces)}
+          </p>
+        ) : null}
+
         <fieldset className={ui.field}>
           <legend className={ui.fieldLabel}>Dove lo metti</legend>
           <div className={ui.choices}>
@@ -321,7 +405,9 @@ export function Capture() {
               </label>
             ))}
           </div>
-          {expiryKind !== "none" ? (
+          {splitDates ? (
+            <PackGroupsEditor groups={groups} packs={packs} onChange={setGroups} onSameDate={() => setDifferentDates(false)} />
+          ) : expiryKind !== "none" ? (
             <>
               <label className={ui.fieldLabel} htmlFor={`${ids}-date`}>
                 Data in etichetta
@@ -329,7 +415,7 @@ export function Capture() {
               <input
                 ref={dateRef}
                 id={`${ids}-date`}
-                className={ui.input}
+                className={`${ui.input} ${styles.dateInput}`}
                 type="date"
                 value={expiryDate}
                 onChange={(e) => {
@@ -344,10 +430,26 @@ export function Capture() {
                   {err("expiryDate")}
                 </p>
               ) : null}
+              {expiryDate === "" ? (
+                <p className={ui.hint}>Scrivi o scegli la data stampata sulla confezione (giorno, mese, anno).</p>
+              ) : null}
               {pastDate ? (
                 <p className={ui.hint} id={`${ids}-date-hint`}>
                   Questa data è già passata: lo salvo comunque.
                 </p>
+              ) : null}
+              {packs > 1 ? (
+                <div className={ui.row}>
+                  <Button
+                    variant="text"
+                    onClick={() => {
+                      setGroups(splitPackGroups(packs, expiryDate));
+                      setDifferentDates(true);
+                    }}
+                  >
+                    Date diverse
+                  </Button>
+                </div>
               ) : null}
             </>
           ) : (
@@ -399,7 +501,7 @@ export function Capture() {
                 {err("price")}
               </p>
             ) : null}
-            <p className={ui.hint}>Prezzo totale in euro, per tutta la quantità.</p>
+            <p className={ui.hint}>{packs > 1 ? "Prezzo di una confezione, in euro." : "Prezzo totale in euro, per tutta la quantità."}</p>
           </div>
         )}
 
@@ -410,7 +512,7 @@ export function Capture() {
         ) : null}
 
         <Button type="submit" disabled={saving}>
-          {saving ? "Salvo…" : "Aggiungi alla dispensa"}
+          {saving ? "Salvo…" : packs > 1 ? `Aggiungi ${packs} confezioni alla dispensa` : "Aggiungi alla dispensa"}
         </Button>
       </form>
     </div>

@@ -1,4 +1,13 @@
-import { ALLERGEN_KEYS, ALLERGEN_TABLES, allergensInText, assessRecipe, type ItemSubject } from "../allergens";
+import {
+  ALLERGEN_KEYS,
+  ALLERGEN_TABLES,
+  allergensInText,
+  assessRecipe,
+  type ConfirmationMap,
+  type ConfirmedHit,
+  type ItemSubject,
+  type RecipeAssessment,
+} from "../allergens";
 import { nameTokens } from "../nutrition";
 import { bestMatches, type FoodRef } from "./match";
 import type { RecipeIngredient, RecipeStep, RecipeTimes } from "./types";
@@ -57,6 +66,8 @@ export interface IngredientLink {
   names?: readonly string[];
   productName?: string;
   allergens?: readonly string[];
+  /** Codici a barre o identificativi dei prodotti collegati: la conferma dell'utente è legata a loro. */
+  productRefs?: readonly string[];
 }
 
 export interface FilterCriteria {
@@ -74,6 +85,12 @@ export interface FilterCriteria {
   allergensOf?: (ingredient: RecipeIngredient) => readonly string[] | undefined;
   /** Alimento di dispensa o prodotto collegato all'ingrediente: il controllo guarda anche i loro nomi ed etichette. */
   linkOf?: (ingredient: RecipeIngredient) => IngredientLink | undefined;
+  /**
+   * Conferme dell'utente («ho letto l'etichetta, per me va bene») sugli ingredienti non verificabili. Valgono solo per
+   * l'esito incerto, mai per un allergene trovato. Un ingrediente confermato non è più un motivo di esclusione, ma
+   * resta visibile con `confirmedIngredients`.
+   */
+  confirmations?: ConfirmationMap;
 }
 
 export interface FilterResult<T> {
@@ -102,8 +119,35 @@ function subjectOf(ing: RecipeIngredient, criteria: FilterCriteria): ItemSubject
     ...(ing.foodId ? { foodId: ing.foodId } : {}),
     ...(link?.names && link.names.length > 0 ? { linkedNames: link.names } : {}),
     ...(link?.productName ? { productName: link.productName } : {}),
+    ...(link?.productRefs && link.productRefs.length > 0 ? { productRefs: link.productRefs } : {}),
     ...(labels.length > 0 ? { labelAllergens: labels } : {}),
   };
+}
+
+function assessFor(recipe: Filterable, criteria: FilterCriteria): RecipeAssessment {
+  const excludedFoods = criteria.excludedFoods ?? [];
+  return assessRecipe(
+    {
+      ...(recipe.title !== undefined ? { title: recipe.title } : {}),
+      ingredients: recipe.ingredients.map((ing) => subjectOf(ing, criteria)),
+      steps: (recipe.steps ?? []).map((s) => s.text),
+    },
+    {
+      allergens: (criteria.allergens ?? []).filter((a) => a.trim() !== ""),
+      excludedFoods: excludedFoods.flatMap((f) => (typeof f === "string" ? [f] : f.name ? [f.name] : [])),
+      ...(criteria.confirmations ? { confirmations: criteria.confirmations } : {}),
+    },
+  );
+}
+
+/**
+ * Gli ingredienti che l'utente ha confermato (uno per ingrediente e allergene): servono a mostrare il segno della
+ * conferma dove la ricetta passa. Vuoto senza conferme, o se non ce n'è di valida per i criteri di adesso.
+ */
+export function confirmedIngredients(recipe: Filterable, criteria: FilterCriteria): ConfirmedHit[] {
+  if (!criteria.confirmations || criteria.confirmations.size === 0) return [];
+  if ((criteria.allergens ?? []).every((a) => a.trim() === "")) return [];
+  return assessFor(recipe, criteria).confirmed ?? [];
 }
 
 const unique = (xs: readonly string[]): string[] => [...new Set(xs)];
@@ -132,17 +176,7 @@ export function exclusionReasons(recipe: Filterable, criteria: FilterCriteria): 
   const allergens = (criteria.allergens ?? []).filter((a) => a.trim() !== "");
   if (excludedFoods.length === 0 && allergens.length === 0) return reasons;
 
-  const assessment = assessRecipe(
-    {
-      ...(recipe.title !== undefined ? { title: recipe.title } : {}),
-      ingredients: recipe.ingredients.map((ing) => subjectOf(ing, criteria)),
-      steps: (recipe.steps ?? []).map((s) => s.text),
-    },
-    {
-      allergens,
-      excludedFoods: excludedFoods.flatMap((f) => (typeof f === "string" ? [f] : f.name ? [f.name] : [])),
-    },
-  );
+  const assessment = assessFor(recipe, criteria);
 
   if (excludedFoods.length > 0) {
     const hit = new Set<string>();

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { readThemeColors, watchTheme } from "../theme";
+import { readTheme, watchTheme } from "../theme";
 import type { FurnitureKind } from "./furniture";
 import type { FridgeEngine, SceneItem } from "./fridge-engine";
 import styles from "./FridgeScene.module.css";
@@ -67,7 +67,7 @@ export default function FridgeScene({ kind, items, selectedId, onSelect, onLayou
         const { createFridgeEngine } = await import("./fridge-engine");
         if (disposed) return;
         const engine = createFridgeEngine(host, {
-          colors: readThemeColors(root),
+          theme: readTheme(root),
           onSelect: (id) => latest.current.onSelect(id),
         });
         if (!engine) {
@@ -104,7 +104,7 @@ export default function FridgeScene({ kind, items, selectedId, onSelect, onLayou
       sync();
     };
     document.addEventListener("visibilitychange", onVisibility);
-    const unwatchTheme = watchTheme(() => engineRef.current?.setColors(readThemeColors(root)));
+    const unwatchTheme = watchTheme(() => engineRef.current?.setTheme(readTheme(root)));
     const onMotion = () => engineRef.current?.setSway(!reduced.matches);
     reduced.addEventListener("change", onMotion);
 

@@ -38,7 +38,13 @@ export type ActionResult =
   | { ok: false; error: string };
 
 /** Quanto: tutto il rimasto, metà (una stima), o una quantità scritta a mano. */
-export type AmountChoice = { kind: "all" } | { kind: "half" } | { kind: "quarter" } | { kind: "text"; text: string };
+export type AmountChoice =
+  | { kind: "all" }
+  | { kind: "half" }
+  | { kind: "quarter" }
+  | { kind: "text"; text: string }
+  /** Una quantità già calcolata nell'unità del lotto (un pezzo, mezzo pezzo); `estimated` per le frazioni. */
+  | { kind: "value"; value: number; estimated?: boolean };
 
 type AmountResult = { ok: true; quantity: Quantity; certainty: Certainty } | { ok: false; error: string };
 
@@ -101,6 +107,14 @@ export function resolveAmount(lot: Lot, choice: AmountChoice): AmountResult {
       };
     case "text":
       return parseAmountForLot(choice.text, lot);
+    case "value": {
+      if (!(choice.value > 0)) return { ok: false, error: "La quantità deve essere maggiore di zero." };
+      if (choice.value - lot.remaining > EPSILON) {
+        return { ok: false, error: `Ne restano solo ${formatQuantity({ value: lot.remaining, unit: lot.unit })}.` };
+      }
+      const value = Math.abs(choice.value - lot.remaining) <= EPSILON ? lot.remaining : choice.value;
+      return { ok: true, quantity: { value, unit: lot.unit }, certainty: choice.estimated ? "estimated" : "measured" };
+    }
   }
 }
 
@@ -387,5 +401,56 @@ export function buildSetExpiry(
     ok: true,
     events: out,
     message: lots.length === 1 ? `Data modificata: ${name}.` : `Data modificata per ${lots.length} confezioni di ${name}.`,
+  };
+}
+
+/** Applica la stessa azione a più confezioni: se una fallisce non si scrive niente. */
+export function buildForLots(
+  lots: readonly Lot[],
+  build: (lot: Lot) => ActionResult,
+  message: (count: number, name: string) => string,
+): ActionResult {
+  if (lots.length === 0) return { ok: false, error: "Non hai scelto nessuna confezione." };
+  const events: LedgerEvent[] = [];
+  for (const lot of lots) {
+    const r = build(lot);
+    if (!r.ok) return { ok: false, error: lots.length > 1 ? `${lot.productRef}: ${r.error}` : r.error };
+    events.push(...r.events);
+  }
+  return { ok: true, events, message: message(lots.length, lots[0].productRef) };
+}
+
+export interface EditTarget {
+  creation: PurchaseEvent | DeclareEvent;
+  lot: Lot;
+}
+
+/**
+ * Modifica di più confezioni uguali: a ognuna si applicano solo i campi che l'utente ha cambiato rispetto
+ * alla confezione di partenza, così le altre non perdono la loro data.
+ */
+export function buildEditMany(targets: readonly EditTarget[], base: Lot, form: EditForm, ctx: ActionContext): EditResult {
+  const original = formFromLot(base);
+  const events: LedgerEvent[] = [];
+  let name = base.productRef;
+  for (const { creation, lot } of targets) {
+    const own = formFromLot(lot);
+    const merged: EditForm = { ...own, sameProduct: form.sameProduct };
+    for (const key of ["name", "category", "expiryKind", "expiryDate", "priceText"] as const) {
+      if (form[key] !== original[key]) (merged[key] as string) = form[key];
+    }
+    const r = buildEdit(creation, lot, merged, ctx);
+    if (!r.ok) {
+      if (!("fields" in r) && r.error === "Non hai cambiato niente.") continue;
+      return r;
+    }
+    events.push(...r.events);
+    name = merged.name;
+  }
+  if (events.length === 0) return { ok: false, error: "Non hai cambiato niente." };
+  return {
+    ok: true,
+    events,
+    message: targets.length > 1 ? `Modificate ${targets.length} confezioni di ${name}.` : `Modificato: ${name}.`,
   };
 }

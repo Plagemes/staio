@@ -1,12 +1,14 @@
 // Aggiunta diretta dalla scheda del prodotto: dal prodotto letto al modulo di cattura, senza passare dal modulo.
-import { expiryCategoryProposal, quantityText, type ExpiryCategorySource, type Product } from "@/core/catalog";
+import { expiryCategoryProposal, quantityText, type ExpiryCategorySource, type PiecesHint, type Product } from "@/core/catalog";
 import { SHELF_LIFE, effectiveExpiry, type FoodCategory } from "@/core/expiry";
-import type { LedgerEvent, Location } from "@/core/ledger";
+import { piecesAgree, type LedgerEvent, type Location, type Quantity } from "@/core/ledger";
 import { formatQuantity } from "@/core/units";
 import { buildCaptureEvents, cleanName, readQuantity, type CaptureContext, type CaptureInput, type FieldErrors } from "../capture";
 import { formatCalendarDate } from "../format";
 import { LOCATION_LABELS, type ChosenExpiryKind } from "../labels";
 import { defaultLocation } from "../quickAdd";
+import { parseQuantityInUnit } from "../actions";
+import { pieceNameFor, pluralIt } from "../pieces";
 
 /** Dati del prodotto già pronti per il registro; ciò che manca resta `undefined`. */
 export interface ProductDraft {
@@ -15,6 +17,10 @@ export interface ProductDraft {
   category?: FoodCategory;
   /** Da dove viene la categoria proposta: Open Food Facts o parole del nome. */
   categorySource?: ExpiryCategorySource;
+  /** Pezzi dentro la confezione secondo Open Food Facts (proposta). */
+  piecesHint?: PiecesHint;
+  /** Come si chiama il pezzo, se si ricava dal nome. */
+  pieceName?: string;
   barcode: string;
   brand?: string;
 }
@@ -36,6 +42,8 @@ export function draftFromProduct(product: Product): ProductDraft {
     ...(text ? { quantityText: text } : {}),
     ...(match.matched ? { category: match.category, categorySource: match.source } : {}),
     ...(product.brand ? { brand: product.brand } : {}),
+    ...(product.piecesHint ? { piecesHint: product.piecesHint } : {}),
+    ...(pieceNameFor(name) ? { pieceName: pieceNameFor(name) } : {}),
   };
 }
 
@@ -197,4 +205,45 @@ export function packsConfirmationText(events: readonly LedgerEvent[], today: str
   const parts = [...dates.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([d, n]) => `${n} entro ${formatCalendarDate(d)}`);
   if (undated > 0) parts.push(`${undated} senza data, con la stima`);
   return `${head} Scadenze: ${parts.join(", ")}.`;
+}
+
+export interface PiecesResolved {
+  /** Pezzi da scrivere nell'evento; assente se non ce ne sono. */
+  pieces?: { count: number; each: number; name?: string };
+  /** Quantità di un pezzo proposta o scritta, per mostrarla. */
+  each?: number;
+  /** Falso se `pezzi × grammatura` non torna con la quantità della confezione. */
+  agrees?: boolean;
+  error?: string;
+}
+
+/**
+ * Dai pezzi scelti (contatore e grammatura, scritta a mano o calcolata) ai pezzi dell'evento.
+ * Meno di due pezzi, o una confezione contata a pezzi, vuol dire nessun pezzo. Se non tornano con la quantità non è un
+ * errore: vale la quantità e i pezzi restano una stima.
+ */
+export function resolvePieces(
+  total: Quantity | undefined,
+  count: number,
+  eachText: string | null,
+  name?: string,
+): PiecesResolved {
+  if (!total || total.unit === "pz" || !Number.isInteger(count) || count < 2) return {};
+  let each = Math.round((total.value / count) * 100) / 100;
+  if (eachText !== null && eachText.trim() !== "") {
+    const read = parseQuantityInUnit(eachText, total.unit);
+    if (!read.ok) return { error: read.error };
+    each = read.quantity.value;
+  }
+  return { pieces: { count, each, ...(name ? { name } : {}) }, each, agrees: piecesAgree(total.value, count, each) };
+}
+
+/** «1 confezione da 200 g · 2 piadine da 100 g»: dice in chiaro confezioni e pezzi, che non vanno scambiati. */
+export function packsSummary(packs: number, one: Quantity | undefined, pieces?: { count: number; each: number; name?: string }): string {
+  const oneText = one ? formatQuantity(one) : "";
+  const head = `${packs === 1 ? "1 confezione" : `${packs} confezioni`}${oneText ? ` da ${oneText}` : ""}`;
+  if (!pieces || !one) return head;
+  const name = pieces.name ?? "pezzo";
+  const noun = pieces.count === 1 ? name : name === "pezzo" ? "pezzi" : pluralIt(name);
+  return `${head} · ${pieces.count} ${noun} da ${formatQuantity({ value: pieces.each, unit: one.unit })}${packs > 1 ? " ciascuna" : ""}`;
 }

@@ -4,7 +4,11 @@
 const EGG: CompositeChild = {
   archetype: "lathe",
   params: { profile: [[0, 0], [0.22, 0.03], [0.36, 0.2], [0.4, 0.5], [0.33, 0.78], [0.18, 0.95], [0, 1]] },
+  color: { main: "#f1dcc0" },
 };
+
+/** Portauova di cartone pressato, per le confezioni. */
+const CARTON_COLOR = { main: "#d6c3a2" } as const;
 
 /** Latticini, formaggi e uova (id con prefisso lt-). */
 export const latticiniRecipes: readonly Recipe[] = [
@@ -126,7 +130,7 @@ export const latticiniRecipes: readonly Recipe[] = [
     id: "lt-uova-confezione-6", name: "Uova, confezione da 6", category: "uova", archetype: "composite", heightCm: 8.5, variation: 0.4,
     params: {
       parts: [
-        { recipe: { archetype: "box", params: { size: [3, 1, 2], bevel: 0.1 } } },
+        { recipe: { archetype: "box", params: { size: [3, 1, 2], bevel: 0.1 }, color: CARTON_COLOR } },
         { recipe: EGG, position: [-1.0, 0.7, -0.5] },
         { recipe: EGG, position: [0.0, 0.7, -0.5] },
         { recipe: EGG, position: [1.0, 0.7, -0.5] },
@@ -145,7 +149,7 @@ export const latticiniRecipes: readonly Recipe[] = [
     id: "lt-uova-confezione-10", name: "Uova, confezione da 10", category: "uova", archetype: "composite", heightCm: 8.5, variation: 0.4,
     params: {
       parts: [
-        { recipe: { archetype: "box", params: { size: [5, 1, 2], bevel: 0.1 } } },
+        { recipe: { archetype: "box", params: { size: [5, 1, 2], bevel: 0.1 }, color: CARTON_COLOR } },
         { recipe: EGG, position: [-2.0, 0.7, -0.5] },
         { recipe: EGG, position: [-1.0, 0.7, -0.5] },
         { recipe: EGG, position: [0.0, 0.7, -0.5] },

@@ -60,6 +60,15 @@ export function TimingSection({ result }: { result: TimingAnalysis }) {
       ) : (
         <p className={styles.range}>Nessuna bevanda con caffeina registrata nei giorni considerati: non vuol dire che non ne sia stata bevuta.</p>
       )}
+      {result.foodFree.count > 0 && result.foodFree.longestMinutes !== undefined && result.foodFree.medianMinutes !== undefined ? (
+        <p className={styles.range}>
+          Intervalli senza cibo tra un pasto e il successivo: mediana {formatDuration(result.foodFree.medianMinutes)}, il più lungo{" "}
+          {formatDuration(result.foodFree.longestMinutes)} ({result.foodFree.count} intervalli
+          {result.foodFree.withSkipped > 0 ? `, ${result.foodFree.withSkipped} con un momento dichiarato saltato` : ""}). Un momento saltato
+          allunga l&apos;intervallo; un momento senza dati no, e i giorni con momenti senza dati non entrano. Una bevanda con energia (alcol,
+          zuccheri, almeno 5 kcal) lo interrompe; tè e caffè senza zucchero no.
+        </p>
+      ) : null}
       <p className={styles.range}>
         Regolarità: primo pasto {regularityText(regularity.firstMealSdMinutes)}, ultimo pasto {regularityText(regularity.lastMealSdMinutes)}.
       </p>

@@ -92,3 +92,23 @@ export function dateRange(from: string, to: string): string[] {
   for (let d = from; d <= to; d = addDays(d, 1)) out.push(d);
   return out;
 }
+
+/**
+ * L'istante UTC (ISO) in cui nel fuso è la data e l'ora locale indicate (`minutes` dalla mezzanotte).
+ * `undefined` se data, ora o fuso non sono validi. Nell'ora che non esiste (passaggio all'ora legale)
+ * dà l'istante dopo il salto.
+ */
+export function instantOfLocal(date: string, minutes: number, timeZone: string): string | undefined {
+  if (!isCalendarDate(date) || !Number.isInteger(minutes) || minutes < 0 || minutes >= 1440) return undefined;
+  if (!isValidTimeZone(timeZone)) return undefined;
+  const wanted = dateToUtcMs(date) + minutes * 60_000;
+  let guess = wanted;
+  for (let i = 0; i < 3; i++) {
+    const got = localMoment(new Date(guess).toISOString(), timeZone);
+    if (!got) return undefined;
+    const gotMs = dateToUtcMs(got.date) + got.minutes * 60_000;
+    if (gotMs === wanted) break;
+    guess += wanted - gotMs;
+  }
+  return new Date(guess).toISOString();
+}

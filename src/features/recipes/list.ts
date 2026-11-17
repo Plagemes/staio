@@ -1,4 +1,5 @@
 // Elenco del ricettario: confronto con la dispensa, ricerca, filtri e ordinamenti. Logica pura.
+import type { ConfirmationMap, ConfirmedHit } from "@/core/allergens";
 import type { Lot } from "@/core/ledger";
 import {
   ALLERGEN_STEMS,
@@ -21,7 +22,8 @@ import {
 import { formatQuantity } from "@/core/units";
 import { evaluateLots, isExpiring } from "../lots";
 import { fold } from "./common";
-import { safetyKind } from "./safety";
+import { confirmedText, safetyKind } from "./safety";
+import { confirmedIngredients } from "@/core/recipes/filters";
 
 /** Dispensa vista dal ricettario: giacenze e alimenti che stanno scadendo. */
 export interface PantryView {
@@ -141,6 +143,8 @@ export interface ListFilters {
   excludedFoods: readonly string[];
   /** Alimenti di dispensa e prodotti che l'ingrediente potrebbe essere: il controllo legge anche i loro nomi ed etichette. */
   linkOf?: (ingredient: { name: string; foodId?: string }) => IngredientLink | undefined;
+  /** Conferme dell'utente sugli ingredienti non verificabili: una ricetta con soli ingredienti chiari e confermati passa, col segno. */
+  confirmations?: ConfirmationMap;
 }
 
 export const NO_FILTERS: ListFilters = { query: "", tags: [], allergens: [], excludedFoods: [] };
@@ -182,6 +186,17 @@ export interface FilterOutcome {
   hiddenUncertain: HiddenRecipe[];
   /** Nascoste dagli altri filtri (tempo, attrezzatura). */
   hiddenOther: number;
+  /** Per le ricette che passano: gli ingredienti che l'utente ha confermato. Non sono mai «a posto»: l'app non li ha verificati. */
+  confirmedBy: ReadonlyMap<string, ConfirmedHit[]>;
+}
+
+/** «Con ingredienti confermati da te: Prosciutto cotto (confermato da te il 3 novembre 2026)». */
+export function confirmedRowText(hits: readonly ConfirmedHit[]): string | undefined {
+  if (hits.length === 0) return undefined;
+  const byName = new Map<string, string>();
+  for (const h of hits) if (!byName.has(h.name)) byName.set(h.name, confirmedText(h.confirmedAt));
+  const parts = [...byName].map(([name, when]) => `${name} (${when})`);
+  return `${byName.size === 1 ? "Ingrediente confermato da te" : "Ingredienti confermati da te"}: ${parts.join("; ")}. Non verificato dall'app.`;
 }
 
 /** Applica ricerca ed esclusioni. Le ricette tolte dai filtri si contano per motivo, non dalla ricerca. */
@@ -197,7 +212,9 @@ export function applyFilters(rows: readonly RecipeRow[], f: ListFilters): Filter
     ...(f.excludedFoods.length > 0 ? { excludedFoods: f.excludedFoods } : {}),
     ...(f.allergens.length > 0 ? { allergens: f.allergens } : {}),
     ...(f.linkOf ? { linkOf: f.linkOf } : {}),
+    ...(f.confirmations ? { confirmations: f.confirmations } : {}),
   };
+  const confirmedBy = new Map<string, ConfirmedHit[]>();
   const out: RecipeRow[] = [];
   const hiddenContains: HiddenRecipe[] = [];
   const hiddenUncertain: HiddenRecipe[] = [];
@@ -205,7 +222,11 @@ export function applyFilters(rows: readonly RecipeRow[], f: ListFilters): Filter
   for (const row of tagged) {
     const reasons = exclusionReasons(row.recipe, criteria);
     const kind = safetyKind(reasons);
-    if (kind === "none") out.push(row);
+    if (kind === "none") {
+      out.push(row);
+      const confirmed = confirmedIngredients(row.recipe, criteria);
+      if (confirmed.length > 0) confirmedBy.set(row.recipe.recipeId, confirmed);
+    }
     else if (kind === "contains") hiddenContains.push({ row, reasons });
     else if (kind === "uncertain") hiddenUncertain.push({ row, reasons });
     else hiddenOther++;
@@ -216,6 +237,7 @@ export function applyFilters(rows: readonly RecipeRow[], f: ListFilters): Filter
     hiddenContains,
     hiddenUncertain,
     hiddenOther,
+    confirmedBy,
   };
 }
 

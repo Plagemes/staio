@@ -5,6 +5,7 @@ import { useId } from "react";
 import { MODES, SectionHeader, THEMES, resolveMode } from "@/design";
 import ui from "../ui.module.css";
 import { chooseAppearance, useAppearance, useSystemDark } from "./appearance";
+import { ThemePreview } from "./ThemePreview";
 import styles from "./AppearanceScreen.module.css";
 
 export function AppearanceScreen() {
@@ -39,16 +40,7 @@ export function AppearanceScreen() {
                   onChange={() => void chooseAppearance({ theme: t.id })}
                 />
                 <span className={styles.card}>
-                  <span className={styles.sample} data-palette={t.id} data-theme={resolved} aria-hidden="true">
-                    <span className={styles.sampleTitle}>Dispensa</span>
-                    <span className={styles.sampleRule} />
-                    <span className={styles.sampleRow}>
-                      <span className={styles.sampleName}>Farina 00</span>
-                      <span className={styles.sampleData}>1,2 kg</span>
-                    </span>
-                    <span className={styles.sampleAccent}>Aggiungi</span>
-                    <span className={styles.sampleSignal}>Scade domani</span>
-                  </span>
+                  <ThemePreview theme={t.id} mode={resolved} />
                   <span className={styles.name}>{t.name}</span>
                   <span className={styles.description}>{t.description}</span>
                 </span>

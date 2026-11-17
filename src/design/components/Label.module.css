@@ -1,8 +1,8 @@
 .label {
-  font-family: var(--font-data);
-  font-size: var(--text-label);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
-  color: var(--color-graphite);
+  font-family: var(--label-font);
+  font-size: var(--label-size);
+  letter-spacing: var(--label-tracking);
+  text-transform: var(--label-case);
+  color: var(--label-color);
   line-height: 1.3;
 }

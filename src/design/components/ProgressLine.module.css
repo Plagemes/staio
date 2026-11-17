@@ -1,6 +1,8 @@
 .track {
-  height: 2px;
-  background: var(--color-rule);
+  height: var(--progress-height);
+  overflow: hidden;
+  border-radius: var(--bar-radius);
+  background: var(--progress-track);
 }
 
 .fill {

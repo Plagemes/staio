@@ -13,7 +13,7 @@ import {
   type IdeaCriteria,
   type IngredientStatus,
 } from "@/core/ai/recipeIdeasCheck";
-import { ALLERGEN_CHECK_NOTICE } from "@/core/allergens";
+import { ALLERGEN_CHECK_NOTICE, type ConfirmationMap, type ItemSubject } from "@/core/allergens";
 import { isStoredProduct } from "@/core/catalog";
 import { activeLots } from "@/core/ledger";
 import { totalMinutes } from "@/core/recipes";
@@ -30,6 +30,10 @@ import { evaluateLots } from "../lots";
 import { useNotice } from "../notice";
 import { fold, formatMinutes, formatServings, ingredientLine, splitList } from "../recipes/common";
 import { useRecipePrefs, type RecipePrefs } from "../recipes/prefs";
+import recipeStyles from "../recipes/recipes.module.css";
+import { CONFIRMATION_NOTICE } from "../recipes/SafetyPanel";
+import { confirmButtonText, confirmedText } from "../recipes/safety";
+import { useConfirmationActions, useConfirmations } from "../recipes/useConfirmations";
 import { LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
@@ -72,9 +76,10 @@ async function withProductLabels(target: PantryTarget): Promise<CheckedPantryRef
       if (!barcode) return ref;
       const record = await getProductRecord(barcode).catch(() => undefined);
       const product = record && isStoredProduct(record.data) ? record.data : undefined;
-      if (!product) return ref;
+      if (!product) return { ...ref, barcode };
       return {
         ...ref,
+        barcode,
         ...(product.name ? { productName: product.name } : {}),
         ...(product.allergens && product.allergens.length > 0 ? { allergens: product.allergens } : {}),
       };
@@ -92,6 +97,17 @@ function recheckWithLabels(out: IdeasOutcome, criteria: IdeaCriteria, labelled: 
   const rejected = [...out.rejected, ...again.rejected.filter((r) => !before.has(r.idea))];
   const accepted = again.accepted.filter((a) => !before.has(a.idea));
   return { ...out, accepted, rejected };
+}
+
+/**
+ * Rifà il controllo delle idee con le conferme di adesso: una conferma data (o revocata) dopo la risposta del modello cambia
+ * l'esito subito. Le idee già scartate restano scartate: una conferma non vale mai per un allergene trovato.
+ */
+function recheckWithConfirmations(out: IdeasOutcome, criteria: IdeaCriteria, pantry: readonly CheckedPantryRef[]): IdeasOutcome {
+  const ideas = [...out.accepted.map((a) => a.idea), ...out.rejected.map((r) => r.idea)];
+  const again = checkIdeas(ideas, criteria, pantry);
+  const before = new Set(out.rejected.map((r) => r.idea));
+  return { ...out, accepted: again.accepted.filter((a) => !before.has(a.idea)), rejected: out.rejected };
 }
 
 /** Unione senza doppioni (a meno di maiuscole e accenti) di ciò che il ricettario e il piano dichiarano. */
@@ -115,8 +131,9 @@ function Loader({ settings }: { settings: AiSettings }) {
   const pantry = usePantry();
   const plan = usePlan();
   const { prefs, ready } = useRecipePrefs();
+  const { byKey: confirmations } = useConfirmations();
   if (pantry.error || plan.error) return <StorageError />;
-  if (!pantry.data || !plan.data || !ready || !now) {
+  if (!pantry.data || !plan.data || !ready || !now || !confirmations) {
     return (
       <div className={ui.screen}>
         <AiHead title={TITLE} />
@@ -132,6 +149,7 @@ function Loader({ settings }: { settings: AiSettings }) {
       planAllergens={plan.data.structure?.allergens ?? []}
       planExcluded={plan.data.structure?.excludedFoods ?? []}
       lots={activeLots(pantry.data)}
+      confirmations={confirmations}
     />
   );
 }
@@ -143,6 +161,7 @@ function Ideas({
   planAllergens,
   planExcluded,
   lots,
+  confirmations,
 }: {
   settings: AiSettings;
   now: string;
@@ -150,10 +169,12 @@ function Ideas({
   planAllergens: readonly string[];
   planExcluded: readonly string[];
   lots: ReturnType<typeof activeLots>;
+  confirmations: ConfirmationMap;
 }) {
   const ids = useId();
   const router = useRouter();
   const notice = useNotice();
+  const actions = useConfirmationActions();
   const abortRef = useRef<AbortController | null>(null);
 
   const allergens = useMemo(() => union(prefs.allergens, planAllergens), [prefs.allergens, planAllergens]);
@@ -165,12 +186,19 @@ function Ideas({
   const [equipmentText, setEquipmentText] = useState(prefs.ownedEquipment.join(", "));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [outcome, setOutcome] = useState<IdeasOutcome | null>(null);
+  const [asked, setAsked] = useState<{ outcome: IdeasOutcome; criteria: IdeaCriteria; pantry: readonly CheckedPantryRef[] } | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   const [saved, setSaved] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState<number | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  // le conferme di adesso, non quelle di quando è arrivata la risposta
+  const outcome = useMemo(
+    () => (asked ? recheckWithConfirmations(asked.outcome, { ...asked.criteria, confirmations }, asked.pantry) : null),
+    [asked, confirmations],
+  );
 
   const model = activeModel(settings);
   const equipment = splitList(equipmentText, 20);
@@ -182,12 +210,13 @@ function Ideas({
     abortRef.current = controller;
     setBusy(true);
     setError(null);
-    setOutcome(null);
+    setAsked(null);
+    setConfirmError(null);
     setSaved({});
     setSaveError(null);
     try {
       const target = toPantryTarget(entries);
-      const criteria: IdeaCriteria = { allergens, excludedFoods: excluded, ...(maxMinutes > 0 ? { maxMinutes } : {}), ownedEquipment: equipment };
+      const criteria: IdeaCriteria = { allergens, excludedFoods: excluded, ...(maxMinutes > 0 ? { maxMinutes } : {}), ownedEquipment: equipment, confirmations };
       const out = await readRecipeIdeas({
         store: dexieSettingsStore(),
         target,
@@ -197,13 +226,18 @@ function Ideas({
         today: dayOf(new Date().toISOString()),
         signal: controller.signal,
       });
-      setOutcome(recheckWithLabels(out, criteria, await withProductLabels(target)));
+      const labelled = await withProductLabels(target);
+      setAsked({ outcome: recheckWithLabels(out, criteria, labelled), criteria, pantry: labelled });
     } catch (e) {
       setError(isAiError(e) ? describeAiError(e, { provider: settings.provider, model }) : "La richiesta non è riuscita. Riprova.");
     } finally {
       abortRef.current = null;
       setBusy(false);
     }
+  }
+
+  async function onConfirm(subject: ItemSubject): Promise<void> {
+    setConfirmError(await actions.confirm(subject, { allergens, excludedFoods: excluded }));
   }
 
   async function onSave(index: number, checked: CheckedIdea, thenCook: boolean, confirmedUncertain: boolean) {
@@ -356,9 +390,16 @@ function Ideas({
                     busy={saving === index}
                     disabled={saving !== null}
                     onSave={(thenCook, confirmedUncertain) => onSave(index, checked, thenCook, confirmedUncertain)}
+                    onConfirm={onConfirm}
+                    allergens={allergens}
                   />
                 ))}
               </ul>
+              {confirmError ? (
+                <p className={ui.error} role="alert">
+                  {confirmError}
+                </p>
+              ) : null}
               {saveError ? (
                 <p className={ui.error} role="alert">
                   {saveError}
@@ -423,12 +464,18 @@ function IdeaCard({
   busy,
   disabled,
   onSave,
+  onConfirm,
+  allergens,
 }: {
   checked: CheckedIdea;
   savedId: string | undefined;
   busy: boolean;
   disabled: boolean;
   onSave: (thenCook: boolean, confirmedUncertain: boolean) => void;
+  /** Conferma un ingrediente, uno alla volta: «ho letto l'etichetta, per me va bene». */
+  onConfirm: (subject: ItemSubject) => Promise<void>;
+  /** Gli allergeni dichiarati adesso: sono quelli che la conferma copre. */
+  allergens: readonly string[];
 }) {
   const { idea } = checked;
   const confirmId = useId();
@@ -445,6 +492,7 @@ function IdeaCard({
         {minutes !== undefined ? <span>circa {formatMinutes(minutes)}</span> : null}
         <span>generata</span>
         {uncertain ? <span className={styles.check}>allergeni da verificare</span> : null}
+        {checked.confirmed.length > 0 ? <span className={recipeStyles.flagConfirmed}>ingredienti confermati da te</span> : null}
       </p>
 
       {uncertain ? (
@@ -457,12 +505,43 @@ function IdeaCard({
               <li key={i}>{u}.</li>
             ))}
           </ul>
+          {checked.uncertainIngredients.length > 0 ? (
+            <>
+              <p className={ui.hint}>Se hai letto l&apos;etichetta e per te va bene, puoi confermare un ingrediente alla volta.</p>
+              <ul className={styles.list}>
+                {checked.uncertainIngredients.map((u) => (
+                  <li key={u.name}>
+                    <Button variant="outline" onClick={() => void onConfirm(u.subject)}>
+                      {confirmButtonText(u.name, allergens)}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+              <p className={ui.hint}>{CONFIRMATION_NOTICE}</p>
+            </>
+          ) : null}
           {savedId ? null : (
             <label className={ui.switch} htmlFor={confirmId}>
               <input id={confirmId} type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} />
               <span className={ui.switchText}>Ho letto le etichette di questi ingredienti: non contengono i miei allergeni.</span>
             </label>
           )}
+        </div>
+      ) : null}
+
+      {checked.confirmed.length > 0 ? (
+        <div className={`${ui.callout} ${recipeStyles.safetyConfirmed}`} role="note">
+          <p className={ui.paragraph}>
+            <strong>Confermato da te.</strong> L&apos;app non ha verificato questi ingredienti: l&apos;hai dichiarato tu.
+          </p>
+          <ul className={styles.list}>
+            {checked.confirmed.map((c) => (
+              <li key={c.name}>
+                «{c.name}»: {confirmedText(c.confirmedAt)} per {c.allergens.join(", ")}.
+              </li>
+            ))}
+          </ul>
+          <p className={ui.hint}>Puoi revocare le conferme in «Obiettivi» del piano, dove dichiari gli allergeni.</p>
         </div>
       ) : null}
 

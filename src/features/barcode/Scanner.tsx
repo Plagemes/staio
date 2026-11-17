@@ -6,6 +6,7 @@ import { Button } from "@/design";
 import ui from "../ui.module.css";
 import { CAMERA_MESSAGES, cameraAvailability, classifyCameraError, openRearCamera, stopStream, type CameraProblem } from "./camera";
 import { createCodeReader } from "./detector";
+import { gtinToRetailCode, parseGs1 } from "./gs1";
 import { BARCODE_PROBLEM_MESSAGES } from "./messages";
 import styles from "./Scanner.module.css";
 
@@ -13,9 +14,14 @@ type Phase = "idle" | "starting" | "scanning";
 
 const SCAN_INTERVAL_MS = 180;
 
+/** Ciò che un codice GS1 porta oltre al prodotto. */
+export interface ScanInfo {
+  expiry?: { date: string; kind: "use_by" | "best_before" };
+}
+
 interface ScannerProps {
   /** Chiamata una sola volta per lettura, con un codice già validato (cifra di controllo compresa). */
-  onCode: (code: string) => void;
+  onCode: (code: string, info?: ScanInfo) => void;
   disabled?: boolean;
 }
 
@@ -116,6 +122,16 @@ export function Scanner({ onCode, disabled = false }: ScannerProps) {
                 stop();
                 setPhase("idle");
                 onCodeRef.current(check.code);
+                return;
+              }
+              // GS1 (DataMatrix, GS1-128): il GTIN dà il prodotto, e se c'è la data la porta con sé
+              const gs1 = parseGs1(item.rawValue);
+              const retail = gs1?.gtin ? gtinToRetailCode(gs1.gtin) : null;
+              const fromGs1 = retail ? validateBarcode(retail) : null;
+              if (gs1 && fromGs1?.ok) {
+                stop();
+                setPhase("idle");
+                onCodeRef.current(fromGs1.code, gs1.expiry ? { expiry: gs1.expiry } : undefined);
                 return;
               }
             }

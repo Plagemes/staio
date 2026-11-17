@@ -1,5 +1,7 @@
 .track {
-  height: 3px;
+  height: var(--bar-height);
+  overflow: hidden;
+  border-radius: var(--bar-radius);
   background: var(--color-bar-track);
 }
 

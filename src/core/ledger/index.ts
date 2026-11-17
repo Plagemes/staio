@@ -20,6 +20,8 @@ export type {
   ReplacementEvent,
 } from "./correct";
 export { derivePantry } from "./derive";
+export { PIECES_TOLERANCE, piecesAgree, piecesLeft, piecesOf } from "./pieces";
+export type { PiecesView } from "./pieces";
 export type {
   Anomaly,
   AnomalyCode,

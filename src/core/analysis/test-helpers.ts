@@ -1,6 +1,6 @@
 // Registri costruiti per i test delle analisi. Tutti i dati sono inventati.
 import { addDays, deriveDiary } from "../diary";
-import { drink, meal, mood, symptom, untracked, weight, seededRandom } from "../diary/test-helpers";
+import { declaration, drink, meal, mood, symptom, untracked, weight, seededRandom } from "../diary/test-helpers";
 import type { MealKind } from "../diary";
 import { computeIntake, createResolver } from "../nutrition";
 import { FAKE_FOODS } from "../nutrition/test-helpers";
@@ -44,6 +44,8 @@ export interface DayOptions {
   skip?: MealKind[];
   /** Al posto di saltare, segna il pasto come non tracciato. */
   untrackedKinds?: MealKind[];
+  /** Al posto di saltare senza dati, dichiara il momento «saltato» (un dato vero). */
+  skippedKinds?: MealKind[];
 }
 
 let counter = 0;
@@ -56,6 +58,10 @@ export function day(i: number, o: DayOptions = {}): unknown[] {
   const grams = (kcal / 3 / 900) * 100;
   const out: unknown[] = [];
   for (const kind of ["breakfast", "lunch", "dinner"] as const) {
+    if (o.skippedKinds?.includes(kind) && (kind === "breakfast" || kind === "lunch" || kind === "dinner")) {
+      out.push(declaration(uid("x"), at(i, times[kind]), { date: dateOf(i), kind, status: "skipped" }));
+      continue;
+    }
     if (o.skip?.includes(kind)) continue;
     if (o.untrackedKinds?.includes(kind)) {
       out.push(untracked(uid("u"), at(i, times[kind]), { kind }));

@@ -22,6 +22,8 @@ export interface RawPart {
   signal?: boolean;
   /** Moltiplicatore della densità del tratto per questa parte. */
   densityMul?: number;
+  /** Colore della parte (#rrggbb) per lo stile a colori; lo assegna il generatore, non gli archetipi. */
+  color?: string;
 }
 
 export interface BuildContext {

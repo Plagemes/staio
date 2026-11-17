@@ -1,7 +1,7 @@
 // Registro di oggi: gli eventi del giorno, in ordine di orario, già in parole.
 import { DEFAULT_TIME_ZONE } from "@/core/expiry";
 import { sortEvents, type LotPatch, type PantryState } from "@/core/ledger";
-import { formatQuantity } from "@/core/units";
+import { formatQuantity, type Quantity } from "@/core/units";
 import type { AnyEvent } from "@/core/events";
 import { ledgerEventsOf } from "./events";
 import { dayOf, formatTime } from "./format";
@@ -9,6 +9,8 @@ import { DISCARD_REASON_LABELS, LOCATION_LABELS } from "./labels";
 
 export interface JournalRow {
   id: string;
+  /** Gli eventi che la riga racconta: più d'uno se sono uguali e alla stessa ora (`id` è il primo). */
+  ids: string[];
   /** "08:10" */
   time: string;
   description: string;
@@ -19,6 +21,57 @@ export interface JournalRow {
   canUndo: boolean;
   /** Perché non si può annullare, se è così. */
   undoBlocked?: string;
+}
+
+interface RawRow extends JournalRow {
+  /** Titolo e nome separati, e la quantità, per poter unire le righe uguali. */
+  title: string;
+  name: string;
+  quantity?: Quantity;
+}
+
+/**
+ * Righe uguali (stesso titolo, prodotto, quantità e minuto) diventano una: «Entra · Mousse · 3 × 170 g».
+ * Annullare la riga annulla tutti i suoi eventi; si può solo se si può annullare ciascuno.
+ */
+function mergeEqualRows(rows: readonly RawRow[]): JournalRow[] {
+  const out: JournalRow[] = [];
+  const byKey = new Map<string, RawRow[]>();
+  const order: string[] = [];
+  for (const r of rows) {
+    const key = [r.time, r.title, r.name, r.value].join("");
+    const list = byKey.get(key);
+    if (list) list.push(r);
+    else {
+      byKey.set(key, [r]);
+      order.push(key);
+    }
+  }
+  for (const key of order) {
+    const group = byKey.get(key) as RawRow[];
+    const first = group[0];
+    const { title: _title, name: _name, quantity: _quantity, ...base } = first;
+    void _title;
+    void _name;
+    void _quantity;
+    if (group.length === 1) {
+      out.push(base);
+      continue;
+    }
+    const total = first.quantity
+      ? formatQuantity({ value: Math.round(group.reduce((s, r) => s + (r.quantity?.value ?? 0), 0) * 1e6) / 1e6, unit: first.quantity.unit })
+      : first.value;
+    const blocked = group.find((r) => !r.canUndo);
+    out.push({
+      ...base,
+      ids: group.flatMap((r) => r.ids),
+      description: `${first.title} · ${first.name} · ${group.length} × ${first.value}`,
+      value: first.quantity ? total : first.value,
+      canUndo: blocked === undefined,
+      ...(blocked?.undoBlocked ? { undoBlocked: blocked.undoBlocked } : {}),
+    });
+  }
+  return out;
 }
 
 const PATCH_LABELS: Record<keyof LotPatch, string> = {
@@ -43,7 +96,7 @@ export function buildJournal(
   const voided = new Set(pantry.voidedEventIds);
   const names = new Map(pantry.lots.map((l) => [l.lotId, l.productRef]));
   const lots = new Map(pantry.lots.map((l) => [l.lotId, l]));
-  const rows: JournalRow[] = [];
+  const rows: RawRow[] = [];
 
   for (const e of sortEvents(ledgerEventsOf(events))) {
     if (e.type === "void" || voided.has(e.id)) continue;
@@ -53,13 +106,17 @@ export function buildJournal(
     const isCreation = e.type === "purchase" || e.type === "declare";
     const blocked =
       e.type === "consume" && e.mealId
-        ? "Fa parte di un pasto: annulla il pasto da «Pasti di oggi», così tornano a posto anche gli altri alimenti."
+        ? "Fa parte di un pasto: annulla il pasto da «Momenti di oggi», così tornano a posto anche gli altri alimenti."
         : isCreation && (lots.get(e.lotId)?.history.length ?? 0) > 1
           ? "Questo alimento ha già altri movimenti: annullali prima, poi potrai annullare l'ingresso."
           : undefined;
-    const row = (title: string, value: string, estimated = false): JournalRow => ({
+    const row = (title: string, value: string, estimated = false, quantity?: Quantity): RawRow => ({
       id: e.id,
+      ids: [e.id],
       time: formatTime(e.at, timeZone),
+      title,
+      name,
+      ...(quantity ? { quantity } : {}),
       description: `${title} · ${name}`,
       value,
       estimated,
@@ -69,18 +126,18 @@ export function buildJournal(
     switch (e.type) {
       case "purchase":
       case "declare":
-        rows.push(row("Entra", formatQuantity(e.quantity), e.certainty === "estimated"));
+        rows.push(row("Entra", formatQuantity(e.quantity), e.certainty === "estimated", e.quantity));
         break;
       case "consume":
-        rows.push(row("Mangiato", formatQuantity(e.quantity), e.certainty === "estimated"));
+        rows.push(row("Mangiato", formatQuantity(e.quantity), e.certainty === "estimated", e.quantity));
         break;
       case "discard":
         rows.push(
-          row(`Buttato, ${DISCARD_REASON_LABELS[e.reason].toLowerCase()}`, formatQuantity(e.quantity), e.certainty === "estimated"),
+          row(`Buttato, ${DISCARD_REASON_LABELS[e.reason].toLowerCase()}`, formatQuantity(e.quantity), e.certainty === "estimated", e.quantity),
         );
         break;
       case "gift":
-        rows.push(row("Regalato", formatQuantity(e.quantity), e.certainty === "estimated"));
+        rows.push(row("Regalato", formatQuantity(e.quantity), e.certainty === "estimated", e.quantity));
         break;
       case "open":
         rows.push(row("Aperto", "—"));
@@ -98,5 +155,5 @@ export function buildJournal(
       }
     }
   }
-  return rows;
+  return mergeEqualRows(rows);
 }

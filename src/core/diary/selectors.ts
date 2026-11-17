@@ -1,6 +1,6 @@
 import { isIsoInstant, worseCertainty, type Certainty } from "../ledger";
 import { addDays, dateRange, localMoment } from "./calendar";
-import type { DiaryDay, DiaryHabit, DiaryState } from "./derive";
+import type { DiaryDay, DiaryDrink, DiaryHabit, DiaryState } from "./derive";
 import { MAIN_MEAL_KINDS, type MealKind } from "./types";
 
 const norm = (n: number): number => Math.round(n * 1e6) / 1e6;
@@ -118,11 +118,110 @@ export function waterByDay(state: DiaryState, options: DateRangeOptions = {}): W
 }
 
 /**
+ * Stato di un momento del giorno (colazione, pranzo o cena):
+ * - `recorded`: c'è almeno un pasto registrato (prevale su ogni dichiarazione).
+ * - `skipped`: dichiarato «saltato». Dato vero: l'assunzione di quel momento è zero, misurata.
+ * - `untracked`: «mangiato, non registrato». Il dato manca, la giornata è incompleta.
+ * - `none`: niente di segnato. Il dato manca e non si sa altro: non è un digiuno.
+ */
+export type MealMomentStatus = "recorded" | "skipped" | "untracked" | "none";
+
+export interface MealMoment {
+  kind: MealKind;
+  status: MealMomentStatus;
+  /** Evento della dichiarazione che conta (`skipped`, o `untracked` da nuova dichiarazione). */
+  declarationEventId?: string;
+}
+
+/** I tre momenti principali di un giorno, nell'ordine colazione, pranzo, cena. */
+export function mealMoments(day: DiaryDay | undefined): MealMoment[] {
+  return MAIN_MEAL_KINDS.map((kind): MealMoment => {
+    if (day?.meals.some((m) => m.kind === kind)) return { kind, status: "recorded" };
+    const decl = day?.declarations.find((d) => d.kind === kind && d.supersededBy === undefined);
+    if (decl) return { kind, status: decl.status, declarationEventId: decl.eventId };
+    if (day?.untrackedMeals.some((m) => m.kind === kind)) return { kind, status: "untracked" };
+    return { kind, status: "none" };
+  });
+}
+
+/**
+ * Momento del giorno di un istante, dall'ora locale (minuti dalla mezzanotte): la stessa regola
+ * con cui si propone il tipo di pasto. `snack` vale come «fuori pasto» (notte, metà pomeriggio, tardi).
+ */
+export function momentOfMinutes(minutes: number): MealKind {
+  if (minutes < 5 * 60) return "snack";
+  if (minutes < 10 * 60 + 30) return "breakfast";
+  if (minutes < 15 * 60 + 30) return "lunch";
+  if (minutes < 18 * 60 + 30) return "snack";
+  if (minutes < 23 * 60) return "dinner";
+  return "snack";
+}
+
+export interface DrinksByMoment {
+  breakfast: DiaryDrink[];
+  lunch: DiaryDrink[];
+  dinner: DiaryDrink[];
+  /** Fuori dai tre momenti principali. */
+  offMeal: DiaryDrink[];
+}
+
+/**
+ * Le bevande del giorno divise per momento secondo la loro ora (stessa regola di `momentOfMinutes`),
+ * in ordine di orario. Una bevanda non è un pasto: non cambia lo stato di un momento.
+ */
+export function drinksByMoment(day: DiaryDay | undefined, timeZone: string): DrinksByMoment {
+  const out: DrinksByMoment = { breakfast: [], lunch: [], dinner: [], offMeal: [] };
+  const sorted = [...(day?.drinks ?? [])].sort((a, b) =>
+    a.at < b.at ? -1 : a.at > b.at ? 1 : a.eventId < b.eventId ? -1 : 1,
+  );
+  for (const d of sorted) {
+    const m = localMoment(d.at, timeZone);
+    const kind = m ? momentOfMinutes(m.minutes) : "snack";
+    if (kind === "snack") out.offMeal.push(d);
+    else out[kind].push(d);
+  }
+  return out;
+}
+
+/** Sotto questa energia (kcal) una bevanda non interrompe l'intervallo senza cibo. */
+export const DRINK_ENERGY_THRESHOLD_KCAL = 5;
+
+/**
+ * Una bevanda interrompe l'intervallo senza cibo se porta energia: alcol, zuccheri o energia dichiarata
+ * da 5 kcal in su. `no` se dichiara un'energia sotto soglia (tè o caffè senza zucchero), `unknown` se
+ * non dice nulla sull'energia: non si assume né che ne abbia né che non ne abbia.
+ */
+export function drinkBreaksFast(d: Pick<DiaryDrink, "energyKcal" | "alcoholG" | "sugarsG">): "yes" | "no" | "unknown" {
+  if ((d.alcoholG ?? 0) > 0 || (d.sugarsG ?? 0) > 0) return "yes";
+  if (d.energyKcal === undefined) return "unknown";
+  return d.energyKcal >= DRINK_ENERGY_THRESHOLD_KCAL ? "yes" : "no";
+}
+
+export interface DayFluids {
+  waterMl: number;
+  /** Bevande senza alcol (tè, caffè, cola...). */
+  otherMl: number;
+  /** Bevande con alcol: si contano a parte, mai insieme all'acqua. */
+  alcoholicMl: number;
+}
+
+/** Liquidi del giorno, distinti: acqua, altre bevande e bevande alcoliche. */
+export function dayFluids(day: DiaryDay | undefined): DayFluids {
+  let other = 0;
+  let alcoholic = 0;
+  for (const d of day?.drinks ?? []) {
+    if ((d.alcoholG ?? 0) > 0) alcoholic += d.ml;
+    else other += d.ml;
+  }
+  return { waterMl: day?.waterMl ?? 0, otherMl: norm(other), alcoholicMl: norm(alcoholic) };
+}
+
+/**
  * Contano solo colazione, pranzo e cena, una volta ciascuno; gli spuntini non contano.
- * - `complete`: colazione, pranzo e cena tutti tracciati.
- * - `declared`: i tre tipi sono tutti presenti ma almeno uno solo come pasto non tracciato:
- *   incompleto ma dichiarato.
- * - `gaps`: manca almeno uno dei tre tipi, né tracciato né dichiarato.
+ * - `complete`: ogni momento ha un pasto registrato o è dichiarato «saltato» (un dato vero).
+ * - `declared`: ogni momento è registrato, saltato o dichiarato, ma almeno uno solo come
+ *   «mangiato, non registrato»: incompleto ma dichiarato.
+ * - `gaps`: manca almeno uno dei tre momenti, né registrato né dichiarato.
  */
 export type DayCoverageStatus = "complete" | "declared" | "gaps";
 
@@ -131,9 +230,11 @@ export interface DayCoverage {
   status: DayCoverageStatus;
   /** Numero di pasti tracciati (di ogni tipo, spuntini compresi). */
   tracked: number;
-  /** Numero di pasti segnati come non tracciati. */
+  /** Numero di pasti segnati come non tracciati (vecchi eventi e dichiarazioni «non registrato» in vigore). */
   untracked: number;
-  /** Tra colazione, pranzo e cena, i tipi senza né un pasto tracciato né uno dichiarato. */
+  /** Tra colazione, pranzo e cena, i momenti dichiarati «saltati» e senza pasto registrato. */
+  skipped: MealKind[];
+  /** Tra colazione, pranzo e cena, i tipi senza né un pasto tracciato né una dichiarazione. */
   missing: MealKind[];
 }
 
@@ -146,15 +247,18 @@ export interface Coverage {
 
 export function dayCoverage(day: DiaryDay | undefined, date: string): DayCoverage {
   const tracked = day?.meals.length ?? 0;
-  const untracked = day?.untrackedMeals.length ?? 0;
-  const trackedKinds = new Set<MealKind>((day?.meals ?? []).map((m) => m.kind));
-  const declaredKinds = new Set<MealKind>((day?.untrackedMeals ?? []).map((m) => m.kind));
-  const missing = MAIN_MEAL_KINDS.filter((k) => !trackedKinds.has(k) && !declaredKinds.has(k));
+  const declaredUntracked = (day?.declarations ?? []).filter(
+    (d) => d.status === "untracked" && d.supersededBy === undefined,
+  ).length;
+  const untracked = (day?.untrackedMeals.length ?? 0) + declaredUntracked;
+  const moments = mealMoments(day);
+  const skipped = moments.filter((m) => m.status === "skipped").map((m) => m.kind);
+  const missing = moments.filter((m) => m.status === "none").map((m) => m.kind);
   let status: DayCoverageStatus = "gaps";
   if (missing.length === 0) {
-    status = MAIN_MEAL_KINDS.every((k) => trackedKinds.has(k)) ? "complete" : "declared";
+    status = moments.some((m) => m.status === "untracked") ? "declared" : "complete";
   }
-  return { date, status, tracked, untracked, missing };
+  return { date, status, tracked, untracked, skipped, missing };
 }
 
 /** Giorni completamente tracciati contro giorni con vuoti; i giorni senza alcuna voce sono vuoti. */
@@ -194,7 +298,7 @@ function circularDistance(a: number, b: number): number {
  * Pasti abituali da proporre a un certo istante (ISO UTC, letto nel fuso dello stato):
  * quelli con ora abituale (o, in mancanza, quella tipica del tipo di pasto) entro la finestra.
  * Si salta un pasto abituale già fatto oggi, e per colazione, pranzo e cena anche quando
- * oggi esiste già un pasto di quel tipo, tracciato o segnato come non tracciato.
+ * oggi esiste già un pasto di quel tipo, tracciato, segnato come non tracciato o dichiarato saltato.
  * Ordinati dal più vicino all'ora.
  */
 export function habitsToPropose(
@@ -210,10 +314,14 @@ export function habitsToPropose(
   const doneHabits = new Set(
     (today?.meals ?? []).flatMap((m) => (m.habitId !== undefined ? [m.habitId] : [])),
   );
-  const doneKinds = new Set<MealKind>([
-    ...(today?.meals ?? []).map((m) => m.kind),
-    ...(today?.untrackedMeals ?? []).map((m) => m.kind),
-  ]);
+  const doneKinds = new Set<MealKind>(
+    mealMoments(today)
+      .filter((m) => m.status !== "none")
+      .map((m) => m.kind),
+  );
+  // Gli spuntini non hanno un momento dichiarabile: restano a parte.
+  for (const m of today?.meals ?? []) doneKinds.add(m.kind);
+  for (const m of today?.untrackedMeals ?? []) doneKinds.add(m.kind);
 
   const scored: { habit: DiaryHabit; distance: number }[] = [];
   for (const habit of state.habits) {

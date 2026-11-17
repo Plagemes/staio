@@ -1,4 +1,5 @@
-/* Temi in più oltre a Registro (tokens.css). Stessa disciplina: una carta, un inchiostro, un accento, un segnale; cambiano tinta e temperatura.
+/* Temi in più oltre a Registro (tokens.css). Bottega, Ardesia e Netto hanno la stessa disciplina: una carta, un inchiostro, un accento,
+   un segnale; cambiano tinta e temperatura. Vivo, in fondo, cambia anche la forma (vedi VIVO.md).
    Per ogni tema: blocco chiaro, blocco scuro per «come il dispositivo» (media query) e blocco scuro scelto a mano. Gli ultimi due devono restare uguali.
    I rapporti di contrasto sono verificati da contrast.test.ts, che legge questo file. */
 
@@ -180,4 +181,284 @@
   --color-bar-track: #6e6e6e;
   --color-bar-fill: #ffffff;
   --color-focus: #ffffff;
+}
+
+/* Vivo: colori pieni, ognuno con un significato fisso (mappa in VIVO.md). Non segue la disciplina degli altri temi:
+   superfici piene al posto dei filetti, sfondo raggruppato, titoli senza grazie, controlli pieni.
+   Ogni colore di area, nutriente e stato regge il testo normale (4,5:1) su carta, superficie e sul proprio fondo tinto,
+   e il testo --color-on-fill lo regge sopra il colore pieno: in chiaro i colori sono scuri e il testo sopra è bianco,
+   in scuro sono chiari e il testo sopra è nero. */
+[data-palette="vivo"] {
+  color-scheme: light;
+
+  --color-paper: #f2f2f7;
+  --color-surface: #ffffff;
+  --color-ink: #1c1c1e;
+  --color-graphite: #5c5c62;
+  --color-rule: #d8d8dd;
+  --color-rule-strong: #c7c7cc;
+  --color-control-border: #86868b;
+  --color-accent: #0062cc;
+  --color-signal: #c62828;
+  --color-ochre: #b14a00;
+  --color-on-ink: #ffffff;
+  --color-bar-track: #e5e5ea;
+  --color-bar-fill: #00756b;
+  --color-focus: #0062cc;
+  --color-fill: #e5e5ea;
+  --color-raised: #ffffff;
+  --color-on-fill: #ffffff;
+  --area-today: #0062cc;
+  --area-today-tint: #e3eef9;
+  --area-pantry: #00756b;
+  --area-pantry-tint: #e3f0ef;
+  --area-capture: #4e4bd0;
+  --area-capture-tint: #ecebfa;
+  --area-plan: #8a3ab9;
+  --area-plan-tint: #f2e9f7;
+  --area-health: #b8246c;
+  --area-health-tint: #f7e7ef;
+  --nutrient-protein: #2f55d4;
+  --nutrient-protein-tint: #e8ecfa;
+  --nutrient-carbs: #985c00;
+  --nutrient-carbs-tint: #f4ede3;
+  --nutrient-fat: #7a45c4;
+  --nutrient-fat-tint: #f0ebf9;
+  --nutrient-fiber: #1f7a35;
+  --nutrient-fiber-tint: #e6f0e9;
+  --water: #00718f;
+  --water-tint: #e3eff3;
+  --state-ok: #1f7a35;
+  --state-ok-tint: #e6f0e9;
+  --state-near: #b14a00;
+  --state-near-tint: #f6ebe3;
+  --state-expired: #c62828;
+  --state-expired-tint: #f9e7e7;
+  --state-estimate: #55607a;
+  --state-estimate-tint: #eceef0;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-palette="vivo"]:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --color-paper: #000000;
+    --color-surface: #1c1c1e;
+    --color-ink: #f5f5f7;
+    --color-graphite: #aeaeb2;
+    --color-rule: #38383a;
+    --color-rule-strong: #48484a;
+    --color-control-border: #86868b;
+    --color-accent: #4ba3ff;
+    --color-signal: #ff6f61;
+    --color-ochre: #ff9f43;
+    --color-on-ink: #000000;
+    --color-bar-track: #2c2c2e;
+    --color-bar-fill: #3ccbb4;
+    --color-focus: #4ba3ff;
+    --color-fill: #2c2c2e;
+    --color-raised: #3a3a3c;
+    --color-on-fill: #000000;
+    --area-today: #4ba3ff;
+    --area-today-tint: #243344;
+    --area-pantry: #3ccbb4;
+    --area-pantry-tint: #213a38;
+    --area-capture: #8e8cff;
+    --area-capture-tint: #2f2f44;
+    --area-plan: #cf8bf3;
+    --area-plan-tint: #3a2f42;
+    --area-health: #ff7ab8;
+    --area-health-tint: #432c38;
+    --nutrient-protein: #7f9dff;
+    --nutrient-protein-tint: #2d3244;
+    --nutrient-carbs: #ffc145;
+    --nutrient-carbs-tint: #3e3524;
+    --nutrient-fat: #b99aff;
+    --nutrient-fat-tint: #373144;
+    --nutrient-fiber: #4fd16b;
+    --nutrient-fiber-tint: #253b2b;
+    --water: #5ccff0;
+    --water-tint: #273a42;
+    --state-ok: #4fd16b;
+    --state-ok-tint: #253b2b;
+    --state-near: #ff9f43;
+    --state-near-tint: #433224;
+    --state-expired: #ff6f61;
+    --state-expired-tint: #432a29;
+    --state-estimate: #a3aec4;
+    --state-estimate-tint: #33353a;
+  }
+}
+
+[data-palette="vivo"][data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-paper: #000000;
+  --color-surface: #1c1c1e;
+  --color-ink: #f5f5f7;
+  --color-graphite: #aeaeb2;
+  --color-rule: #38383a;
+  --color-rule-strong: #48484a;
+  --color-control-border: #86868b;
+  --color-accent: #4ba3ff;
+  --color-signal: #ff6f61;
+  --color-ochre: #ff9f43;
+  --color-on-ink: #000000;
+  --color-bar-track: #2c2c2e;
+  --color-bar-fill: #3ccbb4;
+  --color-focus: #4ba3ff;
+  --color-fill: #2c2c2e;
+  --color-raised: #3a3a3c;
+  --color-on-fill: #000000;
+  --area-today: #4ba3ff;
+  --area-today-tint: #243344;
+  --area-pantry: #3ccbb4;
+  --area-pantry-tint: #213a38;
+  --area-capture: #8e8cff;
+  --area-capture-tint: #2f2f44;
+  --area-plan: #cf8bf3;
+  --area-plan-tint: #3a2f42;
+  --area-health: #ff7ab8;
+  --area-health-tint: #432c38;
+  --nutrient-protein: #7f9dff;
+  --nutrient-protein-tint: #2d3244;
+  --nutrient-carbs: #ffc145;
+  --nutrient-carbs-tint: #3e3524;
+  --nutrient-fat: #b99aff;
+  --nutrient-fat-tint: #373144;
+  --nutrient-fiber: #4fd16b;
+  --nutrient-fiber-tint: #253b2b;
+  --water: #5ccff0;
+  --water-tint: #273a42;
+  --state-ok: #4fd16b;
+  --state-ok-tint: #253b2b;
+  --state-near: #ff9f43;
+  --state-near-tint: #433224;
+  --state-expired: #ff6f61;
+  --state-expired-tint: #432a29;
+  --state-estimate: #a3aec4;
+  --state-estimate-tint: #33353a;
+}
+
+/* Vivo: forma (uguale in chiaro e in scuro). I colori qui sono solo rimandi alle variabili sopra. */
+[data-palette="vivo"] {
+  --font-display: var(--font-instrument-sans), -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
+  --weight-display: 700;
+  --tracking-title: -0.02em;
+  --tracking-display: -0.035em;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --press-transform: scale(0.97);
+  --press-opacity: 1;
+
+  --label-font: var(--font-ui);
+  --label-tracking: 0.04em;
+
+  --section-font: var(--font-ui);
+  --section-size: var(--text-title-sm);
+  --section-case: none;
+  --section-tracking: -0.01em;
+  --section-color: var(--color-ink);
+  --section-weight: 700;
+  --section-rule-width: 0px;
+
+  --card-fill: var(--color-surface);
+  --card-fill-hover: var(--color-fill);
+  --card-border: transparent;
+  --card-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+  --radius-card: 18px;
+
+  --button-text: var(--color-on-fill);
+  --button-quiet-border: transparent;
+
+  --tabs-gap: 0px;
+  --tabs-fill: var(--color-fill);
+  --tabs-pad: 2px;
+  --tabs-radius: 10px;
+  --tabs-rule-width: 0px;
+  --tab-grow: 1;
+  --tab-pad-x: var(--space-6);
+  --tab-radius: 8px;
+  --tab-indicator: 0px;
+  --tab-selected-fill: var(--color-raised);
+  --tab-selected-shadow: 0 1px 3px rgb(0 0 0 / 0.14);
+
+  --nav-fill: color-mix(in srgb, var(--color-surface) 82%, transparent);
+  --nav-backdrop: saturate(180%) blur(20px);
+  --capture-fill: var(--area-capture);
+  --capture-text: var(--color-on-fill);
+
+  --chip-strength: 100%;
+  --chip-pad-y: 2px;
+  --chip-pad-x: var(--space-4);
+  --chip-radius: 999px;
+
+  --figure-gap: var(--space-4);
+  --figure-fill: var(--color-surface);
+  --figure-radius: var(--radius-md);
+  --figure-pad-x: var(--space-6);
+  --figure-follow-pad: var(--space-6);
+  --figure-divider: 0px;
+  --figure-grid-rule: 0px;
+
+  --bar-height: 6px;
+  --bar-radius: 999px;
+  --progress-height: 6px;
+  --progress-track: var(--color-fill);
+
+  /* Senza un'area (fuori dalla shell, nelle anteprime) vale Oggi */
+  --area-current: var(--area-today);
+  --area-current-tint: var(--area-today-tint);
+  --button-fill: var(--area-current);
+  --button-quiet-fill: var(--area-current-tint);
+  --button-quiet-text: var(--area-current);
+  --nav-current: var(--area-current);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-palette="vivo"] {
+    --press-transform: none;
+  }
+}
+
+/* Vivo: colore dell'area. La shell mette data-area sul contenitore dell'app, la barra in basso su ogni voce.
+   I rimandi vanno ripetuti qui: una variabile che ne usa un'altra si risolve sull'elemento dove è dichiarata. */
+[data-palette="vivo"] [data-area],
+[data-palette="vivo"][data-area] {
+  --color-accent: var(--area-current);
+  --color-focus: var(--area-current);
+  --button-fill: var(--area-current);
+  --button-quiet-fill: var(--area-current-tint);
+  --button-quiet-text: var(--area-current);
+  --nav-current: var(--area-current);
+}
+
+[data-palette="vivo"] [data-area="today"],
+[data-palette="vivo"][data-area="today"] {
+  --area-current: var(--area-today);
+  --area-current-tint: var(--area-today-tint);
+}
+
+[data-palette="vivo"] [data-area="pantry"],
+[data-palette="vivo"][data-area="pantry"] {
+  --area-current: var(--area-pantry);
+  --area-current-tint: var(--area-pantry-tint);
+}
+
+[data-palette="vivo"] [data-area="capture"],
+[data-palette="vivo"][data-area="capture"] {
+  --area-current: var(--area-capture);
+  --area-current-tint: var(--area-capture-tint);
+}
+
+[data-palette="vivo"] [data-area="plan"],
+[data-palette="vivo"][data-area="plan"] {
+  --area-current: var(--area-plan);
+  --area-current-tint: var(--area-plan-tint);
+}
+
+[data-palette="vivo"] [data-area="health"],
+[data-palette="vivo"][data-area="health"] {
+  --area-current: var(--area-health);
+  --area-current-tint: var(--area-health-tint);
 }

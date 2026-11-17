@@ -1,8 +1,10 @@
 /* Tema predefinito "Registro premium" e variabili comuni a tutti i temi. Con themes.css è l'unico posto in cui compaiono colori e caratteri letterali.
    Il tema è scelto dall'attributo data-palette sulla radice (assente = Registro); chiaro/scuro da data-theme (assente = come il dispositivo).
-   I selettori dei colori non sono legati a :root: un campione con gli stessi attributi (l'anteprima in Aspetto) prende le stesse variabili. */
+   I selettori non sono legati a :root: un contenitore con gli stessi attributi (le anteprime dei temi) prende le stesse variabili,
+   anche quando la pagina intorno usa un altro tema. Per questo anche le variabili comuni valgono su ogni [data-palette]. */
 
-:root {
+:root,
+[data-palette] {
   color-scheme: light;
 
   /* Famiglie di caratteri: le variabili --font-instrument-* e --font-ibm-plex-mono arrivano da next/font in layout.tsx */
@@ -53,6 +55,78 @@
   --column-max: 430px;
   --gutter: 16px;
   --rule-width: 1px;
+
+  /* Forma dei componenti. Ogni valore qui è quello che prima era scritto a mano nei moduli di src/design:
+     Registro e gli altri temi non cambiano; Vivo (themes.css) li ridefinisce. themes.test.ts tiene fermi questi valori. */
+  --font-brand: var(--font-instrument-serif), "Iowan Old Style", Georgia, serif;
+  --weight-display: 400;
+  --motion-fast: 120ms;
+  --press-transform: none;
+  --press-opacity: 0.8;
+
+  --label-font: var(--font-data);
+  --label-size: var(--text-label);
+  --label-case: uppercase;
+  --label-tracking: var(--tracking-label);
+  --label-color: var(--color-graphite);
+
+  --section-font: var(--font-data);
+  --section-size: var(--text-label);
+  --section-case: uppercase;
+  --section-tracking: var(--tracking-label);
+  --section-color: var(--color-graphite);
+  --section-weight: 400;
+  --section-rule-width: var(--rule-width);
+
+  --card-fill: transparent;
+  --card-fill-hover: var(--color-surface);
+  --card-border: var(--color-control-border);
+  --card-shadow: none;
+  --radius-card: var(--radius-md);
+
+  --button-fill: var(--color-ink);
+  --button-text: var(--color-on-ink);
+  --button-quiet-fill: transparent;
+  --button-quiet-border: var(--color-control-border);
+  --button-quiet-text: var(--color-ink);
+  --radius-button: var(--radius-md);
+
+  --tabs-gap: var(--space-10);
+  --tabs-fill: transparent;
+  --tabs-pad: 0px;
+  --tabs-radius: 0px;
+  --tabs-rule-width: var(--rule-width);
+  --tab-grow: 0;
+  --tab-pad-x: 0px;
+  --tab-radius: 0px;
+  --tab-indicator: 2px;
+  --tab-selected-fill: transparent;
+  --tab-selected-shadow: none;
+
+  --nav-fill: var(--color-paper);
+  --nav-rule-width: var(--rule-width);
+  --nav-backdrop: none;
+  --nav-current: var(--color-ink);
+  --capture-fill: var(--color-ink);
+  --capture-text: var(--color-on-ink);
+
+  --chip-strength: 0%;
+  --chip-pad-y: 0px;
+  --chip-pad-x: 0px;
+  --chip-radius: 0px;
+
+  --figure-gap: 0px;
+  --figure-fill: transparent;
+  --figure-radius: 0px;
+  --figure-pad-x: 0px;
+  --figure-follow-pad: var(--space-7);
+  --figure-divider: var(--rule-width);
+  --figure-grid-rule: var(--rule-width);
+
+  --bar-height: 3px;
+  --bar-radius: 0px;
+  --progress-height: 2px;
+  --progress-track: var(--color-rule);
 }
 
 /* Registro: chiaro (anche senza attributi) */
@@ -115,4 +189,62 @@
   --color-bar-track: #2a2e33;
   --color-bar-fill: #edebe6;
   --color-focus: #8cc2a6;
+}
+
+/* Colori con significato (aree, nutrienti, acqua, stati). Solo Vivo li rende davvero diversi (themes.css);
+   negli altri temi valgono l'accento, l'inchiostro o i colori che quegli stati hanno già, e i fondi tinti sono trasparenti:
+   chi li usa non cambia nulla nei temi esistenti. */
+:root,
+[data-palette] {
+  --color-fill: var(--color-surface);
+  --color-raised: var(--color-surface);
+  --color-on-fill: var(--color-on-ink);
+
+  --area-today: var(--color-accent);
+  --area-today-tint: transparent;
+  --area-pantry: var(--color-accent);
+  --area-pantry-tint: transparent;
+  --area-capture: var(--color-accent);
+  --area-capture-tint: transparent;
+  --area-plan: var(--color-accent);
+  --area-plan-tint: transparent;
+  --area-health: var(--color-accent);
+  --area-health-tint: transparent;
+  --area-current: var(--color-accent);
+  --area-current-tint: transparent;
+
+  --nutrient-protein: var(--color-ink);
+  --nutrient-protein-tint: transparent;
+  --nutrient-carbs: var(--color-ink);
+  --nutrient-carbs-tint: transparent;
+  --nutrient-fat: var(--color-ink);
+  --nutrient-fat-tint: transparent;
+  --nutrient-fiber: var(--color-ink);
+  --nutrient-fiber-tint: transparent;
+  --water: var(--color-ink);
+  --water-tint: transparent;
+
+  --state-ok: var(--color-ink);
+  --state-ok-tint: transparent;
+  --state-near: var(--color-ochre);
+  --state-near-tint: transparent;
+  --state-expired: var(--color-signal);
+  --state-expired-tint: transparent;
+  --state-estimate: var(--color-graphite);
+  --state-estimate-tint: transparent;
+}
+
+/* Prima apertura di /app senza uno stile scelto: lo script in <head> mette data-style-choice="pending" sulla radice e lo toglie
+   da solo dopo 800 ms; la shell lo toglie prima, appena sa se proporre la scelta dello stile. Nel frattempo si nasconde solo il
+   contenuto dell'app (mai la barra in basso), e lo nasconde l'animazione stessa: finita l'animazione, o se le animazioni non
+   girano affatto, il contenuto è visibile anche senza nessuno script. */
+html[data-style-choice="pending"] [data-app-content] {
+  animation: style-choice-hold 800ms step-end;
+}
+
+@keyframes style-choice-hold {
+  0%,
+  100% {
+    visibility: hidden;
+  }
 }

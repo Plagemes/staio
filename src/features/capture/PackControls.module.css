@@ -1,0 +1,56 @@
+/* Contatore delle confezioni e gruppi con date diverse: solo variabili di tema. */
+
+.stepperRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.stepButton {
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+  border: none;
+  background: none;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 1.25rem;
+  cursor: pointer;
+}
+
+.stepButton:disabled {
+  color: var(--color-graphite);
+  cursor: default;
+}
+
+.stepButton:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.stepValue {
+  min-width: 36px;
+  text-align: center;
+  font-family: var(--font-data);
+  font-size: 1rem;
+}
+
+.groupRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.groupDate {
+  flex: 1;
+  min-width: 150px;
+}

@@ -4,8 +4,10 @@
 // 2) gli ingredienti «di casa» verificati contro la dispensa reale.
 // Una ricetta che contiene un allergene o un alimento escluso viene scartata, con il motivo. Una ricetta con un
 // ingrediente generico che può contenere un allergene dichiarato resta tra le proposte ma porta `uncertain`: le
-// schermate non la lasciano salvare senza una conferma esplicita.
-import { assessRecipe, type IngredientHit, type ItemSubject, type RecipeAssessment } from "../allergens";
+// schermate non la lasciano salvare senza una conferma esplicita. L'utente può confermare un ingrediente alla volta
+// («ho letto l'etichetta, per me va bene»): vale solo per il dubbio, mai per un allergene trovato, e l'ingrediente
+// confermato esce dai dubbi ma resta nell'elenco `confirmed`, con la data.
+import { assessRecipe, type ConfirmationMap, type IngredientHit, type ItemSubject, type RecipeAssessment } from "../allergens";
 import {
   compareWithPantry,
   exclusionReasons,
@@ -26,6 +28,26 @@ export interface IdeaCriteria {
   maxMinutes?: number;
   /** Attrezzatura posseduta: se indicata, un attrezzo mancante porta un avviso. */
   ownedEquipment?: readonly string[];
+  /** Conferme dell'utente sugli ingredienti non verificabili (da `deriveConfirmations`). */
+  confirmations?: ConfirmationMap;
+}
+
+/** Un ingrediente ancora da verificare che l'utente può confermare: porta ciò che serve a dare la conferma. */
+export interface UncertainIngredient {
+  name: string;
+  /** Il testo del dubbio, come in `uncertain`. */
+  text: string;
+  /** Ciò che il motore ha letto dell'ingrediente: la conferma si lega a questo. */
+  subject: ItemSubject;
+}
+
+/** Un ingrediente il cui dubbio l'utente ha confermato. */
+export interface ConfirmedIngredient {
+  name: string;
+  /** Gli allergeni dichiarati su cui aveva dei dubbi. */
+  allergens: string[];
+  /** Quando l'ha confermato (istante ISO). */
+  confirmedAt: string;
 }
 
 export interface Rejection {
@@ -66,10 +88,16 @@ export interface CheckedIdea {
    * non si salva senza che l'utente confermi di aver controllato le etichette.
    */
   uncertain: string[];
+  /** Gli stessi ingredienti incerti, uno per riga, con ciò che serve a confermarli uno alla volta. */
+  uncertainIngredients: UncertainIngredient[];
+  /** Ingredienti che l'utente ha confermato: l'app non ha verificato nulla, lo ha dichiarato lui. */
+  confirmed: ConfirmedIngredient[];
 }
 
 /** Ciò che si sa del prodotto di un alimento di dispensa, se noto: nome e allergeni dichiarati in etichetta. */
 export interface PantryLabel {
+  /** Codice a barre del lotto, se c'è: la conferma dell'utente è legata a quel prodotto, come nelle ricette. */
+  barcode?: string;
   productName?: string;
   allergens?: readonly string[];
 }
@@ -96,10 +124,12 @@ function subjectsOf(idea: RecipeIdea, pantry: readonly CheckedPantryRef[], match
     const linked = [...refs.values()];
     const names = linked.flatMap((r) => (r.productName ? [r.name, r.productName] : [r.name]));
     const labels = linked.flatMap((r) => r.allergens ?? []);
+    const barcodes = [...new Set(linked.flatMap((r) => (r.barcode ? [r.barcode] : [])))];
     return {
       name: ing.name,
       ...(ing.note ? { note: ing.note } : {}),
       ...(names.length > 0 ? { linkedNames: names } : {}),
+      ...(barcodes.length > 0 ? { productRefs: barcodes } : {}),
       ...(labels.length > 0 ? { labelAllergens: labels } : {}),
     };
   });
@@ -107,7 +137,7 @@ function subjectsOf(idea: RecipeIdea, pantry: readonly CheckedPantryRef[], match
 
 function assessIdea(
   idea: RecipeIdea,
-  criteria: Pick<IdeaCriteria, "allergens" | "excludedFoods">,
+  criteria: Pick<IdeaCriteria, "allergens" | "excludedFoods"> & { confirmations?: ConfirmationMap },
   pantry: readonly CheckedPantryRef[],
   matched?: readonly (readonly PantryRef[])[],
 ): RecipeAssessment | undefined {
@@ -121,7 +151,7 @@ function assessIdea(
       // le note del modello finiscono tra i passi della ricetta salvata: si controllano come passi
       steps: [...idea.steps.map((s) => s.text), ...(idea.notes ? [idea.notes] : [])],
     },
-    { allergens, excludedFoods },
+    { allergens, excludedFoods, ...(criteria.confirmations ? { confirmations: criteria.confirmations } : {}) },
   );
 }
 
@@ -166,12 +196,14 @@ function reasonsFrom(a: RecipeAssessment | undefined, title: string): string[] {
   return [...new Set(reasons)];
 }
 
-function uncertainFrom(a: RecipeAssessment | undefined): string[] {
+function uncertainEntries(a: RecipeAssessment | undefined): { index: number; name: string; text: string; mixed: boolean }[] {
   if (!a) return [];
   const byIngredient = new Map<number, { hit: IngredientHit; allergens: string[] }>();
+  const mixed = new Set<number>();
   for (const o of a.allergens) {
     if (o.verdict !== "uncertain") continue;
     for (const hit of o.ingredients) {
+      if (hit.reason === "mixed_script") mixed.add(hit.index);
       const entry = byIngredient.get(hit.index) ?? { hit, allergens: [] };
       if (!entry.allergens.includes(o.allergen)) entry.allergens.push(o.allergen);
       byIngredient.set(hit.index, entry);
@@ -182,13 +214,36 @@ function uncertainFrom(a: RecipeAssessment | undefined): string[] {
     const what =
       hit.reason === "unrecognized"
         ? `ha un nome non riconosciuto («${hit.term}»)`
-        : hit.reason === "gluten_free_claim"
+        : hit.reason === "mixed_script"
+          ? `ha lettere di alfabeti diversi («${hit.term}»): riscrivilo`
+          : hit.reason === "gluten_free_claim"
           ? `è dichiarato senza glutine («${hit.term}»), da verificare in etichetta`
           : hit.reason === "processed"
             ? `è un prodotto lavorato o confezionato («${hit.term}»), da verificare in etichetta`
             : `è un ingrediente generico o composto («${hit.term}»)`;
-    return `«${hit.name}»${where} ${what}: non so se contiene ${allergens.join(", ")}`;
+    return { index: hit.index, name: hit.name, mixed: mixed.has(hit.index), text: `«${hit.name}»${where} ${what}: non so se contiene ${allergens.join(", ")}` };
   });
+}
+
+const uncertainFrom = (a: RecipeAssessment | undefined): string[] => uncertainEntries(a).map((e) => e.text);
+
+function uncertainIngredientsFrom(a: RecipeAssessment | undefined, idea: RecipeIdea, pantry: readonly CheckedPantryRef[], matched?: readonly (readonly PantryRef[])[]): UncertainIngredient[] {
+  const subjects = subjectsOf(idea, pantry, matched);
+  // un testo con alfabeti mescolati va riscritto: non si conferma
+  return uncertainEntries(a).flatMap((e) => {
+    const subject = subjects[e.index];
+    return subject && !e.mixed ? [{ name: e.name, text: e.text, subject }] : [];
+  });
+}
+
+function confirmedFrom(a: RecipeAssessment | undefined): ConfirmedIngredient[] {
+  const byIndex = new Map<number, ConfirmedIngredient>();
+  for (const c of a?.confirmed ?? []) {
+    const cur = byIndex.get(c.index) ?? { name: c.name, allergens: [], confirmedAt: c.confirmedAt };
+    if (!cur.allergens.includes(c.allergen)) cur.allergens.push(c.allergen);
+    byIndex.set(c.index, cur);
+  }
+  return [...byIndex.values()];
 }
 
 /**
@@ -209,7 +264,7 @@ export function forbiddenReasons(
  */
 export function uncertainReasons(
   idea: RecipeIdea,
-  criteria: Pick<IdeaCriteria, "allergens" | "excludedFoods">,
+  criteria: Pick<IdeaCriteria, "allergens" | "excludedFoods" | "confirmations">,
   pantry: readonly CheckedPantryRef[] = [],
 ): string[] {
   return uncertainFrom(assessIdea(idea, criteria, pantry));
@@ -314,6 +369,8 @@ export function checkIdeas(
       expiringScore: Math.round([...expiring.values()].reduce((s, e) => s + e.weight, 0) * 1e6) / 1e6,
       warnings,
       uncertain: uncertainFrom(assessment),
+      uncertainIngredients: uncertainIngredientsFrom(assessment, idea, pantry, ingredients.map((c) => c.matched)),
+      confirmed: confirmedFrom(assessment),
     });
   }
 

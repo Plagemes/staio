@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, dateRange, daysBetween, isValidTimeZone, localDate, localMoment } from "./calendar";
+import { addDays, dateRange, daysBetween, instantOfLocal, isValidTimeZone, localDate, localMoment } from "./calendar";
 
 const ROME = "Europe/Rome";
 
@@ -79,5 +79,23 @@ describe("date di calendario", () => {
     expect(dateRange("2026-03-01", "2026-03-01")).toEqual(["2026-03-01"]);
     expect(dateRange("2026-03-02", "2026-03-01")).toEqual([]);
     expect(dateRange("2026-02-30", "2026-03-01")).toEqual([]);
+  });
+});
+
+describe("instantOfLocal", () => {
+  it("è l'inverso di localMoment, d'inverno e d'estate", () => {
+    expect(instantOfLocal("2026-01-15", 8 * 60 + 12, ROME)).toBe("2026-01-15T07:12:00.000Z");
+    expect(instantOfLocal("2026-07-15", 8 * 60 + 12, ROME)).toBe("2026-07-15T06:12:00.000Z");
+    expect(instantOfLocal("2026-07-15", 0, ROME)).toBe("2026-07-14T22:00:00.000Z");
+    for (const [date, minutes] of [["2026-03-29", 4 * 60], ["2026-10-25", 3 * 60 + 30], ["2026-11-16", 1439]] as const) {
+      const iso = instantOfLocal(date, minutes, ROME)!;
+      expect(localMoment(iso, ROME)).toEqual({ date, minutes });
+    }
+  });
+
+  it("rifiuta dati non validi", () => {
+    expect(instantOfLocal("2026-02-30", 60, ROME)).toBeUndefined();
+    expect(instantOfLocal("2026-02-01", 1440, ROME)).toBeUndefined();
+    expect(instantOfLocal("2026-02-01", 60, "Mondo/Niente")).toBeUndefined();
   });
 });

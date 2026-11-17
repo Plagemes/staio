@@ -3,12 +3,18 @@
   justify-content: space-between;
   align-items: center;
   padding-bottom: var(--space-3);
-  border-bottom: var(--rule-width) solid var(--color-rule-strong);
+  border-bottom: var(--section-rule-width) solid var(--color-rule-strong);
 }
 
+/* L'etichetta dentro prende la forma del titolo di sezione (in Vivo: grande, piena, senza maiuscoletto) */
 .title {
+  --label-font: var(--section-font);
+  --label-size: var(--section-size);
+  --label-case: var(--section-case);
+  --label-tracking: var(--section-tracking);
+  --label-color: var(--section-color);
   margin: 0;
-  font-weight: 400;
+  font-weight: var(--section-weight);
 }
 
 .action {

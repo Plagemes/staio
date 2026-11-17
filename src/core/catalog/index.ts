@@ -5,6 +5,9 @@ export type { ExpiryCategoryProposal, ExpiryCategorySource } from "./expiryCateg
 export { OFF_FIELDS, isStoredProduct, productFromOpenFoodFacts } from "./openFoodFacts";
 export type { FromOffOptions } from "./openFoodFacts";
 export { parsePackageQuantity, quantityText } from "./quantity";
+export { piecesHintFrom } from "./piecesHint";
+export { locationFromStorage } from "./storage";
+export type { StoragePlace } from "./storage";
 export type {
   BaseUnit,
   ExpiryCategoryMatch,
@@ -12,5 +15,7 @@ export type {
   Nutrients,
   NutriScore,
   PackageQuantity,
+  PiecesHint,
+  ServingSize,
   Product,
 } from "./types";

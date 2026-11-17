@@ -6,14 +6,21 @@
   min-height: 56px;
   box-sizing: border-box;
   padding: var(--space-5) var(--space-7);
-  border: var(--rule-width) solid var(--color-control-border);
-  border-radius: var(--radius-md);
+  border: var(--rule-width) solid var(--card-border);
+  border-radius: var(--radius-card);
+  background: var(--card-fill);
+  box-shadow: var(--card-shadow);
   color: var(--color-ink);
   text-decoration: none;
+  transition: transform var(--motion-fast) ease;
 }
 
 .card:hover {
-  background: var(--color-surface);
+  background: var(--card-fill-hover);
+}
+
+.card:active {
+  transform: var(--press-transform);
 }
 
 .text {
@@ -25,6 +32,7 @@
 .title {
   font-family: var(--font-display);
   font-size: var(--text-title-sm);
+  font-weight: var(--weight-display);
   line-height: 1.1;
 }
 

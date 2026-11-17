@@ -21,6 +21,7 @@ import {
   allTags,
   applyFilters,
   buildRows,
+  confirmedRowText,
   countsText,
   expiringText,
   filtersActive,
@@ -35,6 +36,7 @@ import {
 import { rateRecipe } from "./model";
 import { useRecipePrefs, type RecipePrefs } from "./prefs";
 import { reasonLines, unionDeclared } from "./safety";
+import { useConfirmations } from "./useConfirmations";
 import styles from "./recipes.module.css";
 
 const SORTS: SortKey[] = ["title", "pantry", "expiring"];
@@ -47,6 +49,7 @@ export function Recipes() {
   const products = useProducts();
   const now = useNow();
   const { prefs, ready, save } = useRecipePrefs();
+  const { byKey: confirmations } = useConfirmations();
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("title");
   const [tags, setTags] = useState<string[]>([]);
@@ -77,17 +80,18 @@ export function Recipes() {
     allergens,
     excludedFoods,
     linkOf,
+    ...(confirmations ? { confirmations } : {}),
   };
   const filtered = useMemo(
     () => applyFilters(rows, filters),
     // `filters` si ricostruisce a ogni disegno: contano i suoi ingredienti
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows, query, tags, maxMinutes, prefs.limitToEquipment, prefs.ownedEquipment, allergens, excludedFoods, linkOf],
+    [rows, query, tags, maxMinutes, prefs.limitToEquipment, prefs.ownedEquipment, allergens, excludedFoods, linkOf, confirmations],
   );
   const shown = useMemo(() => sortRows(filtered.rows, sort), [filtered.rows, sort]);
 
   if (recipes.error || pantry.error || plan.error) return <StorageError />;
-  if (!recipes.data || !pantry.data || !plan.data || !products || !view || !ready) {
+  if (!recipes.data || !pantry.data || !plan.data || !products || !view || !ready || !confirmations) {
     return (
       <div className={ui.screen}>
         <h1 className={ui.title}>Ricettario</h1>
@@ -115,6 +119,9 @@ export function Recipes() {
         </Button>
         <Button href="/app/ricette/idee" variant="outline">
           Idee con ciò che hai
+        </Button>
+        <Button href="/app/ricette/abbinamenti" variant="outline">
+          Abbinamenti di gusto
         </Button>
       </div>
 
@@ -199,6 +206,7 @@ export function Recipes() {
                 {shown.map((row) => {
                   const missing = missingText(row);
                   const expiring = expiringText(row);
+                  const confirmedNote = confirmedRowText(filtered.confirmedBy.get(row.recipe.recipeId) ?? []);
                   return (
                     <li key={row.recipe.recipeId}>
                       <Link className={styles.card} href={`/app/ricette/vedi?id=${encodeURIComponent(row.recipe.recipeId)}`}>
@@ -211,6 +219,7 @@ export function Recipes() {
                         <span className={styles.noteStrong}>{countsText(row)}</span>
                         {missing ? <span className={styles.note}>{missing}</span> : null}
                         {expiring ? <span className={styles.noteAccent}>{expiring}</span> : null}
+                        {confirmedNote ? <span className={styles.noteStrong}>{confirmedNote}</span> : null}
                       </Link>
                     </li>
                   );
@@ -225,7 +234,7 @@ export function Recipes() {
         <HiddenBySafety
           contains={filtered.hiddenContains}
           uncertain={filtered.hiddenUncertain}
-          criteria={{ allergens, excludedFoods, linkOf }}
+          criteria={{ allergens, excludedFoods, linkOf, confirmations }}
         />
       ) : null}
       {declared ? <p className={ui.hint}>{ALLERGEN_CHECK_NOTICE}</p> : null}
@@ -406,9 +415,9 @@ function HiddenBySafety({
 }: {
   contains: readonly HiddenRecipe[];
   uncertain: readonly HiddenRecipe[];
-  criteria: { allergens: string[]; excludedFoods: string[]; linkOf: ListFilters["linkOf"] };
+  criteria: { allergens: string[]; excludedFoods: string[]; linkOf: ListFilters["linkOf"]; confirmations: ListFilters["confirmations"] };
 }) {
-  const safetyCriteria = { allergens: criteria.allergens, excludedFoods: criteria.excludedFoods, ...(criteria.linkOf ? { linkOf: criteria.linkOf } : {}) };
+  const safetyCriteria = { allergens: criteria.allergens, excludedFoods: criteria.excludedFoods, ...(criteria.linkOf ? { linkOf: criteria.linkOf } : {}), ...(criteria.confirmations ? { confirmations: criteria.confirmations } : {}) };
   const group = (title: string, items: readonly HiddenRecipe[], pick: "contains" | "uncertain", tail?: string) =>
     items.length === 0 ? null : (
       <div className={ui.field}>

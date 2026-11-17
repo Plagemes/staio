@@ -1,0 +1,65 @@
+/* Schermata di sincronizzazione: solo variabili di tema, il resto viene da ui.module.css */
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-3) var(--space-7);
+  margin: 0;
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+}
+
+.facts dt {
+  color: var(--color-graphite);
+}
+
+.facts dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.inline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  width: 100%;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-6) 0;
+  border-bottom: var(--rule-width) solid var(--color-rule);
+  min-width: 0;
+}
+
+.details summary {
+  min-height: var(--tap-min);
+  display: flex;
+  align-items: center;
+  font-size: var(--text-body-sm);
+  cursor: pointer;
+}
+
+.raw {
+  max-height: 240px;
+  margin: 0;
+  padding: var(--space-5);
+  overflow: auto;
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-size: var(--text-caption);
+  white-space: pre-wrap;
+  word-break: break-all;
+}

@@ -1,20 +1,23 @@
 .grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  border-top: var(--rule-width) solid var(--color-rule-strong);
-  border-bottom: var(--rule-width) solid var(--color-rule);
+  gap: var(--figure-gap);
+  border-top: var(--figure-grid-rule) solid var(--color-rule-strong);
+  border-bottom: var(--figure-grid-rule) solid var(--color-rule);
 }
 
 .grid > .figure + .figure {
-  padding-left: var(--space-7);
-  border-left: var(--rule-width) solid var(--color-rule);
+  padding-left: var(--figure-follow-pad);
+  border-left: var(--figure-divider) solid var(--color-rule);
 }
 
 .figure {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding-block: var(--space-6);
+  padding: var(--space-6) var(--figure-pad-x);
+  border-radius: var(--figure-radius);
+  background: var(--figure-fill);
   min-width: 0;
 }
 

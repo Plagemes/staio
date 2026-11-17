@@ -1,18 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { MEAL_KINDS, type MealKind } from "@/core/diary";
 import { resolveReferences } from "@/core/nutrition";
 import { dayTypeOf, type PlanState } from "@/core/plan";
-import { ALLERGEN_CHECK_NOTICE } from "@/core/allergens";
+import { ALLERGEN_CHECK_NOTICE, allergenLabels, confirmationLapse } from "@/core/allergens";
 import { ALLERGEN_STEMS } from "@/core/recipes";
-import { usePlan } from "@/data";
+import { getDeviceId, usePlan } from "@/data";
 import { Button, Label, SectionHeader } from "@/design";
 import { MEAL_KIND_LABELS } from "../meals";
 import { NUTRIENT_INFO } from "../nutrition/labels";
 import { toEngineProfile } from "../nutrition/profile";
 import { useNutritionProfile, useReferences } from "../nutrition/useNutrition";
+import { useRecipePrefs } from "../recipes/prefs";
+import { confirmedText, unionDeclared } from "../recipes/safety";
+import { CONFIRMATION_NOTICE } from "../recipes/SafetyPanel";
+import { useConfirmationActions, useConfirmations } from "../recipes/useConfirmations";
 import { LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
@@ -45,6 +49,7 @@ export function Goals() {
       </p>
       <TargetsSection plan={plan.data} today={dayOf(now)} />
       <StructureSection key={plan.data.structure?.eventId ?? "none"} plan={plan.data} />
+      <ConfirmationsSection plan={plan.data} />
       <Link href="/app/piano/verifica" className={ui.textLink}>
         Vai alla verifica del piano
       </Link>
@@ -334,6 +339,90 @@ function StructureSection({ plan }: { plan: PlanState }) {
         ) : null}
         <Button type="submit">Salva la struttura</Button>
       </form>
+    </section>
+  );
+}
+
+/** Un'etichetta breve per riconoscere un dispositivo: le prime cifre del suo identificativo. */
+const shortDevice = (id: string): string => id.slice(0, 6);
+
+/**
+ * Gli ingredienti che hai confermato («ho letto l'etichetta, per me va bene»), con la data e gli allergeni coperti, e il
+ * modo di revocare ogni conferma. Una conferma copre solo ciò che era dichiarato quando l'hai data.
+ */
+function ConfirmationsSection({ plan }: { plan: PlanState }) {
+  const ids = useId();
+  const { state } = useConfirmations();
+  const actions = useConfirmationActions();
+  const { prefs, ready } = useRecipePrefs();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [thisDevice, setThisDevice] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    let alive = true;
+    getDeviceId().then(
+      (id) => alive && setThisDevice(id),
+      () => undefined,
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const declared = useMemo(
+    () => ({
+      allergens: unionDeclared(prefs.allergens, plan.structure?.allergens ?? []),
+      excludedFoods: unionDeclared(prefs.excludedFoods, plan.structure?.excludedFoods ?? []),
+    }),
+    [prefs.allergens, prefs.excludedFoods, plan.structure],
+  );
+  const labels = useMemo(() => allergenLabels(declared.allergens), [declared.allergens]);
+
+  async function revoke(key: string, name: string) {
+    setBusy(key);
+    setError(null);
+    const failed = await actions.revoke(key, name);
+    setBusy(null);
+    if (failed) setError(failed);
+  }
+
+  return (
+    <section className={ui.section} aria-labelledby={`${ids}-h`}>
+      <div id={`${ids}-h`}>
+        <SectionHeader label="Ingredienti che hai confermato" />
+      </div>
+      {!state || !ready ? (
+        <LoadingLine />
+      ) : state.active.length === 0 ? (
+        <p className={ui.paragraph}>
+          Non hai confermato nessun ingrediente. Quando un ingrediente è «non verificabile», dalla scheda della ricetta puoi confermarlo, un ingrediente alla volta, dopo aver letto l&apos;etichetta.
+        </p>
+      ) : (
+        <ul className={styles.rows}>
+          {state.active.map((c) => {
+            const lapse = confirmationLapse(c, labels, declared.excludedFoods);
+            return (
+              <li key={c.key} className={styles.row}>
+                <strong>«{c.ingredient}»</strong>: {confirmedText(c.confirmedAt)}, per {c.allergens.join(", ")}.{" "}
+                {thisDevice === undefined ? null : c.deviceId === thisDevice ? "Data su questo dispositivo." : `Data su un altro dispositivo (${shortDevice(c.deviceId)}).`}
+                {lapse.excludedFoods.length > 0 ? (
+                  <> Hai escluso dopo {lapse.excludedFoods.join(", ")}: la conferma non vale finché non la dai di nuovo.</>
+                ) : lapse.allergens.length > 0 ? (
+                  <> Non copre {lapse.allergens.join(", ")}, che hai dichiarato dopo: per quello l&apos;ingrediente torna da verificare.</>
+                ) : null}{" "}
+                <Button variant="text" disabled={busy !== null} onClick={() => void revoke(c.key, c.ingredient)}>
+                  Revoca la conferma di «{c.ingredient}»
+                </Button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {error ? (
+        <p className={ui.error} role="alert">
+          {error}
+        </p>
+      ) : null}
+      <p className={ui.hint}>{CONFIRMATION_NOTICE}</p>
     </section>
   );
 }

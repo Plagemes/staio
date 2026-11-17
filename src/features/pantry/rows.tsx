@@ -3,11 +3,13 @@ import { ExpiryTag, Value } from "@/design";
 import { dayOf, relativeDay } from "../format";
 import { LOCATION_LABELS } from "../labels";
 import { expiryTagView, type PantryEntry } from "../lots";
+import { piecesText } from "../pieces";
 import styles from "./rows.module.css";
 
 /** Riga di dettaglio: luogo, apertura e quantità rimasta. */
-export function entryDetail(entry: PantryEntry, today: string) {
+export function entryDetail(entry: PantryEntry, today: string, group: readonly PantryEntry[] = [entry]) {
   const { lot } = entry;
+  const pieces = piecesText(group.map((g) => g.lot));
   const remaining = formatQuantity({ value: lot.remaining, unit: lot.unit });
   const quantity =
     lot.remaining < lot.initial ? `${remaining} di ${formatQuantity({ value: lot.initial, unit: lot.unit })}` : remaining;
@@ -17,6 +19,7 @@ export function entryDetail(entry: PantryEntry, today: string) {
       {lot.openedAt ? ` · aperto ${relativeDay(dayOf(lot.openedAt), today)}` : ""}
       {" · "}
       <Value certainty={lot.remainingCertainty === "estimated" ? "estimated" : "measured"}>{quantity}</Value>
+      {pieces ? ` · ${pieces}` : ""}
     </>
   );
 }

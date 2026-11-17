@@ -3,6 +3,9 @@ import { derivePantry, type LedgerEvent, type Lot } from "@/core/ledger";
 import {
   buildConsume,
   buildConsumeMany,
+  buildEditMany,
+  buildForLots,
+  buildMove,
   buildSetExpiry,
   buildDiscard,
   buildEdit,
@@ -425,5 +428,34 @@ describe("confezioni uguali: consumo e cambio data", () => {
     expect(after.filter((l) => l.expiry?.date === "2026-12-01")).toHaveLength(1);
     expect(after.filter((l) => l.expiry?.date === "2026-11-20")).toHaveLength(1);
     expect(buildSetExpiry([lots[0]], { date: "2026-02-31", kind: "use_by" }, events, [], ctx()).ok).toBe(false);
+  });
+});
+
+describe("azioni su più confezioni uguali", () => {
+  const pair = () => {
+    const a = setup({ expiryDate: "2026-11-20" });
+    const b = setup({ expiryDate: "2026-11-28" });
+    const events = [...a.events, ...b.events];
+    return { events, lots: derivePantry(events).lots };
+  };
+
+  it("sposta tutte, o nessuna se una fallisce", () => {
+    const { lots } = pair();
+    const ok = buildForLots(lots, (l) => buildMove(l, "freezer", ctx()), (n) => `Spostate ${n}`);
+    if (!ok.ok) throw new Error(ok.error);
+    expect(ok.events).toHaveLength(2);
+    const bad = buildForLots(lots, (l) => buildMove(l, "frigo", ctx()), () => "x");
+    expect(bad.ok).toBe(false);
+  });
+
+  it("modifica il nome di tutte senza toccare le date diverse", () => {
+    const { events, lots } = pair();
+    const targets = lots.map((lot) => ({ lot, creation: findCreationEvent(events, lot.lotId, [])! }));
+    const r = buildEditMany(targets, lots[0], { ...formFromLot(lots[0]), name: "Latte magro" }, ctx());
+    if (!r.ok) throw new Error(r.error);
+    const after = derivePantry([...events, ...r.events]).lots;
+    expect(after.every((l) => l.productRef === "Latte magro")).toBe(true);
+    expect(after.map((l) => l.expiry?.date).sort()).toEqual(["2026-11-20", "2026-11-28"]);
+    expect(buildEditMany(targets, lots[0], formFromLot(lots[0]), ctx()).ok).toBe(false);
   });
 });

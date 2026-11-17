@@ -1,7 +1,8 @@
 "use client";
 
 // Il controllo di allergeni ed esclusioni per una ricetta aperta, con ciò che l'utente ha dichiarato nel ricettario e nel
-// piano e con la dispensa e i prodotti salvati. Serve alla modalità cucina; la scheda fa lo stesso conto.
+// piano, con la dispensa e i prodotti salvati e con le conferme dell'utente sugli ingredienti non verificabili. Serve alla
+// modalità cucina e alla scheda.
 import { useMemo } from "react";
 import { activeLots } from "@/core/ledger";
 import type { Recipe } from "@/core/recipes";
@@ -9,6 +10,7 @@ import { usePantry, usePlan } from "@/data";
 import { useProducts } from "../nutrition/useNutrition";
 import { makeLinkOf, pantryFoods } from "./allergenLinks";
 import { useRecipePrefs } from "./prefs";
+import { useConfirmations } from "./useConfirmations";
 import { hasDeclared, ingredientFlags, recipeSafety, unionDeclared, type IngredientFlag, type RecipeSafety } from "./safety";
 
 export type RecipeSafetyState =
@@ -21,12 +23,13 @@ export type RecipeSafetyState =
       flags: Map<number, IngredientFlag>;
     };
 
-/** `loading` finché dispensa, prodotti, piano e preferenze non sono letti: mai un «nessuna corrispondenza» senza etichette. */
+/** `loading` finché dispensa, prodotti, piano, preferenze e conferme non sono letti: mai un «nessuna corrispondenza» senza etichette. */
 export function useRecipeSafety(recipe: Recipe): RecipeSafetyState {
   const pantry = usePantry();
   const plan = usePlan();
   const products = useProducts();
   const { prefs, ready } = useRecipePrefs();
+  const { byKey: confirmations } = useConfirmations();
   const planAllergens = plan.data?.structure?.allergens;
   const planExcluded = plan.data?.structure?.excludedFoods;
   const declared = useMemo(
@@ -36,12 +39,12 @@ export function useRecipeSafety(recipe: Recipe): RecipeSafetyState {
     }),
     [prefs.allergens, prefs.excludedFoods, planAllergens, planExcluded],
   );
-  const loaded = ready && plan.data !== undefined && pantry.data !== undefined && products !== undefined;
+  const loaded = ready && plan.data !== undefined && pantry.data !== undefined && products !== undefined && confirmations !== undefined;
   return useMemo<RecipeSafetyState>(() => {
     if (loaded && !hasDeclared(declared)) return { status: "none" };
     if (!loaded || !pantry.data) return { status: "loading" };
     const linkOf = makeLinkOf(pantryFoods(activeLots(pantry.data), products));
-    const criteria = { ...declared, linkOf };
+    const criteria = { ...declared, linkOf, ...(confirmations ? { confirmations } : {}) };
     return { status: "ready", declared, safety: recipeSafety(recipe, criteria), flags: ingredientFlags(recipe, criteria) };
-  }, [loaded, declared, recipe, pantry.data, products]);
+  }, [loaded, declared, recipe, pantry.data, products, confirmations]);
 }

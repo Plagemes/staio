@@ -79,6 +79,9 @@ export interface DrinkPreset {
   ml: number;
   caffeineMg?: number;
   alcoholG?: number;
+  /** Energia e zuccheri tipici: valori medi, non misure. */
+  energyKcal?: number;
+  sugarsG?: number;
   /** Come si legge il valore, per non farlo passare per misura. */
   basis: string;
 }
@@ -90,12 +93,12 @@ export function alcoholGrams(ml: number, abvPercent: number): number {
 
 /** Valori tipici, non misure: si scrivono sempre come stime. */
 export const DRINK_PRESETS: readonly DrinkPreset[] = [
-  { id: "espresso", name: "Caffè espresso", ml: 30, caffeineMg: 63, basis: "valore tipico" },
-  { id: "tea", name: "Tè", ml: 200, caffeineMg: 40, basis: "valore tipico" },
-  { id: "cola", name: "Cola", ml: 330, caffeineMg: 32, basis: "valore tipico" },
-  { id: "beer", name: "Birra", ml: 330, alcoholG: alcoholGrams(330, 5), basis: "5% vol" },
-  { id: "wine", name: "Vino", ml: 150, alcoholG: alcoholGrams(150, 12), basis: "12% vol" },
-  { id: "spirit", name: "Superalcolico", ml: 40, alcoholG: alcoholGrams(40, 40), basis: "40% vol" },
+  { id: "espresso", name: "Caffè espresso", ml: 30, caffeineMg: 63, energyKcal: 2, basis: "valore tipico, senza zucchero" },
+  { id: "tea", name: "Tè", ml: 200, caffeineMg: 40, energyKcal: 1, basis: "valore tipico, senza zucchero" },
+  { id: "cola", name: "Cola", ml: 330, caffeineMg: 32, energyKcal: 139, sugarsG: 35, basis: "valore tipico" },
+  { id: "beer", name: "Birra", ml: 330, alcoholG: alcoholGrams(330, 5), energyKcal: 140, basis: "5% vol" },
+  { id: "wine", name: "Vino", ml: 150, alcoholG: alcoholGrams(150, 12), energyKcal: 125, basis: "12% vol" },
+  { id: "spirit", name: "Superalcolico", ml: 40, alcoholG: alcoholGrams(40, 40), energyKcal: 90, basis: "40% vol" },
 ];
 
 /** Nomi degli integratori presi di recente, dal più frequente: per l'aggiunta con un tocco. */

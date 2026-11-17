@@ -1,11 +1,14 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { quantityText, type Product } from "@/core/catalog";
 import { Button, Label } from "@/design";
 import { ProductNutrients } from "../nutrition/Per100";
 import ui from "../ui.module.css";
-import { Scanner } from "./Scanner";
+import { qualityHref } from "../quality/links";
+import { translatePackaging } from "./packaging";
+import { Scanner, type ScanInfo } from "./Scanner";
 import { captureHrefForCode } from "./links";
 import { AddToPantry } from "./AddToPantry";
 import { lookupProduct, type LookupOutcome } from "./lookup";
@@ -16,7 +19,7 @@ import styles from "./BarcodeCapture.module.css";
 type View =
   | { kind: "input" }
   | { kind: "searching"; code: string }
-  | { kind: "found"; product: Product; from: "memory" | "service" }
+  | { kind: "found"; product: Product; from: "memory" | "service"; scanned?: ScanInfo }
   | { kind: "not_found"; code: string }
   | { kind: "failed"; code: string; reason: LookupFailure };
 
@@ -26,14 +29,14 @@ export function BarcodeCapture() {
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  async function search(code: string) {
+  async function search(code: string, info?: ScanInfo) {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
     setView({ kind: "searching", code });
     const outcome: LookupOutcome = await lookupProduct(code, { signal: controller.signal });
     if (controller.signal.aborted) return;
-    if (outcome.status === "found") setView({ kind: "found", product: outcome.product, from: outcome.from });
+    if (outcome.status === "found") setView({ kind: "found", product: outcome.product, from: outcome.from, scanned: info });
     else if (outcome.status === "not_found") setView({ kind: "not_found", code });
     else setView({ kind: "failed", code, reason: outcome.reason });
   }
@@ -53,7 +56,7 @@ export function BarcodeCapture() {
       {view.kind === "input" ? (
         <>
           <p className={ui.lead}>Leggi il codice sulla confezione e cerco il prodotto, così non devi scrivere nome e quantità.</p>
-          <Scanner onCode={(code) => void search(code)} />
+          <Scanner onCode={(code, info) => void search(code, info)} />
           <p className={ui.hint}>
             Riservatezza: il codice letto viene inviato a Open Food Facts per cercare il prodotto. Non parte nient&apos;altro:
             gli alimenti che registri restano sul telefono.
@@ -67,7 +70,7 @@ export function BarcodeCapture() {
         </p>
       ) : null}
 
-      {view.kind === "found" ? <ProductCard product={view.product} from={view.from} onAgain={reset} /> : null}
+      {view.kind === "found" ? <ProductCard product={view.product} from={view.from} scanned={view.scanned} onAgain={reset} /> : null}
 
       {view.kind === "not_found" ? (
         <div className={ui.empty}>
@@ -103,9 +106,20 @@ export function BarcodeCapture() {
   );
 }
 
-function ProductCard({ product, from, onAgain }: { product: Product; from: "memory" | "service"; onAgain: () => void }) {
+function ProductCard({
+  product,
+  from,
+  scanned,
+  onAgain,
+}: {
+  product: Product;
+  from: "memory" | "service";
+  scanned?: ScanInfo;
+  onAgain: () => void;
+}) {
   const [imageFailed, setImageFailed] = useState(false);
   const quantity = product.quantity?.text ?? quantityText(product.quantity);
+  const packaging = translatePackaging(product.packaging);
 
   return (
     <article className={styles.card} aria-label="Scheda del prodotto">
@@ -136,12 +150,12 @@ function ProductCard({ product, from, onAgain }: { product: Product; from: "memo
           </dt>
           <dd>{quantity ?? "Non indicata"}</dd>
         </div>
-        {product.packaging ? (
+        {packaging.length > 0 ? (
           <div className={styles.fact}>
             <dt>
               <Label>Confezione</Label>
             </dt>
-            <dd>{product.packaging.join(", ")}</dd>
+            <dd>{packaging.join(", ")}</dd>
           </div>
         ) : null}
         {product.allergens ? (
@@ -152,27 +166,33 @@ function ProductCard({ product, from, onAgain }: { product: Product; from: "memo
             <dd>{product.allergens.map(allergenLabel).join(", ")}</dd>
           </div>
         ) : null}
-        {product.nutriScore || product.nova ? (
-          <div className={styles.fact}>
-            <dt>
-              <Label>Indici</Label>
-            </dt>
-            <dd>
-              {[
-                product.nutriScore ? `Nutri-Score ${product.nutriScore.toUpperCase()}` : null,
-                product.nova ? `NOVA ${product.nova} (${NOVA_LABELS[product.nova]})` : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </dd>
-          </div>
-        ) : null}
+        <div className={styles.fact}>
+          <dt>
+            <Label>{product.nutriScore || product.nova ? "Indici" : "Qualità"}</Label>
+          </dt>
+          <dd>
+            {product.nutriScore || product.nova ? (
+              <>
+                {[
+                  product.nutriScore ? `Nutri-Score ${product.nutriScore.toUpperCase()}` : null,
+                  product.nova ? `NOVA ${product.nova} (${NOVA_LABELS[product.nova]})` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+                <br />
+              </>
+            ) : null}
+            <Link href={qualityHref(product.barcode)} className={ui.textLink}>
+              Vedi la qualità del prodotto
+            </Link>
+          </dd>
+        </div>
         {product.additives ? (
           <div className={styles.fact}>
             <dt>
               <Label>Additivi</Label>
             </dt>
-            <dd>{product.additives.join(", ")}</dd>
+            <dd>{product.additives.length > 0 ? product.additives.join(", ") : "Nessuno dichiarato"}</dd>
           </div>
         ) : null}
       </dl>
@@ -189,7 +209,7 @@ function ProductCard({ product, from, onAgain }: { product: Product; from: "memo
         sulla confezione.
       </p>
 
-      <AddToPantry product={product} onAgain={onAgain} />
+      <AddToPantry product={product} scannedExpiry={scanned?.expiry} onAgain={onAgain} />
     </article>
   );
 }

@@ -24,15 +24,17 @@ interface LotSheetProps {
   creation: PurchaseEvent | DeclareEvent | undefined;
   /** Confezioni uguali raggruppate in Dispensa: si agisce su una alla volta, per prima quella che scade prima. */
   group?: readonly PantryEntry[];
+  /** Quale confezione del gruppo mostrare per prima; di norma la più vicina a scadere. */
+  initialLotId?: string;
   now: string;
   onClose: () => void;
 }
 
-export function LotSheet({ entry: initialEntry, creation: givenCreation, group, now, onClose }: LotSheetProps) {
+export function LotSheet({ entry: initialEntry, creation: givenCreation, group, initialLotId, now, onClose }: LotSheetProps) {
   const log = useEventLog();
   const pantry = usePantry();
   const members = useMemo(() => (group && group.length > 1 ? byNearestExpiry(group) : []), [group]);
-  const [chosenId, setChosenId] = useState<string | null>(null);
+  const [chosenId, setChosenId] = useState<string | null>(initialLotId ?? null);
   const entry = members.find((m) => m.lot.lotId === chosenId) ?? members[0] ?? initialEntry;
   const creation = group
     ? log.data && pantry.data

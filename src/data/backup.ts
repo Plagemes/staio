@@ -1,3 +1,4 @@
+import { isConfirmationEvent, validateConfirmationEvent } from "@/core/allergens";
 import type { AnyEvent } from "@/core/events";
 import { getDb } from "./db";
 import { getDeviceId } from "./deviceId";
@@ -15,7 +16,14 @@ export interface Backup {
 }
 
 export type ImportBackupResult =
-  | ({ ok: true } & ImportResult)
+  | ({
+      ok: true;
+      /**
+       * Quante conferme di allergeni (date in precedenza, anche su un altro dispositivo) contiene la copia. Assente se zero.
+       * Il ripristino le porta dentro senza un gesto dell'utente: l'esito lo dice, perché le riguardi in «Obiettivi».
+       */
+      allergenConfirmations?: number;
+    } & ImportResult)
   | { ok: false; error: string };
 
 export async function exportBackup(): Promise<Backup> {
@@ -49,7 +57,12 @@ export async function importBackup(json: unknown): Promise<ImportBackupResult> {
   }
   if (b.version > BACKUP_VERSION) return { ok: false, error: "unsupported_version" };
   if (!Array.isArray(b.events)) return { ok: false, error: "invalid_events" };
-  return { ok: true, ...(await importEvents(b.events as AnyEvent[])) };
+  const events = b.events as AnyEvent[];
+  const confirmations = events.filter(
+    (e) => isConfirmationEvent(e) && e.action === "confirm" && validateConfirmationEvent(e).length === 0,
+  ).length;
+  const result = await importEvents(events);
+  return { ok: true, ...result, ...(confirmations > 0 ? { allergenConfirmations: confirmations } : {}) };
 }
 
 /** Cancella tutti i dati locali, identità del dispositivo compresa. */

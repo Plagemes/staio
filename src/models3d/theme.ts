@@ -1,5 +1,38 @@
-/** Lettura dei colori di tema dal CSS (solo browser). Non importa three. */
+/**
+ * Tema dei modelli 3D: stile di resa e colori, letti dal CSS (solo browser). È l'unico punto in cui si sceglie lo stile.
+ * Non importa three.
+ */
 import { FALLBACK_COLORS, type InkColors } from "./materials";
+
+/** `engraving`: tratti a inchiostro che seguono la forma. `color`: superfici piene nel colore dell'alimento. */
+export type RenderStyle = "engraving" | "color";
+
+/** Temi dell'app (`data-palette`) che si disegnano a colori. Tutti gli altri restano a incisione. */
+export const COLOR_PALETTES: readonly string[] = ["vivo"];
+
+export interface StyleSignals {
+  /** `data-model-style` più vicino: forza lo stile, per chi vuole restare a incisione (o a colori) sempre. */
+  override?: string | null;
+  /** `data-palette` del documento. */
+  palette?: string | null;
+  /** La pagina porta una propria tavolozza a inchiostro (`--ink`), come la vetrina: resta a incisione. */
+  ownInk?: boolean;
+}
+
+/** Scelta dello stile, pura: la prova è nei test. */
+export function chooseRenderStyle({ override, palette, ownInk }: StyleSignals): RenderStyle {
+  if (override === "engraving" || override === "color") return override;
+  if (ownInk) return "engraving";
+  return palette && COLOR_PALETTES.includes(palette) ? "color" : "engraving";
+}
+
+/** Stile di resa e colori come li vede `el`. Basta per ridisegnare tutto quando il tema cambia. */
+export interface ThemeSnapshot {
+  style: RenderStyle;
+  /** Tema scuro (scelto a mano o dal dispositivo). */
+  dark: boolean;
+  colors: InkColors;
+}
 
 let probeCanvas: HTMLCanvasElement | null = null;
 
@@ -39,6 +72,27 @@ export function readThemeColors(el: Element): InkColors {
     paper: resolve(el, "--paper", "--color-paper", FALLBACK_COLORS.paper),
     signal: resolve(el, "--signal", "--color-signal", FALLBACK_COLORS.signal),
   };
+}
+
+/** Lo stile di resa per `el`, ricavato dal tema attivo. */
+export function readRenderStyle(el: Element): RenderStyle {
+  return chooseRenderStyle({
+    override: el.closest("[data-model-style]")?.getAttribute("data-model-style"),
+    palette: document.documentElement.getAttribute("data-palette"),
+    ownInk: getComputedStyle(el).getPropertyValue("--ink").trim() !== "",
+  });
+}
+
+/** Chiaro o scuro: `data-theme` se la scelta è manuale, altrimenti la preferenza del dispositivo. */
+export function readIsDark(el: Element): boolean {
+  const mode = (el.closest("[data-theme]") ?? document.documentElement).getAttribute("data-theme");
+  if (mode === "dark") return true;
+  if (mode === "light") return false;
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches === true;
+}
+
+export function readTheme(el: Element): ThemeSnapshot {
+  return { style: readRenderStyle(el), dark: readIsDark(el), colors: readThemeColors(el) };
 }
 
 /** Chiama `onChange` quando cambia il tema (attributo data-theme, classe, preferenza di sistema). */

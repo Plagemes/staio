@@ -12,8 +12,34 @@ export {
   matchExclusion,
   uncertainAllergensInText,
 } from "./engine";
+export { confirmationKey, confirmationLapse, foldedExclusions, keyText } from "./confirmationKey";
+export type { ConfirmableItem, ConfirmationMap, ConfirmationRecord } from "./confirmationKey";
+export {
+  CONFIRMATION_EVENT_TYPES,
+  CONFIRMATION_LIMITS,
+  confirmIngredient,
+  confirmability,
+  deriveConfirmations,
+  isConfirmationEvent,
+  restoredConfirmationsNotice,
+  revokeConfirmation,
+  validateConfirmationEvent,
+} from "./confirmations";
+export type {
+  AllergenConfirmationEvent,
+  ConfirmationAnomaly,
+  ConfirmationAnomalyCode,
+  ConfirmationEventOptions,
+  ConfirmationRefusal,
+  ConfirmationsState,
+  DeclaredCriteria,
+} from "./confirmations";
 export type {
   AllergenOutcome,
+  ConfirmationOptions,
+  ConfirmedFinding,
+  ConfirmedHit,
+  RecipeCriteria,
   ExclusionOutcome,
   Finding,
   FindingOrigin,

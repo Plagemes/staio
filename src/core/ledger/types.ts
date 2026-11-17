@@ -93,6 +93,19 @@ export interface EventBase {
   replaces?: string;
 }
 
+/**
+ * Pezzi dentro una confezione («2 piadine da 100 g»). Sono un modo di leggere la quantità del lotto, non un'altra
+ * unità: la quantità resta in g o ml e, se `count × each` non la riproduce, vale la quantità.
+ */
+export interface Pieces {
+  /** Numero di pezzi nella confezione, intero. */
+  count: number;
+  /** Quantità di un pezzo, nell'unità del lotto. */
+  each: number;
+  /** Come si chiama il pezzo, se si ricava («piadina»); altrimenti «pezzo». */
+  name?: string;
+}
+
 export interface PurchaseEvent extends EventBase {
   type: "purchase";
   lotId: string;
@@ -103,6 +116,8 @@ export interface PurchaseEvent extends EventBase {
   /** Codice a barre del prodotto: solo cifre, da 8 a 14. */
   barcode?: string;
   quantity: Quantity;
+  /** Pezzi dentro la confezione, se dichiarati. */
+  pieces?: Pieces;
   /** Prezzo totale del lotto, in centesimi di euro. */
   priceCents?: number;
   store?: string;
@@ -119,6 +134,8 @@ export interface DeclareEvent extends EventBase {
   category?: string;
   barcode?: string;
   quantity: Quantity;
+  /** Pezzi dentro la confezione, se dichiarati. */
+  pieces?: Pieces;
   location: Location;
   expiry?: Expiry;
   receiptId?: string;

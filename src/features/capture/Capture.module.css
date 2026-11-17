@@ -46,3 +46,26 @@
   gap: var(--space-4);
   width: 100%;
 }
+/* Il campo data nativo: su Android in tema scuro deve seguire lo schema di colori dell'app e restare leggibile da vuoto. */
+.dateInput {
+  display: block;
+  min-width: 0;
+  color-scheme: inherit;
+  appearance: auto;
+  color: var(--color-ink);
+  background: var(--color-surface);
+  text-align: left;
+}
+
+.dateInput::-webkit-datetime-edit,
+.dateInput::-webkit-datetime-edit-fields-wrapper,
+.dateInput::-webkit-datetime-edit-day-field,
+.dateInput::-webkit-datetime-edit-month-field,
+.dateInput::-webkit-datetime-edit-year-field {
+  color: var(--color-ink);
+  opacity: 1;
+}
+
+.dateInput::-webkit-datetime-edit-text {
+  color: var(--color-graphite);
+}

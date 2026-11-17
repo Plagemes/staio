@@ -3,6 +3,7 @@
 import type { AdherenceWeek, ConstraintsResult, DayCheck, EntryResult, NutrientCheck, PlannedItem, TargetRange, UnverifiedItem } from "@/core/plan";
 import { formatNutrient, nutrientLabel } from "../nutrition/labels";
 import { missingPercentText } from "../nutrition/prepare";
+import { confirmedText } from "../recipes/safety";
 
 export function targetText(target: TargetRange, nutrient: NutrientCheck["nutrient"]): string {
   const f = (v: number) => formatNutrient(nutrient, v);
@@ -117,7 +118,8 @@ export function daySummaryText(view: DayCheckView): string {
 }
 
 export interface ConstraintLine {
-  kind: "violation" | "unverified";
+  /** `confirmed`: dubbio che l'utente ha confermato; non è un esito dell'app. */
+  kind: "violation" | "unverified" | "confirmed";
   date: string;
   text: string;
 }
@@ -135,6 +137,8 @@ function clauseOf(ingredient: string, e: Evidence | undefined): string {
   switch (e?.reason) {
     case "generic":
       return `${what} è un ingrediente generico o composto`;
+    case "mixed_script":
+      return `${what} ha lettere di alfabeti diversi: riscrivilo`;
     case "gluten_free_claim":
       return `${what} è dichiarato senza glutine, ma va verificato in etichetta`;
     case "typo":
@@ -207,7 +211,16 @@ export function constraintLines(result: ConstraintsResult, nameOfRef: (via: { ki
       text: `${nameOfRef(first.via as NonNullable<UnverifiedItem["via"]>)}: non so cosa contengono ${names}${group.length > 4 ? ` e altri ${group.length - 4}` : ""} (nomi non riconosciuti o ingredienti generici): potrebbero contenere ${joinTerms(terms)}. Controlla le etichette.`,
     });
   }
-  return out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.kind === b.kind ? 0 : a.kind === "violation" ? -1 : 1));
+  for (const c of result.confirmed ?? []) {
+    const via = c.via ? ` (da ${nameOfRef(c.via)})` : "";
+    out.push({
+      kind: "confirmed",
+      date: c.date,
+      text: `${c.item.name}${via}: ${confirmedText(c.confirmedAt)} per ${joinTerms(c.terms)}. Lo hai dichiarato tu: l'app non l'ha verificato.`,
+    });
+  }
+  const rank = { violation: 0, unverified: 1, confirmed: 2 } as const;
+  return out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : rank[a.kind] - rank[b.kind]));
 }
 
 /* ---------- pianificato contro reale ---------- */
@@ -247,7 +260,12 @@ export function adherenceView(week: AdherenceWeek, nameOf: (item: PlannedItem) =
           case "substituted":
             return { status: e.status, text: `${planned}: al suo posto hai mangiato ${names(e)}.` };
           case "skipped":
-            return { status: e.status, text: `${planned}: non c'è tra ciò che hai registrato.` };
+            return {
+              status: e.status,
+              text: e.declaredSkipped
+                ? `${planned}: pasto saltato, non fatto. Dalla dispensa non si è scalato niente.`
+                : `${planned}: non c'è tra ciò che hai registrato.`,
+            };
           case "unverifiable":
             return {
               status: e.status,

@@ -1,6 +1,6 @@
 export * from "./types";
 export { isDiaryEvent, validateDiaryEvent } from "./validate";
-export { addDays, dateRange, daysBetween, isValidTimeZone, localDate, localMoment } from "./calendar";
+export { addDays, dateRange, daysBetween, instantOfLocal, isValidTimeZone, localDate, localMoment } from "./calendar";
 export type { LocalMoment } from "./calendar";
 export { deriveDiary } from "./derive";
 export type {
@@ -12,6 +12,7 @@ export type {
   DiaryEntry,
   DiaryHabit,
   DiaryMeal,
+  DiaryMealDeclaration,
   DiaryMood,
   DiaryState,
   DiarySupplement,
@@ -20,9 +21,15 @@ export type {
   DiaryWeight,
 } from "./derive";
 export {
+  DRINK_ENERGY_THRESHOLD_KCAL,
   dayCoverage,
+  dayFluids,
+  drinkBreaksFast,
+  drinksByMoment,
   getDay,
   habitsToPropose,
+  mealMoments,
+  momentOfMinutes,
   trackingCoverage,
   waterByDay,
   weightMovingAverage,
@@ -33,7 +40,11 @@ export type {
   DateRangeOptions,
   DayCoverage,
   DayCoverageStatus,
+  DayFluids,
+  DrinksByMoment,
   HabitProposalOptions,
+  MealMoment,
+  MealMomentStatus,
   MovingAverageOptions,
   WaterDay,
   WeightAveragePoint,
@@ -44,6 +55,7 @@ export {
   createDrink,
   createHabit,
   createMeal,
+  createMealDeclaration,
   createMealFromHabit,
   createMood,
   createSupplement,

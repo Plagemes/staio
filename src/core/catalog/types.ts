@@ -31,6 +31,21 @@ export interface Nutrients {
 export type NovaGroup = 1 | 2 | 3 | 4;
 export type NutriScore = "a" | "b" | "c" | "d" | "e";
 
+/** Porzione dichiarata da Open Food Facts, nell'unità base. */
+export interface ServingSize {
+  value: number;
+  unit: BaseUnit;
+}
+
+/** Pezzi dentro la confezione ricavati da Open Food Facts: una proposta, mai un dato certo. */
+export interface PiecesHint {
+  count: number;
+  /** Quantità di un pezzo, nell'unità della confezione. */
+  each: number;
+  /** label = scritta «2 x 100 g»; packagings = imballaggi dichiarati; serving = la porzione divide la confezione. */
+  source: "label" | "packagings" | "serving";
+}
+
 export interface Product {
   /** Codice a barre così come è stato letto o digitato (solo cifre). */
   barcode: string;
@@ -48,6 +63,12 @@ export interface Product {
   allergens?: string[];
   /** Additivi nella forma "E330". */
   additives?: string[];
+  /** Porzione dichiarata. */
+  serving?: ServingSize;
+  /** Pezzi dentro la confezione, se si ricavano da quanto Open Food Facts dichiara. */
+  piecesHint?: PiecesHint;
+  /** Testo delle condizioni di conservazione, com'è scritto. */
+  storageText?: string;
   imageUrl?: string;
   /** Istante ISO 8601 UTC della lettura. */
   fetchedAt: string;

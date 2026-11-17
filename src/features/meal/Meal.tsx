@@ -3,22 +3,29 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useId, useMemo, useState, type FormEvent } from "react";
-import type { MealKind } from "@/core/diary";
+import { instantOfLocal, type MealKind } from "@/core/diary";
+import { isCalendarDate } from "@/core/ledger";
+import { DEFAULT_TIME_ZONE } from "@/core/expiry";
 import { activeLots } from "@/core/ledger";
 import { appendEvents, getDeviceId, usePantry } from "@/data";
 import { Button, Label } from "@/design";
-import type { AmountChoice } from "../actions";
 import { evaluateLots } from "../lots";
 import {
   MEAL_KIND_LABELS,
   MEAL_KIND_ORDER,
+  TYPICAL_MEAL_TIME,
+  amountChoiceOf,
   buildMealEvents,
   defaultHabitTitle,
+  minutesOfTime,
   suggestMealKind,
+  type AmountKey,
   type FreeItemInput,
   type MealErrors,
 } from "../meals";
 import { useNotice } from "../notice";
+import { pieceChoices } from "../pieces";
+import { dayOf, formatCalendarDate, relativeDay } from "../format";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
 import { FoodChoice } from "../nutrition/FoodChoice";
 import ui from "../ui.module.css";
@@ -30,7 +37,7 @@ import styles from "./Meal.module.css";
 
 type Amount = "all" | "half" | "quarter" | "text";
 interface Selection {
-  amount: Amount;
+  amount: AmountKey;
   text: string;
 }
 interface FreeRow extends FreeItemInput {
@@ -41,10 +48,6 @@ interface FreeRow extends FreeItemInput {
 
 const AMOUNT_LABELS: Record<Amount, string> = { all: "Tutto", half: "Metà", quarter: "Un quarto", text: "Scrivo io" };
 
-function toChoice(s: Selection): AmountChoice {
-  return s.amount === "text" ? { kind: "text", text: s.text } : { kind: s.amount };
-}
-
 export function Meal() {
   const pantry = usePantry();
   const now = useNow();
@@ -53,7 +56,14 @@ export function Meal() {
   const search = useSearchParams();
   const ids = useId();
 
-  const [kind, setKind] = useState<MealKind | null>(null);
+  // «Registra» da una riga di Oggi porta qui con il momento già scelto (?momento=lunch)
+  // «Registra» da un giorno passato di Oggi porta qui con il giorno (?giorno=2026-11-14) e il momento già scelti
+  const dayParam = search.get("giorno");
+  const [timeEdit, setTimeEdit] = useState<string | null>(null);
+  const [kind, setKind] = useState<MealKind | null>(() => {
+    const wanted = search.get("momento");
+    return MEAL_KIND_ORDER.find((k) => k === wanted) ?? null;
+  });
   const [selected, setSelected] = useState<Record<string, Selection>>(() => {
     const lotId = search.get("lotto");
     return lotId ? { [lotId]: { amount: "all", text: "" } } : {};
@@ -84,6 +94,9 @@ export function Meal() {
   }
 
   const effectiveKind = kind ?? suggestMealKind(now);
+  // Un giorno passato: l'ora del pasto è quella tipica del momento, modificabile. La dispensa si scala adesso.
+  const pastDate = dayParam !== null && isCalendarDate(dayParam) && dayParam < dayOf(now) ? dayParam : null;
+  const mealTime = timeEdit ?? TYPICAL_MEAL_TIME[effectiveKind];
   const effectiveHabitTitle = habitTitle ?? defaultHabitTitle(effectiveKind);
   const q = filter.trim().toLowerCase();
   const shown = entries.filter((e) => q === "" || e.lot.productRef.toLowerCase().includes(q) || selected[e.lot.lotId] !== undefined);
@@ -116,9 +129,18 @@ export function Meal() {
     if (saving) return;
     setSaving(true);
     try {
+      let mealAt: string | undefined;
+      if (pastDate !== null) {
+        const minutes = minutesOfTime(mealTime);
+        mealAt = minutes !== undefined ? instantOfLocal(pastDate, minutes, DEFAULT_TIME_ZONE) : undefined;
+        if (mealAt === undefined) {
+          setErrors({ picks: {}, free: {}, general: "Scrivi l'ora del pasto, per esempio 13:00." });
+          return;
+        }
+      }
       const picks = entries
         .filter((e) => selected[e.lot.lotId] !== undefined)
-        .map((e) => ({ lot: e.lot, choice: toChoice(selected[e.lot.lotId]) }));
+        .map((e) => ({ lot: e.lot, choice: amountChoiceOf(selected[e.lot.lotId].amount, selected[e.lot.lotId].text, e.lot) }));
       // le voci con alimenti in più stati non si aggiungono finché non si sceglie: il nome scritto non cambia
       const resolvedFree = resolveFreeItems(free, foodSearch ?? createFoodSearch(await loadFoods()));
       if (Object.keys(resolvedFree.errors).length > 0) {
@@ -132,7 +154,7 @@ export function Meal() {
           freeItems: resolvedFree.items,
           saveHabitAs: saveHabit ? effectiveHabitTitle : undefined,
         },
-        { now: new Date().toISOString(), deviceId: await getDeviceId() },
+        { now: new Date().toISOString(), deviceId: await getDeviceId(), ...(mealAt ? { mealAt } : {}) },
       );
       if (!result.ok) {
         setErrors(result.errors);
@@ -158,8 +180,14 @@ export function Meal() {
     <div className={ui.screen}>
       <div className={ui.head}>
         <h1 className={ui.title}>Registra pasto</h1>
-        <Label>{MEAL_KIND_LABELS[effectiveKind]}</Label>
+        <Label>{pastDate ? `${MEAL_KIND_LABELS[effectiveKind]} · ${formatCalendarDate(pastDate)}` : MEAL_KIND_LABELS[effectiveKind]}</Label>
       </div>
+      {pastDate ? (
+        <p className={ui.callout} role="status">
+          Stai registrando un pasto di {relativeDay(pastDate, dayOf(now))}: finisce in quel giorno, all&apos;ora che scrivi qui sotto. Gli alimenti presi
+          dalla dispensa si scalano adesso: la dispensa non torna indietro nel tempo.
+        </p>
+      ) : null}
 
       <div className={ui.row}>
         <Button href="/app/pasto/frase" variant="outline">
@@ -181,8 +209,27 @@ export function Meal() {
               </label>
             ))}
           </div>
-          {kind === null ? <p className={ui.hint}>Proposto dall&apos;ora: cambialo se serve.</p> : null}
+          {kind === null && pastDate === null ? <p className={ui.hint}>Proposto dall&apos;ora: cambialo se serve.</p> : null}
         </fieldset>
+
+        {pastDate ? (
+          <div className={ui.field}>
+            <label className={ui.fieldLabel} htmlFor={`${ids}-time`}>
+              A che ora
+            </label>
+            <input
+              id={`${ids}-time`}
+              className={ui.input}
+              type="time"
+              value={mealTime}
+              onChange={(e) => setTimeEdit(e.target.value)}
+              aria-describedby={`${ids}-time-hint`}
+            />
+            <p className={ui.hint} id={`${ids}-time-hint`}>
+              L&apos;ora tipica del momento: cambiala se ricordi meglio.
+            </p>
+          </div>
+        ) : null}
 
         <section className={ui.field} aria-labelledby={`${ids}-pantry`}>
           <h2 className={ui.fieldLabel} id={`${ids}-pantry`}>
@@ -227,6 +274,18 @@ export function Meal() {
                       {sel ? (
                         <div className={styles.amounts}>
                           <div className={ui.choices} role="radiogroup" aria-label={`Quanto di ${lot.productRef}`}>
+                            {pieceChoices(lot).map((c) => (
+                              <label key={c.id} className={ui.choice}>
+                                <input
+                                  type="radio"
+                                  name={`${ids}-${lot.lotId}`}
+                                  value={`piece:${c.id}`}
+                                  checked={sel.amount === `piece:${c.id}`}
+                                  onChange={() => patch(lot.lotId, { amount: `piece:${c.id}` })}
+                                />
+                                <span>{c.short}</span>
+                              </label>
+                            ))}
                             {(Object.keys(AMOUNT_LABELS) as Amount[]).map((a) => (
                               <label key={a} className={ui.choice}>
                                 <input
@@ -251,6 +310,11 @@ export function Meal() {
                               aria-label={`Quantità di ${lot.productRef}`}
                               aria-invalid={err ? true : undefined}
                             />
+                          ) : sel.amount.startsWith("piece:") ? (
+                            <p className={ui.hint}>
+                              {pieceChoices(lot).find((c) => `piece:${c.id}` === sel.amount)?.label}
+                              {pieceChoices(lot).find((c) => `piece:${c.id}` === sel.amount)?.estimated ? ": mezzo pezzo è a occhio, vale come stima." : "."}
+                            </p>
                           ) : sel.amount !== "all" ? (
                             <p className={ui.hint}>Una frazione è a occhio: vale come stima.</p>
                           ) : null}

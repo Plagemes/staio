@@ -15,6 +15,7 @@ import {
   type Expiry,
   type LedgerEvent,
   type Location,
+  type Pieces,
   type PurchaseEvent,
   type Unit,
   type VoidEvent,
@@ -76,6 +77,8 @@ export interface Lot {
   category?: string;
   /** Codice a barre del prodotto (solo cifre, 8-14), se noto. */
   barcode?: string;
+  /** Pezzi dentro la confezione, se dichiarati alla creazione. */
+  pieces?: Pieces;
   origin: "purchase" | "declare";
   status: "active" | "finished";
   unit: Unit;
@@ -442,6 +445,7 @@ export function derivePantry(
       won.expiry = stamp;
     }
     if (!isBlank(e.receiptId)) lot.receiptId = e.receiptId;
+    if (origin.pieces) lot.pieces = { count: origin.pieces.count, each: origin.pieces.each, ...(origin.pieces.name ? { name: origin.pieces.name } : {}) };
     if (origin.type === "purchase") {
       if (origin.priceCents !== undefined) {
         lot.priceCents = origin.priceCents;

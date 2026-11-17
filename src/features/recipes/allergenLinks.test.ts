@@ -9,8 +9,8 @@ describe("alimenti di dispensa collegati", () => {
     const withBarcode = lots.map((l) => ({ ...l, barcode: "80000000" }));
     const product = { barcode: "80000000", name: "Burro Alpe", allergens: ["milk"], fetchedAt: "x", source: "openfoodfacts" } as Product;
     const foods = pantryFoods(withBarcode, new Map([["80000000", product]]));
-    expect(foods).toEqual([{ name: "Burro", productName: "Burro Alpe", allergens: ["milk"] }]);
-    expect(makeLinkOf(foods)({ name: "burro" })).toEqual({ names: ["Burro", "Burro Alpe"], allergens: ["milk"] });
+    expect(foods).toEqual([{ name: "Burro", productName: "Burro Alpe", barcode: "80000000", allergens: ["milk"] }]);
+    expect(makeLinkOf(foods)({ name: "burro" })).toEqual({ names: ["Burro", "Burro Alpe"], productRefs: ["80000000"], allergens: ["milk"] });
   });
 
   it("non collega ciò che non somiglia", () => {

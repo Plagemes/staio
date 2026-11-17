@@ -10,6 +10,7 @@ import { findCreationEvent } from "@/features/actions";
 import { dayOf } from "@/features/format";
 import { LOCATION_LABELS } from "@/features/labels";
 import { evaluateLots, isExpiring } from "@/features/lots";
+import { groupEntries } from "@/features/pantry/groups";
 import { LotSheet } from "@/features/pantry/LotSheet";
 import { entryDetail, entryExpiry } from "@/features/pantry/rows";
 import { EmptyState, LoadingLine, StorageError } from "@/features/shell/EmptyState";
@@ -64,6 +65,9 @@ export function Fridge() {
   const expiring = inPlace.filter(isExpiring).length;
   const selected = selectedId ? inPlace.find((e) => e.lot.lotId === selectedId) : undefined;
   const sheetEntry = sheetId ? entries.find((e) => e.lot.lotId === sheetId) : undefined;
+  const sheetGroup = sheetEntry
+    ? groupEntries(entries).find((g) => g.entries.length > 1 && g.entries.some((e) => e.lot.lotId === sheetEntry.lot.lotId))
+    : undefined;
   const creation =
     sheetEntry && log.data ? findCreationEvent(log.data, sheetEntry.lot.lotId, pantry.data.voidedEventIds) : undefined;
   const hiddenHere = hidden.filter((id) => inPlace.some((e) => e.lot.lotId === id)).length;
@@ -136,7 +140,15 @@ export function Fridge() {
       )}
 
       {sheetEntry ? (
-        <LotSheet key={sheetEntry.lot.lotId} entry={sheetEntry} creation={creation} now={now} onClose={() => setSheetId(null)} />
+        <LotSheet
+          key={sheetGroup ? sheetGroup.key : sheetEntry.lot.lotId}
+          entry={sheetGroup ? sheetGroup.entries[0] : sheetEntry}
+          creation={creation}
+          group={sheetGroup?.entries}
+          initialLotId={sheetEntry.lot.lotId}
+          now={now}
+          onClose={() => setSheetId(null)}
+        />
       ) : null}
     </div>
   );

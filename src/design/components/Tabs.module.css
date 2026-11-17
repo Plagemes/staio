@@ -1,24 +1,35 @@
+/* Registro: schede sottolineate. Vivo: selettore a segmenti (fondo pieno, voce scelta rialzata). */
 .list {
   display: flex;
-  gap: var(--space-10);
-  border-bottom: var(--rule-width) solid var(--color-rule);
+  gap: var(--tabs-gap);
+  padding: var(--tabs-pad);
+  border-bottom: var(--tabs-rule-width) solid var(--color-rule);
+  border-radius: var(--tabs-radius);
+  background: var(--tabs-fill);
 }
 
 .tab {
+  flex: var(--tab-grow) 1 auto;
   min-height: var(--tap-min);
-  padding: 0;
+  padding: 0 var(--tab-pad-x);
   border: none;
-  border-bottom: 2px solid transparent;
+  border-bottom: var(--tab-indicator) solid transparent;
+  border-radius: var(--tab-radius);
   background: none;
   font: inherit;
   font-size: var(--text-body-sm);
   font-weight: 500;
   color: var(--color-graphite);
   cursor: pointer;
+  transition:
+    background-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease;
 }
 
 .selected {
   border-bottom-color: var(--color-ink);
+  background: var(--tab-selected-fill);
+  box-shadow: var(--tab-selected-shadow);
   font-weight: 600;
   color: var(--color-ink);
 }

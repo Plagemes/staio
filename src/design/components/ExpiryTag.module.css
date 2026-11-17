@@ -1,11 +1,16 @@
+/* In Vivo diventa un'etichetta piena (--chip-*); il segno a sinistra resta: il colore non è mai l'unico indizio. */
 .tag {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  padding: var(--chip-pad-y) var(--chip-pad-x);
+  border-radius: var(--chip-radius);
+  background: color-mix(in srgb, var(--tag-tint) var(--chip-strength), transparent);
   font-family: var(--font-data);
   font-size: var(--text-caption);
   font-weight: 500;
   white-space: nowrap;
+  color: var(--tag-color);
 }
 
 .marker {
@@ -16,24 +21,27 @@
 }
 
 .urgent {
-  color: var(--color-signal);
+  --tag-color: var(--state-expired);
+  --tag-tint: var(--state-expired-tint);
 }
 
 .urgent .marker {
-  background: var(--color-signal);
+  background: var(--state-expired);
 }
 
 .near {
-  color: var(--color-ochre);
+  --tag-color: var(--state-near);
+  --tag-tint: var(--state-near-tint);
 }
 
 .near .marker {
-  border: 1.5px solid var(--color-ochre);
+  border: 1.5px solid var(--state-near);
 }
 
 .calm {
+  --tag-color: var(--state-ok);
+  --tag-tint: transparent;
   font-weight: 400;
-  color: var(--color-ink);
 }
 
 .estimated {

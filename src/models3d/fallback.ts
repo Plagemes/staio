@@ -4,6 +4,7 @@
  * poi categoria, poi forma generica.
  */
 import { getRecipe, listRecipes } from "./catalog";
+import { withCategoryColor } from "./colors";
 import { CATEGORIES, validateRecipe, type Category, type Recipe } from "./recipe";
 
 export type FallbackSource = "catalog" | "packaging" | "category" | "generic";
@@ -373,7 +374,7 @@ export function recipeForUnknown(product: UnknownProduct): FallbackResult {
 
   for (const attempt of attempts) {
     const found = attempt();
-    if (found && validateRecipe(found.recipe).ok) return found;
+    if (found && validateRecipe(found.recipe).ok) return found.source === "catalog" || !category ? found : { ...found, recipe: withCategoryColor(found.recipe, category) };
   }
   // il catalogo non contiene nemmeno la scatola generica: ricetta minima in linea
   const minimal: Recipe = {

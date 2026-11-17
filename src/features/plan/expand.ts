@@ -10,8 +10,11 @@ export interface ExpandSources {
   preps: readonly PrepRecord[];
 }
 
+/** Un ingrediente espanso con la sua nota: il piano non la usa per i conti, il controllo degli allergeni sì. */
+type NotedIngredient = ExpandedIngredient & { note?: string };
+
 export interface Expansion {
-  ingredients: ExpandedIngredient[];
+  ingredients: NotedIngredient[];
   /** Nomi degli ingredienti che non si sono potuti contare. */
   skipped: string[];
 }
@@ -39,6 +42,7 @@ export function expandRef(src: ExpandSources, ref: ItemRef, servings: number): E
       out.ingredients.push({
         name: ing.name,
         ...(ing.foodId ? { foodId: ing.foodId } : {}),
+        ...(ing.note ? { note: ing.note } : {}),
         quantity: { value: round(base.value.value), unit },
       });
     }
@@ -74,7 +78,7 @@ export function makeExpandForChecks(src: ExpandSources): ExpandRef {
     const named = new Set(counted.ingredients.map((i) => i.name));
     const left = (recipe?.ingredients ?? [])
       .filter((i) => counted.skipped.includes(i.name) && !named.has(i.name))
-      .map((i) => ({ name: i.name, ...(i.foodId ? { foodId: i.foodId } : {}), quantity: { value: 0, unit: "g" as const } }));
+      .map((i) => ({ name: i.name, ...(i.foodId ? { foodId: i.foodId } : {}), ...(i.note ? { note: i.note } : {}), quantity: { value: 0, unit: "g" as const } }));
     return [...counted.ingredients, ...left];
   };
 }

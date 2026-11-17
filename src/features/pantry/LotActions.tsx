@@ -6,10 +6,14 @@ import { formatQuantity } from "@/core/units";
 import { useEventLog, usePantry } from "@/data";
 import { Button, ExpiryTag } from "@/design";
 import {
+  findCreationEvent,
   buildConsume,
   buildConsumeMany,
   buildDiscard,
   buildEdit,
+  buildEditMany,
+  buildForLots,
+  buildRemoveMany,
   buildFinish,
   buildRemoveMistaken,
   buildSetExpiry,
@@ -23,6 +27,7 @@ import {
   type EditErrors,
   type EditForm,
   type EditResult,
+  type RemoveManyKind,
 } from "../actions";
 import {
   DISCARD_REASON_LABELS,
@@ -36,6 +41,7 @@ import {
 } from "../labels";
 import { addManualEntries } from "../shopping";
 import { entryDate } from "./groups";
+import { pieceChoices } from "../pieces";
 import { formatCalendarDate } from "../format";
 import { useNotice } from "../notice";
 import { expiryExplanation, expiryTagView, previewExpiryAfterMove, type PantryEntry } from "../lots";
@@ -68,6 +74,7 @@ export function LotActions({ entry, creation, group = [], now, busy, perform, er
   const notice = useNotice();
   const { lot } = entry;
   const grouped = group.length > 1;
+  const pieces = pieceChoices(lot);
 
   /** Rimette in lista la quantità con cui era entrato: si cambia poi nella lista. */
   async function addToList() {
@@ -89,7 +96,7 @@ export function LotActions({ entry, creation, group = [], now, busy, perform, er
           {grouped ? (
             <>
               <Button disabled={busy} onClick={() => void perform((ctx) => buildConsume(lot, { kind: "all" }, ctx))}>
-                Una mangiata
+                {pieces.length > 0 ? "Una confezione mangiata" : "Una mangiata"}
               </Button>
               <Button variant="outline" disabled={busy} onClick={() => void perform((ctx) => buildConsumeMany(group.map((g) => g.lot), ctx))}>
                 {`Tutte mangiate (${group.length})`}
@@ -99,7 +106,23 @@ export function LotActions({ entry, creation, group = [], now, busy, perform, er
               </Button>
             </>
           ) : null}
-          <Button variant={grouped ? "outline" : "primary"} onClick={() => setMode("eat")}>
+          {pieces.length > 0 ? (
+            <>
+              <Button disabled={busy} onClick={() => void perform((ctx) => buildConsume(lot, { kind: "value", value: pieces[0].quantity.value }, ctx))}>
+                Un pezzo mangiato
+              </Button>
+              {pieces.some((p) => p.id === "pieces-half") ? (
+                <Button
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => void perform((ctx) => buildConsume(lot, { kind: "value", value: pieces.find((p) => p.id === "pieces-half")!.quantity.value, estimated: true }, ctx))}
+                >
+                  Mezzo pezzo
+                </Button>
+              ) : null}
+            </>
+          ) : null}
+          <Button variant={grouped || pieces.length > 0 ? "outline" : "primary"} onClick={() => setMode("eat")}>
             {grouped ? "Mangiata in parte" : "Mangiato"}
           </Button>
           <Button variant="outline" href={`/app/pasto?lotto=${encodeURIComponent(lot.lotId)}`}>
@@ -132,13 +155,13 @@ export function LotActions({ entry, creation, group = [], now, busy, perform, er
         </div>
       ) : null}
 
-      {mode === "remove" ? <RemoveForm entry={entry} busy={busy} perform={perform} onBack={back} onDiscard={() => setMode("discard")} /> : null}
+      {mode === "remove" ? <RemoveForm entry={entry} group={group} busy={busy} perform={perform} onBack={back} onDiscard={() => setMode("discard")} /> : null}
       {mode === "eat" ? <AmountForm entry={entry} kind="eat" busy={busy} perform={perform} onBack={back} /> : null}
       {mode === "discard" ? <AmountForm entry={entry} kind="discard" busy={busy} perform={perform} onBack={back} /> : null}
       {mode === "dates" ? <DatesForm entry={entry} group={group} busy={busy} perform={perform} onBack={back} /> : null}
-      {mode === "move" ? <MoveForm entry={entry} now={now} busy={busy} perform={perform} onBack={back} /> : null}
+      {mode === "move" ? <MoveForm entry={entry} group={group} now={now} busy={busy} perform={perform} onBack={back} /> : null}
       {mode === "edit" && creation ? (
-        <EditFormView entry={entry} creation={creation} busy={busy} perform={perform} onBack={back} />
+        <EditFormView entry={entry} group={group} creation={creation} busy={busy} perform={perform} onBack={back} />
       ) : null}
 
       {error || listError ? (
@@ -152,10 +175,37 @@ export function LotActions({ entry, creation, group = [], now, busy, perform, er
 
 interface SubFormProps {
   entry: PantryEntry;
+  /** Le confezioni uguali del gruppo (almeno due), oppure vuoto. */
+  group?: readonly PantryEntry[];
   busy: boolean;
   perform: Perform;
   onBack: () => void;
 }
+
+type Scope = "one" | "all";
+
+/** Una confezione o tutte quelle del gruppo: compare solo con un gruppo. */
+function ScopePick({ count, value, onChange }: { count: number; value: Scope; onChange: (s: Scope) => void }) {
+  const ids = useId();
+  if (count < 2) return null;
+  return (
+    <fieldset className={ui.field}>
+      <legend className={ui.fieldLabel}>Vale per</legend>
+      <div className={ui.choices}>
+        <label className={ui.choice}>
+          <input type="radio" name={`${ids}-scope`} checked={value === "one"} onChange={() => onChange("one")} />
+          <span>Questa confezione</span>
+        </label>
+        <label className={ui.choice}>
+          <input type="radio" name={`${ids}-scope`} checked={value === "all"} onChange={() => onChange("all")} />
+          <span>{`Tutte le ${count} confezioni`}</span>
+        </label>
+      </div>
+    </fieldset>
+  );
+}
+
+const packsText = (n: number) => (n === 1 ? "1 confezione" : `${n} confezioni`);
 
 function AmountForm({ entry, kind, busy, perform, onBack }: SubFormProps & { kind: "eat" | "discard" }) {
   const { lot } = entry;
@@ -198,6 +248,21 @@ function AmountForm({ entry, kind, busy, perform, onBack }: SubFormProps & { kin
             ))}
           </div>
         </fieldset>
+      ) : null}
+
+      {pieceChoices(lot).length > 0 ? (
+        <div className={ui.row}>
+          {pieceChoices(lot).map((p) => (
+            <Button
+              key={p.id}
+              variant="outline"
+              disabled={busy}
+              onClick={() => void go({ kind: "value", value: p.quantity.value, estimated: p.estimated })}
+            >
+              {p.label}
+            </Button>
+          ))}
+        </div>
       ) : null}
 
       <div className={ui.row}>
@@ -246,8 +311,10 @@ function AmountForm({ entry, kind, busy, perform, onBack }: SubFormProps & { kin
   );
 }
 
-function MoveForm({ entry, now, busy, perform, onBack }: SubFormProps & { now: string }) {
+function MoveForm({ entry, group = [], now, busy, perform, onBack }: SubFormProps & { now: string }) {
   const { lot } = entry;
+  const [scope, setScope] = useState<Scope>("one");
+  const lots = scope === "all" ? group.map((g) => g.lot) : [lot];
   const ids = useId();
   const targets = LOCATION_ORDER.filter((l) => l !== lot.location);
   const [to, setTo] = useState<Location>(targets[0]);
@@ -258,6 +325,7 @@ function MoveForm({ entry, now, busy, perform, onBack }: SubFormProps & { now: s
   return (
     <div className={styles.form}>
       <h3 className={styles.formTitle}>Dove lo sposti?</h3>
+      <ScopePick count={group.length} value={scope} onChange={setScope} />
       <fieldset className={ui.field}>
         <legend className={ui.srOnly}>Nuovo luogo</legend>
         <div className={ui.choices}>
@@ -282,8 +350,22 @@ function MoveForm({ entry, now, busy, perform, onBack }: SubFormProps & { now: s
         </div>
       ) : null}
       <div className={ui.row}>
-        <Button disabled={busy} onClick={() => void perform((ctx) => buildMove(lot, to, ctx))}>
-          {`Sposta in ${LOCATION_LABELS[to].toLowerCase()}`}
+        <Button
+          disabled={busy}
+          onClick={() =>
+            void perform((ctx) =>
+              buildForLots(
+                lots,
+                (l) => buildMove(l, to, ctx),
+                (n, name) =>
+                  n === 1
+                    ? `Spostato in ${LOCATION_LABELS[to].toLowerCase()}: ${name}.`
+                    : `Spostate in ${LOCATION_LABELS[to].toLowerCase()}: ${n} confezioni di ${name}.`,
+              ),
+            )
+          }
+        >
+          {`Sposta in ${LOCATION_LABELS[to].toLowerCase()}${lots.length > 1 ? ` (${packsText(lots.length)})` : ""}`}
         </Button>
         <Button variant="text" onClick={onBack}>
           Indietro
@@ -295,6 +377,7 @@ function MoveForm({ entry, now, busy, perform, onBack }: SubFormProps & { now: s
 
 function EditFormView({
   entry,
+  group = [],
   creation,
   busy,
   perform,
@@ -302,6 +385,9 @@ function EditFormView({
 }: SubFormProps & { creation: PurchaseEvent | DeclareEvent }) {
   const { lot } = entry;
   const ids = useId();
+  const log = useEventLog();
+  const pantry = usePantry();
+  const [scope, setScope] = useState<Scope>("one");
   const [form, setForm] = useState<EditForm>(() => formFromLot(lot));
   const [errors, setErrors] = useState<EditErrors>({});
   const set = <K extends keyof EditForm>(key: K, value: EditForm[K]) => {
@@ -311,7 +397,14 @@ function EditFormView({
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
-    const failed = await perform((ctx) => buildEdit(creation, lot, form, ctx), true);
+    const failed = await perform((ctx) => {
+      if (scope === "one" || group.length < 2) return buildEdit(creation, lot, form, ctx);
+      const targets = group.flatMap((g) => {
+        const c = findCreationEvent(log.data ?? [], g.lot.lotId, pantry.data?.voidedEventIds ?? []);
+        return c ? [{ lot: g.lot, creation: c }] : [];
+      });
+      return buildEditMany(targets, lot, form, ctx);
+    }, true);
     if (failed && !failed.ok) setErrors("fields" in failed ? failed.fields : { form: failed.error });
   }
 
@@ -326,6 +419,8 @@ function EditFormView({
   return (
     <form className={styles.form} onSubmit={onSubmit} noValidate>
       <h3 className={styles.formTitle}>Modifica</h3>
+      <ScopePick count={group.length} value={scope} onChange={setScope} />
+      {scope === "all" ? <p className={ui.hint}>Cambio solo ciò che modifichi qui: le altre date restano come sono.</p> : null}
 
       <div className={ui.field}>
         <label className={ui.fieldLabel} htmlFor={`${ids}-name`}>
@@ -454,7 +549,7 @@ function EditFormView({
 
       <div className={ui.row}>
         <Button type="submit" disabled={busy}>
-          Salva modifiche
+          {scope === "all" ? `Salva modifiche (${packsText(group.length)})` : "Salva modifiche"}
         </Button>
         <Button variant="text" onClick={onBack}>
           Indietro
@@ -464,37 +559,68 @@ function EditFormView({
   );
 }
 
-function RemoveForm({ entry, busy, perform, onBack, onDiscard }: SubFormProps & { onDiscard: () => void }) {
+function RemoveForm({ entry, group = [], busy, perform, onBack, onDiscard }: SubFormProps & { onDiscard: () => void }) {
   const { lot } = entry;
   const log = useEventLog();
   const pantry = usePantry();
   const ready = log.data !== undefined && pantry.data !== undefined;
+  const [scope, setScope] = useState<Scope>("one");
+  const [pending, setPending] = useState<RemoveManyKind | null>(null);
+  const many = scope === "all" && group.length > 1;
+  const lots = many ? group.map((g) => g.lot) : [lot];
+
+  function run(kind: RemoveManyKind) {
+    void perform((ctx) =>
+      lots.length > 1
+        ? buildRemoveMany(lots, kind, log.data ?? [], pantry.data?.voidedEventIds ?? [], ctx)
+        : kind === "mistaken"
+          ? buildRemoveMistaken(lot, log.data ?? [], pantry.data?.voidedEventIds ?? [], ctx)
+          : buildFinish(lot, ctx),
+    );
+  }
+
+  if (pending) {
+    return (
+      <div className={styles.form}>
+        <h3 className={styles.formTitle}>{`Eliminare ${packsText(lots.length)}?`}</h3>
+        <p className={ui.hint}>
+          {pending === "mistaken"
+            ? "Le tolgo come se non le avessi mai aggiunte, senza contarle come acquisto, spreco o spesa. Si può annullare subito dopo."
+            : "Le segno finite, senza contarle come spreco. Si può annullare subito dopo."}
+        </p>
+        <div className={ui.row}>
+          <Button disabled={busy || !ready} onClick={() => run(pending)}>{`Elimina ${packsText(lots.length)}`}</Button>
+          <Button variant="text" disabled={busy} onClick={() => setPending(null)}>
+            Indietro
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const choose = (kind: RemoveManyKind) => (many ? setPending(kind) : run(kind));
 
   return (
     <div className={styles.form}>
       <h3 className={styles.formTitle}>Elimina dalla dispensa</h3>
+      <ScopePick count={group.length} value={scope} onChange={setScope} />
       <p className={ui.hint}>
         Inserito per sbaglio: lo tolgo come se non l&apos;avessi mai aggiunto, senza contarlo come acquisto, spreco o spesa. Si
         può annullare subito dopo.
       </p>
-      <Button
-        variant="outline"
-        disabled={busy || !ready}
-        onClick={() =>
-          void perform((ctx) => buildRemoveMistaken(lot, log.data ?? [], pantry.data?.voidedEventIds ?? [], ctx))
-        }
-      >
-        Inserito per sbaglio
+      <Button variant="outline" disabled={busy || !ready} onClick={() => choose("mistaken")}>
+        {many ? `Inserite per sbaglio (${packsText(lots.length)})` : "Inserito per sbaglio"}
       </Button>
       <p className={ui.hint}>Non c&apos;è più: finito, regalato o buttato.</p>
       <div className={ui.row}>
-        <Button variant="outline" disabled={busy} onClick={() => void perform((ctx) => buildFinish(lot, ctx))}>
-          Finito
+        <Button variant="outline" disabled={busy || !ready} onClick={() => choose("finished")}>
+          {many ? `Finite (${packsText(lots.length)})` : "Finito"}
         </Button>
-        <Button variant="outline" disabled={busy} onClick={onDiscard}>
+        <Button variant="outline" disabled={busy || many} onClick={onDiscard}>
           Buttato
         </Button>
       </div>
+      {many ? <p className={ui.hint}>Per segnare come buttato, scegli «Questa confezione»: si fa una alla volta.</p> : null}
       <Button variant="text" onClick={onBack}>
         Indietro
       </Button>

@@ -1,0 +1,78 @@
+/* Ricette da video: solo variabili di tema. */
+
+.block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-7);
+  padding-top: var(--space-7);
+}
+
+.block > * {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.received {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+  padding: var(--space-7) var(--space-8);
+  border: var(--rule-width) solid var(--color-rule);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.receivedTitle {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.mono {
+  font-family: var(--font-data);
+  font-size: var(--text-data);
+  overflow-wrap: anywhere;
+}
+
+.link {
+  color: var(--color-accent);
+  overflow-wrap: anywhere;
+}
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding-left: var(--space-10);
+  font-size: var(--text-caption);
+  line-height: 1.4;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 180px;
+  padding: var(--space-6) var(--space-7);
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.keyRow {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.keyRow > input {
+  flex: 1;
+  min-width: 0;
+}

@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Servizio di estrazione dei video: programma a parte, con le sue regole.
+    "worker/**",
   ]),
 ]);
 

@@ -608,3 +608,21 @@
   color: var(--color-graphite);
   font-weight: 600;
 }
+
+/* Ingrediente confermato dall'utente: distinto da «non verificabile» e da «contiene» */
+.safetyConfirmed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-7);
+  border: var(--rule-width) dashed var(--color-ochre);
+  border-radius: var(--radius-md);
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+}
+
+.flagConfirmed {
+  margin-left: var(--space-3);
+  color: var(--color-ochre);
+  font-weight: 600;
+}

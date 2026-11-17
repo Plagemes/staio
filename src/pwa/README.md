@@ -16,4 +16,10 @@ Il nuovo worker resta in attesa. L'interfaccia usa `useUpdateAvailable()` e `app
 Cambia `CACHE_VERSION` in `public/sw.js`: all'attivazione le cache `staio-*` vecchie vengono cancellate. Aggiorna anche `PRECACHE_PAGES` se nascono nuove pagine.
 
 ## Non coperto
-Prima visita senza rete; pagine `/app/...` dinamiche mai visitate; sezioni mai aperte oltre l'elenco noto (funzionano solo dopo una visita); risorse di altri domini; sincronizzazione in background; notifiche.
+Prima visita senza rete; pagine `/app/...` dinamiche mai visitate; sezioni mai aperte oltre l'elenco noto (funzionano solo dopo una visita); risorse di altri domini; notifiche push dal server (non esiste).
+
+## Avvisi senza server
+Il worker non calcola avvisi: li calcola l'app (`src/core/notify`) e mostra quelli dovuti all'apertura. Il worker aggiunge solo due gestori, senza toccare le strategie di cache:
+- `periodicsync` (etichetta `staio-daily-summary`, solo Chrome su Android con app installata): mostra il riepilogo che l'app ha salvato all'ultima apertura. Lo scarta se è scaduto, se è per un altro giorno, se il permesso manca, nelle ore di silenzio o oltre i limiti giornalieri.
+- `notificationclick`: porta in primo piano una finestra dell'app e apre il percorso indicato, solo se è sotto `/app` (altrimenti `/app`).
+Lo stato (preferenze, avvisi già mostrati, riepilogo) sta in un database IndexedDB a parte, `staio-notify`, letto sia dall'app (`src/features/notifications/store.ts`) sia dal worker. Se cambi nome, schema o chiavi, aggiorna entrambi: un test (`sw-notify.test.ts`) controlla il nome. Alzare `CACHE_VERSION` non serve per questi gestori.

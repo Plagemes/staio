@@ -4,16 +4,18 @@ import { validatePlanEvent, type PlanEvent } from "../plan";
 import { validatePrepEvent, type PrepEvent } from "../prep";
 import { validateRecipeEvent, type RecipeEvent } from "../recipes";
 import { validateExperimentEvent, type ExperimentEvent } from "../analysis";
+import { validateConfirmationEvent, type AllergenConfirmationEvent } from "../allergens";
 import { familyOf, type EventFamily } from "./families";
 
-/** Qualunque evento del registro: dispensa, diario, piano, preparazioni, ricettario, esperimenti o `void`. */
+/** Qualunque evento del registro: dispensa, diario, piano, preparazioni, ricettario, esperimenti, conferme degli allergeni o `void`. */
 export type AnyEvent =
   | LedgerEvent
   | DiaryEvent
   | PlanEvent
   | PrepEvent
   | RecipeEvent
-  | ExperimentEvent;
+  | ExperimentEvent
+  | AllergenConfirmationEvent;
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
@@ -25,6 +27,7 @@ const VALIDATORS: Record<EventFamily, (e: unknown) => ValidationError[]> = {
   prep: validatePrepEvent,
   recipes: validateRecipeEvent,
   experiments: validateExperimentEvent,
+  allergenConfirmations: validateConfirmationEvent,
 };
 
 /**

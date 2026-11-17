@@ -8,33 +8,37 @@
   font-size: var(--text-body-sm);
   text-decoration: none;
   cursor: pointer;
-  transition: opacity 120ms ease;
+  transition:
+    opacity var(--motion-fast) ease,
+    transform var(--motion-fast) ease;
 }
 
 .button:active {
-  opacity: 0.8;
+  opacity: var(--press-opacity);
+  transform: var(--press-transform);
 }
 
 .button:disabled {
   opacity: 0.45;
+  transform: none;
   cursor: not-allowed;
 }
 
 .primary {
   padding-inline: 20px;
   border: none;
-  border-radius: var(--radius-md);
-  background: var(--color-ink);
-  color: var(--color-on-ink);
+  border-radius: var(--radius-button);
+  background: var(--button-fill);
+  color: var(--button-text);
   font-weight: 600;
 }
 
 .outline {
   padding-inline: 20px;
-  border: var(--rule-width) solid var(--color-control-border);
-  border-radius: var(--radius-md);
-  background: none;
-  color: var(--color-ink);
+  border: var(--rule-width) solid var(--button-quiet-border);
+  border-radius: var(--radius-button);
+  background: var(--button-quiet-fill);
+  color: var(--button-quiet-text);
   font-weight: 500;
 }
 

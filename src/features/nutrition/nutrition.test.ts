@@ -7,6 +7,8 @@ import { REFERENCE_VALUES } from "@/core/nutrition/data/reference";
 import type { ReferenceWithVariant } from "@/core/nutrition";
 import { derivePantry, type Lot } from "@/core/ledger";
 import { buildCaptureEvents } from "../capture";
+import { buildDrink, inputOfPreset } from "../drinks";
+import { DRINK_PRESETS } from "../health";
 import { buildMealEvents, buildUntrackedMeal } from "../meals";
 import { createFoodSearch } from "./candidates";
 
@@ -152,6 +154,18 @@ describe("nutrienti del giorno", () => {
     expect(view.partialText).toMatch(/^Totale parziale:/);
     expect(view.partialText).toMatch(/non tracciati/);
     expect(view.partialText).toMatch(/mancano .*cena/);
+  });
+
+  it("solo bevande e nessun pasto: una riga breve al posto della scheda", () => {
+    const tea = buildDrink(inputOfPreset(DRINK_PRESETS.find((p) => p.id === "tea")!), { now: at("2026-11-10", 8), deviceId: "d" }).events;
+    const view = dayNutritionView(computeIntake(tea, resolverFor()).days[0], "2026-11-10");
+    expect(view.drinksOnlyText).toBe("Per ora solo bevande: ~1 kcal.");
+    // con un pasto la riga non c'è più
+    const withMeal = [...tea, ...free("2026-11-10", 8, "breakfast", [{ name: "Latte intero", quantityText: "200 ml" }])];
+    expect(dayNutritionView(computeIntake(withMeal, resolverFor()).days[0], "2026-11-10").drinksOnlyText).toBeUndefined();
+    // senza energia dichiarata resta la sola frase
+    const mystery = buildDrink({ name: "Infuso", ml: 200 }, { now: at("2026-11-10", 8), deviceId: "d" }).events;
+    expect(dayNutritionView(computeIntake(mystery, resolverFor()).days[0], "2026-11-10").drinksOnlyText).toBe("Per ora solo bevande.");
   });
 
   it("un giorno senza dati è vuoto, senza inventare zeri", () => {

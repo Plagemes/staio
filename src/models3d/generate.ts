@@ -15,6 +15,7 @@ import { buildFlorets } from "./archetypes/florets";
 import { buildSlice } from "./archetypes/slice";
 import type { BuildContext, PartRole, RawPart } from "./archetypes/types";
 import { smoothByPosition } from "./geometry";
+import { colorOfPart, NEUTRAL_GRAY, resolveRecipeColors } from "./colors";
 import { parseRecipe, type CompositeRecipe, type PlainRecipe, type Recipe } from "./recipe";
 import { createRng } from "./rng";
 
@@ -46,6 +47,8 @@ export interface ModelPart {
   cross: boolean;
   /** Disegnare nel colore segnale. */
   signal: boolean;
+  /** Colore naturale della parte (#rrggbb), usato solo dallo stile a colori. */
+  color: string;
   transform: PartTransform;
 }
 
@@ -211,7 +214,8 @@ function rawPartsOf(recipe: Recipe, seedKey: string, variationScale = 1): RawPar
       raw.push(...placeChild(parts, part, i));
     });
   } else {
-    raw = runArchetype(recipe, { rng, variation, details: recipe.details ?? {} });
+    const { colors } = resolveRecipeColors(recipe);
+    raw = runArchetype(recipe, { rng, variation, details: recipe.details ?? {} }).map((part) => ({ ...part, color: colorOfPart(colors, part) }));
   }
   const tiltM = new Matrix4().makeRotationZ(tilt);
   return raw.map((part) => ({ ...part, matrix: tiltM.clone().multiply(part.matrix) }));
@@ -279,6 +283,7 @@ export function buildModel(input: Recipe, seed: string | number = input.id, opti
       doubleSided: part.doubleSided === true,
       cross: part.cross !== false,
       signal: part.signal === true,
+      color: part.color ?? NEUTRAL_GRAY,
       transform,
     };
   });

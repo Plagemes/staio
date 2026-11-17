@@ -29,11 +29,11 @@ export function useAppearance(): { choice: ThemeChoice; ready: boolean } {
   };
 }
 
-/** Applica subito, aggiorna la copia sincrona per il prossimo avvio, poi salva in archivio. */
+/** Applica subito, aggiorna la copia sincrona per il prossimo avvio (con il segno di stile scelto), poi salva in archivio. */
 export async function chooseAppearance(patch: Partial<ThemeChoice>): Promise<void> {
   const next = { ...readStoredChoice(), ...patch };
   applyTheme(next);
-  writeStoredChoice(next);
+  writeStoredChoice(next, { chosen: true });
   if (patch.theme) await setSetting(THEME_SETTING_KEY, next.theme);
   if (patch.mode) await setSetting(MODE_SETTING_KEY, next.mode);
 }

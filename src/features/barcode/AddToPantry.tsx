@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import type { Product } from "@/core/catalog";
+import { locationFromStorage, type Product } from "@/core/catalog";
 import { addDays } from "@/core/expiry";
 import { activeLots, type LedgerEvent, type Location } from "@/core/ledger";
+import { formatQuantity } from "@/core/units";
 import { appendEvents, getDeviceId, getSetting, setSetting, usePantry } from "@/data";
 import { Button } from "@/design";
-import type { CaptureInput, FieldErrors } from "../capture";
+import { readQuantity, type CaptureInput, type FieldErrors } from "../capture";
 import { singleFlight, undoCapture, type SaveDeps } from "../capture/saveCapture";
 import { dayOf, formatCalendarDate } from "../format";
 import {
@@ -17,30 +18,29 @@ import {
   LOCATION_ORDER,
   type ChosenExpiryKind,
 } from "../labels";
-import { qualityHref } from "../quality/links";
 import { useNow } from "../useNow";
 import ui from "../ui.module.css";
 import { captureHref } from "./links";
 import {
-  MAX_PACKS,
   buildPackEvents,
   buildPackInputs,
+  packsSummary,
+  resolvePieces,
   checkPackGroups,
   clampPacks,
   defaultExpiryKind,
   draftFromProduct,
   estimatedExpiryDate,
-  groupsTotal,
   locationFor,
   missingFields,
   packsConfirmationText,
-  packsLabel,
   splitPackGroups,
   type DirectAnswers,
   type PackEventsResult,
   type PackGroup,
 } from "./directAdd";
 import { loadRemembered, rememberChoice, type ChoiceStore, type Remembered } from "./memory";
+import { PackCounter, PackGroupsEditor, PiecesField } from "../capture/PackControls";
 import styles from "./BarcodeCapture.module.css";
 
 const deps: SaveDeps = { appendEvents, getDeviceId, now: () => new Date().toISOString() };
@@ -58,40 +58,17 @@ interface Added {
   text: string;
 }
 
-function Stepper({
-  value,
-  min,
-  max,
-  onChange,
-  lessLabel,
-  moreLabel,
-  valueLabel,
-}: {
-  value: number;
-  min: number;
-  max: number;
-  onChange: (n: number) => void;
-  lessLabel: string;
-  moreLabel: string;
-  valueLabel?: string;
-}) {
-  return (
-    <div className={styles.stepper}>
-      <button type="button" className={styles.stepButton} aria-label={lessLabel} disabled={value <= min} onClick={() => onChange(value - 1)}>
-        −
-      </button>
-      <output className={styles.stepValue} aria-label={valueLabel}>
-        {value}
-      </output>
-      <button type="button" className={styles.stepButton} aria-label={moreLabel} disabled={value >= max} onClick={() => onChange(value + 1)}>
-        +
-      </button>
-    </div>
-  );
-}
-
 /** Azioni della scheda: aggiunta con un tocco e, subito dopo, la conferma con «Annulla». */
-export function AddToPantry({ product, onAgain }: { product: Product; onAgain: () => void }) {
+export function AddToPantry({
+  product,
+  scannedExpiry,
+  onAgain,
+}: {
+  product: Product;
+  /** Data letta da un codice GS1: precompila la scadenza. */
+  scannedExpiry?: { date: string; kind: ChosenExpiryKind };
+  onAgain: () => void;
+}) {
   const ids = useId();
   const now = useNow();
   const today = now ? dayOf(now) : null;
@@ -103,7 +80,9 @@ export function AddToPantry({ product, onAgain }: { product: Product; onAgain: (
     [pantry.data, product.barcode],
   );
 
-  const [answers, setAnswers] = useState<DirectAnswers>({});
+  const [answers, setAnswers] = useState<DirectAnswers>(() =>
+    scannedExpiry ? { expiryDate: scannedExpiry.date, expiryKind: scannedExpiry.kind } : {},
+  );
   const [place, setPlace] = useState<Location | null>(null);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [saving, setSaving] = useState(false);
@@ -114,7 +93,12 @@ export function AddToPantry({ product, onAgain }: { product: Product; onAgain: (
   const [differentDates, setDifferentDates] = useState(false);
   const [groups, setGroups] = useState<PackGroup[]>([]);
   const [remembered, setRemembered] = useState<Remembered | undefined>(undefined);
+  // pezzi dentro la confezione: la scritta «2 x 100 g» li precompila, la porzione e gli imballaggi li propongono soltanto
+  const [piecesCount, setPiecesCount] = useState(() => (draft.piecesHint?.source === "label" ? draft.piecesHint.count : 0));
+  const [eachText, setEachText] = useState<string | null>(null);
+  const [piecesTouched, setPiecesTouched] = useState(false);
 
+  const piecesTouchedRef = useRef(false);
   const nameRef = useRef<HTMLInputElement>(null);
   const quantityRef = useRef<HTMLInputElement>(null);
   const categoryRef = useRef<HTMLSelectElement>(null);
@@ -131,7 +115,12 @@ export function AddToPantry({ product, onAgain }: { product: Product; onAgain: (
     let alive = true;
     loadRemembered(product, choiceStore)
       .then((r) => {
-        if (alive) setRemembered(r);
+        if (!alive) return;
+        setRemembered(r);
+        if (r?.kind === "barcode" && r.pieces) {
+          setPiecesCount((c) => (piecesTouchedRef.current ? c : r.pieces!.count));
+          setEachText((t) => (piecesTouchedRef.current ? t : String(r.pieces!.each)));
+        }
       })
       .catch(() => undefined);
     return () => {
@@ -140,11 +129,29 @@ export function AddToPantry({ product, onAgain }: { product: Product; onAgain: (
   }, [product]);
 
   const category = answers.category || remembered?.category || draft.category;
+  const storagePlace = locationFromStorage(product.storageText);
   const location =
-    place ?? (remembered?.kind === "barcode" && remembered.category === category ? remembered.location : locationFor(category));
+    place ??
+    (remembered?.kind === "barcode" && remembered.category === category
+      ? remembered.location
+      : (storagePlace ?? locationFor(category)));
+  const locationFromOff = place === null && !(remembered?.kind === "barcode" && remembered.category === category) && storagePlace !== undefined;
   const expiryKind: ChosenExpiryKind =
     answers.expiryKind && answers.expiryKind !== "none" ? answers.expiryKind : defaultExpiryKind(category);
   const quantityOne = answers.quantityText?.trim() || draft.quantityText || "";
+  const totalOne = (() => {
+    const reading = quantityOne === "" ? null : readQuantity(quantityOne);
+    return reading?.ok ? reading.quantity : undefined;
+  })();
+  const resolved = resolvePieces(totalOne, piecesCount, eachText, draft.pieceName);
+  const hint = draft.piecesHint;
+  const suggestion =
+    hint && hint.source !== "label" && piecesCount < 2 && totalOne
+      ? {
+          text: `Secondo Open Food Facts ${hint.source === "serving" ? "la porzione" : "l'imballaggio"} è da ${formatQuantity({ value: hint.each, unit: totalOne.unit })}: ${hint.count} pezzi?`,
+          onUse: () => changePieces(hint.count, String(hint.each)),
+        }
+      : undefined;
   const estimate = today ? estimatedExpiryDate(category, location, today) : null;
   const splitDates = differentDates && packs > 1;
 
@@ -167,6 +174,14 @@ export function AddToPantry({ product, onAgain }: { product: Product; onAgain: (
     setErrors({});
   }
 
+  function changePieces(count: number, text: string | null = null) {
+    piecesTouchedRef.current = true;
+    setPiecesTouched(true);
+    setPiecesCount(count);
+    setEachText(text);
+    setErrors({});
+  }
+
   function changePacks(next: number) {
     const n = clampPacks(next);
     setPacks(n);
@@ -180,11 +195,12 @@ export function AddToPantry({ product, onAgain }: { product: Product; onAgain: (
     setErrors({});
   }
 
-  const setGroup = (index: number, patch: Partial<PackGroup>) =>
-    setGroups((all) => all.map((g, i) => (i === index ? { ...g, ...patch } : g)));
-
   async function onAdd() {
     if (saving) return;
+    if (resolved.error) {
+      setErrors({ form: resolved.error });
+      return;
+    }
     const groupError = splitDates ? checkPackGroups(groups, packs) : null;
     if (groupError) {
       setErrors({ form: groupError });
@@ -196,7 +212,10 @@ export function AddToPantry({ product, onAgain }: { product: Product; onAgain: (
     setSaving(true);
     setMessage(null);
     try {
-      const result = await save(buildPackInputs(draft, location, { ...answers, category, expiryKind }, effective));
+      const inputs = buildPackInputs(draft, location, { ...answers, category, expiryKind }, effective).map((i) =>
+        resolved.pieces ? { ...i, pieces: resolved.pieces } : i,
+      );
+      const result = await save(inputs);
       if (!result.ok) {
         setErrors(result.errors);
         if (result.errors.price) setMoreOpen(true);
@@ -207,7 +226,11 @@ export function AddToPantry({ product, onAgain }: { product: Product; onAgain: (
       }
       setErrors({});
       setAdded({ events: result.events, text: packsConfirmationText(result.events, dayOf(new Date().toISOString())) });
-      if (category) rememberChoice(product, { category, location }, choiceStore).catch(() => undefined);
+      if (category) {
+        rememberChoice(product, { category, location, ...(resolved.pieces ? { pieces: resolved.pieces } : {}) }, choiceStore).catch(
+          () => undefined,
+        );
+      }
     } catch {
       setErrors({ form: "Non sono riuscito a salvare sul telefono. Riprova." });
     } finally {
@@ -263,22 +286,30 @@ export function AddToPantry({ product, onAgain }: { product: Product; onAgain: (
 
       {alreadyHave > 0 ? <p className={ui.hint}>Ne hai già {alreadyHave} in dispensa.</p> : null}
 
-      <div className={ui.field} role="group" aria-labelledby={`${ids}-packs-label`}>
-        <span className={ui.fieldLabel} id={`${ids}-packs-label`}>
-          Quante confezioni
-        </span>
-        <div className={styles.stepperRow}>
-          <Stepper
-            value={packs}
-            min={1}
-            max={MAX_PACKS}
-            onChange={changePacks}
-            lessLabel="Una confezione in meno"
-            moreLabel="Una confezione in più"
-          />
-          {quantityOne ? <span className={ui.hint}>{packsLabel(packs, quantityOne)}</span> : null}
-        </div>
-      </div>
+      <PackCounter packs={packs} onChange={changePacks} quantityOne={quantityOne} />
+
+      <PiecesField
+        total={totalOne}
+        count={piecesCount}
+        onCount={(n) => changePieces(n, n >= 2 ? eachText : null)}
+        eachText={eachText}
+        onEachText={(t) => changePieces(piecesCount, t)}
+        resolved={resolved}
+        pieceName={draft.pieceName}
+        note={
+          hint && !piecesTouched && piecesCount === hint.count
+            ? "Secondo Open Food Facts: puoi cambiarlo."
+            : remembered?.kind === "barcode" && remembered.pieces && !piecesTouched
+              ? "Come l'ultima volta che l'hai aggiunto."
+              : undefined
+        }
+        suggestion={suggestion}
+      />
+      {totalOne && (packs > 1 || resolved.pieces) ? (
+        <p className={ui.paragraph} aria-live="polite">
+          {packsSummary(packs, totalOne, resolved.pieces)}
+        </p>
+      ) : null}
 
       {missing.includes("name") ? (
         <div className={ui.field}>
@@ -382,6 +413,9 @@ export function AddToPantry({ product, onAgain }: { product: Product; onAgain: (
             </label>
           ))}
         </div>
+        {locationFromOff ? (
+          <p className={ui.hint}>Secondo Open Food Facts va tenuto qui: «{product.storageText?.slice(0, 90)}». Puoi cambiarlo.</p>
+        ) : null}
       </fieldset>
 
       <fieldset className={ui.field}>
@@ -399,47 +433,16 @@ export function AddToPantry({ product, onAgain }: { product: Product; onAgain: (
 
         {splitDates ? (
           <>
-            {groups.map((g, i) => (
-              <div key={i} className={styles.groupRow}>
-                <Stepper
-                  value={g.count}
-                  min={0}
-                  max={MAX_PACKS}
-                  onChange={(n) => setGroup(i, { count: n })}
-                  lessLabel={`Una confezione in meno nel gruppo ${i + 1}`}
-                  moreLabel={`Una confezione in più nel gruppo ${i + 1}`}
-                  valueLabel={`Confezioni del gruppo ${i + 1}`}
-                />
-                <input
-                  className={`${ui.input} ${styles.groupDate}`}
-                  type="date"
-                  value={g.expiryDate}
-                  aria-label={`Data del gruppo ${i + 1}, vuota per la stima`}
-                  onChange={(e) => setGroup(i, { expiryDate: e.target.value })}
-                />
-              </div>
-            ))}
-            <p className={ui.hint} aria-live="polite">
-              {checkPackGroups(groups, packs) ??
-                `Assegnate ${groupsTotal(groups)} confezioni su ${packs}. Un gruppo senza data usa la stima.`}
-            </p>
-            <div className={ui.row}>
-              <Button variant="outline" onClick={() => setGroups((all) => [...all, { count: 0, expiryDate: "" }])}>
-                Aggiungi un gruppo
-              </Button>
-              <Button variant="text" onClick={() => setDifferentDates(false)}>
-                Stessa data per tutte
-              </Button>
-            </div>
+            <PackGroupsEditor groups={groups} packs={packs} onChange={setGroups} onSameDate={() => setDifferentDates(false)} />
           </>
         ) : (
           <>
-            <label className={ui.srOnly} htmlFor={`${ids}-date`}>
+            <label className={ui.fieldLabel} htmlFor={`${ids}-date`}>
               Data in etichetta
             </label>
             <input
               id={`${ids}-date`}
-              className={ui.input}
+              className={`${ui.input} ${styles.dateInput}`}
               type="date"
               value={answers.expiryDate ?? ""}
               onChange={(e) => set({ expiryDate: e.target.value })}
@@ -466,11 +469,14 @@ export function AddToPantry({ product, onAgain }: { product: Product; onAgain: (
           </>
         )}
         <p className={ui.hint} id={`${ids}-date-note`}>
+          {!splitDates && !answers.expiryDate ? "Scrivi o scegli la data stampata sulla confezione (giorno, mese, anno). " : ""}
           {splitDates ? "" : packs > 1 ? "La data vale per tutte le confezioni. " : ""}
           {!splitDates && !answers.expiryDate
             ? `Senza data uso una stima${estimate ? `: ${formatCalendarDate(estimate)}` : " dalla categoria"}. `
             : ""}
-          Il codice a barre contiene solo il codice del prodotto, non la data.
+          {scannedExpiry && answers.expiryDate === scannedExpiry.date
+            ? "Data letta dal codice: controllala."
+            : "Il codice a barre contiene solo il codice del prodotto, non la data."}
         </p>
       </fieldset>
 
@@ -508,9 +514,6 @@ export function AddToPantry({ product, onAgain }: { product: Product; onAgain: (
         </Button>
         <Button variant="outline" onClick={onAgain}>
           Leggi un altro codice
-        </Button>
-        <Button variant="text" href={qualityHref(product.barcode)}>
-          Qualità
         </Button>
       </div>
       <Button variant="text" href={captureHref(product)}>

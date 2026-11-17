@@ -17,9 +17,10 @@ import {
   type Object3D,
 } from "three";
 import { buildModel, type Model } from "../generate";
-import { applyColors, createGroundShadow, createLineMaterial, createSharedUniforms, type InkColors, type SharedUniforms } from "../materials";
 import type { Recipe } from "../recipe";
-import { createModelObject, type ModelObject } from "../three-model";
+import { createStyleKit, type StyleKit } from "../render-kit";
+import type { ThemeSnapshot } from "../theme";
+import type { ModelObject } from "../three-model";
 import { frameCamera, type Bounds } from "./framing";
 import { furnitureSpec, type FurnitureKind } from "./furniture";
 import { itemScale, layoutItems, typicalHeadroom, type Placement } from "./layout";
@@ -29,7 +30,7 @@ export interface SceneItem {
   name: string;
   recipe: Recipe;
   seed: string;
-  /** Scade presto: disegnato nel colore segnale. */
+  /** Scade presto: a incisione disegnato nel colore segnale; a colori anche con contorno e punto esclamativo. */
   signal: boolean;
   /** Quanto resta, da 0 a 1. */
   level: number;
@@ -47,14 +48,15 @@ export interface SceneSummary {
 }
 
 export interface FridgeEngineOptions {
-  colors: InkColors;
+  theme: ThemeSnapshot;
   onSelect: (id: string | null) => void;
 }
 
 export interface FridgeEngine {
   setScene(kind: FurnitureKind, items: readonly SceneItem[]): SceneSummary;
   setSelected(id: string | null): void;
-  setColors(colors: InkColors): void;
+  /** Nuovo tema: se cambia lo stile di resa si rifanno materiali e scena, liberando quelli vecchi. */
+  setTheme(theme: ThemeSnapshot): void;
   /** Leggero dondolio della scena; da spegnere con prefers-reduced-motion. */
   setSway(on: boolean): void;
   setActive(on: boolean): void;
@@ -94,7 +96,8 @@ export function createFridgeEngine(container: HTMLElement, options: FridgeEngine
 
   const scene = new Scene();
   const camera = new PerspectiveCamera(FOV, 1, 0.1, 60);
-  const shared: SharedUniforms = createSharedUniforms(options.colors);
+  let kit: StyleKit = createStyleKit(options.theme);
+  let lastScene: { kind: FurnitureKind; items: readonly SceneItem[] } | null = null;
   const world = new Group();
   const itemsRoot = new Group();
   world.add(itemsRoot);
@@ -133,7 +136,7 @@ export function createFridgeEngine(container: HTMLElement, options: FridgeEngine
     const key = `${item.signal ? "s" : "n"}${item.recipe.hatch?.cross === false ? "0" : "1"}`;
     let obj = entry.variants.get(key);
     if (!obj) {
-      obj = createModelObject(entry.model, shared, { signal: item.signal, cross: item.recipe.hatch?.cross });
+      obj = kit.createObject(entry.model, { signal: item.signal, cross: item.recipe.hatch?.cross });
       entry.variants.set(key, obj);
     }
     return obj;
@@ -179,9 +182,9 @@ export function createFridgeEngine(container: HTMLElement, options: FridgeEngine
     const spec = furnitureSpec(next);
     // mobili a misura: niente normalizzazione, le coordinate sono quelle scritte
     const model = buildModel(spec.recipe, "mobile", { normalize: false });
-    const object = createModelObject(model, shared, { soft: 0.85, cross: false });
+    const object = kit.createObject(model, { soft: 0.85, cross: false, furniture: true });
     const spanX = model.bounds.max[0] - model.bounds.min[0];
-    const shadow = createGroundShadow(shared, Math.max(spanX, spec.depth * 2.4) * 1.1);
+    const shadow = kit.createGroundShadow(Math.max(spanX, spec.depth * 2.4) * 1.1);
     shadow.position.set((model.bounds.min[0] + model.bounds.max[0]) / 2, -0.003, 0);
     world.add(object.group, shadow);
     furniture = { kind: next, object, shadow, bounds: model.bounds };
@@ -200,7 +203,7 @@ export function createFridgeEngine(container: HTMLElement, options: FridgeEngine
       }
       const g = new BufferGeometry();
       g.setAttribute("position", new Float32BufferAttribute(pts, 3));
-      ring = new LineLoop(g, createLineMaterial(shared, false));
+      ring = new LineLoop(g, kit.createLineMaterial());
       ring.position.set(found.world[0], found.world[1] + 0.004, found.world[2]);
       world.add(ring);
     }
@@ -281,64 +284,94 @@ export function createFridgeEngine(container: HTMLElement, options: FridgeEngine
   if (!observer) window.addEventListener("resize", fit);
   fit();
 
+  const applyScene = (nextKind: FurnitureKind, items: readonly SceneItem[]): SceneSummary => {
+    lastScene = { kind: nextKind, items };
+    setFurniture(nextKind);
+    clearItems();
+    const spec = furnitureSpec(nextKind);
+    const prepared = new Map<string, { item: SceneItem; entry: CachedModel; k: number }>();
+    const headroom = typicalHeadroom(spec);
+    const layoutInput = items.map((item) => {
+      const entry = getModel(item);
+      const { k, size } = itemScale(item.recipe.heightCm, entry.model.size, item.level, headroom);
+      prepared.set(item.id, { item, entry, k });
+      return { id: item.id, name: item.name, size, priority: item.priority, prefer: item.prefer };
+    });
+    const result = layoutItems(spec, layoutInput);
+    layoutById = new Map();
+    for (const placement of result.placements) {
+      const p = prepared.get(placement.id)!;
+      const holder = new Group();
+      const model = variant(p.entry, p.item).group.clone(true);
+      model.scale.setScalar(p.k * placement.scale);
+      holder.add(model);
+      // i balconcini dello sportello hanno un sistema locale: si porta nel mondo con la loro posizione e rotazione
+      const frame = spec.slots.find((sl) => sl.id === placement.slot)?.frame;
+      const local = new Vector3(...placement.position);
+      if (frame) local.applyAxisAngle(new Vector3(0, 1, 0), frame.rotY).add(new Vector3(...frame.position));
+      holder.position.copy(local);
+      holder.rotation.y = placement.rotationY + (frame?.rotY ?? 0);
+      holder.userData.itemId = placement.id;
+      itemsRoot.add(holder);
+      const size = p.entry.model.size;
+      layoutById.set(placement.id, {
+        world: [local.x, local.y, local.z],
+        radius: 0.5 * Math.hypot(size[0], size[2]) * p.k * placement.scale + 0.03,
+      });
+    }
+    // la cache tiene solo i modelli della scena corrente: gli altri si liberano (geometrie e materiali compresi)
+    const keep = new Set(items.map((i) => `${i.recipe.id}|${i.seed}`));
+    for (const [key, entry] of [...models]) {
+      if (keep.has(key)) continue;
+      for (const obj of entry.variants.values()) obj.dispose();
+      for (const part of entry.model.parts) {
+        part.geometry.dispose();
+        part.lines?.dispose();
+      }
+      models.delete(key);
+    }
+    if (selected && layoutById.has(selected)) select(selected);
+    else selected = null;
+    dirty = true;
+    return { shown: result.placements.map((p) => p.id), hidden: result.hidden, placements: result.placements };
+  };
+
+  /** Cambio di stile: via i materiali del vecchio stile (le geometrie dei modelli in cache restano), poi si ridispone la scena. */
+  const rebuildStyle = (theme: ThemeSnapshot) => {
+    clearItems();
+    for (const entry of models.values()) {
+      for (const obj of entry.variants.values()) obj.disposeMaterials();
+      entry.variants.clear();
+    }
+    if (furniture) {
+      world.remove(furniture.object.group, furniture.shadow);
+      furniture.object.dispose();
+      furniture.shadow.geometry.dispose();
+      (furniture.shadow.material as { dispose(): void }).dispose();
+      furniture = null;
+    }
+    kit.dispose();
+    kit = createStyleKit(theme);
+    if (lastScene) applyScene(lastScene.kind, lastScene.items);
+    dirty = true;
+  };
+
   return {
     setScene(nextKind, items) {
       if (disposed) return { shown: [], hidden: [], placements: [] };
-      setFurniture(nextKind);
-      clearItems();
-      const spec = furnitureSpec(nextKind);
-      const prepared = new Map<string, { item: SceneItem; entry: CachedModel; k: number }>();
-      const headroom = typicalHeadroom(spec);
-      const layoutInput = items.map((item) => {
-        const entry = getModel(item);
-        const { k, size } = itemScale(item.recipe.heightCm, entry.model.size, item.level, headroom);
-        prepared.set(item.id, { item, entry, k });
-        return { id: item.id, name: item.name, size, priority: item.priority, prefer: item.prefer };
-      });
-      const result = layoutItems(spec, layoutInput);
-      layoutById = new Map();
-      for (const placement of result.placements) {
-        const p = prepared.get(placement.id)!;
-        const holder = new Group();
-        const model = variant(p.entry, p.item).group.clone(true);
-        model.scale.setScalar(p.k * placement.scale);
-        holder.add(model);
-        // i balconcini dello sportello hanno un sistema locale: si porta nel mondo con la loro posizione e rotazione
-        const frame = spec.slots.find((sl) => sl.id === placement.slot)?.frame;
-        const local = new Vector3(...placement.position);
-        if (frame) local.applyAxisAngle(new Vector3(0, 1, 0), frame.rotY).add(new Vector3(...frame.position));
-        holder.position.copy(local);
-        holder.rotation.y = placement.rotationY + (frame?.rotY ?? 0);
-        holder.userData.itemId = placement.id;
-        itemsRoot.add(holder);
-        const size = p.entry.model.size;
-        layoutById.set(placement.id, {
-          world: [local.x, local.y, local.z],
-          radius: 0.5 * Math.hypot(size[0], size[2]) * p.k * placement.scale + 0.03,
-        });
-      }
-      // la cache tiene solo i modelli della scena corrente: gli altri si liberano (geometrie e materiali compresi)
-      const keep = new Set(items.map((i) => `${i.recipe.id}|${i.seed}`));
-      for (const [key, entry] of [...models]) {
-        if (keep.has(key)) continue;
-        for (const obj of entry.variants.values()) obj.dispose();
-        for (const part of entry.model.parts) {
-          part.geometry.dispose();
-          part.lines?.dispose();
-        }
-        models.delete(key);
-      }
-      if (selected && layoutById.has(selected)) select(selected);
-      else selected = null;
-      dirty = true;
-      return { shown: result.placements.map((p) => p.id), hidden: result.hidden, placements: result.placements };
+      return applyScene(nextKind, items);
     },
     setSelected(id) {
       select(id);
     },
-    setColors(colors) {
-      applyColors(shared, colors);
-      dirty = true;
+    setTheme(theme) {
+      if (disposed) return;
+      if (theme.style === kit.style) {
+        kit.setTheme(theme);
+        dirty = true;
+      } else {
+        rebuildStyle(theme);
+      }
     },
     setSway(on) {
       sway = on;

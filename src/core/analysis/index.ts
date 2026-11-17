@@ -24,6 +24,9 @@ export type {
   WeightProjection,
 } from "./projection";
 
+export { foodFreeIntervals } from "./intervals";
+export type { FoodFreeInterval, FoodFreeIntervals, FoodFreeIntervalsOptions } from "./intervals";
+
 export { analyzeMealTiming, formatMinutes, timingOfDay } from "./timing";
 export type {
   MinutesSummary,

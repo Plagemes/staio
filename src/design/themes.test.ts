@@ -53,6 +53,50 @@ const palette = (id: ThemeId, mode: "light" | "dark") =>
 
 const MODES = ["light", "dark"] as const;
 
+/** La regola senza @media con esattamente questi selettori e questa variabile. */
+function findBlock(selectors: string[], marker: string): Record<string, string> {
+  const hit = RULES.filter((r) => r.media === null && r.selectors.join("|") === selectors.join("|") && marker in r.vars);
+  if (hit.length !== 1) throw new Error(`expected one rule for ${selectors.join(", ")} with ${marker}, got ${hit.length}`);
+  return hit[0].vars;
+}
+
+/** Variabili comuni (forma) e significati predefiniti, validi su :root e su ogni [data-palette]. */
+const COMMON = findBlock([":root", "[data-palette]"], "--rule-width");
+const SEMANTIC_DEFAULTS = findBlock([":root", "[data-palette]"], "--area-today");
+const VIVO_SHAPE = findBlock(['[data-palette="vivo"]'], "--weight-display");
+
+/** Colori effettivi di un tema: significati predefiniti, poi il blocco del tema, con i rimandi var() risolti. */
+function resolved(id: ThemeId, mode: "light" | "dark"): Record<string, string> {
+  const raw: Record<string, string> = { ...SEMANTIC_DEFAULTS, ...palette(id, mode) };
+  if (id === "vivo") for (const [k, v] of Object.entries(VIVO_SHAPE)) if (k.startsWith("--area-current")) raw[k] = v;
+  const get = (name: string, depth = 0): string => {
+    const v = raw[name];
+    if (v === undefined) throw new Error(`missing ${name} in ${id} ${mode}`);
+    const m = /^var\((--[\w-]+)\)$/.exec(v);
+    if (!m) return v;
+    if (depth > 10) throw new Error(`var loop at ${name}`);
+    return get(m[1], depth + 1);
+  };
+  return Object.fromEntries(Object.keys(raw).map((k) => [k, get(k)]));
+}
+
+const SEMANTIC = [
+  "--area-today",
+  "--area-pantry",
+  "--area-capture",
+  "--area-plan",
+  "--area-health",
+  "--nutrient-protein",
+  "--nutrient-carbs",
+  "--nutrient-fat",
+  "--nutrient-fiber",
+  "--water",
+  "--state-ok",
+  "--state-near",
+  "--state-expired",
+  "--state-estimate",
+] as const;
+
 describe("contrastRatio", () => {
   it("valori noti", () => {
     expect(contrastRatio("#000000", "#ffffff")).toBeCloseTo(21, 5);
@@ -69,7 +113,7 @@ describe("temi: contrasto", () => {
   for (const theme of THEMES) {
     for (const mode of MODES) {
       describe(`${theme.id} ${mode}`, () => {
-        const p = palette(theme.id, mode);
+        const p = resolved(theme.id, mode);
         const on = (fg: string, bg = "--color-paper") => contrastRatio(p[fg], p[bg]);
 
         // Testo: almeno 4,5:1 su carta.
@@ -94,9 +138,22 @@ describe("temi: contrasto", () => {
 });
 
 describe("temi: struttura", () => {
-  it("ogni tema definisce le stesse variabili di Registro, in chiaro e in scuro", () => {
+  it("ogni tema definisce le stesse variabili di Registro, in chiaro e in scuro (Vivo in più ha i colori con significato)", () => {
     const keys = Object.keys(palette("registro", "light")).sort();
-    for (const t of THEMES) for (const m of MODES) expect(Object.keys(palette(t.id, m)).sort()).toEqual(keys);
+    for (const t of THEMES.filter((t) => t.id !== "vivo")) for (const m of MODES) expect(Object.keys(palette(t.id, m)).sort()).toEqual(keys);
+    const vivo = Object.keys(palette("vivo", "light")).sort();
+    expect(vivo).toEqual(expect.arrayContaining(keys));
+    expect(Object.keys(palette("vivo", "dark")).sort()).toEqual(vivo);
+    for (const v of SEMANTIC) expect(vivo).toEqual(expect.arrayContaining([v, `${v}-tint`]));
+  });
+
+  it("fuori da Vivo nessuna regola ridefinisce la forma o i colori con significato", () => {
+    for (const r of RULES) {
+      if (r.vars === COMMON || r.vars === SEMANTIC_DEFAULTS || r.selectors.some((sel) => sel.includes('"vivo"'))) continue;
+      for (const k of Object.keys(r.vars)) {
+        expect(k in COMMON || k in SEMANTIC_DEFAULTS, `${r.selectors.join(", ")} ridefinisce ${k}`).toBe(false);
+      }
+    }
   });
 
   it("il blocco scuro per «come il dispositivo» è uguale a quello scuro scelto a mano", () => {
@@ -148,6 +205,176 @@ describe("temi: struttura", () => {
       expect(t.themeColor[0]).toBe(palette(t.id, "light")["--color-paper"]);
       expect(t.themeColor[1]).toBe(palette(t.id, "dark")["--color-paper"]);
     }
+  });
+});
+
+describe("variabili nuove: nel tema di base hanno i valori che prima erano scritti a mano", () => {
+  it("forma dei componenti", () => {
+    expect(COMMON).toMatchObject({
+      "--font-brand": 'var(--font-instrument-serif), "Iowan Old Style", Georgia, serif',
+      "--weight-display": "400",
+      "--motion-fast": "120ms",
+      "--press-transform": "none",
+      "--press-opacity": "0.8",
+      "--label-font": "var(--font-data)",
+      "--label-size": "var(--text-label)",
+      "--label-case": "uppercase",
+      "--label-tracking": "var(--tracking-label)",
+      "--label-color": "var(--color-graphite)",
+      "--section-font": "var(--font-data)",
+      "--section-size": "var(--text-label)",
+      "--section-case": "uppercase",
+      "--section-tracking": "var(--tracking-label)",
+      "--section-color": "var(--color-graphite)",
+      "--section-weight": "400",
+      "--section-rule-width": "var(--rule-width)",
+      "--card-fill": "transparent",
+      "--card-fill-hover": "var(--color-surface)",
+      "--card-border": "var(--color-control-border)",
+      "--card-shadow": "none",
+      "--radius-card": "var(--radius-md)",
+      "--button-fill": "var(--color-ink)",
+      "--button-text": "var(--color-on-ink)",
+      "--button-quiet-fill": "transparent",
+      "--button-quiet-border": "var(--color-control-border)",
+      "--button-quiet-text": "var(--color-ink)",
+      "--radius-button": "var(--radius-md)",
+      "--tabs-gap": "var(--space-10)",
+      "--tabs-fill": "transparent",
+      "--tabs-pad": "0px",
+      "--tabs-radius": "0px",
+      "--tabs-rule-width": "var(--rule-width)",
+      "--tab-grow": "0",
+      "--tab-pad-x": "0px",
+      "--tab-radius": "0px",
+      "--tab-indicator": "2px",
+      "--tab-selected-fill": "transparent",
+      "--tab-selected-shadow": "none",
+      "--nav-fill": "var(--color-paper)",
+      "--nav-rule-width": "var(--rule-width)",
+      "--nav-backdrop": "none",
+      "--nav-current": "var(--color-ink)",
+      "--capture-fill": "var(--color-ink)",
+      "--capture-text": "var(--color-on-ink)",
+      "--chip-strength": "0%",
+      "--chip-pad-y": "0px",
+      "--chip-pad-x": "0px",
+      "--chip-radius": "0px",
+      "--figure-gap": "0px",
+      "--figure-fill": "transparent",
+      "--figure-radius": "0px",
+      "--figure-pad-x": "0px",
+      "--figure-follow-pad": "var(--space-7)",
+      "--figure-divider": "var(--rule-width)",
+      "--figure-grid-rule": "var(--rule-width)",
+      "--bar-height": "3px",
+      "--bar-radius": "0px",
+      "--progress-height": "2px",
+      "--progress-track": "var(--color-rule)",
+    });
+    // le variabili che esistevano già non cambiano
+    expect(COMMON).toMatchObject({
+      "--font-display": 'var(--font-instrument-serif), "Iowan Old Style", Georgia, serif',
+      "--radius-sm": "8px",
+      "--radius-md": "10px",
+      "--rule-width": "1px",
+      "--tracking-title": "-0.01em",
+      "--tracking-display": "-0.02em",
+    });
+  });
+
+  it("colori con significato: negli altri temi rimandano all'accento, all'inchiostro o ai colori di stato già in uso", () => {
+    for (const t of THEMES.filter((t) => t.id !== "vivo")) {
+      for (const m of MODES) {
+        const p = resolved(t.id, m);
+        const base = palette(t.id, m);
+        for (const a of ["--area-today", "--area-pantry", "--area-capture", "--area-plan", "--area-health", "--area-current"]) {
+          expect(p[a]).toBe(base["--color-accent"]);
+          expect(p[`${a}-tint`]).toBe("transparent");
+        }
+        for (const n of ["--nutrient-protein", "--nutrient-carbs", "--nutrient-fat", "--nutrient-fiber", "--water", "--state-ok"]) {
+          expect(p[n]).toBe(base["--color-ink"]);
+        }
+        expect(p["--state-near"]).toBe(base["--color-ochre"]);
+        expect(p["--state-expired"]).toBe(base["--color-signal"]);
+        expect(p["--state-estimate"]).toBe(base["--color-graphite"]);
+        expect(p["--color-on-fill"]).toBe(base["--color-on-ink"]);
+      }
+    }
+  });
+});
+
+describe("colori con significato: contrasto in tutti i temi", () => {
+  for (const theme of THEMES) {
+    for (const mode of MODES) {
+      describe(`${theme.id} ${mode}`, () => {
+        const p = resolved(theme.id, mode);
+        const c = (fg: string, bg: string) => contrastRatio(p[fg], p[bg]);
+        it.each(SEMANTIC)("%s: testo su carta e superficie, testo sopra il colore pieno, testo sul fondo tinto >= 4,5", (v) => {
+          expect(c(v, "--color-paper")).toBeGreaterThanOrEqual(4.5);
+          expect(c(v, "--color-surface")).toBeGreaterThanOrEqual(4.5);
+          expect(c("--color-on-fill", v)).toBeGreaterThanOrEqual(4.5);
+          if (p[`${v}-tint`] !== "transparent") {
+            expect(c(v, `${v}-tint`)).toBeGreaterThanOrEqual(4.5);
+            expect(c("--color-ink", `${v}-tint`)).toBeGreaterThanOrEqual(4.5);
+            expect(c("--color-graphite", `${v}-tint`)).toBeGreaterThanOrEqual(4.5);
+          }
+        });
+        it("testo e testo secondario sui fondi neutri (segmenti) >= 4,5", () => {
+          for (const bg of ["--color-fill", "--color-raised"]) {
+            expect(c("--color-ink", bg)).toBeGreaterThanOrEqual(4.5);
+            expect(c("--color-graphite", bg)).toBeGreaterThanOrEqual(4.5);
+          }
+        });
+        it("testo sopra l'accento pieno >= 4,5", () => {
+          expect(c("--color-on-fill", "--color-accent")).toBeGreaterThanOrEqual(4.5);
+        });
+      });
+    }
+  }
+});
+
+describe("Vivo", () => {
+  for (const mode of MODES) {
+    describe(mode, () => {
+      const p = resolved("vivo", mode);
+      const c = (fg: string, bg: string) => contrastRatio(p[fg], p[bg]);
+      it("l'accento di base è il colore di Oggi, il segnale è «scaduto», l'ocra è «in scadenza»", () => {
+        expect(p["--color-accent"]).toBe(p["--area-today"]);
+        expect(p["--color-focus"]).toBe(p["--area-today"]);
+        expect(p["--color-signal"]).toBe(p["--state-expired"]);
+        expect(p["--color-ochre"]).toBe(p["--state-near"]);
+        expect(p["--area-current"]).toBe(p["--area-today"]);
+      });
+      it("bordi dei campi e dei controlli visibili su carta e superficie >= 3", () => {
+        expect(c("--color-control-border", "--color-paper")).toBeGreaterThanOrEqual(3);
+        expect(c("--color-control-border", "--color-surface")).toBeGreaterThanOrEqual(3);
+      });
+      it("pulsante pieno di pericolo (carta sul segnale) >= 4,5", () => {
+        expect(c("--color-paper", "--color-signal")).toBeGreaterThanOrEqual(4.5);
+      });
+      it("aree, nutrienti e stati sono colori diversi tra loro", () => {
+        const distinct = (keys: string[]) => new Set(keys.map((k) => p[k])).size === keys.length;
+        expect(distinct(["--area-today", "--area-pantry", "--area-capture", "--area-plan", "--area-health"])).toBe(true);
+        expect(distinct(["--nutrient-protein", "--nutrient-carbs", "--nutrient-fat", "--nutrient-fiber", "--water"])).toBe(true);
+        expect(distinct(["--state-ok", "--state-near", "--state-expired", "--state-estimate"])).toBe(true);
+      });
+    });
+  }
+});
+
+describe("attesa della scelta dello stile (CSS)", () => {
+  it("nasconde solo il contenuto dell'app, con un'animazione che finisce da sola entro 1 s", () => {
+    const css = CSS.replace(/\/\*[\s\S]*?\*\//g, "");
+    const rules = [...css.matchAll(/([^{}]*\[data-style-choice="pending"\][^{]*)\{([^}]*)\}/g)];
+    expect(rules).toHaveLength(1);
+    const [, selector, body] = rules[0];
+    expect(selector.trim()).toBe('html[data-style-choice="pending"] [data-app-content]');
+    expect(body).not.toMatch(/visibility\s*:/);
+    expect(body).not.toMatch(/forwards|infinite/);
+    const ms = /animation:\s*style-choice-hold\s+(\d+)ms/.exec(body);
+    expect(ms).not.toBeNull();
+    expect(Number(ms![1])).toBeLessThanOrEqual(1000);
   });
 });
 

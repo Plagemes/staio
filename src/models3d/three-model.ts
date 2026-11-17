@@ -14,7 +14,9 @@ export interface ModelObjectOptions {
 
 export interface ModelObject {
   group: Group;
-  /** Libera geometrie dei modelli, geometrie degli spigoli e materiali. */
+  /** Libera i materiali e le geometrie derivate dall'oggetto (spigoli, segnali), non quelle del modello: si può ricostruire l'oggetto in un altro stile. */
+  disposeMaterials(): void;
+  /** Libera tutto: geometrie del modello, geometrie derivate e materiali. */
   dispose(): void;
 }
 
@@ -54,15 +56,20 @@ export function createModelObject(model: Model, shared: SharedUniforms, opts: Mo
     group.add(holder);
   }
 
+  const disposeMaterials = () => {
+    for (const g of geometries) g.dispose();
+    for (const m of materials) m.dispose();
+  };
+
   return {
     group,
+    disposeMaterials,
     dispose() {
       for (const part of model.parts) {
         part.geometry.dispose();
         part.lines?.dispose();
       }
-      for (const g of geometries) g.dispose();
-      for (const m of materials) m.dispose();
+      disposeMaterials();
     },
   };
 }

@@ -14,6 +14,8 @@ import type {
   DiaryEvent,
   DrinkEvent,
   HabitEvent,
+  MealDeclarationEvent,
+  MealDeclarationStatus,
   MealEvent,
   MealItem,
   MealKind,
@@ -47,6 +49,7 @@ export interface DiaryEventOptions {
 export const DEFAULT_CERTAINTY = {
   meal: "estimated",
   untrackedMeal: "measured",
+  mealDeclaration: "measured",
   water: "estimated",
   drink: "label",
   weight: "measured",
@@ -151,12 +154,30 @@ export function createUntrackedMeal(
   return build<UntrackedMealEvent>("untrackedMeal", { kind: input.kind }, options);
 }
 
+/**
+ * Dichiara un momento del giorno di una data: «saltato» o «mangiato, non registrato».
+ * `at` è l'istante della dichiarazione (predefinito: adesso), non il giorno a cui si riferisce.
+ */
+export function createMealDeclaration(
+  input: { date: string; kind: MealKind; status: MealDeclarationStatus },
+  options: DiaryEventOptions,
+): MealDeclarationEvent {
+  return build<MealDeclarationEvent>("mealDeclaration", input, options);
+}
+
 export function createWater(input: { ml: number }, options: DiaryEventOptions): WaterEvent {
   return build<WaterEvent>("water", { ml: input.ml }, options);
 }
 
 export function createDrink(
-  input: { name: string; ml: number; caffeineMg?: number; alcoholG?: number },
+  input: {
+    name: string;
+    ml: number;
+    caffeineMg?: number;
+    alcoholG?: number;
+    energyKcal?: number;
+    sugarsG?: number;
+  },
   options: DiaryEventOptions,
 ): DrinkEvent {
   return build<DrinkEvent>("drink", input, options);

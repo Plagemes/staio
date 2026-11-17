@@ -47,6 +47,11 @@ export interface DayNutritionView {
   /** Niente da calcolare: nessuna voce con nutrienti in questo giorno. */
   empty: boolean;
   complete: boolean;
+  /**
+   * Nel giorno ci sono solo bevande e nessun pasto né consumo: invece della scheda intera basta una riga breve
+   * («Per ora solo bevande: ~1 kcal»).
+   */
+  drinksOnlyText?: string;
   /** Frase per un giorno incompleto: il totale è parziale. */
   partialText?: string;
   /** "calcolato su 4 voci di 6", solo se qualche voce non ha dati. */
@@ -105,8 +110,13 @@ export function dayNutritionView(day: DayIntake | undefined, date: string): DayN
   });
   const empty = energy === undefined && macros.length === 0;
   const missingCells = [...(energy ? [energy] : []), ...macros].filter((c) => c.missingShare > 0);
+  const drinksOnly = day.meals.length === 0 && day.standalone.length === 0 && day.drinks.length > 0;
+  const drinksOnlyText = drinksOnly
+    ? `Per ora solo bevande${energy ? `: ${energy.prefix}${energy.certainty === "estimated" ? "~" : ""}${energy.text}` : ""}.`
+    : undefined;
   return {
     date,
+    ...(drinksOnlyText ? { drinksOnlyText } : {}),
     empty,
     complete: day.complete,
     ...(day.complete ? {} : { partialText: `Totale parziale: ${reasonsText(day)}.` }),

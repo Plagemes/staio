@@ -9,6 +9,7 @@
 // Le esclusioni scritte a mano NON seguono la regola invertita: lì l'utente nomina una cosa precisa («funghi»,
 // «maiale») e il motore cerca quella cosa, i suoi iponimi e i prodotti che la contengono di solito; un nome che non la
 // rivela non è sospetto.
+import { confirmationKey, foldedExclusions, type ConfirmationMap } from "./confirmationKey";
 import { HYPONYM_GROUPS } from "./hyponyms";
 import {
   CITRUS_WORDS,
@@ -34,10 +35,11 @@ export type FindingOrigin = "name" | "note" | "food" | "linked" | "product" | "l
 /**
  * Perché: `table` voce delle tabelle; `label` etichetta; `typo` parola a una lettera da una voce delle tabelle;
  * `generic` ingrediente generico o composto (anche una riga che nomina più alimenti o una preparazione);
- * `unrecognized` nome non riconosciuto; `gluten_free_claim` prodotto dichiarato «senza glutine» (la dichiarazione va
+ * `unrecognized` nome non riconosciuto; `mixed_script` una parola con lettere di alfabeti diversi («lаtte» con la «а»
+ * cirillica): le tabelle non la leggono, va riscritta e non si può confermare; `gluten_free_claim` prodotto dichiarato «senza glutine» (la dichiarazione va
  * verificata in etichetta); `processed` prodotto lavorato, confezionato, conservato o essiccato.
  */
-export type FindingReason = "table" | "label" | "typo" | "generic" | "unrecognized" | "gluten_free_claim" | "processed";
+export type FindingReason = "table" | "label" | "typo" | "generic" | "unrecognized" | "mixed_script" | "gluten_free_claim" | "processed";
 
 /** Il motivo detto all'utente. */
 export const FINDING_REASON_TEXT: Readonly<Record<FindingReason, string>> = {
@@ -46,6 +48,7 @@ export const FINDING_REASON_TEXT: Readonly<Record<FindingReason, string>> = {
   typo: "nome scritto quasi come un alimento che lo contiene",
   generic: "ingrediente generico o composto",
   unrecognized: "nome non riconosciuto",
+  mixed_script: "testo con caratteri di alfabeti diversi: riscrivilo",
   gluten_free_claim: "dichiarato senza glutine: va verificato in etichetta",
   processed: "prodotto lavorato o confezionato: va verificato in etichetta",
 };
@@ -76,12 +79,41 @@ export interface ItemSubject {
   productName?: string;
   /** Allergeni dichiarati in etichetta («en:milk», «latte»…). La loro assenza non prova nulla. */
   labelAllergens?: readonly string[];
+  /** Codici a barre o identificativi dei prodotti di dispensa collegati: non si controllano, servono solo alla conferma. */
+  productRefs?: readonly string[];
 }
+
+/** Un dubbio su cui l'utente ha dichiarato «ho letto l'etichetta, per me va bene». Non è un `clear`: l'app non ha verificato nulla. */
+export interface ConfirmedFinding extends Finding {
+  verdict: "uncertain";
+  /** Quando l'utente l'ha confermato (istante ISO). */
+  confirmedAt: string;
+  /** La chiave della conferma che copre il dubbio. */
+  confirmationKey: string;
+}
+
+/** Con quali conferme dell'utente leggere gli esiti `uncertain`. Senza, il motore non ne usa nessuna. */
+export interface ConfirmationOptions {
+  /** Le conferme attive (da `deriveConfirmations`). */
+  confirmations?: ConfirmationMap;
+  /**
+   * Le esclusioni dichiarate adesso (anche nessuna: `[]`). Obbligatorie: una conferma data prima di una nuova esclusione non
+   * vale più, e senza questo elenco non si può saperlo. Se mancano a runtime, le conferme non contano.
+   */
+  excludedFoods: readonly string[];
+}
+
+/** I criteri di `assessRecipe`: con le conferme servono anche le esclusioni (a livello di tipi). */
+export type RecipeCriteria =
+  | { allergens?: readonly string[]; excludedFoods?: readonly string[]; confirmations?: undefined }
+  | { allergens?: readonly string[]; excludedFoods: readonly string[]; confirmations: ConfirmationMap };
 
 export interface ItemAssessment {
   verdict: Verdict;
-  /** Al più una per allergene: `contains` se c'è, altrimenti `uncertain`. */
+  /** Al più una per allergene: `contains` se c'è, altrimenti `uncertain` (quelli confermati dall'utente non ci sono). */
   findings: Finding[];
+  /** I dubbi coperti da una conferma valida dell'utente. Assente se non ce ne sono. */
+  confirmed?: ConfirmedFinding[];
 }
 
 /** Testo fisso per le schermate: che cosa il controllo fa e che cosa non può fare. */
@@ -745,6 +777,42 @@ function sourcesOf(item: ItemSubject): { origin: FindingOrigin; text: string }[]
   return out;
 }
 
+/** Gruppi di alfabeti: il giapponese mescola legittimamente han, hiragana e katakana, e conta come uno. */
+const SCRIPT_GROUPS: readonly (readonly [string, RegExp])[] = [
+  ["latin", /\p{Script=Latin}/u],
+  ["cyrillic", /\p{Script=Cyrillic}/u],
+  ["greek", /\p{Script=Greek}/u],
+  ["armenian", /\p{Script=Armenian}/u],
+  ["hebrew", /\p{Script=Hebrew}/u],
+  ["arabic", /\p{Script=Arabic}/u],
+  ["cjk", /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u],
+  ["hangul", /\p{Script=Hangul}/u],
+  ["devanagari", /\p{Script=Devanagari}/u],
+  ["thai", /\p{Script=Thai}/u],
+];
+
+const NEUTRAL_SCRIPT = /[\p{Script=Common}\p{Script=Inherited}]/u;
+const MICRO_PREFIX = /(?<!\p{L})[\u00b5\u03bc](?=(?:g|l|m|mol|s|a|v|w|j|hz|b)(?!\p{L}))/giu;
+
+/**
+ * La prima parola del testo con lettere di alfabeti diversi (una «а» cirillica tra lettere latine, per esempio), o
+ * `undefined`. I testi normali, in un solo alfabeto, non ne hanno.
+ */
+function mixedScriptWord(text: string): string | undefined {
+  // «µ»/«μ» come prefisso di unità («7 µg», «200µg», «25 μg») è neutra: non è greco in mezzo al latino
+  const plain = text.replace(MICRO_PREFIX, "");
+  for (const word of plain.split(/[^\p{L}\p{M}\p{N}]+/u)) {
+    const scripts = new Set<string>();
+    for (const ch of word) {
+      // i segni comuni a tutti gli alfabeti (come «ー» del giapponese) non contano
+      if (!/\p{L}/u.test(ch) || NEUTRAL_SCRIPT.test(ch)) continue;
+      scripts.add(SCRIPT_GROUPS.find(([, re]) => re.test(ch))?.[0] ?? "other");
+      if (scripts.size > 1) return word;
+    }
+  }
+  return undefined;
+}
+
 function assessResolved(item: ItemSubject, targets: readonly Target[]): ItemAssessment {
   const findings: Finding[] = [];
   const sources = sourcesOf(item);
@@ -787,6 +855,16 @@ function assessResolved(item: ItemSubject, targets: readonly Target[]): ItemAsse
         }
       }
     }
+    // un testo con alfabeti mescolati le tabelle non lo leggono: resta incerto, con un motivo suo, e non si conferma
+    if (!found) {
+      for (const s of sources) {
+        const word = mixedScriptWord(s.text);
+        if (word !== undefined) {
+          uncertain = { allergen: target.label, verdict: "uncertain", term: word, origin: s.origin, text: s.text, reason: "mixed_script" };
+          break;
+        }
+      }
+    }
     if (found) findings.push(found);
     else if (uncertain) findings.push(uncertain);
   }
@@ -794,9 +872,50 @@ function assessResolved(item: ItemSubject, targets: readonly Target[]): ItemAsse
   return { verdict, findings };
 }
 
-/** Controlla un ingrediente o un alimento contro gli allergeni dichiarati: nome, nota, alimento collegato, prodotto, etichetta. */
-export function assessItem(item: ItemSubject, allergens: readonly string[]): ItemAssessment {
-  return assessResolved(item, resolve(allergens));
+/**
+ * Applica le conferme dell'utente ai risultati di un ingrediente. Regole, tutte prudenti:
+ *  - mai se c'è un `contains` (di un allergene o di un'esclusione): la conferma non conta;
+ *  - solo per la chiave esatta dell'ingrediente (nome, nota, alimento, collegati, prodotto, codici);
+ *  - solo se tutte le esclusioni dichiarate adesso erano dichiarate allora;
+ *  - solo per gli allergeni dichiarati allora: uno nuovo resta `uncertain`.
+ */
+function settle(
+  item: ItemSubject,
+  findings: Finding[],
+  options: ConfirmationOptions | undefined,
+): { open: Finding[]; confirmed: ConfirmedFinding[] } {
+  const none = { open: findings, confirmed: [] as ConfirmedFinding[] };
+  const confirmations = options?.confirmations;
+  if (!confirmations || confirmations.size === 0 || findings.length === 0) return none;
+  if (findings.some((f) => f.verdict !== "uncertain" || f.reason === "mixed_script")) return none;
+  const excluded = options?.excludedFoods;
+  // senza l'elenco delle esclusioni non si può dire se la conferma copre ciò che è dichiarato adesso: non conta
+  if (excluded === undefined) return none;
+  if (excluded.some((e) => foldText(e) !== "" && itemMatchesExclusion(item, e) !== undefined)) return none;
+  const key = confirmationKey(item);
+  if (key === "") return none;
+  const record = confirmations.get(key);
+  if (!record || record.key !== key) return none;
+  if (foldedExclusions(excluded).some((e) => !record.excludedFoods.includes(e))) return none;
+  const open: Finding[] = [];
+  const confirmed: ConfirmedFinding[] = [];
+  for (const f of findings) {
+    if (record.allergens.includes(f.allergen)) {
+      confirmed.push({ ...f, verdict: "uncertain", confirmedAt: record.confirmedAt, confirmationKey: key });
+    } else open.push(f);
+  }
+  return { open, confirmed };
+}
+
+/**
+ * Controlla un ingrediente o un alimento contro gli allergeni dichiarati: nome, nota, alimento collegato, prodotto,
+ * etichetta. Con `options.confirmations`, i dubbi che l'utente ha confermato escono da `findings` e vanno in `confirmed`.
+ */
+export function assessItem(item: ItemSubject, allergens: readonly string[], options?: ConfirmationOptions): ItemAssessment {
+  const raw = assessResolved(item, resolve(allergens));
+  const { open, confirmed } = settle(item, raw.findings, options);
+  if (confirmed.length === 0) return raw;
+  return { verdict: open.length > 0 ? "uncertain" : "clear", findings: open, confirmed };
 }
 
 /**
@@ -909,10 +1028,20 @@ export interface ExclusionOutcome {
   title?: { term: string };
 }
 
+/** Un ingrediente il cui dubbio su un allergene è coperto da una conferma dell'utente. */
+export interface ConfirmedHit extends IngredientHit {
+  allergen: string;
+  confirmedAt: string;
+  confirmationKey: string;
+}
+
 export interface RecipeAssessment {
+  /** `clear` anche con ingredienti confermati: in quel caso `confirmed` non è vuoto e va mostrato. */
   verdict: Verdict;
   allergens: AllergenOutcome[];
   exclusions: ExclusionOutcome[];
+  /** Gli ingredienti confermati dall'utente, uno per ingrediente e allergene. Assente se non ce ne sono. */
+  confirmed?: ConfirmedHit[];
 }
 
 /**
@@ -921,12 +1050,33 @@ export interface RecipeAssessment {
  */
 export function assessRecipe(
   recipe: RecipeSubject,
-  criteria: { allergens?: readonly string[]; excludedFoods?: readonly string[] },
+  criteria: RecipeCriteria,
 ): RecipeAssessment {
   const targets = resolve(criteria.allergens ?? []);
   const allergens: AllergenOutcome[] = [];
+  const confirmed: ConfirmedHit[] = [];
   if (targets.length > 0) {
-    const perIngredient = recipe.ingredients.map((ing) => assessResolved(ing, targets).findings);
+    const options: ConfirmationOptions | undefined = criteria.confirmations
+      ? { confirmations: criteria.confirmations, excludedFoods: criteria.excludedFoods }
+      : undefined;
+    const perIngredient = recipe.ingredients.map((ing, ingIndex) => {
+      const settled = settle(ing, assessResolved(ing, targets).findings, options);
+      settled.confirmed.forEach((f) => {
+        confirmed.push({
+          index: ingIndex,
+          name: ing.name,
+          allergen: f.allergen,
+          term: f.term,
+          origin: f.origin,
+          text: f.text,
+          reason: f.reason,
+          ...(f.note !== undefined ? { note: f.note } : {}),
+          confirmedAt: f.confirmedAt,
+          confirmationKey: f.confirmationKey,
+        });
+      });
+      return settled.open;
+    });
     for (const target of targets) {
       const ingredientHits = (verdict: "contains" | "uncertain"): IngredientHit[] =>
         perIngredient.flatMap((fs, index) =>
@@ -980,5 +1130,5 @@ export function assessRecipe(
 
   const verdict: Verdict =
     exclusions.length > 0 || allergens.some((a) => a.verdict === "contains") ? "contains" : allergens.length > 0 ? "uncertain" : "clear";
-  return { verdict, allergens, exclusions };
+  return { verdict, allergens, exclusions, ...(confirmed.length > 0 ? { confirmed } : {}) };
 }

@@ -34,6 +34,8 @@ export function TodayNutrition({ now }: { now: string }) {
         <p className={styles.quiet} role="status">
           Calcolo i nutrienti…
         </p>
+      ) : view.drinksOnlyText ? (
+        <p className={styles.quiet}>{view.drinksOnlyText}</p>
       ) : view.empty ? (
         <p className={styles.quiet}>
           Niente da calcolare per ora: quando registri un pasto con alimenti che riconosco, qui compaiono energia e macronutrienti.

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useId, useMemo, useState } from "react";
-import { ALLERGEN_CHECK_NOTICE } from "@/core/allergens";
+import { ALLERGEN_CHECK_NOTICE, deriveConfirmations } from "@/core/allergens";
 import type { MealKind } from "@/core/diary";
 import {
   checkPlanWeek,
@@ -93,13 +93,15 @@ function WeekView({ data, weeks, week, weekId, setWeekId, sheet, setSheet }: Vie
     via.kind === "recipe" ? (data.recipes.find((r) => r.recipeId === via.id)?.title ?? "una ricetta") : (data.preps.find((p) => p.prepId === via.id)?.title ?? "una preparazione");
 
   const check = useMemo(() => (data.nutrientsOf ? checkPlanWeek(plan, week.start, data.nutrientsOf) : undefined), [plan, week.start, data.nutrientsOf]);
+  const confirmations = useMemo(() => deriveConfirmations(data.log ?? []).byKey, [data.log]);
   const constraints = useMemo(
-    () => checkWeekConstraints(plan.structure, state, { expandForChecks: data.expandForChecks, linkOf: data.linkOf }),
-    [plan.structure, state, data.expandForChecks, data.linkOf],
+    () => checkWeekConstraints(plan.structure, state, { expandForChecks: data.expandForChecks, linkOf: data.linkOf, confirmations }),
+    [plan.structure, state, data.expandForChecks, data.linkOf, confirmations],
   );
   const constraintItems = constraintLines(constraints, nameOfRef);
   const violations = constraintItems.filter((l) => l.kind === "violation");
   const unverified = constraintItems.filter((l) => l.kind === "unverified");
+  const confirmedItems = constraintItems.filter((l) => l.kind === "confirmed");
 
   async function save(next: readonly PlannedEntry[], message: string, weekStart = week.start): Promise<string | null> {
     const failure = await write((ctx) => buildWeek(weekStart, next, ctx, message));
@@ -157,7 +159,20 @@ function WeekView({ data, weeks, week, weekId, setWeekId, sheet, setSheet }: Vie
           </ul>
         </div>
       ) : null}
-      {violations.length + unverified.length > 0 ? <p className={ui.hint}>{ALLERGEN_CHECK_NOTICE}</p> : null}
+      {confirmedItems.length > 0 ? (
+        <div className={styles.alert}>
+          <strong>Confermato da te</strong>
+          <ul className={styles.alertList}>
+            {confirmedItems.map((v, i) => (
+              <li key={i}>
+                {dayMonth(v.date)}: {v.text}
+              </li>
+            ))}
+          </ul>
+          <p className={ui.hint}>Puoi revocare le conferme in «Obiettivi», dove dichiari gli allergeni.</p>
+        </div>
+      ) : null}
+      {violations.length + unverified.length + confirmedItems.length > 0 ? <p className={ui.hint}>{ALLERGEN_CHECK_NOTICE}</p> : null}
       {error ? (
         <p className={ui.error} role="alert">
           {error}

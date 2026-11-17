@@ -20,6 +20,7 @@ Una ricetta è un oggetto TypeScript (o JSON) di poche righe: tipo `Recipe` in `
 | `params` | dipende dall'archetipo, vedi sotto |
 | `details` | opzionale: `stem`, `leaf`, `cap`, `label` (ammessi solo dove indicato) |
 | `hatch` | opzionale: `density` 0.2–2.5 (default 1; più basso per vetro, superfici chiare e piatte), `cross` (default true; false = niente secondo tratteggio) |
+| `color` | opzionale: colori per lo stile a colori, vedi «Colori» |
 | `pose` | opzionale: `tiltDeg` −90…90, inclinazione attorno a z. 90 = coricato. Il modello viene poi appoggiato su y = 0 |
 | `variation` | opzionale 0–1 (default 1): intensità delle differenze fra semi. 0 per oggetti che devono essere identici |
 
@@ -167,6 +168,13 @@ Le unità sono quelle di riferimento dei figli: ogni figlio, a scala 1, ha altez
     { recipe: { archetype: "leaf", params: { layout: "bunch", count: 12, width: 0.5, spread: 0.6, stalk: 0.8 } }, position: [0, 0.95, 0], scale: 1.6 },
   ] } }
 ```
+
+## Colori
+
+I modelli si disegnano in due stili, scelti dal tema (`theme.ts`): `incisione` (tutti i temi tranne «vivo») e `colore` («vivo»). L'incisione ignora i colori.
+Un colore si ricava dal più specifico: campo `color` della ricetta, poi tabella per id in `catalog/foodColors.ts`, poi predefinito di categoria e archetipo (`colors.ts`).
+`color`: `main` (obbligatorio, `#rrggbb`: buccia, guscio, polpa di una fetta, materiale di una confezione) e, se servono, `rind` (buccia o crosta di fette e spicchi), `stem` (gambo), `leaf` (foglie, cime, pinne), `cap`, `label`, `seed`. Ciò che manca si deriva dal colore principale e dalla categoria. Nei composti il colore va sui figli.
+Per una ricetta nuova basta aggiungere una riga a `foodColors.ts`; `colors.test.ts` rifiuta voci senza colore specifico e fresche sul grigio. Confezioni generiche: materiale (cartone, vetro, latta) ed etichetta nel colore della categoria. Un `data-model-style="engraving"` su un contenitore forza l'incisione.
 
 ## Consigli
 

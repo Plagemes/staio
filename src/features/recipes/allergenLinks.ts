@@ -8,6 +8,8 @@ import { bestMatches, type IngredientLink, type FoodRef } from "@/core/recipes";
 export interface PantryFood {
   name: string;
   productName?: string;
+  /** Codice a barre del prodotto, se noto: la conferma dell'utente è legata a quel prodotto. */
+  barcode?: string;
   /** Allergeni dichiarati in etichetta. */
   allergens: string[];
 }
@@ -21,12 +23,13 @@ export function pantryFoods(lots: readonly Lot[], products: ReadonlyMap<string, 
   for (const lot of lots) {
     if (lot.status !== "active" || !(lot.remaining > 0)) continue;
     const product = lot.barcode ? products?.get(lot.barcode) : undefined;
-    const key = `${lot.productRef}\u0000${product?.barcode ?? ""}`;
+    const key = `${lot.productRef}\u0000${product?.barcode ?? lot.barcode ?? ""}`;
     if (seen.has(key)) continue;
     seen.add(key);
     out.push({
       name: lot.productRef,
       ...(product?.name ? { productName: product.name } : {}),
+      ...(lot.barcode ? { barcode: lot.barcode } : {}),
       allergens: product?.allergens ?? [],
     });
   }
@@ -53,8 +56,10 @@ export function makeLinkOf(foods: readonly PantryFood[]) {
     const list = [...matched];
     const names = unique(list.flatMap((f) => [f.name, ...(f.productName ? [f.productName] : [])]));
     const allergens = unique(list.flatMap((f) => f.allergens));
+    const productRefs = unique(list.flatMap((f) => (f.barcode ? [f.barcode] : [])));
     return {
       ...(names.length > 0 ? { names } : {}),
+      ...(productRefs.length > 0 ? { productRefs } : {}),
       ...(allergens.length > 0 ? { allergens } : {}),
     };
   };

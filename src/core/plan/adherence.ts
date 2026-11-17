@@ -6,6 +6,7 @@ import type { Quantity } from "../ledger";
 import {
   dayCoverage,
   getDay,
+  mealMoments,
   mealsWithPantry,
   MEAL_KINDS,
   type DiaryMeal,
@@ -48,6 +49,11 @@ export interface EntryResult {
   otherSlot?: true;
   /** Quantità mangiata / quantità pianificata, se le unità coincidono (solo per gli alimenti). */
   quantityRatio?: number;
+  /**
+   * Per `skipped`: il momento è stato dichiarato «saltato». Il pasto pianificato risulta non fatto
+   * (e non scala nulla dalla dispensa); non viene spostato da solo.
+   */
+  declaredSkipped?: true;
   /** Motivo, per `unverifiable`. */
   reason?: "unresolved_ref" | "untracked_meal";
 }
@@ -203,6 +209,7 @@ function compareDay(
   planned: readonly PlannedEntry[],
   meals: readonly DiaryMeal[],
   declaredKinds: ReadonlySet<MealKind>,
+  skippedKinds: ReadonlySet<MealKind>,
   consumesOf: (mealId: string) => readonly { lotId: string; quantity: Quantity }[],
   options: AdherenceOptions,
 ): AdherenceDay {
@@ -263,7 +270,11 @@ function compareDay(
     } else if (unverifiableSlots.has(entry.meal)) {
       setResult(i, { status: "unverifiable", actual: [], reason: "unresolved_ref" });
     } else {
-      setResult(i, { status: "skipped", actual: [] });
+      setResult(i, {
+        status: "skipped",
+        actual: [],
+        ...(skippedKinds.has(entry.meal) && !meals.some((m) => m.kind === entry.meal) ? { declaredSkipped: true as const } : {}),
+      });
     }
   });
 
@@ -321,12 +332,17 @@ export function compareWeek(
       excluded.gaps.push(date);
       continue;
     }
-    const declaredKinds = new Set<MealKind>((day?.untrackedMeals ?? []).map((m) => m.kind));
+    const moments = mealMoments(day);
+    const declaredKinds = new Set<MealKind>([
+      ...(day?.untrackedMeals ?? []).map((m) => m.kind),
+      ...moments.filter((m) => m.status === "untracked").map((m) => m.kind),
+    ]);
+    const skippedKinds = new Set<MealKind>(moments.filter((m) => m.status === "skipped").map((m) => m.kind));
     const kindOrder = new Map<string, number>(MEAL_KINDS.map((k, i) => [k, i]));
     const sorted = [...planned].sort(
       (a, b) => (kindOrder.get(a.meal) ?? 99) - (kindOrder.get(b.meal) ?? 99),
     );
-    days.push(compareDay(date, sorted, day?.meals ?? [], declaredKinds, consumesOf, options));
+    days.push(compareDay(date, sorted, day?.meals ?? [], declaredKinds, skippedKinds, consumesOf, options));
   }
 
   const totals = emptyCounts();

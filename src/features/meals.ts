@@ -2,15 +2,20 @@
 import {
   createHabit,
   createMeal,
+  createMealDeclaration,
   createUntrackedMeal,
   localMoment,
+  mealMoments,
+  momentOfMinutes,
   type DiaryDay,
   type DiaryEventOptions,
   type DiaryHabit,
   type HabitEvent,
   type MealEvent,
+  type MealDeclarationStatus,
   type MealItem,
   type MealKind,
+  type MealMoment,
 } from "@/core/diary";
 import type { AnyEvent } from "@/core/events";
 import {
@@ -26,6 +31,7 @@ import {
 } from "@/core/ledger";
 import { formatQuantity } from "@/core/units";
 import { resolveAmount, type AmountChoice } from "./actions";
+import { pieceChoices } from "./pieces";
 import { readQuantity } from "./capture";
 import { DEFAULT_TIME_ZONE } from "@/core/expiry";
 
@@ -41,17 +47,10 @@ export const MEAL_KIND_ORDER: readonly MealKind[] = ["breakfast", "lunch", "dinn
 /** I tre pasti che fanno una giornata: gli spuntini non contano. */
 export const MAIN_MEALS: readonly MealKind[] = ["breakfast", "lunch", "dinner"];
 
-/** Tipo di pasto più probabile per l'ora locale di un istante. */
+/** Tipo di pasto più probabile per l'ora locale di un istante (la stessa regola con cui le bevande vanno a un momento). */
 export function suggestMealKind(at: string, timeZone: string = DEFAULT_TIME_ZONE): MealKind {
   const m = localMoment(at, timeZone);
-  if (!m) return "snack";
-  const minutes = m.minutes;
-  if (minutes < 5 * 60) return "snack";
-  if (minutes < 10 * 60 + 30) return "breakfast";
-  if (minutes < 15 * 60 + 30) return "lunch";
-  if (minutes < 18 * 60 + 30) return "snack";
-  if (minutes < 23 * 60) return "dinner";
-  return "snack";
+  return m ? momentOfMinutes(m.minutes) : "snack";
 }
 
 /** "08:05" nel fuso dato. */
@@ -61,6 +60,31 @@ export function localTime(at: string, timeZone: string = DEFAULT_TIME_ZONE): str
   const h = String(Math.floor(m.minutes / 60)).padStart(2, "0");
   const min = String(m.minutes % 60).padStart(2, "0");
   return `${h}:${min}`;
+}
+
+/** Ora tipica di ogni momento, per un pasto o una bevanda di un giorno passato (modificabile). */
+export const TYPICAL_MEAL_TIME: Record<MealKind, string> = {
+  breakfast: "08:00",
+  lunch: "13:00",
+  dinner: "20:00",
+  snack: "16:30",
+};
+
+/**
+ * Come si sceglie la quantità di un alimento preso da un lotto: tutto, metà, un quarto, scritta a mano, oppure
+ * (per i lotti fatti di pezzi) una delle scelte `piece:<id>` di `pieceChoices`, per esempio «1 piadina = 100 g».
+ */
+export type AmountKey = "all" | "half" | "quarter" | "text" | `piece:${string}`;
+
+/** La scelta di quantità per un lotto: i pezzi diventano una quantità già calcolata, le frazioni di pezzo restano stime. */
+export function amountChoiceOf(key: AmountKey, text: string, lot: Lot): AmountChoice {
+  if (key.startsWith("piece:")) {
+    const piece = pieceChoices(lot).find((c) => c.id === key.slice("piece:".length));
+    if (piece) return { kind: "value", value: piece.quantity.value, estimated: piece.estimated };
+    // una scelta che non esiste più (il lotto è cambiato): meglio chiedere la quantità che consumare tutto
+    return { kind: "text", text: "" };
+  }
+  return key === "text" ? { kind: "text", text } : { kind: key as "all" | "half" | "quarter" };
 }
 
 export function defaultHabitTitle(kind: MealKind): string {
@@ -100,6 +124,11 @@ export interface MealContext {
   now: string;
   deviceId: string;
   idGenerator?: IdGenerator;
+  /**
+   * Quando è stato mangiato, se non adesso (un pasto di un giorno passato). Vale solo per l'evento del pasto: i
+   * consumi della dispensa restano di adesso, perché la dispensa non torna indietro nel tempo.
+   */
+  mealAt?: string;
 }
 
 export type MealResult =
@@ -168,7 +197,7 @@ export function buildMealEvents(input: MealInput, ctx: MealContext): MealResult 
   try {
     meal = createMeal(
       { kind: input.kind, title: input.title?.trim() || undefined, items: items.length > 0 ? items : undefined },
-      options(ctx, { certainty }),
+      options(ctx, { certainty, ...(ctx.mealAt ? { at: ctx.mealAt } : {}) }),
     );
   } catch {
     return { ok: false, errors: { picks: {}, free: {}, general: "Non riesco a scrivere questo pasto: controlla le quantità." } };
@@ -185,7 +214,7 @@ export function buildMealEvents(input: MealInput, ctx: MealContext): MealResult 
     ];
     try {
       habit = createHabit(
-        { habitId: (ctx.idGenerator ?? generateId)(), title: habitTitle, kind: input.kind, usualTime: localTime(ctx.now), items: habitItems },
+        { habitId: (ctx.idGenerator ?? generateId)(), title: habitTitle, kind: input.kind, usualTime: localTime(ctx.mealAt ?? ctx.now), items: habitItems },
         options(ctx),
       );
       events.push(habit);
@@ -282,6 +311,90 @@ export function buildUntrackedMeal(kind: MealKind, ctx: MealContext): { events: 
   return { events: [event], message: `Segnato: ${MEAL_KIND_LABELS[kind].toLowerCase()} fuori, non tracciato.` };
 }
 
+/** I tre momenti che si possono dichiarare. */
+export type DeclarableKind = "breakfast" | "lunch" | "dinner";
+
+export function buildMealDeclaration(
+  date: string,
+  kind: DeclarableKind,
+  status: MealDeclarationStatus,
+  ctx: MealContext,
+): { events: AnyEvent[]; message: string } {
+  const event = createMealDeclaration({ date, kind, status }, options(ctx));
+  const name = MEAL_KIND_LABELS[kind].toLowerCase();
+  return {
+    events: [event],
+    message: status === "skipped" ? `Segnato: ${name} saltato.` : `Segnato: ${name} mangiato, non registrato.`,
+  };
+}
+
+/** Inizio della fascia di ogni momento (minuti): da lì in poi il momento compare in Oggi. */
+export const MOMENT_STARTS: Record<DeclarableKind, number> = {
+  breakfast: 5 * 60,
+  lunch: 10 * 60 + 30,
+  dinner: 18 * 60 + 30,
+};
+
+/** Da quest'ora si propone «Saltato»: oltre il tempo in cui il pasto si fa di solito, non prima. */
+export const MOMENT_DECLARE_FROM: Record<DeclarableKind, number> = {
+  breakfast: 10 * 60,
+  lunch: 14 * 60 + 30,
+  dinner: 21 * 60,
+};
+
+const HOUR_RE = /^([01]?\d|2[0-3])[:.]([0-5]\d)$/;
+
+/** "12:30" → minuti dalla mezzanotte. */
+export function minutesOfTime(text: string): number | undefined {
+  const m = HOUR_RE.exec(text.trim());
+  return m ? Number(m[1]) * 60 + Number(m[2]) : undefined;
+}
+
+export type MomentOffer = "hidden" | "register" | "declare";
+
+/**
+ * Che cosa propone Oggi per un momento senza pasto. `hidden`: la fascia non è ancora cominciata, non
+ * si mostra niente. `register`: si può registrare, ma non si propone «Saltato» (il momento è in corso o
+ * appena iniziato). `declare`: passato l'orario abituale (quello del pasto abituale se c'è, più un'ora
+ * e mezza; altrimenti quello tipico della fascia) si offrono anche «Saltato» e «Mangiato, non registrato».
+ * Un giorno passato offre sempre tutto.
+ */
+export function momentOffer(
+  kind: DeclarableKind,
+  nowMinutes: number,
+  options: { pastDay?: boolean; usualTime?: string } = {},
+): MomentOffer {
+  if (options.pastDay) return "declare";
+  if (nowMinutes < MOMENT_STARTS[kind]) return "hidden";
+  const usual = options.usualTime !== undefined ? minutesOfTime(options.usualTime) : undefined;
+  const from = usual !== undefined ? Math.min(MOMENT_DECLARE_FROM[kind], usual + 90) : MOMENT_DECLARE_FROM[kind];
+  return nowMinutes >= from ? "declare" : "register";
+}
+
+const MOMENT_STATUS_TEXT: Record<MealMoment["status"], string> = {
+  recorded: "registrato",
+  skipped: "saltato",
+  untracked: "mangiato, non registrato",
+  none: "",
+};
+
+/** "Pranzo · saltato", "Colazione · solo una bevanda: tè". Una bevanda non è un pasto registrato. */
+export function momentTitle(kind: MealKind, status: MealMoment["status"], drinkNames: readonly string[] = []): string {
+  const label = MEAL_KIND_LABELS[kind];
+  const names = [...new Set(drinkNames.map((n) => n.trim().toLowerCase()))];
+  if (status === "none") {
+    if (names.length === 0) return label;
+    return `${label} · ${names.length === 1 ? "solo una bevanda" : "solo bevande"}: ${names.join(", ")}`;
+  }
+  const base = `${label} · ${MOMENT_STATUS_TEXT[status]}`;
+  return names.length > 0 ? `${base} · ${names.length === 1 ? "bevanda" : "bevande"}: ${names.join(", ")}` : base;
+}
+
+/** Stato dei tre momenti di un giorno. */
+export function momentsOf(day: DiaryDay | undefined): (MealMoment & { kind: DeclarableKind })[] {
+  return mealMoments(day).filter((m): m is MealMoment & { kind: DeclarableKind } => m.kind !== "snack");
+}
+
 /** Riga di testo per un alimento di un pasto: "Latte 200 ml". */
 export function itemText(name: string, quantity: Quantity): string {
   return `${name} ${formatQuantity(quantity)}`;
@@ -293,6 +406,8 @@ export interface DaySummary {
   status: DayStatus;
   /** Colazione, pranzo e cena registrati. */
   tracked: MealKind[];
+  /** Colazione, pranzo e cena dichiarati «saltati»: un dato vero, non un vuoto. */
+  skipped: MealKind[];
   /** Colazione, pranzo e cena segnati solo come «non tracciato». */
   untracked: MealKind[];
   /** Colazione, pranzo e cena senza niente. */
@@ -307,23 +422,33 @@ function list(kinds: readonly MealKind[]): string {
 }
 
 /**
- * Stato del giorno: completo se colazione, pranzo e cena sono tracciati; dichiarato se ci sono tutti e tre
- * ma almeno uno è solo «non tracciato»; con vuoti altrimenti. Gli spuntini non contano.
- * Un vuoto non è un digiuno: il testo non lo dice mai.
+ * Stato del giorno: completo se colazione, pranzo e cena sono registrati o dichiarati «saltati»; dichiarato
+ * se ci sono tutti e tre ma almeno uno è solo «non tracciato»; con vuoti altrimenti. Gli spuntini non contano.
+ * Un vuoto non è un digiuno: il testo non lo dice mai. Un momento «saltato» invece è un fatto che hai detto tu.
  */
 export function summarizeDay(day: DiaryDay | undefined): DaySummary {
-  const tracked = MAIN_MEALS.filter((k) => day?.meals.some((m) => m.kind === k));
-  const untracked = MAIN_MEALS.filter((k) => !tracked.includes(k) && day?.untrackedMeals.some((m) => m.kind === k));
-  const missing = MAIN_MEALS.filter((k) => !tracked.includes(k) && !untracked.includes(k));
-  const nothing = (day?.meals.length ?? 0) + (day?.untrackedMeals.length ?? 0) === 0;
+  const moments = momentsOf(day);
+  const kindsWith = (status: MealMoment["status"]) => moments.filter((m) => m.status === status).map((m) => m.kind);
+  const tracked = kindsWith("recorded");
+  const skipped = kindsWith("skipped");
+  const untracked = kindsWith("untracked");
+  const missing = kindsWith("none");
+  const nothing = (day?.meals.length ?? 0) + (day?.untrackedMeals.length ?? 0) + (day?.declarations.length ?? 0) === 0;
 
   if (missing.length === 0 && untracked.length === 0) {
-    return { status: "complete", tracked, untracked, missing, text: "Giornata completa: colazione, pranzo e cena sono registrati." };
+    const text =
+      skipped.length === 0
+        ? "Giornata completa: colazione, pranzo e cena sono registrati."
+        : skipped.length === 3
+          ? "Giornata completa: colazione, pranzo e cena segnati come saltati."
+          : `Giornata completa: ${list(tracked)} ${tracked.length === 1 ? "registrato" : "registrati"}, ${list(skipped)} ${skipped.length === 1 ? "saltato" : "saltati"}.`;
+    return { status: "complete", tracked, skipped, untracked, missing, text };
   }
   if (missing.length === 0) {
     return {
       status: "declared",
       tracked,
+      skipped,
       untracked,
       missing,
       text: `Giornata dichiarata: ${list(untracked)} ${untracked.length === 1 ? "è segnato" : "sono segnati"} come non tracciato. Il resto è registrato, ma il totale è incompleto.`,
@@ -332,10 +457,11 @@ export function summarizeDay(day: DiaryDay | undefined): DaySummary {
   return {
     status: "gaps",
     tracked,
+    skipped,
     untracked,
     missing,
     text: nothing
       ? "Ancora niente registrato oggi."
-      : `Giornata con vuoti: mancano ${list(missing)}. Un vuoto non vuol dire che hai saltato il pasto.`,
+      : `Giornata con vuoti: mancano ${list(missing)}. Un vuoto non vuol dire che hai saltato il pasto: se è così, segnalo.`,
   };
 }

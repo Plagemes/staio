@@ -1,14 +1,26 @@
 // Vincoli del piano: alimenti esclusi e allergeni dichiarati dall'utente.
 
-import { allergenLabels, assessItem, itemMatchesExclusion, type FindingOrigin, type FindingReason, type ItemSubject } from "../allergens";
+import {
+  allergenLabels,
+  assessItem,
+  confirmationKey,
+  confirmationLapse,
+  itemMatchesExclusion,
+  type ConfirmationMap,
+  type FindingOrigin,
+  type FindingReason,
+  type ItemSubject,
+} from "../allergens";
 import type { MealKind } from "../diary";
 import { nameTokens, normalizeName } from "../nutrition";
 import type { PlanStructureState, PlanWeekState } from "./derive";
-import { refOf, type ExpandRef, type ItemRef } from "./refs";
+import { refOf, type ExpandRef, type ExpandedIngredient, type ItemRef } from "./refs";
 
 export interface ConstraintItem {
   name: string;
   foodId?: string;
+  /** La nota dell'ingrediente, se chi espande la ricetta la porta: il controllo la legge come nella ricetta. */
+  note?: string;
 }
 
 export interface ConstraintsOptions {
@@ -24,6 +36,12 @@ export interface ConstraintsOptions {
    * alimento collegato incerto rende incerto l'ingrediente; uno che contiene l'allergene è una violazione.
    */
   linkOf?: (item: ConstraintItem) => ConstraintLink | undefined;
+  /**
+   * Conferme dell'utente sugli ingredienti non verificabili. Valgono solo per l'esito incerto (mai per un allergene
+   * trovato) e solo per gli allergeni e le esclusioni dichiarati quando le ha date. Un ingrediente confermato esce dai
+   * dubbi ma finisce in `confirmed`, mai in silenzio.
+   */
+  confirmations?: ConfirmationMap;
 }
 
 /** Un alimento di dispensa collegato a una voce del piano. */
@@ -32,6 +50,8 @@ export interface ConstraintLink {
   productName?: string;
   /** Allergeni dichiarati in etichetta. La loro assenza non prova nulla. */
   allergens?: readonly string[];
+  /** Codici a barre o identificativi dei prodotti collegati: la conferma dell'utente è legata a loro. */
+  productRefs?: readonly string[];
 }
 
 /** Da dove viene il sospetto: il nome, la dispensa (alimento collegato o prodotto), l'etichetta. */
@@ -74,13 +94,27 @@ export interface UnverifiedItem {
   evidence?: ConstraintEvidence[];
 }
 
+/** Un ingrediente il cui dubbio su un allergene l'utente ha confermato («ho letto l'etichetta, per me va bene»). */
+export interface ConfirmedItem {
+  date: string;
+  meal: MealKind;
+  item: ConstraintItem;
+  via?: ItemRef;
+  /** Gli allergeni dichiarati coperti dalla conferma. */
+  terms: string[];
+  /** Quando l'utente l'ha confermato (istante ISO). */
+  confirmedAt: string;
+}
+
 export interface ConstraintsResult {
   /** Nessuna violazione trovata. */
   ok: boolean;
-  /** Tutte le voci sono state verificate: `ok && verified` è l'unico caso di piano senza dubbi. */
+  /** Tutte le voci sono state verificate: `ok && verified` è l'unico caso di piano senza dubbi. Le voci confermate dall'utente contano come verificate ma stanno in `confirmed`. */
   verified: boolean;
   violations: ConstraintViolation[];
   unverified: UnverifiedItem[];
+  /** Le voci che l'utente ha confermato: l'app non ha verificato nulla, lo ha dichiarato lui. Assente se non ce ne sono. */
+  confirmed?: ConfirmedItem[];
 }
 
 const tokenSubset = (small: readonly string[], big: readonly string[]): boolean =>
@@ -88,6 +122,7 @@ const tokenSubset = (small: readonly string[], big: readonly string[]): boolean 
 
 const subjectOf = (item: ConstraintItem): ItemSubject => ({
   name: item.name,
+  ...(item.note !== undefined && item.note.trim() !== "" ? { note: item.note } : {}),
   ...(item.foodId !== undefined && item.foodId.trim() !== "" ? { foodId: item.foodId } : {}),
 });
 
@@ -110,6 +145,7 @@ export function checkConstraints(
 ): ConstraintsResult {
   const violations: ConstraintViolation[] = [];
   const unverified: UnverifiedItem[] = [];
+  const confirmed: ConfirmedItem[] = [];
   const excluded = structure?.excludedFoods ?? [];
   const allergens = structure?.allergens ?? [];
   const declared = allergens.map((a) => ({ term: a, norm: normalizeName(a) })).filter((a) => a.norm !== "");
@@ -135,10 +171,17 @@ export function checkConstraints(
         }
         continue;
       }
-      items = ingredients.map((ing) => ({
-        item: { name: ing.name, ...(ing.foodId !== undefined ? { foodId: ing.foodId } : {}) },
-        via: ref!,
-      }));
+      items = ingredients.map((ing) => {
+        const note = (ing as ExpandedIngredient & { note?: string }).note;
+        return {
+          item: {
+            name: ing.name,
+            ...(ing.foodId !== undefined ? { foodId: ing.foodId } : {}),
+            ...(note !== undefined && note.trim() !== "" ? { note } : {}),
+          },
+          via: ref!,
+        };
+      });
     }
 
     for (const { item, via } of items) {
@@ -157,11 +200,16 @@ export function checkConstraints(
         ...subjectOf(item),
         ...(link?.names && link.names.length > 0 ? { linkedNames: link.names } : {}),
         ...(link?.productName ? { productName: link.productName } : {}),
+        ...(link?.productRefs && link.productRefs.length > 0 ? { productRefs: link.productRefs } : {}),
         labelAllergens: [...(found ?? []), ...(link?.allergens ?? [])],
       };
       const foundNorm = new Set((found ?? []).map((a) => normalizeName(a)));
-      const assessed = assessItem(subject, declared.map((a) => a.term));
+      const assessed = assessItem(subject, declared.map((a) => a.term), {
+        ...(options.confirmations ? { confirmations: options.confirmations } : {}),
+        excludedFoods: excluded,
+      });
       const uncertainTerms: string[] = [];
+      const confirmedTerms: string[] = [];
       const uncertainEvidence: ConstraintEvidence[] = [];
       for (const a of declared) {
         const labels = allergenLabels([a.term]);
@@ -179,14 +227,33 @@ export function checkConstraints(
           uncertainTerms.push(a.term);
           uncertainEvidence.push({ origin: f.origin, text: f.text, term: f.term, reason: f.reason });
         }
+        if (!hit && !foundNorm.has(a.norm) && mine.length === 0 && (assessed.confirmed ?? []).some((f) => labels.includes(f.allergen))) {
+          confirmedTerms.push(a.term);
+        }
       }
-      if (found === undefined && !link) {
+      // senza dati sull'alimento il dubbio resta, salvo che l'utente abbia confermato tutti i dubbi del motore sul nome
+      // e solo se la conferma copre tutti gli allergeni e le esclusioni di adesso: per uno dichiarato dopo, il dubbio resta
+      const record = options.confirmations?.get(confirmationKey(subject));
+      const lapse = record ? confirmationLapse(record, allergenLabels(declared.map((a) => a.term)), excluded) : undefined;
+      const fullyCovered = lapse !== undefined && lapse.allergens.length === 0 && lapse.excludedFoods.length === 0;
+      const unknownCovered = (assessed.confirmed ?? []).length > 0 && assessed.findings.length === 0 && fullyCovered;
+      if (found === undefined && !link && !unknownCovered) {
         unverified.push({ code: "unknown_allergens", ...where, item, ...extra });
       } else if (uncertainTerms.length > 0) {
         unverified.push({ code: "uncertain_allergens", ...where, item, ...extra, terms: uncertainTerms, evidence: uncertainEvidence });
       }
+      const confirmedAt = assessed.confirmed?.[0]?.confirmedAt;
+      if (confirmedAt !== undefined && confirmedTerms.length > 0) {
+        confirmed.push({
+          ...where,
+          item,
+          ...extra,
+          terms: confirmedTerms,
+          confirmedAt,
+        });
+      }
     }
   }
 
-  return { ok: violations.length === 0, verified: unverified.length === 0, violations, unverified };
+  return { ok: violations.length === 0, verified: unverified.length === 0, violations, unverified, ...(confirmed.length > 0 ? { confirmed } : {}) };
 }

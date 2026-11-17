@@ -106,6 +106,9 @@ export interface DrinkIntake {
   ml: number;
   caffeineMg?: number;
   alcoholG?: number;
+  /** Energia e zuccheri, solo se la bevanda li dichiara: altrimenti sono non noti, non zero. */
+  energyKcal?: number;
+  sugarsG?: number;
   certainty: Certainty;
 }
 
@@ -234,6 +237,14 @@ function drinkPart(d: DrinkIntake): SumPart | undefined {
   if (d.alcoholG !== undefined) {
     nutrients.alcoholG = d.alcoholG;
     scope.push("alcoholG");
+  }
+  if (d.energyKcal !== undefined) {
+    nutrients.energyKcal = d.energyKcal;
+    scope.push("energyKcal");
+  }
+  if (d.sugarsG !== undefined) {
+    nutrients.sugarsG = d.sugarsG;
+    scope.push("sugarsG");
   }
   // Una bevanda che non dichiara nulla non dice niente: non è un dato e non è un vuoto.
   return scope.length === 0 ? undefined : { nutrients, certainty: d.certainty, weight: d.ml, scope };
@@ -384,6 +395,8 @@ export function computeIntake(
       ml: d.ml,
       ...(d.caffeineMg !== undefined ? { caffeineMg: d.caffeineMg } : {}),
       ...(d.alcoholG !== undefined ? { alcoholG: d.alcoholG } : {}),
+      ...(d.energyKcal !== undefined ? { energyKcal: d.energyKcal } : {}),
+      ...(d.sugarsG !== undefined ? { sugarsG: d.sugarsG } : {}),
       certainty: d.certainty,
     }));
 

@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { BottomNav, type NavArea } from "@/design";
 import { useOnlineStatus } from "@/pwa";
 import { NoticeProvider } from "../notice";
+import { StyleChoice, StyleChoiceBoundary, useStyleChoiceGate } from "../settings/StyleChoice";
 import { BarcodeMigration } from "./BarcodeMigration";
 import styles from "./AppShell.module.css";
 
@@ -43,18 +44,30 @@ function areaOf(pathname: string): NavArea | "capture" | undefined {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const online = useOnlineStatus();
+  const area = areaOf(pathname);
+  const styleChoice = useStyleChoiceGate(pathname);
   return (
     <NoticeProvider>
       <BarcodeMigration />
-      <div className={styles.shell}>
+      {/* data-area: nel tema Vivo l'area corrente dà il colore d'accento a tutta la sezione (themes.css) */}
+      <div className={styles.shell} data-area={area}>
         {online ? null : (
           <p className={styles.offline} role="status">
             Senza rete: i dati restano sul telefono
           </p>
         )}
-        <main className={styles.main}>{children}</main>
+        {/* data-app-content: solo questo resta nascosto, al massimo per un attimo, mentre si decide se proporre la scelta dello stile (tokens.css) */}
+        <main className={styles.main} data-app-content="">
+          {styleChoice.show ? (
+            <StyleChoiceBoundary onError={styleChoice.close} fallback={children}>
+              <StyleChoice onDone={styleChoice.close} />
+            </StyleChoiceBoundary>
+          ) : (
+            children
+          )}
+        </main>
         <div className={styles.nav}>
-          <BottomNav current={areaOf(pathname)} hrefs={HREFS} />
+          <BottomNav current={area} hrefs={HREFS} />
         </div>
       </div>
     </NoticeProvider>

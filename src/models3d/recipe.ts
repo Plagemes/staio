@@ -160,6 +160,29 @@ export interface HatchHints {
   cross?: boolean;
 }
 
+/** Colori della ricetta per lo stile a colori, in `#rrggbb`. Lo stile a incisione li ignora. */
+export interface RecipeColor {
+  /** Corpo: buccia di un frutto intero, guscio di un uovo, polpa di una fetta, materiale di una confezione. */
+  main: string;
+  /** Buccia o crosta di una fetta o di uno spicchio (parte a sé). */
+  rind?: string;
+  /** Picciolo, gambo, rametto. */
+  stem?: string;
+  /** Foglie, cime e pinne. */
+  leaf?: string;
+  /** Tappo. */
+  cap?: string;
+  /** Fascia o etichetta. */
+  label?: string;
+  /** Semi e piccoli dettagli scuri. */
+  seed?: string;
+}
+
+export const COLOR_SLOTS = ["main", "rind", "stem", "leaf", "cap", "label", "seed"] as const;
+export type ColorSlot = (typeof COLOR_SLOTS)[number];
+
+export const HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
+
 export interface Pose {
   /** Inclinazione attorno all'asse z, in gradi. 90 = oggetto coricato. */
   tiltDeg?: number;
@@ -324,6 +347,8 @@ export interface RecipeBase {
   details?: RecipeDetails;
   hatch?: HatchHints;
   pose?: Pose;
+  /** Colori per lo stile a colori. Se manca valgono quelli specifici dell'alimento o quelli predefiniti della categoria (`colors.ts`). */
+  color?: RecipeColor;
   /** Quanto i semi cambiano le proporzioni, da 0 a 1. Predefinito 1. */
   variation?: number;
 }
@@ -508,7 +533,7 @@ function describe(v: unknown): string {
   return String(v);
 }
 
-const BASE_KEYS = ["id", "name", "category", "archetype", "params", "heightCm", "details", "hatch", "pose", "variation"];
+const BASE_KEYS = ["id", "name", "category", "archetype", "params", "heightCm", "details", "hatch", "pose", "color", "variation"];
 
 function checkParams(c: Checker, archetype: Archetype, raw: unknown) {
   const p = c.obj(raw, "params");
@@ -755,6 +780,17 @@ export function validateRecipe(input: unknown): ValidationResult {
       c.keys(h, ["density", "cross"], "hatch");
       c.optNum(h, "density", "hatch", LIMITS.density);
       c.optBool(h, "cross", "hatch");
+    }
+  }
+  if (input.color !== undefined) {
+    const col = c.obj(input.color, "color");
+    if (col) {
+      c.keys(col, COLOR_SLOTS, "color");
+      if (col.main === undefined) c.add("color.main", "il colore principale è obbligatorio");
+      for (const slot of COLOR_SLOTS) {
+        const v = col[slot];
+        if (v !== undefined && (typeof v !== "string" || !HEX_COLOR_RE.test(v))) c.add(`color.${slot}`, `deve essere un colore #rrggbb (trovato ${describe(v)})`);
+      }
     }
   }
   if (input.pose !== undefined) {

@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import type { AssociationsResult } from "@/core/analysis";
+import { useMemo } from "react";
 import { Label, PromptCard, SectionHeader } from "@/design";
 import { LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
@@ -9,15 +8,10 @@ import { AssociationsSection } from "./AssociationsSection";
 import { ExpenditureSection } from "./ExpenditureSection";
 import { TimingSection } from "./TimingSection";
 import { WeightSection } from "./WeightSection";
-import { computeAnalysis, computeAssociations } from "./compute";
+import { computeAnalysis } from "./compute";
 import { AnalysisDisclaimer } from "./shared";
 import { useAnalysisBase } from "./useAnalysisBase";
-
-interface AssociationsState {
-  /** Gli ingressi con cui è stato calcolato: se cambiano, il risultato è vecchio e si rifà. */
-  source: object;
-  result: AssociationsResult;
-}
+import { useAssociations } from "./useAssociations";
 
 export function Analysis() {
   const { diary, intakeDays, today, error, ready } = useAnalysisBase();
@@ -28,15 +22,7 @@ export function Analysis() {
 
   // Le associazioni fanno molti confronti: si calcolano dopo il primo disegno, non durante.
   const inputs = useMemo(() => (ready && diary && intakeDays && today ? { diary, intakeDays, today } : undefined), [ready, diary, intakeDays, today]);
-  const [associations, setAssociations] = useState<AssociationsState | undefined>();
-  useEffect(() => {
-    if (!inputs) return;
-    const timer = window.setTimeout(() => {
-      setAssociations({ source: inputs, result: computeAssociations(inputs.diary, inputs.intakeDays, inputs.today) });
-    }, 60);
-    return () => window.clearTimeout(timer);
-  }, [inputs]);
-  const associationsResult = associations && associations.source === inputs ? associations.result : undefined;
+  const { result: associationsResult, failed: associationsFailed } = useAssociations(inputs);
 
   return (
     <div className={ui.screen}>
@@ -73,9 +59,9 @@ export function Analysis() {
             <SectionHeader label="Orari dei pasti" />
             <TimingSection result={analysis.timing} />
           </section>
-          <section className={ui.section} aria-busy={associationsResult === undefined}>
+          <section className={ui.section} aria-busy={associationsResult === undefined && !associationsFailed}>
             <SectionHeader label="Associazioni osservate" />
-            <AssociationsSection result={associationsResult} />
+            <AssociationsSection result={associationsResult} failed={associationsFailed} />
           </section>
           <PromptCard title="Esperimenti" description="Cambia una cosa per un periodo e confronta con i giorni prima" href="/app/salute/esperimenti" />
           <PromptCard title="Rapporto" description="Riepilogo della settimana o del mese" href="/app/salute/rapporto" />

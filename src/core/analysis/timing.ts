@@ -16,6 +16,7 @@ import {
   type Reliability,
   type ReliabilitySteps,
 } from "./common";
+import { foodFreeIntervals } from "./intervals";
 import { mean, median, round, sampleSd } from "./stats";
 
 export interface TimingOptions {
@@ -79,6 +80,18 @@ export interface TimingResult {
    */
   lastCaffeine?: MinutesSummary;
   daysWithoutCaffeineRecord: number;
+  /**
+   * Intervalli senza cibo tra un pasto (o una bevanda con energia) e il successivo, sui giorni tracciati
+   * per intero. Un pranzo dichiarato «saltato» allunga l'intervallo; un momento senza dati no, e i
+   * giorni con momenti senza dati non producono intervalli.
+   */
+  foodFree: {
+    count: number;
+    longestMinutes?: number;
+    medianMinutes?: number;
+    /** Intervalli che contengono almeno un momento saltato. */
+    withSkipped: number;
+  };
   /** Variabilità degli orari tra i giorni (deviazione standard, in minuti): più è bassa, più è regolare. */
   regularity: { firstMealSdMinutes: number; lastMealSdMinutes: number; windowSdMinutes: number };
   reliability: Reliability;
@@ -175,9 +188,16 @@ export function analyzeMealTiming(diary: DiaryState, options: TimingOptions = {}
   const lasts = days.map((d) => d.lastMealMinutes);
   const windows = days.map((d) => d.windowMinutes);
 
+  const ff = foodFreeIntervals(diary, { from, to });
   return {
     status: "ok",
     days,
+    foodFree: {
+      count: ff.intervals.length,
+      ...(ff.longestMinutes !== undefined ? { longestMinutes: ff.longestMinutes } : {}),
+      ...(ff.medianMinutes !== undefined ? { medianMinutes: ff.medianMinutes } : {}),
+      withSkipped: ff.withSkipped,
+    },
     firstMeal: summary(firsts),
     lastMeal: summary(lasts),
     eatingWindow: summary(windows),

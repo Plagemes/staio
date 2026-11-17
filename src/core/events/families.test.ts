@@ -55,7 +55,7 @@ describe("famiglie di eventi", () => {
 
   it("l'elenco delle altre famiglie nel diario non è andato fuori sincrono", () => {
     expect([...OTHER_FAMILY_EVENT_TYPES].sort()).toEqual(
-      [...PLAN_EVENT_TYPES, ...PREP_EVENT_TYPES, ...RECIPE_EVENT_TYPES, "experiment"].sort(),
+      [...PLAN_EVENT_TYPES, ...PREP_EVENT_TYPES, ...RECIPE_EVENT_TYPES, "experiment", "allergenConfirmation"].sort(),
     );
   });
 

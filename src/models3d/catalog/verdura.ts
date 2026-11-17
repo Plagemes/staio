@@ -356,6 +356,7 @@ export const verduraRecipes: readonly Recipe[] = [
           archetype: "lathe" as const,
           params: { profile: [[0, 0], [0.2, 0.06], [0.42, 0.3], [0.5, 0.55], [0.38, 0.85], [0.1, 1], [0.02, 1.02]] as [number, number][] },
           details: { stem: { length: 0.18, thickness: 0.03, bend: 0.2 }, leaf: { count: 3, length: 0.8, width: 0.3 } },
+          color: { main: "#dc2f55", stem: "#7fb069", leaf: "#4f9a45" },
         },
         position: [(i - 2) * 0.28, 0, 0] as [number, number, number],
         rotationDeg: [0, 0, deg] as [number, number, number],

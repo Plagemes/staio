@@ -4,6 +4,7 @@ import type {
   DiaryEvent,
   DrinkEvent,
   HabitEvent,
+  MealDeclarationEvent,
   MealEvent,
   MoodEvent,
   SupplementEvent,
@@ -38,6 +39,8 @@ export const meal = (id: string, at: string, f: Fields<MealEvent>) =>
   make<MealEvent>("meal", id, at, f);
 export const untracked = (id: string, at: string, f: Fields<UntrackedMealEvent>) =>
   make<UntrackedMealEvent>("untrackedMeal", id, at, f);
+export const declaration = (id: string, at: string, f: Fields<MealDeclarationEvent>) =>
+  make<MealDeclarationEvent>("mealDeclaration", id, at, f);
 export const water = (id: string, at: string, f: Fields<WaterEvent>) =>
   make<WaterEvent>("water", id, at, f);
 export const drink = (id: string, at: string, f: Fields<DrinkEvent>) =>
@@ -77,6 +80,7 @@ export function sampleDiaryEvents(): DiaryEvent[] {
       habitId: "h1",
     }),
     untracked("u1", at, { kind: "lunch" }),
+    declaration("x1", at, { date: "2026-03-10", kind: "dinner", status: "skipped" }),
     water("w1", at, { ml: 250 }),
     drink("d1", at, { name: "Espresso", ml: 30, caffeineMg: 63, alcoholG: 0 }),
     weight("k1", at, { kg: 72.4 }),

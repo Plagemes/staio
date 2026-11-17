@@ -51,12 +51,21 @@ function AssociationItem({ a }: { a: Association }) {
   );
 }
 
-export function AssociationsSection({ result }: { result: AssociationsResult | undefined }) {
+export function AssociationsSection({ result, failed = false }: { result: AssociationsResult | undefined; failed?: boolean }) {
+  if (!result && failed) {
+    return (
+      <div className={styles.card}>
+        <p className={styles.range} role="status">
+          Non sono riuscito a calcolare le associazioni. Il resto della pagina non ne risente: riapri la pagina per riprovare.
+        </p>
+      </div>
+    );
+  }
   if (!result) {
     return (
       <div className={styles.card}>
         <p className={styles.range} role="status">
-          Calcolo in corso: confronto alimenti e orari con umore e sintomi, può richiedere qualche secondo. Il resto della pagina è già pronto.
+          Sto calcolando: confronto alimenti e orari con umore e sintomi, può richiedere qualche secondo. Il resto della pagina è già pronto.
         </p>
       </div>
     );

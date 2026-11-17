@@ -1,4 +1,5 @@
 // Frasi per l'esito di un'importazione: logica pura, provata nei test.
+import { restoredConfirmationsNotice } from "@/core/allergens";
 import type { ImportBackupResult, ImportSettingsResult } from "@/data";
 
 export function describeImport(result: ImportBackupResult): { ok: boolean; text: string } {
@@ -29,8 +30,10 @@ export function describeImport(result: ImportBackupResult): { ok: boolean; text:
       result.rejected.length === 1 ? "1 evento scartato perché non valido" : `${result.rejected.length} eventi scartati perché non validi`,
     );
   }
-  if (parts.length === 0) return { ok: true, text: "Questa copia era già sul telefono: non c'è niente di nuovo." };
-  return { ok: true, text: `${parts.join(". ")}.` };
+  const confirmations = restoredConfirmationsNotice(result.allergenConfirmations ?? 0);
+  const tail = confirmations ? ` ${confirmations}` : "";
+  if (parts.length === 0) return { ok: true, text: `Questa copia era già sul telefono: non c'è niente di nuovo.${tail}` };
+  return { ok: true, text: `${parts.join(". ")}.${tail}` };
 }
 
 /** Esito dell'importazione delle sole impostazioni (mai le chiavi dell'AI). */

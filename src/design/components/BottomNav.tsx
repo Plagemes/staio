@@ -73,6 +73,7 @@ const AREAS: Area[] = [
   },
 ];
 
+/** Ogni voce porta data-area: nel tema Vivo prende il colore della sua area (themes.css). */
 export function BottomNav({ current, hrefs = {}, className }: BottomNavProps) {
   const [today, pantry, plan, health] = AREAS;
   const item = (area: Area) => (
@@ -80,6 +81,7 @@ export function BottomNav({ current, hrefs = {}, className }: BottomNavProps) {
       key={area.id}
       href={hrefs[area.id] ?? area.defaultHref}
       className={cx(styles.item, current === area.id && styles.current)}
+      data-area={area.id}
       aria-current={current === area.id ? "page" : undefined}
     >
       {area.icon}
@@ -93,6 +95,7 @@ export function BottomNav({ current, hrefs = {}, className }: BottomNavProps) {
       <Link
         href={hrefs.capture ?? "/cattura"}
         className={cx(styles.capture, current === "capture" && styles.captureCurrent)}
+        data-area="capture"
         aria-label="Cattura"
         aria-current={current === "capture" ? "page" : undefined}
       >

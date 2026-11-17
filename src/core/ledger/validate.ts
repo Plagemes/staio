@@ -148,6 +148,17 @@ export function validateEvent(
     if (typeof v !== "string") add(path, "invalid_type");
     else if (v !== "" && !/^\d{8,14}$/.test(v)) add(path, "invalid_value");
   };
+  const checkPieces = (v: unknown, path: string) => {
+    if (!isRecord(v)) return add(path, "invalid_type");
+    const { count, each, name } = v;
+    if (count === undefined) add(`${path}.count`, "required");
+    else if (typeof count !== "number") add(`${path}.count`, "invalid_type");
+    else if (!Number.isInteger(count) || count < 1 || count > 1000) add(`${path}.count`, "invalid_value");
+    if (each === undefined) add(`${path}.each`, "required");
+    else if (typeof each !== "number") add(`${path}.each`, "invalid_type");
+    else if (!Number.isFinite(each) || each <= 0) add(`${path}.each`, "invalid_value");
+    if (name !== undefined && !isNonEmptyString(name)) add(`${path}.name`, "invalid_type");
+  };
   const checkCents = (v: unknown, path: string) => {
     if (typeof v !== "number") add(path, "invalid_type");
     else if (!Number.isInteger(v) || v < 0) add(path, "invalid_value");
@@ -203,6 +214,7 @@ export function validateEvent(
       optionalString(event, "category");
       if (event.barcode !== undefined) checkBarcode(event.barcode, "barcode");
       checkQuantity("quantity", false, lotId);
+      if (event.pieces !== undefined) checkPieces(event.pieces, "pieces");
       requireEnum(event, "location", LOCATIONS);
       if (event.expiry !== undefined) checkExpiry(event.expiry, "expiry");
       optionalString(event, "receiptId");

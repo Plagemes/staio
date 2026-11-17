@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import type { Recipe } from "./recipe";
 import type { ViewerEngine } from "./viewer-engine";
-import { readThemeColors, watchTheme } from "./theme";
+import { readTheme, watchTheme } from "./theme";
 import styles from "./ModelViewer.module.css";
 
 export interface ModelViewerProps {
@@ -121,7 +121,7 @@ export default function ModelViewer({ recipe, seed, signal = false, autoRotate =
         }
         const p = latest.current;
         const engine = createViewerEngine(host, {
-          colors: readThemeColors(root),
+          theme: readTheme(root),
           autoRotate: p.autoRotate && !reduced.matches,
           interactive: p.interactive,
         });
@@ -158,7 +158,7 @@ export default function ModelViewer({ recipe, seed, signal = false, autoRotate =
     };
     document.addEventListener("visibilitychange", onVisibility);
 
-    const unwatchTheme = watchTheme(() => engineRef.current?.setColors(readThemeColors(root)));
+    const unwatchTheme = watchTheme(() => engineRef.current?.setTheme(readTheme(root)));
     const onMotion = () => engineRef.current?.setAutoRotate(latest.current.autoRotate && !reduced.matches);
     reduced.addEventListener("change", onMotion);
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState, type FormEvent } from "react";
-import { createWater, getDay } from "@/core/diary";
+import { createWater, dayFluids, getDay } from "@/core/diary";
 import { useDiary } from "@/data";
 import { Button, Label, ProgressLine, Value } from "@/design";
 import { dayOf } from "../format";
@@ -38,6 +38,7 @@ export function WaterCard() {
   const day = getDay(diary.data, dayOf(now));
   const ml = day?.waterMl ?? 0;
   const total = goal.value;
+  const fluids = dayFluids(day);
 
   async function add(amount: number) {
     setError(null);
@@ -81,6 +82,13 @@ export function WaterCard() {
         </span>
         <span className={styles.of}>di {formatMl(total)}</span>
       </div>
+      {fluids.otherMl > 0 || fluids.alcoholicMl > 0 ? (
+        <p className={styles.fluids}>
+          Acqua {formatMl(ml)}
+          {fluids.otherMl > 0 ? ` · altre bevande ${formatMl(fluids.otherMl)}` : ""}
+          {fluids.alcoholicMl > 0 ? ` · bevande alcoliche ${formatMl(fluids.alcoholicMl)}` : ""}. L&apos;obiettivo conta solo l&apos;acqua.
+        </p>
+      ) : null}
       <ProgressLine value={Math.min(ml, total)} max={total} label={`Acqua di oggi: ${formatMl(ml)} su ${formatMl(total)}`} />
 
       <div className={styles.buttons}>

@@ -1,11 +1,13 @@
 "use client";
 
 import { useId, useMemo, useState, type FormEvent } from "react";
-import { createDrink, createSupplement, getDay } from "@/core/diary";
+import { createSupplement, getDay } from "@/core/diary";
+import { DEFAULT_TIME_ZONE } from "@/core/expiry";
 import { useDiary } from "@/data";
 import { Button, Label, Value } from "@/design";
 import { dayOf, formatTime } from "../format";
-import { DRINK_PRESETS, formatMl, recentSupplementNames, type DrinkPreset } from "../health";
+import { DrinkEntries, DrinkPresetChips, useDrinkActions } from "./Drinks";
+import { recentSupplementNames } from "../health";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
 import { useRecord } from "../useRecord";
@@ -118,13 +120,6 @@ export function SupplementsCard() {
   );
 }
 
-function presetHint(p: DrinkPreset): string {
-  const parts = [formatMl(p.ml)];
-  if (p.caffeineMg !== undefined) parts.push(`~${p.caffeineMg} mg caffeina`);
-  if (p.alcoholG !== undefined) parts.push(`~${p.alcoholG.toString().replace(".", ",")} g alcol`);
-  return parts.join(" · ");
-}
-
 const readNumber = (text: string): number | undefined => {
   const t = text.trim().replace(",", ".");
   if (t === "" || !/^\d+(?:\.\d+)?$/.test(t)) return undefined;
@@ -134,7 +129,7 @@ const readNumber = (text: string): number | undefined => {
 export function DrinksCard() {
   const diary = useDiary();
   const now = useNow();
-  const { record, busy } = useRecord();
+  const actions = useDrinkActions(diary.data?.timeZone ?? DEFAULT_TIME_ZONE);
   const ids = useId();
   const [name, setName] = useState("");
   const [ml, setMl] = useState("");
@@ -143,16 +138,8 @@ export function DrinksCard() {
   const [error, setError] = useState<string | null>(null);
 
   if (!diary.data || !now) return null;
-  const day = getDay(diary.data, dayOf(now));
-
-  async function addPreset(p: DrinkPreset) {
-    setError(null);
-    const result = await record(
-      (o) => [createDrink({ name: p.name, ml: p.ml, caffeineMg: p.caffeineMg, alcoholG: p.alcoholG }, { ...o, certainty: "estimated" })],
-      `Segnato: ${p.name.toLowerCase()}, ${formatMl(p.ml)}.`,
-    );
-    if (!result.ok) setError(result.error);
-  }
+  const today = dayOf(now, diary.data.timeZone);
+  const day = getDay(diary.data, today);
 
   async function onCustom(event: FormEvent) {
     event.preventDefault();
@@ -164,10 +151,7 @@ export function DrinksCard() {
     if (caffeine.trim() !== "" && caffeineMg === undefined) return setError("La caffeina va scritta in milligrammi, solo il numero.");
     if (alcohol.trim() !== "" && alcoholG === undefined) return setError("L'alcol va scritto in grammi, solo il numero.");
     setError(null);
-    const result = await record(
-      (o) => [createDrink({ name: name.trim(), ml: volume, caffeineMg, alcoholG }, o)],
-      `Segnato: ${name.trim().toLowerCase()}, ${formatMl(volume)}.`,
-    );
+    const result = await actions.add({ name: name.trim(), ml: volume, caffeineMg, alcoholG }, "label");
     if (result.ok) {
       setName("");
       setMl("");
@@ -178,15 +162,11 @@ export function DrinksCard() {
 
   return (
     <div className={styles.card}>
-      <div className={styles.buttons}>
-        {DRINK_PRESETS.map((p) => (
-          <button key={p.id} type="button" className={styles.chip} disabled={busy} onClick={() => void addPreset(p)}>
-            {p.name}
-            <span className={styles.chipHint}>{presetHint(p)}</span>
-          </button>
-        ))}
-      </div>
-      <p className={ui.hint}>Le quantità di caffeina e alcol delle scelte rapide sono valori tipici, non misure: valgono come stime.</p>
+      <DrinkPresetChips actions={actions} onError={setError} />
+      <p className={ui.hint}>
+        Caffeina, alcol ed energia delle scelte rapide sono valori tipici, non misure: valgono come stime. La bevanda compare in Oggi, nel momento
+        a cui appartiene per orario.
+      </p>
 
       <form className={ui.form} onSubmit={onCustom} noValidate>
         <div className={ui.field}>
@@ -221,7 +201,7 @@ export function DrinksCard() {
           </p>
         ) : null}
         <div>
-          <Button type="submit" variant="outline" disabled={busy}>
+          <Button type="submit" variant="outline" disabled={actions.busy}>
             Segna bevanda
           </Button>
         </div>
@@ -229,7 +209,7 @@ export function DrinksCard() {
 
       {day && day.drinks.length > 0 ? (
         <div className={styles.group}>
-          <Label>Oggi</Label>
+          <Label>Segnato oggi</Label>
           <p className={ui.paragraph}>
             {day.caffeineMg > 0 ? (
               <>
@@ -244,13 +224,7 @@ export function DrinksCard() {
             ) : null}
             {day.caffeineMg === 0 && day.alcoholG === 0 ? "Bevande senza caffeina né alcol." : ""}
           </p>
-          <ul className={styles.todayList}>
-            {day.drinks.map((d) => (
-              <li key={d.eventId}>
-                {formatTime(d.at)} · {d.name}, {formatMl(d.ml)}
-              </li>
-            ))}
-          </ul>
+          <DrinkEntries drinks={[...day.drinks].reverse()} date={today} actions={actions} onError={setError} showCounts />
         </div>
       ) : (
         <p className={ui.hint}>Nessuna bevanda segnata oggi.</p>

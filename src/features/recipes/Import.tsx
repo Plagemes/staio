@@ -289,7 +289,18 @@ function FromMedia() {
     <div className={ui.empty}>
       <h2 className={ui.emptyTitle}>Da foto o da video</h2>
       <p className={ui.emptyText}>
-        Non ancora: arriveranno più avanti. Per ora puoi scrivere o incollare il testo della ricetta, oppure importarla da un indirizzo.
+        Dalla foto non ancora: per ora puoi scrivere o incollare il testo della ricetta, oppure importarla da un indirizzo.
+      </p>
+      <p className={ui.emptyText}>
+        Un video si può condividere all&apos;app dal telefono: scegli «Condividi» e poi Staio. Qui compare ciò che arriva, e puoi
+        anche <Link href="/app/ricette/condivisa" className={ui.textLink}>aprire la pagina dei contenuti condivisi</Link>.
+      </p>
+      <p className={ui.emptyText}>
+        Per leggere i video serve un servizio di estrazione:{" "}
+        <Link href="/app/impostazioni/video" className={ui.textLink}>
+          impostalo qui
+        </Link>
+        .
       </p>
     </div>
   );

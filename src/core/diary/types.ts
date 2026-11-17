@@ -6,6 +6,7 @@ import type { Certainty, EventBase, Quantity } from "../ledger";
 export const DIARY_EVENT_TYPES = [
   "meal",
   "untrackedMeal",
+  "mealDeclaration",
   "water",
   "drink",
   "weight",
@@ -58,6 +59,27 @@ export interface UntrackedMealEvent extends EventBase {
   kind: MealKind;
 }
 
+export const MEAL_DECLARATION_STATUSES = ["skipped", "untracked"] as const;
+/**
+ * - `skipped`: non ha mangiato in quel momento. È un dato vero: l'assunzione è zero, misurata.
+ * - `untracked`: ha mangiato ma il pasto non è registrato. Dichiara che il dato manca.
+ */
+export type MealDeclarationStatus = (typeof MEAL_DECLARATION_STATUSES)[number];
+
+/**
+ * Dichiarazione esplicita su un momento del giorno (colazione, pranzo o cena) di una data di
+ * calendario. Per lo stesso giorno e momento vale la più recente (per `recordedAt`, poi `id`);
+ * un pasto registrato in quel momento prevale e la dichiarazione non conta più, senza
+ * cancellarla. Si corregge con una nuova dichiarazione o con un `void`.
+ */
+export interface MealDeclarationEvent extends EventBase {
+  type: "mealDeclaration";
+  /** Data di calendario `YYYY-MM-DD`: il giorno è questo, non quello di `at`. */
+  date: string;
+  kind: MealKind;
+  status: MealDeclarationStatus;
+}
+
 export interface WaterEvent extends EventBase {
   type: "water";
   ml: number;
@@ -70,6 +92,12 @@ export interface DrinkEvent extends EventBase {
   ml: number;
   caffeineMg?: number;
   alcoholG?: number;
+  /**
+   * Energia e zuccheri della bevanda, se si conoscono. Assenti = non noti, non zero: una bevanda
+   * senza questi campi non aggiunge né toglie nulla ai totali del giorno.
+   */
+  energyKcal?: number;
+  sugarsG?: number;
 }
 
 export interface WeightEvent extends EventBase {
@@ -119,6 +147,7 @@ export interface HabitEvent extends EventBase {
 export type DiaryEvent =
   | MealEvent
   | UntrackedMealEvent
+  | MealDeclarationEvent
   | WaterEvent
   | DrinkEvent
   | WeightEvent
@@ -149,4 +178,6 @@ export const DIARY_LIMITS = {
   volumeMlMax: 10_000,
   caffeineMgMax: 2000,
   alcoholGMax: 500,
+  energyKcalMax: 5000,
+  sugarsGMax: 1000,
 } as const;

@@ -8,15 +8,18 @@ import styles from "./Pantry.module.css";
 
 interface SelectionBarProps {
   count: number;
+  /** Quanti prodotti diversi tra le confezioni scelte. */
+  products: number;
   busy: boolean;
   error: string | null;
   onRemove: (kind: RemoveManyKind) => void;
 }
 
-const countText = (n: number) => (n === 1 ? "1 selezionato" : `${n} selezionati`);
+const packs = (n: number) => (n === 1 ? "1 confezione" : `${n} confezioni`);
+const countText = (n: number, products: number) => (products > 1 ? `${packs(n)} di ${products} prodotti` : packs(n));
 
 /** Barra in basso della modalità «Seleziona»: il numero degli alimenti scelti, poi la scelta breve e una sola conferma. */
-export function SelectionBar({ count, busy, error, onRemove }: SelectionBarProps) {
+export function SelectionBar({ count, products, busy, error, onRemove }: SelectionBarProps) {
   const ids = useId();
   const [choosing, setChoosing] = useState(false);
   const [kind, setKind] = useState<RemoveManyKind | null>(null);
@@ -26,7 +29,7 @@ export function SelectionBar({ count, busy, error, onRemove }: SelectionBarProps
       {choosing && count > 0 ? (
         <div className={styles.barChoice}>
           <fieldset className={ui.field}>
-            <legend className={ui.fieldLabel}>Elimina {count === 1 ? "1 alimento" : `${count} alimenti`}</legend>
+            <legend className={ui.fieldLabel}>Elimina {countText(count, products)}</legend>
             <div className={ui.choices}>
               <label className={ui.choice}>
                 <input type="radio" name={`${ids}-kind`} checked={kind === "mistaken"} onChange={() => setKind("mistaken")} />
@@ -47,7 +50,7 @@ export function SelectionBar({ count, busy, error, onRemove }: SelectionBarProps
           </fieldset>
           <div className={ui.row}>
             <Button disabled={busy || kind === null} onClick={() => kind && onRemove(kind)}>
-              {count === 1 ? "Elimina 1 alimento" : `Elimina ${count} alimenti`}
+              {`Elimina ${packs(count)}`}
             </Button>
             <Button variant="text" disabled={busy} onClick={() => setChoosing(false)}>
               Indietro
@@ -57,7 +60,7 @@ export function SelectionBar({ count, busy, error, onRemove }: SelectionBarProps
       ) : (
         <div className={styles.barMain}>
           <span className={styles.barCount} aria-live="polite">
-            {countText(count)}
+            {countText(count, products)}
           </span>
           <Button disabled={count === 0} onClick={() => setChoosing(true)}>
             Elimina

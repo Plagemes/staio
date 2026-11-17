@@ -1,63 +1,94 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { getDay, habitsToPropose, mealsWithPantry, voidMeal, type DiaryHabit } from "@/core/diary";
+import {
+  getDay,
+  habitsToPropose,
+  instantOfLocal,
+  mealsWithPantry,
+  voidMeal,
+  type DiaryHabit,
+  type MealKind,
+  type MealWithPantry,
+} from "@/core/diary";
 import type { AnyEvent } from "@/core/events";
+import { DEFAULT_TIME_ZONE } from "@/core/expiry";
 import { activeLots, type PantryState, type VoidEvent } from "@/core/ledger";
 import { appendEvents, getDeviceId, useDiary } from "@/data";
 import { Button, Label, SectionHeader, Value } from "@/design";
 import { buildUndo } from "../actions";
-import { dayOf, formatTime } from "../format";
+import { dayOf, formatTime, relativeDay } from "../format";
+import { drinkCounts } from "../drinks";
+import { DrinkPresetChips, useDrinkActions } from "../health/Drinks";
 import { WaterCard } from "../health/WaterCard";
 import { evaluateLots } from "../lots";
 import {
   MEAL_KIND_LABELS,
+  TYPICAL_MEAL_TIME,
   buildMealFromHabit,
-  buildUntrackedMeal,
   itemText,
-  suggestMealKind,
+  minutesOfTime,
+  momentsOf,
   summarizeDay,
 } from "../meals";
 import { useNotice } from "../notice";
 import ui from "../ui.module.css";
 import { useRecord } from "../useRecord";
+import { MealMoments } from "./MealMoments";
 import { useTodayPlan } from "./useTodayPlan";
 import styles from "./Today.module.css";
 
 interface Props {
   now: string;
+  /** Il giorno mostrato (`YYYY-MM-DD`): oggi o un giorno passato. */
+  date: string;
   pantry: PantryState;
   log: readonly AnyEvent[];
 }
 
-/** La parte di diario di Oggi: stato del giorno, registrazione dei pasti, pasti abituali, acqua. */
-export function TodayDiary({ now, pantry, log }: Props) {
+/**
+ * La parte di diario di Oggi: stato del giorno, pasti abituali, i momenti con i loro pasti e le loro bevande, scelte
+ * rapide delle bevande, acqua. Per un giorno passato restano solo le cose che hanno senso dopo: segnare un momento
+ * saltato o non registrato, aggiungere una bevanda dimenticata, annullare.
+ */
+export function TodayDiary({ now, date, pantry, log }: Props) {
   const diary = useDiary();
   const notice = useNotice();
   const { recordWith, busy } = useRecord();
   const plan = useTodayPlan();
+  const timeZone = diary.data?.timeZone ?? DEFAULT_TIME_ZONE;
+  const drinkActions = useDrinkActions(timeZone);
   const [openMeal, setOpenMeal] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [undoing, setUndoing] = useState(false);
+  const [pastMoment, setPastMoment] = useState<MealKind>("breakfast");
+  const [pastTimeEdit, setPastTimeEdit] = useState<string | null>(null);
 
   const today = dayOf(now);
-  const kind = suggestMealKind(now);
+  const pastDay = date < today;
 
-  const proposals = useMemo(() => (diary.data ? habitsToPropose(diary.data, now) : []), [diary.data, now]);
+  const proposals = useMemo(() => (diary.data && !pastDay ? habitsToPropose(diary.data, now) : []), [diary.data, now, pastDay]);
   const meals = useMemo(
     () =>
       diary.data
         ? mealsWithPantry(diary.data, log)
-            .filter((m) => m.date === today)
+            .filter((m) => m.date === date)
             .sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))
         : [],
-    [diary.data, log, today],
+    [diary.data, log, date],
   );
 
   if (!diary.data) return null;
-  const day = getDay(diary.data, today);
+  const day = getDay(diary.data, date);
   const summary = summarizeDay(day);
+  const skippedKinds = new Set(momentsOf(day).filter((m) => m.status === "skipped").map((m) => m.kind));
   const lotNames = new Map(pantry.lots.map((l) => [l.lotId, l.productRef]));
+  const drinkLine = drinkCounts(day?.drinks ?? []);
+
+  // Una bevanda dimenticata di un giorno passato: serve l'ora in cui è stata bevuta.
+  const pastTime = pastTimeEdit ?? TYPICAL_MEAL_TIME[pastMoment];
+  const pastMinutes = minutesOfTime(pastTime);
+  const pastAt = pastDay && pastMinutes !== undefined ? instantOfLocal(date, pastMinutes, timeZone) : undefined;
 
   async function registerHabit(habit: DiaryHabit) {
     setError(null);
@@ -66,12 +97,6 @@ export function TodayDiary({ now, pantry, log }: Props) {
       const built = buildMealFromHabit(habit, lots, { now: new Date().toISOString(), deviceId });
       return { events: built.events, message: built.message };
     });
-    if (!result.ok) setError(result.error);
-  }
-
-  async function eatenOut() {
-    setError(null);
-    const result = await recordWith((deviceId) => buildUntrackedMeal(kind, { now: new Date().toISOString(), deviceId }));
     if (!result.ok) setError(result.error);
   }
 
@@ -94,27 +119,76 @@ export function TodayDiary({ now, pantry, log }: Props) {
     }
   }
 
+  function renderMeal(meal: MealWithPantry) {
+    const open = openMeal === meal.mealId;
+    const title = meal.title ?? MEAL_KIND_LABELS[meal.kind];
+    return (
+      <div className={styles.meal}>
+        <div className={styles.mealHead}>
+          <span className={styles.mealTitle}>{title}</span>
+          <span className={styles.mealTime}>
+            {formatTime(meal.at)}
+            {meal.title ? ` · ${MEAL_KIND_LABELS[meal.kind].toLowerCase()}` : ""}
+          </span>
+        </div>
+        <ul className={styles.items}>
+          {meal.pantryConsumes.map((c) => (
+            <li key={c.id}>
+              <Value certainty={c.certainty === "estimated" ? "estimated" : "measured"}>{itemText(lotNames.get(c.lotId) ?? "Alimento", c.quantity)}</Value>
+            </li>
+          ))}
+          {meal.items.map((i, index) => (
+            <li key={`${i.name}-${index}`}>
+              <Value certainty="estimated">{itemText(i.name, i.quantity)}</Value> <span className={styles.note}>voce libera</span>
+            </li>
+          ))}
+        </ul>
+        {meal.removedLines ? (
+          <p className={styles.note}>
+            {meal.removedLines === 1 ? "Una voce è stata tolta dalla dispensa." : `${meal.removedLines} voci sono state tolte dalla dispensa.`}
+          </p>
+        ) : null}
+        <div>
+          <Button variant="text" onClick={() => setOpenMeal(open ? null : meal.mealId)} aria-expanded={open}>
+            Annulla questo pasto
+          </Button>
+        </div>
+        {open ? (
+          <div className={styles.undoPanel} role="group" aria-label="Conferma annullamento del pasto">
+            <p className={ui.paragraph}>Vuoi annullare «{title}»? Gli alimenti scalati dalla dispensa tornano com&apos;erano.</p>
+            <div className={ui.row}>
+              <Button onClick={() => void undoWith((deviceId, at) => voidMeal(meal.mealId, log, { deviceId, now: () => at }), title)} disabled={undoing}>
+                Sì, annulla il pasto
+              </Button>
+              <Button variant="outline" onClick={() => setOpenMeal(null)} disabled={undoing}>
+                No, tienilo
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <>
-      <div className={styles.actions}>
-        <div className={styles.primaryRow}>
-          <Button href="/app/pasto">Registra pasto</Button>
-          {plan.shoppingCount > 0 ? (
-            <Button href="/app/spesa" variant="outline">
-              {plan.shoppingCount === 1 ? "Spesa: 1 voce" : `Spesa: ${plan.shoppingCount} voci`}
+      {pastDay ? null : (
+        <div className={styles.actions}>
+          <div className={styles.primaryRow}>
+            <Button href="/app/pasto">Registra pasto</Button>
+            {plan.shoppingCount > 0 ? (
+              <Button href="/app/spesa" variant="outline">
+                {plan.shoppingCount === 1 ? "Spesa: 1 voce" : `Spesa: ${plan.shoppingCount} voci`}
+              </Button>
+            ) : null}
+          </div>
+          <div className={styles.actionRow}>
+            <Button variant="outline" href="/app/cattura">
+              Aggiungi alimento
             </Button>
-          ) : null}
+          </div>
         </div>
-        <div className={styles.actionRow}>
-          <Button variant="outline" onClick={() => void eatenOut()} disabled={busy}>
-            Ho mangiato fuori
-          </Button>
-          <Button variant="outline" href="/app/cattura">
-            Aggiungi alimento
-          </Button>
-        </div>
-        <p className={ui.hint}>«Ho mangiato fuori» segna come non tracciato il {MEAL_KIND_LABELS[kind].toLowerCase()}: un vuoto non diventa un digiuno.</p>
-      </div>
+      )}
 
       <p className={ui.callout} role="status">
         {summary.text}
@@ -139,7 +213,23 @@ export function TodayDiary({ now, pantry, log }: Props) {
         </div>
       ))}
 
-      {plan.planned.length > 0 ? (
+      <MealMoments
+        date={date}
+        now={now}
+        timeZone={timeZone}
+        day={day}
+        habits={diary.data.habits}
+        meals={meals}
+        renderMeal={renderMeal}
+        pastDay={pastDay}
+        onError={setError}
+        onRemoveDeclaration={(eventId, description) => {
+          const event = log.find((e) => e.id === eventId);
+          if (event) void undoWith((deviceId, at) => buildUndo([event], { deviceId, now: at }), description);
+        }}
+      />
+
+      {plan.planned.length > 0 && !pastDay ? (
         <section className={ui.section}>
           <SectionHeader label="Pianificato per oggi" actionLabel="Settimana" actionHref="/app/piano/settimana" />
           <ul className={styles.list}>
@@ -150,9 +240,14 @@ export function TodayDiary({ now, pantry, log }: Props) {
                   <span className={styles.mealTime}>{MEAL_KIND_LABELS[p.meal].toLowerCase()}</span>
                 </div>
                 {p.note ? <p className={styles.note}>{p.note}</p> : null}
+                {skippedKinds.has(p.meal as "breakfast" | "lunch" | "dinner") ? (
+                  <p className={styles.notDone}>
+                    Non fatto: {MEAL_KIND_LABELS[p.meal].toLowerCase()} saltato. Resta nel piano e dalla dispensa non si scala niente.
+                  </p>
+                ) : null}
                 <div>
                   <Button variant="text" href="/app/piano/settimana">
-                    Registralo
+                    {skippedKinds.has(p.meal as "breakfast" | "lunch" | "dinner") ? "Rimandalo dalla settimana" : "Registralo"}
                   </Button>
                 </div>
               </li>
@@ -161,90 +256,67 @@ export function TodayDiary({ now, pantry, log }: Props) {
         </section>
       ) : null}
 
-      <section className={ui.section}>
-        <SectionHeader label="Pasti di oggi" />
-        {meals.length === 0 && (day?.untrackedMeals.length ?? 0) === 0 ? (
-          <p className={styles.quiet}>Nessun pasto registrato. Quando ne registri uno, compare qui con gli alimenti.</p>
-        ) : (
-          <ul className={styles.list}>
-            {meals.map((meal) => {
-              const open = openMeal === meal.mealId;
-              const title = meal.title ?? MEAL_KIND_LABELS[meal.kind];
-              return (
-                <li key={meal.mealId} className={styles.meal}>
-                  <div className={styles.mealHead}>
-                    <span className={styles.mealTitle}>{title}</span>
-                    <span className={styles.mealTime}>
-                      {formatTime(meal.at)}
-                      {meal.title ? ` · ${MEAL_KIND_LABELS[meal.kind].toLowerCase()}` : ""}
-                    </span>
-                  </div>
-                  <ul className={styles.items}>
-                    {meal.pantryConsumes.map((c) => (
-                      <li key={c.id}>
-                        <Value certainty={c.certainty === "estimated" ? "estimated" : "measured"}>
-                          {itemText(lotNames.get(c.lotId) ?? "Alimento", c.quantity)}
-                        </Value>
-                      </li>
-                    ))}
-                    {meal.items.map((i, index) => (
-                      <li key={`${i.name}-${index}`}>
-                        <Value certainty="estimated">{itemText(i.name, i.quantity)}</Value> <span className={styles.note}>voce libera</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <div>
-                    <Button variant="text" onClick={() => setOpenMeal(open ? null : meal.mealId)} aria-expanded={open}>
-                      Annulla questo pasto
-                    </Button>
-                  </div>
-                  {open ? (
-                    <div className={styles.undoPanel} role="group" aria-label="Conferma annullamento del pasto">
-                      <p className={ui.paragraph}>
-                        Vuoi annullare «{title}»? Gli alimenti scalati dalla dispensa tornano com&apos;erano.
-                      </p>
-                      <div className={ui.row}>
-                        <Button onClick={() => void undoWith((deviceId, now) => voidMeal(meal.mealId, log, { deviceId, now: () => now }), title)} disabled={undoing}>
-                          Sì, annulla il pasto
-                        </Button>
-                        <Button variant="outline" onClick={() => setOpenMeal(null)} disabled={undoing}>
-                          No, tienilo
-                        </Button>
-                      </div>
-                    </div>
-                  ) : null}
-                </li>
-              );
-            })}
-            {(day?.untrackedMeals ?? []).map((u) => (
-              <li key={u.eventId} className={styles.meal}>
-                <div className={styles.mealHead}>
-                  <span className={styles.mealTitle}>{MEAL_KIND_LABELS[u.kind]} fuori</span>
-                  <span className={styles.mealTime}>{formatTime(u.at)}</span>
+      <details className={styles.drinksBox}>
+        <summary className={styles.drinksSummary}>
+          <span>Bevande</span>
+          <span className={styles.drinksCount}>{drinkLine === "" ? "scelte rapide" : drinkLine}</span>
+        </summary>
+        <div className={styles.drinksBody}>
+          {pastDay ? (
+            <>
+              <fieldset className={ui.field}>
+                <legend className={ui.fieldLabel}>Quando</legend>
+                <div className={ui.choices}>
+                  {(["breakfast", "lunch", "dinner", "snack"] as const).map((k) => (
+                    <label key={k} className={ui.choice}>
+                      <input
+                        type="radio"
+                        name="past-drink-moment"
+                        value={k}
+                        checked={pastMoment === k}
+                        onChange={() => {
+                          setPastMoment(k);
+                          setPastTimeEdit(null);
+                        }}
+                      />
+                      <span>{k === "snack" ? "Fuori pasto" : MEAL_KIND_LABELS[k]}</span>
+                    </label>
+                  ))}
                 </div>
-                <p className={styles.note}>Non tracciato: nessun alimento registrato.</p>
-                <div>
-                  <Button
-                    variant="text"
-                    disabled={undoing}
-                    onClick={() => {
-                      const event = log.find((e) => e.id === u.eventId);
-                      if (event) void undoWith((deviceId, now) => buildUndo([event], { deviceId, now }), `${MEAL_KIND_LABELS[u.kind]} fuori`);
-                    }}
-                  >
-                    Togli
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+              </fieldset>
+              <div className={ui.field}>
+                <label className={ui.fieldLabel} htmlFor="past-drink-time">
+                  Ora in cui l&apos;hai bevuta
+                </label>
+                <input
+                  id="past-drink-time"
+                  className={ui.input}
+                  type="time"
+                  value={pastTime}
+                  onChange={(e) => setPastTimeEdit(e.target.value)}
+                />
+              </div>
+            </>
+          ) : null}
+          {pastDay && pastAt === undefined ? (
+            <p className={ui.hint}>Scegli un&apos;ora per segnare una bevanda di questo giorno.</p>
+          ) : (
+            <DrinkPresetChips
+              actions={drinkActions}
+              onError={setError}
+              when={pastDay && pastAt ? { at: pastAt, dayLabel: relativeDay(date, today) } : undefined}
+            />
+          )}
+          <p className={ui.hint}>Una bevanda va nel momento a cui appartiene per orario. Non vale un pasto registrato.</p>
+        </div>
+      </details>
 
-      <section className={ui.section}>
-        <SectionHeader label="Acqua" actionLabel="Salute" actionHref="/app/salute" />
-        <WaterCard />
-      </section>
+      {pastDay ? null : (
+        <section className={ui.section}>
+          <SectionHeader label="Acqua" actionLabel="Salute" actionHref="/app/salute" />
+          <WaterCard />
+        </section>
+      )}
     </>
   );
 }

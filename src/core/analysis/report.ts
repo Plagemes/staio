@@ -6,6 +6,7 @@ import {
   daysBetween,
   localDate,
   dayCoverage,
+  mealMoments,
   dateRange,
   weightSeries,
   type DiaryState,
@@ -101,6 +102,11 @@ export interface MealsSection {
   /** Pasti tracciati e pasti segnati come non tracciati nel periodo, in tutti i giorni. */
   tracked: number;
   untracked: number;
+  /**
+   * Momenti dichiarati «saltati» nel periodo (colazione, pranzo, cena): un fatto descrittivo, senza giudizio.
+   * Un momento con un pasto registrato non conta come saltato.
+   */
+  skipped: { total: number; breakfast: number; lunch: number; dinner: number };
   /** Pasti tracciati per giorno, sui soli giorni completi; assente senza giorni completi. */
   trackedPerCompleteDay?: number;
   basis: DataBasis;
@@ -242,10 +248,20 @@ export function buildReport(
   const daysIn = diary.days.filter((d) => inRange(d.date, from, to));
   const tracked = daysIn.reduce((s, d) => s + d.meals.length, 0);
   const untracked = daysIn.reduce((s, d) => s + d.untrackedMeals.length, 0);
+  const skipped = { total: 0, breakfast: 0, lunch: 0, dinner: 0 };
+  for (const d of daysIn) {
+    for (const m of mealMoments(d)) {
+      if (m.status === "skipped" && m.kind !== "snack") {
+        skipped[m.kind]++;
+        skipped.total++;
+      }
+    }
+  }
   const completeMeals = daysIn.filter((d) => completeSet.has(d.date)).map((d) => d.meals.length);
   const meals: MealsSection = {
     tracked,
     untracked,
+    skipped,
     ...(completeMeals.length > 0 ? { trackedPerCompleteDay: round(mean(completeMeals), 2) } : {}),
     basis: basis(completeMeals.length, tracked),
   };

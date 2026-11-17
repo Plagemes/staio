@@ -10,6 +10,7 @@ import { dayOf, formatPrice } from "../format";
 import { LOCATION_LABELS } from "../labels";
 import { useNotice } from "../notice";
 import { evaluateLots, isExpiring, levelPercent } from "../lots";
+import { piecesText } from "../pieces";
 import { breakdownText, groupEntries, groupName } from "./groups";
 import { entryDetail, entryExpiry } from "./rows";
 import { orderForRealign } from "../realign";
@@ -191,9 +192,10 @@ export function Pantry() {
                           detailBreakdown ? (
                             <>
                               {LOCATION_LABELS[entry.lot.location]} · {detailBreakdown}
+                              {piecesText(group.entries.map((e) => e.lot)) ? ` · ${piecesText(group.entries.map((e) => e.lot))}` : ""}
                             </>
                           ) : (
-                            entryDetail(entry, today)
+                            entryDetail(entry, today, group.entries)
                           )
                         }
                         level={levelPercent(entry.lot)}
@@ -277,6 +279,7 @@ export function Pantry() {
           <SelectionBar
             key={pickedLots.length === 0 ? "empty" : "some"}
             count={pickedLots.length}
+            products={new Set(pickedLots.map((l) => l.barcode ?? l.productRef.trim().toLowerCase())).size}
             busy={removing || !log.data}
             error={removeError}
             onRemove={(kind) => void removePicked(kind)}

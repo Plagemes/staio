@@ -6,6 +6,8 @@ import { isFoodCategory } from "../lots";
 export interface RememberedChoice {
   category: string;
   location: Location;
+  /** Pezzi dentro la confezione scelti l'ultima volta per questo codice. */
+  pieces?: { count: number; each: number; name?: string };
 }
 
 export interface ChoiceStore {
@@ -14,7 +16,7 @@ export interface ChoiceStore {
 }
 
 export type Remembered =
-  | { kind: "barcode"; category: string; location: Location }
+  | { kind: "barcode"; category: string; location: Location; pieces?: { count: number; each: number; name?: string } }
   | { kind: "similar"; category: string };
 
 const CODE_KEY = (code: string) => `barcode.choice.${code}`;
@@ -34,7 +36,12 @@ export async function loadRemembered(
 ): Promise<Remembered | undefined> {
   const own = (await store.get(CODE_KEY(product.barcode))) as Partial<RememberedChoice> | undefined;
   if (own && isFoodCategory(own.category) && typeof own.location === "string" && LOCATIONS.includes(own.location)) {
-    return { kind: "barcode", category: own.category, location: own.location as Location };
+    const p = own.pieces;
+    const pieces =
+      p && Number.isInteger(p.count) && p.count >= 2 && typeof p.each === "number" && p.each > 0
+        ? { count: p.count, each: p.each, ...(typeof p.name === "string" && p.name !== "" ? { name: p.name } : {}) }
+        : undefined;
+    return { kind: "barcode", category: own.category, location: own.location as Location, ...(pieces ? { pieces } : {}) };
   }
   for (const tag of specificTags(product)) {
     const category = await store.get(CATEGORY_KEY(tag));

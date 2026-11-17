@@ -229,7 +229,10 @@ describe("compareWeek", () => {
     ];
     const lots = new Map<string, LotRef>([["lot-zuppa", { productRef: "Zuppa", prepId: "zuppa" }]]);
     const week = compareWeek(state, W, deriveDiary(events), { events, lots });
-    expect(getAdherenceDay(week, "2026-03-09")!.entries[0].status).toBe("skipped");
+    // Un pranzo fatto solo di un consumo poi annullato non vale come registrato: il momento è senza dati,
+    // il giorno ha vuoti e non si giudica (non è un pasto saltato).
+    expect(getAdherenceDay(week, "2026-03-09")).toBeUndefined();
+    expect(week.excluded.gaps).toEqual(["2026-03-09"]);
   });
 
   it("settimana a cavallo di mese e di anno", () => {

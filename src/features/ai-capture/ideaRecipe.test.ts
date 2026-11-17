@@ -115,3 +115,16 @@ describe("ingredienti incerti per gli allergeni dichiarati", () => {
     expect(out.rejected.find((r) => r.idea.title === "Zucchine al brodo")?.reasons.join(" ")).toMatch(/etichetta/);
   });
 });
+
+describe("idee con ingredienti confermati dall'utente", () => {
+  it("un'idea con soli ingredienti confermati si salva senza la spunta generale: il dubbio non c'è più", () => {
+    const withConfirmed = { ...checked, uncertain: [], uncertainIngredients: [], confirmed: [{ name: "Prosciutto cotto", allergens: ["latte"], confirmedAt: "2026-11-05T09:00:00.000Z" }] };
+    expect(recipeEventFromIdea(withConfirmed, source, ctx).ok).toBe(true);
+  });
+
+  it("un'idea con ancora un ingrediente incerto non si salva senza la spunta", () => {
+    const open = { ...checked, uncertain: ["«Crema» è un ingrediente generico o composto"] };
+    const r = recipeEventFromIdea(open, source, ctx);
+    expect(r.ok).toBe(false);
+  });
+});

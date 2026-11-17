@@ -3,21 +3,23 @@
  * Si carica con un import dinamico da `ModelViewer`, così three entra nel bundle solo quando serve.
  */
 import { Group, PerspectiveCamera, Scene, WebGLRenderer } from "three";
-import { buildModel } from "./generate";
-import { applyColors, createGroundShadow, createSharedUniforms, type InkColors, type SharedUniforms } from "./materials";
+import { buildModel, type Model } from "./generate";
 import type { Recipe } from "./recipe";
-import { createModelObject, type ModelObject } from "./three-model";
+import { createStyleKit, type StyleKit } from "./render-kit";
+import type { ThemeSnapshot } from "./theme";
+import type { ModelObject } from "./three-model";
 import type { Mesh } from "three";
 
 export interface EngineOptions {
-  colors: InkColors;
+  theme: ThemeSnapshot;
   autoRotate: boolean;
   interactive: boolean;
 }
 
 export interface ViewerEngine {
   setModel(recipe: Recipe, seed: string, signal: boolean): void;
-  setColors(colors: InkColors): void;
+  /** Nuovo tema: se cambia lo stile di resa i materiali si rifanno, senza ricostruire la geometria. */
+  setTheme(theme: ThemeSnapshot): void;
   setAutoRotate(on: boolean): void;
   /** Avvia o ferma il ciclo di disegno. Da fermo non consuma nulla. */
   setActive(on: boolean): void;
@@ -60,13 +62,15 @@ export function createViewerEngine(container: HTMLElement, options: EngineOption
   camera.position.set(0, 0.95, 6.6);
   camera.lookAt(0, 0.05, 0);
 
-  const shared: SharedUniforms = createSharedUniforms(options.colors);
+  let kit: StyleKit = createStyleKit(options.theme);
   const pivot = new Group();
   pivot.rotation.y = -0.5;
   scene.add(pivot);
 
   let current: ModelObject | null = null;
   let shadow: Mesh | null = null;
+  // il modello (geometrie) sopravvive al cambio di stile: si rifanno solo materiali e ombra
+  let shown: { model: Model; signal: boolean; cross: boolean | undefined } | null = null;
   let autoRotate = options.autoRotate;
   let active = false;
   let dirty = true;
@@ -77,10 +81,12 @@ export function createViewerEngine(container: HTMLElement, options: EngineOption
   let last = 0;
   let disposed = false;
 
-  const clearModel = () => {
+  /** `keepGeometry`: libera solo i materiali, perché la stessa geometria servirà al nuovo stile. */
+  const clearModel = (keepGeometry = false) => {
     if (current) {
       pivot.remove(current.group);
-      current.dispose();
+      if (keepGeometry) current.disposeMaterials();
+      else current.dispose();
       current = null;
     }
     if (shadow) {
@@ -155,28 +161,42 @@ export function createViewerEngine(container: HTMLElement, options: EngineOption
   if (!observer) window.addEventListener("resize", resize);
   resize();
 
+  const present = (model: Model, signal: boolean, cross: boolean | undefined) => {
+    current = kit.createObject(model, { signal, cross });
+    const diag = Math.hypot(model.size[0], model.size[2]);
+    const fit = Math.min(FIT_HEIGHT / model.size[1], FIT_WIDTH / diag);
+    current.group.scale.setScalar(fit);
+    current.group.position.y = GROUND_Y;
+    pivot.add(current.group);
+    shadow = kit.createGroundShadow(Math.min(5, Math.max(2.6, 2.3 * diag * fit)));
+    shadow.position.y = GROUND_Y - 0.002;
+    scene.add(shadow);
+  };
+
   return {
     setModel(recipe, seed, signal) {
       if (disposed) return;
       clearModel();
+      shown = null;
       try {
         const model = buildModel(recipe, seed);
-        current = createModelObject(model, shared, { signal, cross: recipe.hatch?.cross });
-        const diag = Math.hypot(model.size[0], model.size[2]);
-        const fit = Math.min(FIT_HEIGHT / model.size[1], FIT_WIDTH / diag);
-        current.group.scale.setScalar(fit);
-        current.group.position.y = GROUND_Y;
-        pivot.add(current.group);
-        shadow = createGroundShadow(shared, Math.min(5, Math.max(2.6, 2.3 * diag * fit)));
-        shadow.position.y = GROUND_Y - 0.002;
-        scene.add(shadow);
+        shown = { model, signal, cross: recipe.hatch?.cross };
+        present(model, signal, shown.cross);
       } catch (error) {
         console.error("Modello 3D non generato", error);
       }
       dirty = true;
     },
-    setColors(colors) {
-      applyColors(shared, colors);
+    setTheme(theme) {
+      if (disposed) return;
+      if (theme.style === kit.style) {
+        kit.setTheme(theme);
+      } else {
+        clearModel(true);
+        kit.dispose();
+        kit = createStyleKit(theme);
+        if (shown) present(shown.model, shown.signal, shown.cross);
+      }
       dirty = true;
     },
     setAutoRotate(on) {

@@ -4,6 +4,8 @@ export interface CodeReader {
 }
 
 const FORMATS = ["ean_13", "ean_8", "upc_a"] as const;
+/** Codici GS1 che possono portare anche la data: si usano solo se il lettore li sa leggere. */
+const EXTRA_FORMATS = ["data_matrix", "code_128"] as const;
 
 /**
  * Copia del file `zxing_reader.wasm` della libreria, servita dalla stessa origine dell'app.
@@ -22,7 +24,7 @@ async function nativeReader(): Promise<CodeReader | null> {
   try {
     const supported = await Native.getSupportedFormats();
     if (!FORMATS.every((f) => supported.includes(f))) return null;
-    return new Native({ formats: [...FORMATS] });
+    return new Native({ formats: [...FORMATS, ...EXTRA_FORMATS.filter((f) => supported.includes(f))] });
   } catch {
     return null;
   }
@@ -54,5 +56,8 @@ export async function createCodeReader(): Promise<CodeReader> {
       },
     });
   }
-  return new lib.BarcodeDetector({ formats: [...FORMATS] });
+  const known = await lib.BarcodeDetector.getSupportedFormats().catch(() => [] as string[]);
+  return new lib.BarcodeDetector({
+    formats: [...FORMATS, ...EXTRA_FORMATS.filter((f) => (known as readonly string[]).includes(f))],
+  });
 }

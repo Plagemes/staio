@@ -125,7 +125,7 @@ export function Settings() {
         <SectionHeader label="I tuoi dati" />
         <div className={styles.block}>
           <p className={ui.paragraph}>
-            Tutto resta su questo telefono e funziona anche senza rete. Nessun dato viene inviato altrove.
+            Tutto resta su questo telefono e funziona anche senza rete. I dati escono dal telefono solo se lo chiedi tu: una copia, la sincronizzazione, una domanda all&apos;AI con la tua chiave.
             {count !== undefined ? ` Eventi registrati: ${count}.` : ""}
           </p>
         </div>
@@ -157,6 +157,36 @@ export function Settings() {
           <p className={ui.paragraph}>Facoltativa: serve a leggere gli scontrini. Decidi tu se usarla e con quale servizio.</p>
           <Link href="/app/impostazioni/ai" className={ui.textLink}>
             Intelligenza artificiale
+          </Link>
+        </div>
+      </section>
+
+      <section className={ui.section}>
+        <SectionHeader label="Avvisi" />
+        <div className={styles.block}>
+          <p className={ui.paragraph}>Promemoria per le scadenze e per ciò che hai deciso di non dimenticare. Li scegli tu.</p>
+          <Link href="/app/impostazioni/avvisi" className={ui.textLink}>
+            Avvisi
+          </Link>
+        </div>
+      </section>
+
+      <section className={ui.section}>
+        <SectionHeader label="Ricette da video" />
+        <div className={styles.block}>
+          <p className={ui.paragraph}>Il servizio che scarica i video condivisi all&apos;app, per leggerne la ricetta.</p>
+          <Link href="/app/impostazioni/video" className={ui.textLink}>
+            Ricette da video
+          </Link>
+        </div>
+      </section>
+
+      <section className={ui.section}>
+        <SectionHeader label="Sincronizzazione" />
+        <div className={styles.block}>
+          <p className={ui.paragraph}>Porta i tuoi dati su un altro dispositivo, con un file o con Drive.</p>
+          <Link href="/app/impostazioni/sincronizzazione" className={ui.textLink}>
+            Sincronizzazione
           </Link>
         </div>
       </section>

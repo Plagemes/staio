@@ -2,17 +2,21 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { addDays } from "@/core/diary";
 import { activeLots } from "@/core/ledger";
 import { appendEvents, getDeviceId, useEventLog, usePantry } from "@/data";
 import { Button, LedgerRow, Label, PantryRow, PromptCard, SectionHeader, Value, Wordmark } from "@/design";
 import { PinnedViews } from "@/features/assistant";
+import { TodayNotices } from "@/features/notifications";
 import { buildUndo } from "../actions";
 import { TodayNutrition } from "../nutrition/TodayNutrition";
 import { TodayDiary } from "./TodayDiary";
 import { useNotice } from "../notice";
-import { dayOf, formatDayLabel } from "../format";
+import { dayOf, formatDayLabel, relativeDay } from "../format";
+import { LOCATION_LABELS } from "../labels";
 import { buildJournal } from "../journal";
 import { evaluateLots, levelPercent } from "../lots";
+import { breakdownText, groupEntries, groupName } from "../pantry/groups";
 import { entryDetail, entryExpiry } from "../pantry/rows";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
@@ -20,6 +24,8 @@ import { useNow } from "../useNow";
 import styles from "./Today.module.css";
 
 const EAT_FIRST_COUNT = 4;
+/** Fin dove si può tornare indietro con le frecce. */
+const MAX_DAYS_BACK = 60;
 
 export function Today() {
   const pantry = usePantry();
@@ -29,23 +35,26 @@ export function Today() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [undoError, setUndoError] = useState<string | null>(null);
+  const [daysBack, setDaysBack] = useState(0);
 
   const entries = useMemo(
     () => (pantry.data && now ? evaluateLots(activeLots(pantry.data), now) : []),
     [pantry.data, now],
   );
+  const eatFirst = useMemo(() => groupEntries(entries).slice(0, EAT_FIRST_COUNT), [entries]);
   const rows = useMemo(
     () => (pantry.data && log.data && now ? buildJournal(log.data, pantry.data, dayOf(now)) : []),
     [pantry.data, log.data, now],
   );
 
-  async function undoEvent(eventId: string, description: string) {
-    const event = log.data?.find((e) => e.id === eventId);
-    if (!event || busy) return;
+  /** Una riga del registro può raccontare più eventi uguali (tre confezioni arrivate insieme): si annullano tutti. */
+  async function undoEvent(eventIds: readonly string[], description: string) {
+    const targets = (log.data ?? []).filter((e) => eventIds.includes(e.id));
+    if (targets.length === 0 || busy) return;
     setBusy(true);
     setUndoError(null);
     try {
-      const voids = buildUndo([event], { now: new Date().toISOString(), deviceId: await getDeviceId() });
+      const voids = buildUndo(targets, { now: new Date().toISOString(), deviceId: await getDeviceId() });
       await appendEvents(voids);
       setOpenId(null);
       // «Annulla» sull'avviso annulla l'annullamento: l'evento torna com'era
@@ -59,6 +68,8 @@ export function Today() {
 
   const ready = pantry.data !== undefined && log.data !== undefined && now !== null;
   const today = now ? dayOf(now) : "";
+  const viewDate = today ? addDays(today, -daysBack) : "";
+  const isPast = daysBack > 0;
 
   return (
     <div className={ui.screen}>
@@ -66,7 +77,28 @@ export function Today() {
       <div className={styles.topbar}>
         <Wordmark />
         <div className={styles.topRight}>
-          {now ? <Label>{formatDayLabel(now)}</Label> : null}
+          {now ? (
+            <div className={styles.dayNav}>
+              <button
+                type="button"
+                className={styles.dayArrow}
+                aria-label="Giorno prima"
+                disabled={daysBack >= MAX_DAYS_BACK}
+                onClick={() => setDaysBack(daysBack + 1)}
+              >
+                ‹
+              </button>
+              <Label>{formatDayLabel(new Date(`${viewDate}T12:00:00Z`))}</Label>
+              <button type="button" className={styles.dayArrow} aria-label="Giorno dopo" disabled={!isPast} onClick={() => setDaysBack(daysBack - 1)}>
+                ›
+              </button>
+              {isPast ? (
+                <button type="button" className={styles.dayToday} onClick={() => setDaysBack(0)}>
+                  Oggi
+                </button>
+              ) : null}
+            </div>
+          ) : null}
           <Link href="/app/impostazioni" className={styles.settings} aria-label="Impostazioni">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <circle cx="12" cy="12" r="3" />
@@ -79,12 +111,22 @@ export function Today() {
       {pantry.error || log.error ? <StorageError /> : null}
       {!ready && !pantry.error && !log.error ? <LoadingLine /> : null}
 
+      {isPast ? null : <TodayNotices limit={4} />}
+
       {ready && pantry.data && log.data && now ? (
         <>
-          <TodayDiary now={now} pantry={pantry.data} log={log.data} />
+          {isPast ? (
+            <p className={styles.pastBanner}>
+              Stai guardando {relativeDay(viewDate, today)}. Qui puoi segnare un pasto saltato o non registrato e aggiungere una bevanda dimenticata.
+            </p>
+          ) : null}
 
-          <TodayNutrition now={now} />
+          <TodayDiary now={now} date={viewDate} pantry={pantry.data} log={log.data} />
 
+          {isPast ? null : <TodayNutrition now={now} />}
+
+          {isPast ? null : (
+          <>
           <section className={ui.section}>
             <SectionHeader label="Da mangiare prima" actionLabel="Tutta la dispensa" actionHref="/app/dispensa" />
             {entries.length === 0 ? (
@@ -96,17 +138,29 @@ export function Today() {
               />
             ) : (
               <ul className={styles.list}>
-                {entries.slice(0, EAT_FIRST_COUNT).map((entry) => (
-                  <li key={entry.lot.lotId}>
-                    <PantryRow
-                      name={entry.lot.productRef}
-                      detail={entryDetail(entry, today)}
-                      level={levelPercent(entry.lot)}
-                      levelLabel={`Rimasto circa il ${Math.round(levelPercent(entry.lot))} per cento`}
-                      expiry={entryExpiry(entry)}
-                    />
-                  </li>
-                ))}
+                {eatFirst.map((group) => {
+                  const entry = group.entries[0];
+                  const breakdown = breakdownText(group);
+                  return (
+                    <li key={group.key}>
+                      <PantryRow
+                        name={groupName(group)}
+                        detail={
+                          breakdown ? (
+                            <>
+                              {LOCATION_LABELS[entry.lot.location]} · {breakdown}
+                            </>
+                          ) : (
+                            entryDetail(entry, today)
+                          )
+                        }
+                        level={levelPercent(entry.lot)}
+                        levelLabel={`Rimasto circa il ${Math.round(levelPercent(entry.lot))} per cento`}
+                        expiry={entryExpiry(entry)}
+                      />
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>
@@ -150,7 +204,7 @@ export function Today() {
                               prima.
                             </p>
                             <div className={ui.row}>
-                              <Button onClick={() => void undoEvent(row.id, row.description)} disabled={busy}>
+                              <Button onClick={() => void undoEvent(row.ids, row.description)} disabled={busy}>
                                 Sì, annulla questo evento
                               </Button>
                               <Button variant="outline" onClick={() => setOpenId(null)} disabled={busy}>
@@ -184,6 +238,8 @@ export function Today() {
           <PinnedViews />
 
           <PromptCard title="Chiedi" description="Domande sui tuoi dati, con la risposta e da dove viene" href="/app/assistente" />
+          </>
+          )}
         </>
       ) : null}
     </div>

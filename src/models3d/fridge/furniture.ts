@@ -53,7 +53,23 @@ const T = 0.08;
 const RAIL_DEPTH = 0.18;
 const RAIL_H = 0.04;
 
+/** Tinte dei mobili per lo stile a colori: chiare e pulite, per far risaltare gli alimenti. */
+interface Tones {
+  shell: string;
+  back: string;
+  shelf: string;
+  drawer: string;
+  door: string;
+  rail: string;
+}
+
+const FRIDGE_TONES: Tones = { shell: "#f3f5f7", back: "#e1e7ec", shelf: "#bfe1ea", drawer: "#cfe3ee", door: "#fafbfc", rail: "#dde5eb" };
+const FREEZER_TONES: Tones = { shell: "#eaf4fa", back: "#d6e6f0", shelf: "#bcd9ea", drawer: "#bcd9ea", door: "#f4fafd", rail: "#cfe2ee" };
+const PANTRY_TONES: Tones = { shell: "#f1e6d3", back: "#e2d3b9", shelf: "#ead9bd", drawer: "#ead9bd", door: "#f7efe0", rail: "#e2d3b9" };
+
 interface BoxOptions {
+  /** Colore per lo stile a colori. */
+  color?: string;
   /** Rotazione attorno alla verticale, in gradi. */
   rotY?: number;
   /** Moltiplicatore della densità del tratto: più basso = più rado. */
@@ -68,6 +84,7 @@ function box(w: number, h: number, d: number, cx: number, y0: number, cz: number
       params: { size: [w * 5, h * 5, d * 5] },
       variation: 0,
       hatch: { density: o.density ?? 0.6, cross: false },
+      color: { main: o.color ?? "#f3f5f7" },
     },
     position: [cx, y0, cz],
     rotationDeg: [0, o.rotY ?? 0, 0],
@@ -93,6 +110,7 @@ function door(
   height: number,
   angleDeg: number,
   rails: { y: number; width: number }[],
+  tones: Tones,
   idPrefix = "door",
 ): DoorResult {
   const a = (angleDeg * Math.PI) / 180;
@@ -102,11 +120,11 @@ function door(
   const at = (along: number, across: number): [number, number] => [hx + u[0] * along + w[0] * across, hz + u[1] * along + w[1] * across];
   const rot = -side * angleDeg;
   const [cx, cz] = at(width / 2, thick / 2);
-  const parts = [box(width, height, thick, cx, 0.03, cz, { rotY: rot, density: 0.5 })];
+  const parts = [box(width, height, thick, cx, 0.03, cz, { rotY: rot, density: 0.5, color: tones.door })];
   const slots: Slot[] = [];
   rails.forEach((r, i) => {
     const [rx, rz] = at(width / 2, -thick / 2 - RAIL_DEPTH / 2);
-    parts.push(box(r.width, RAIL_H, RAIL_DEPTH, rx, r.y, rz, { rotY: rot, density: 0.6 }));
+    parts.push(box(r.width, RAIL_H, RAIL_DEPTH, rx, r.y, rz, { rotY: rot, density: 0.6, color: tones.rail }));
     const next = rails[i + 1] ? rails[i + 1].y : r.y + 0.6;
     slots.push({
       id: `${idPrefix}-${i + 1}`,
@@ -125,13 +143,13 @@ function door(
   return { parts, slots };
 }
 
-function cabinetShell(width: number, height: number, depth: number): CompositePart[] {
+function cabinetShell(width: number, height: number, depth: number, tones: Tones): CompositePart[] {
   return [
-    box(width, height, T, 0, 0, -depth / 2 + T / 2),
-    box(T, height, depth, -width / 2 + T / 2, 0, 0),
-    box(T, height, depth, width / 2 - T / 2, 0, 0),
-    box(width - 2 * T, T, depth, 0, height - T, 0),
-    box(width - 2 * T, T, depth, 0, 0, 0),
+    box(width, height, T, 0, 0, -depth / 2 + T / 2, { color: tones.back }),
+    box(T, height, depth, -width / 2 + T / 2, 0, 0, { color: tones.shell }),
+    box(T, height, depth, width / 2 - T / 2, 0, 0, { color: tones.shell }),
+    box(width - 2 * T, T, depth, 0, height - T, 0, { color: tones.shell }),
+    box(width - 2 * T, T, depth, 0, 0, 0, { color: tones.shell }),
   ];
 }
 
@@ -141,14 +159,15 @@ function fridge(angle = 115): FurnitureSpec {
   const D = 0.9;
   const inner = W - 2 * T;
   const tops = [0.64, 1.12, 1.6];
-  const parts = cabinetShell(W, H, D);
-  for (const y of tops) parts.push(box(inner - 0.02, 0.04, D - T - 0.03, 0, y - 0.04, (T - 0.03) / 2, { density: 0.4 }));
+  const parts = cabinetShell(W, H, D, FRIDGE_TONES);
+  for (const y of tops) parts.push(box(inner - 0.02, 0.04, D - T - 0.03, 0, y - 0.04, (T - 0.03) / 2, { density: 0.4, color: FRIDGE_TONES.shelf }));
   // cassetto estratto di poco: fondo, bordo anteriore basso e due fianchi
-  parts.push(box(inner - 0.06, 0.04, 0.78, 0, 0.1, 0.06, { density: 0.4 }));
-  parts.push(box(inner - 0.04, 0.1, 0.05, 0, 0.08, 0.47, { density: 0.5 }));
-  parts.push(box(0.04, 0.22, 0.78, -(inner - 0.1) / 2, 0.1, 0.06, { density: 0.5 }));
-  parts.push(box(0.04, 0.22, 0.78, (inner - 0.1) / 2, 0.1, 0.06, { density: 0.5 }));
-  const d = door(-W / 2, D / 2, 1, W, H - 0.1, angle, [0.5, 1.0, 1.5].map((y) => ({ y, width: 1.0 })));
+  const drawer = { density: 0.5, color: FRIDGE_TONES.drawer };
+  parts.push(box(inner - 0.06, 0.04, 0.78, 0, 0.1, 0.06, { ...drawer, density: 0.4 }));
+  parts.push(box(inner - 0.04, 0.1, 0.05, 0, 0.08, 0.47, drawer));
+  parts.push(box(0.04, 0.22, 0.78, -(inner - 0.1) / 2, 0.1, 0.06, drawer));
+  parts.push(box(0.04, 0.22, 0.78, (inner - 0.1) / 2, 0.1, 0.06, drawer));
+  const d = door(-W / 2, D / 2, 1, W, H - 0.1, angle, [0.5, 1.0, 1.5].map((y) => ({ y, width: 1.0 })), FRIDGE_TONES);
   parts.push(...d.parts);
 
   const x = inner / 2 - 0.04;
@@ -174,15 +193,16 @@ function freezer(angle = 115): FurnitureSpec {
   const H = 1.7;
   const D = 0.85;
   const inner = W - 2 * T;
-  const parts = cabinetShell(W, H, D);
+  const parts = cabinetShell(W, H, D, FREEZER_TONES);
   const plates = [0.1, 0.62, 1.14];
+  const drawer = { density: 0.5, color: FREEZER_TONES.drawer };
   for (const y of plates) {
-    parts.push(box(inner - 0.04, 0.04, 0.72, 0, y, 0.07, { density: 0.4 }));
-    parts.push(box(inner - 0.02, 0.08, 0.05, 0, y - 0.02, 0.46, { density: 0.5 }));
-    parts.push(box(0.04, 0.14, 0.72, -(inner - 0.06) / 2, y, 0.07, { density: 0.5 }));
-    parts.push(box(0.04, 0.14, 0.72, (inner - 0.06) / 2, y, 0.07, { density: 0.5 }));
+    parts.push(box(inner - 0.04, 0.04, 0.72, 0, y, 0.07, { ...drawer, density: 0.4 }));
+    parts.push(box(inner - 0.02, 0.08, 0.05, 0, y - 0.02, 0.46, drawer));
+    parts.push(box(0.04, 0.14, 0.72, -(inner - 0.06) / 2, y, 0.07, drawer));
+    parts.push(box(0.04, 0.14, 0.72, (inner - 0.06) / 2, y, 0.07, drawer));
   }
-  const d = door(-W / 2, D / 2, 1, W, H - 0.1, angle, [0.45, 1.1].map((y) => ({ y, width: 0.9 })));
+  const d = door(-W / 2, D / 2, 1, W, H - 0.1, angle, [0.45, 1.1].map((y) => ({ y, width: 0.9 })), FREEZER_TONES);
   parts.push(...d.parts);
 
   const x = inner / 2 - 0.06;
@@ -209,10 +229,10 @@ function pantry(angle = 100): FurnitureSpec {
   const D = 0.65;
   const inner = W - 2 * T;
   const tops = [0.6, 1.12, 1.64];
-  const parts = cabinetShell(W, H, D);
-  for (const y of tops) parts.push(box(inner - 0.02, 0.06, D - T - 0.02, 0, y - 0.06, (T - 0.02) / 2, { density: 0.4 }));
-  parts.push(...door(-W / 2, D / 2, 1, W / 2, H - 0.1, angle, []).parts);
-  parts.push(...door(W / 2, D / 2, -1, W / 2, H - 0.1, angle, []).parts);
+  const parts = cabinetShell(W, H, D, PANTRY_TONES);
+  for (const y of tops) parts.push(box(inner - 0.02, 0.06, D - T - 0.02, 0, y - 0.06, (T - 0.02) / 2, { density: 0.4, color: PANTRY_TONES.shelf }));
+  parts.push(...door(-W / 2, D / 2, 1, W / 2, H - 0.1, angle, [], PANTRY_TONES).parts);
+  parts.push(...door(W / 2, D / 2, -1, W / 2, H - 0.1, angle, [], PANTRY_TONES).parts);
 
   const x = inner / 2 - 0.03;
   const floors = [T, ...tops];

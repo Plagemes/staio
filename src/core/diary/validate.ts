@@ -1,6 +1,7 @@
 import {
   CERTAINTIES,
   UNITS,
+  isCalendarDate,
   validateEnvelope,
   type ValidationError,
   type ValidationErrorCode,
@@ -9,6 +10,8 @@ import {
   DIARY_EVENT_TYPES,
   DIARY_LIMITS,
   FOOD_ID_MAX_LENGTH,
+  MAIN_MEAL_KINDS,
+  MEAL_DECLARATION_STATUSES,
   MEAL_KINDS,
   SYMPTOM_KINDS,
   type DiaryEvent,
@@ -157,6 +160,15 @@ export function validateDiaryEvent(event: unknown): ValidationError[] {
     case "untrackedMeal":
       requireEnum(event, "kind", MEAL_KINDS);
       break;
+    case "mealDeclaration": {
+      const d = event.date;
+      if (d === undefined) add("date", "required");
+      else if (typeof d !== "string") add("date", "invalid_type");
+      else if (!isCalendarDate(d)) add("date", "invalid_value");
+      requireEnum(event, "kind", MAIN_MEAL_KINDS);
+      requireEnum(event, "status", MEAL_DECLARATION_STATUSES);
+      break;
+    }
     case "water":
       checkNumber(event, "ml", "positive", true, { max: DIARY_LIMITS.volumeMlMax });
       break;
@@ -165,6 +177,8 @@ export function validateDiaryEvent(event: unknown): ValidationError[] {
       checkNumber(event, "ml", "positive", true, { max: DIARY_LIMITS.volumeMlMax });
       checkNumber(event, "caffeineMg", "nonNegative", false, { max: DIARY_LIMITS.caffeineMgMax });
       checkNumber(event, "alcoholG", "nonNegative", false, { max: DIARY_LIMITS.alcoholGMax });
+      checkNumber(event, "energyKcal", "nonNegative", false, { max: DIARY_LIMITS.energyKcalMax });
+      checkNumber(event, "sugarsG", "nonNegative", false, { max: DIARY_LIMITS.sugarsGMax });
       break;
     case "weight":
       checkNumber(event, "kg", "positive", true, {
