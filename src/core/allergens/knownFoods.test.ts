@@ -59,6 +59,8 @@ const NO_LONGER_SIMPLE: readonly string[] = [
   "Semi di chia", "Tè verde", "Cacao amaro", "Mezzo limone (succo)",
 ];
 
+const SULFITE_TREATED: ReadonlySet<string> = new Set(["gamberi-crudi", "gamberi-lessati", "astice-crudo"]);
+
 describe("regola invertita: l'elenco chiuso degli alimenti semplici", () => {
   it("conserve, succhi, frutta disidratata, semi, bevande e cacao non sono più alimenti semplici", () => {
     expect(NO_LONGER_SIMPLE.filter((name) => verdict(name, ALLERGEN_KEYS) === "clear")).toEqual([]);
@@ -180,6 +182,8 @@ describe("tabella nutrizionale, gruppo per gruppo", () => {
       const implied = GROUP_ALLERGENS[f.group] ?? [];
       for (const x of assessItem({ name: f.name }, ALLERGEN_KEYS).findings) {
         if (implied !== "all" && implied.includes(x.allergen as AllergenKey)) continue;
+        // i crostacei del commercio possono essere trattati con solfiti
+        if (x.allergen === "solfiti" && SULFITE_TREATED.has(f.id)) continue;
         if (x.reason === "unrecognized" || x.reason === "processed") wrong.push(`${f.name} → ${x.allergen}: ${x.reason} «${x.term}»`);
       }
     }
@@ -287,7 +291,7 @@ const ADMITTED_SIMPLE: readonly string[] = [
   // oli e grassi
   "olio-d-oliva", "olio-di-semi-di-girasole", "olio-di-mais", "olio-di-colza", "olio-di-cocco", "strutto",
   // di base
-  "zucchero-semolato", "zucchero-di-canna", "miele", "acqua", "caffe-espresso",
+  "zucchero-semolato", "zucchero-di-canna", "miele", "acqua", "caffe-espresso", "te-nero",
   // sale, erbe, spezie pure
   "sale-da-cucina", "pepe-nero", "basilico-fresco", "prezzemolo-fresco", "rosmarino-fresco", "timo-fresco",
   "zenzero-fresco", "origano-secco", "alloro", "paprica", "peperoncino-in-polvere", "cannella", "noce-moscata",
@@ -302,11 +306,11 @@ describe("voci della tabella nutrizionale ammesse come semplici", () => {
     expect([...SIMPLE_NUTRITION_IDS].sort()).toEqual([...ADMITTED_SIMPLE].sort());
   });
 
-  it("nessun prodotto da forno, cereale da colazione, dolce, salsa, conserva, bevanda (tranne acqua e caffè) o salume è ammesso", () => {
+  it("nessun prodotto da forno, cereale da colazione, dolce, salsa, conserva, bevanda (tranne acqua, caffè e tè nero) o salume è ammesso", () => {
     const allowedByGroup: Record<string, readonly string[]> = {
       salumi: [],
       dolci: ["zucchero-semolato", "zucchero-di-canna", "miele"],
-      bevande: ["acqua", "caffe-espresso"],
+      bevande: ["acqua", "caffe-espresso", "te-nero"],
     };
     for (const f of FOODS.filter((x) => SIMPLE_NUTRITION_IDS.has(x.id))) {
       const allowed = allowedByGroup[f.group];

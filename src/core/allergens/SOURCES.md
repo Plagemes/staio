@@ -85,6 +85,16 @@ delle tabelle di almeno 6 lettere dà `contains` con la nota «forse intendevi�
 - Il wasabi in commercio contiene spesso senape: incerto per la senape. Senape e mostarde sono incerte per i solfiti.
 - Le negazioni non vengono capite: «riso senza latte» risulta latte. È un falso allarme voluto.
 
+Quarta revisione:
+
+- Piatti scritti come elenchi: `DISH_NAMES` («pasta e fagioli», «patate e cozze», «pollo e peperoni») e ogni «e» tra
+  un cereale e una verdura, un legume o un pesce sono `uncertain`. Gli elenchi veri («sale e pepe») restano voce per voce.
+- «a pasta gialla», «a pasta filata» e simili (`TEXTURE_WORDS`) non sono la pasta.
+- «cappon magro» contiene pesce e crostacei; i crostacei del commercio sono `uncertain` per i solfiti.
+- Non sono più incerti: il succo d'agrumi spremuto al momento (con una quantità o «fresco»), le varietà comuni di mele,
+  pere, patate, pomodori, uva e arance, gli scopi d'uso («per friggere», `PURPOSE_WORDS`), «sedano rapa», il tè nero
+  (non «tè» da solo).
+
 ## Limiti
 
 Il controllo legge nomi, note, passi e titoli; non legge le etichette né sa delle tracce («può contenere») e delle

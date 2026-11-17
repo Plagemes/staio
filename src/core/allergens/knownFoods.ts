@@ -128,7 +128,7 @@ export const SIMPLE_NUTRITION_IDS: ReadonlySet<string> = new Set([
   // oli e grassi
   "olio-d-oliva", "olio-di-semi-di-girasole", "olio-di-mais", "olio-di-colza", "olio-di-cocco", "strutto",
   // di base
-  "zucchero-semolato", "zucchero-di-canna", "miele", "acqua", "caffe-espresso",
+  "zucchero-semolato", "zucchero-di-canna", "miele", "acqua", "caffe-espresso", "te-nero",
   // sale, erbe, spezie pure
   "sale-da-cucina", "pepe-nero", "basilico-fresco", "prezzemolo-fresco", "rosmarino-fresco", "timo-fresco",
   "zenzero-fresco", "origano-secco", "alloro", "paprica", "peperoncino-in-polvere", "cannella", "noce-moscata",
@@ -149,7 +149,7 @@ export const NOT_SIMPLE_ALIASES: readonly string[] = [
   "rosbif", "roast beef", "arrosto di manzo", "arrosto di maiale", "prosciutto fresco", "scaloppine", "scaloppina di vitello", "carne per saltimbocca", "spezzatino di vitello",
   "cotoletta di vitello", "tonno", "tagliatelle secche", "mais dolce", "granturco dolce", "yogurt", "grana",
   "grana padano", "pecorino grattugiato", "formaggio", "formaggi", "formaggio blu", "blu", "greco", "insalata",
-  "insalata verde", "legumi", "frutta secca", "caffe al bar", "rosso",
+  "insalata verde", "legumi", "frutta secca", "caffe al bar", "rosso", "te",
 ];
 
 /** Nomi di prodotti lavorati fatti di parole che da sole sarebbero alimenti semplici e aggettivi innocui. */
@@ -164,6 +164,12 @@ const headOf = (name: string): string => (name.split(",")[0] ?? name).replace(/\
 
 const notSimpleAlias = new Set(NOT_SIMPLE_ALIASES);
 
+/** Crostacei del commercio: spesso trattati con solfiti (metabisolfito) contro l'annerimento. */
+const SULFITE_TREATED_IDS: ReadonlySet<string> = new Set(["gamberi-crudi", "gamberi-lessati", "astice-crudo"]);
+
+const withSulfites = (id: string, implied: readonly AllergenKey[] | "all"): readonly AllergenKey[] | "all" =>
+  implied !== "all" && SULFITE_TREATED_IDS.has(id) ? [...implied, "solfiti"] : implied;
+
 const fromNutrition: KnownFoodSource[] = FOODS.map((f) => {
   const simple = SIMPLE_NUTRITION_IDS.has(f.id);
   const all = [headOf(f.name), ...(f.aliases ?? [])];
@@ -172,7 +178,7 @@ const fromNutrition: KnownFoodSource[] = FOODS.map((f) => {
     id: f.id,
     name: f.name,
     phrases: simple ? all.filter((p) => !notSimpleAlias.has(p.toLowerCase())) : all,
-    implied: GROUP_ALLERGENS[f.group] ?? [],
+    implied: withSulfites(f.id, GROUP_ALLERGENS[f.group] ?? []),
     simple,
     ...(kind ? { kind } : {}),
   };
@@ -201,7 +207,7 @@ const LISTED: ReadonlyArray<readonly [FoodKind, readonly AllergenKey[], readonly
       "pleurotus", "shiitake", "tartufo nero", "tartufo bianco", "topinambur", "pastinaca", "daikon", "okra", "cardo",
       "cardi", "patata dolce", "batata", "peperoncino", "lattughino", "cicorino", "agretti", "barba di frate",
       "cavolo romanesco", "romanesco", "broccolo romanesco", "zucchine trombetta", "melanzane viola", "peperoni corno",
-      "cipolle borettane", "cipolline", "aglio orsino", "porri", "cetriolini freschi",
+      "cipolle borettane", "cipolline", "aglio orsino", "porri", "cetriolini freschi", "sedano rapa",
       // frutta
       "mela", "mela golden", "mela renetta", "mela verde", "pera", "pera williams", "pera abate", "banana", "arancia",
       "arance rosse", "mandarino", "clementina", "mandarancio", "limone", "lime", "pompelmo", "fragola", "fragoline",
@@ -315,11 +321,15 @@ const LISTED: ReadonlyArray<readonly [FoodKind, readonly AllergenKey[], readonly
     [
       "orata", "dentice", "cernia", "ricciola", "palombo", "triglia", "triglie", "scorfano", "rana pescatrice",
       "coda di rospo", "pagello", "sarago", "cefalo", "muggine", "aringa", "anguilla", "storione", "persico", "luccio",
-      "carpa", "salmerino", "sarde", "sardine", "alici", "acciughe", "totani", "moscardini", "seppioline", "canocchie",
-      "scampi", "mazzancolle", "granchio", "aragosta", "pesce", "pesci", "pesce bianco", "spigola", "branzino", "rombo",
+      "carpa", "salmerino", "sarde", "sardine", "alici", "acciughe", "totani", "moscardini", "seppioline", "pesce", "pesci", "pesce bianco", "spigola", "branzino", "rombo",
       "sogliola", "merluzzo", "nasello", "salmone", "trota", "sgombro", "pesce spada", "calamari", "polpo", "seppia",
-      "cozze", "vongole", "ostriche", "capesante", "gamberi", "gamberetti", "astice",
+      "cozze", "vongole", "ostriche", "capesante",
     ],
+  ],
+  [
+    "fish",
+    [...FISH, "solfiti"],
+    ["canocchie", "scampi", "mazzancolle", "granchio", "aragosta", "gamberi", "gamberetti", "astice"],
   ],
   [
     "dairy",
@@ -416,6 +426,11 @@ export const MODIFIER_WORDS: readonly string[] = [
   "allevamento", "pescato", "scaglie", "polvere", "pistilli", "steli", "radice", "bulbo", "fiori", "germogli",
   "arrostito", "arrostita", "arrostiti", "arrostite", "camicia", "golden", "tarocco", "sanguinello",
   "dissalato", "dissalati", "trevigiano", "cimetta", "cimette", "corta",
+  // varietà di mele, pere, patate, pomodori, uva e arance
+  "renetta", "renette", "fuji", "gala", "granny", "smith", "pink", "lady", "stark", "red", "delicious", "annurca",
+  "braeburn", "jonagold", "williams", "abate", "kaiser", "conference", "decana", "kennebec", "vitelotte", "monalisa",
+  "costoluto", "camone", "piccadilly", "perino", "marinda", "regina", "vittoria", "pizzutello", "crimson", "navel",
+  "valencia", "italia",
   // nomi della tabella nutrizionale («Manzo, fesa (coscia), cruda (taglio USA)»)
   "dato", "usa", "tagli", "chuck", "bottom", "round", "mock", "tender", "rib", "eye", "scuro", "scura", "umido", "solo",
   "sola", "non", "aggiunto", "aggiunti", "aggiunte",
@@ -466,3 +481,37 @@ export const PREPARATION_WORDS: readonly string[] = [
 
 /** Cotture che sono un piatto quando aprono la riga e reggono un «di»: «arrosto di vitello», «bollito di manzo». */
 export const DISH_HEAD_WORDS: readonly string[] = ["arrosto", "arrosti", "lesso", "bollito", "bolliti"];
+
+/**
+ * Piatti che si scrivono come un elenco di alimenti semplici: «pasta e fagioli» porta di solito parmigiano o pecorino,
+ * «patate e cozze» il pecorino, «pesce e patate» la pastella. Rendono la riga `uncertain` per ogni allergene. Oltre a
+ * questi, ogni «e» tra un cereale (pasta, riso, orzo) e una verdura, un legume o un pesce è un piatto.
+ */
+export const DISH_NAMES: readonly string[] = [
+  "patate e cozze", "riso patate e cozze", "fave e cicoria", "fave e cicorie", "pollo e peperoni", "pesce e patate",
+  "pollo e patate", "polpo e patate", "baccala e patate", "risi e bisi", "pasta e fagioli", "pasta e ceci",
+  "pasta e patate", "pasta e piselli", "pasta e lenticchie", "pasta e cavoli", "pasta e broccoli", "pasta e zucca",
+  "riso e patate", "riso e piselli", "riso e lenticchie", "fagioli e cotiche", "salsiccia e fagioli",
+  "salsiccia e friarielli", "cime di rapa e salsiccia", "fish and chips",
+];
+
+/** Usi dichiarati che non aggiungono niente da mangiare: «olio per friggere», «sale grosso per l'acqua». */
+export const PURPOSE_WORDS: readonly string[] = [
+  "friggere", "frittura", "acqua", "condire", "condimento", "servire", "teglia", "teglie", "stampo", "stampi",
+  "ungere", "spolverare", "spolverizzare", "cottura", "cuocere", "decorare", "guarnire", "pentola",
+];
+
+/** Consistenze della polpa: «patate a pasta gialla», «formaggio a pasta filata». Lì «pasta» non è la pasta. */
+export const TEXTURE_WORDS: readonly string[] = [
+  "gialla", "bianca", "soda", "molle", "dura", "semidura", "filata", "morbida", "farinosa", "compatta", "cotta",
+  "cruda", "semicotta", "pressata", "erborinata",
+];
+
+/**
+ * Agrumi il cui succo spremuto in casa è un alimento semplice: «succo di 1 limone», «succo d'arancia fresco». Senza
+ * una quantità o «fresco» il succo può essere confezionato e resta `uncertain`.
+ */
+export const CITRUS_WORDS: readonly string[] = [
+  "limone", "limoni", "arancia", "arance", "lime", "pompelmo", "pompelmi", "mandarino", "mandarini", "clementina",
+  "clementine", "mandarancio", "mandaranci", "bergamotto", "cedro",
+];

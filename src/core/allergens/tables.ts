@@ -747,6 +747,8 @@ export const COMPOSITES: readonly CompositeEntry[] = [
   // il grana padano e il provolone possono contenere lisozima (da uovo)
   { term: "grana padano", contains: ["latte"], uncertain: ["uova"] },
   { term: "provolone", contains: ["latte"], uncertain: ["uova"] },
+  // insalata ligure di pesce, crostacei e verdure su gallette, con salsa verde (uova, acciughe)
+  { term: "cappon magro", contains: ["pesce", "crostacei"], uncertain: "all" },
   { term: "sciroppate", contains: [], uncertain: ["solfiti"] },
   // salumi e insaccati: possono contenere latte (lattosio, caseinati), glutine, soia, senape, frutta a guscio (pistacchi
   // nella mortadella), solfiti (vino, conservanti). Mai `clear`.

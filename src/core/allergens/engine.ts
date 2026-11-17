@@ -10,7 +10,19 @@
 // «maiale») e il motore cerca quella cosa, i suoi iponimi e i prodotti che la contengono di solito; un nome che non la
 // rivela non è sospetto.
 import { HYPONYM_GROUPS } from "./hyponyms";
-import { DISH_HEAD_WORDS, KNOWN_FOOD_SOURCES, MODIFIER_WORDS, PREPARATION_WORDS, PROCESSED_WORDS, SULFITE_WORDS, type FoodKind } from "./knownFoods";
+import {
+  CITRUS_WORDS,
+  DISH_HEAD_WORDS,
+  DISH_NAMES,
+  KNOWN_FOOD_SOURCES,
+  MODIFIER_WORDS,
+  PREPARATION_WORDS,
+  PROCESSED_WORDS,
+  PURPOSE_WORDS,
+  SULFITE_WORDS,
+  TEXTURE_WORDS,
+  type FoodKind,
+} from "./knownFoods";
 import { OF_WORDS, STOPWORDS, foldText, segments, stemWord, words, type Segment, type Token } from "./normalize";
 import { ALLERGEN_KEYS, ALLERGEN_TABLES, COMPOSITES, GENERIC_MASKS, GENERIC_TERMS, HIDDEN_CONTENTS, type AllergenKey } from "./tables";
 
@@ -171,6 +183,18 @@ function maskedIndices(seg: Segment, masks: readonly Pattern[], into: Set<number
 }
 
 const CONJUNCTIONS: ReadonlySet<string> = new Set(["e", "ed", "o", "od", "oppure", "ovvero", "and", "or"]);
+
+const TEXTURE: ReadonlySet<string> = new Set(TEXTURE_WORDS);
+
+/** «Patate a pasta gialla», «formaggio a pasta filata»: «a pasta» seguito da una consistenza non è la pasta. */
+function textureIndices(words: readonly string[], into: Set<number>): void {
+  for (let i = 1; i + 1 < words.length; i++) {
+    if (words[i] === "pasta" && words[i - 1] === "a" && TEXTURE.has(words[i + 1] as string)) {
+      into.add(i);
+      into.add(i + 1);
+    }
+  }
+}
 
 /** Cereali che contengono glutine per natura: «farro senza glutine» non esiste, la dichiarazione non vale. */
 const GLUTEN_BY_NATURE: ReadonlySet<string> = new Set(
@@ -341,7 +365,9 @@ interface Scan {
 function scan(text: string, target: Target, withUncertain: boolean): Scan {
   let uncertain: Scan | undefined;
   for (const seg of segments(text)) {
-    const masked = new Set<number>();
+    const texture = new Set<number>();
+    textureIndices(seg.words, texture);
+    const masked = new Set(texture);
     maskedIndices(seg, target.masks, masked);
     let claimMasked: Set<number> | undefined;
     if (target.glutenFree) {
@@ -357,20 +383,19 @@ function scan(text: string, target: Target, withUncertain: boolean): Scan {
       uncertain = { verdict: "uncertain", term: `${claimed.source} senza glutine`, reason: "gluten_free_claim" };
       continue;
     }
-    const composite = target.uncertain.find((p) => patternMatches(seg, p, NONE));
+    const composite = target.uncertain.find((p) => patternMatches(seg, p, texture));
     if (composite) {
       uncertain = { verdict: "uncertain", term: composite.source, reason: "generic" };
       continue;
     }
     const genericMasked = new Set<number>();
+    for (const i of texture) genericMasked.add(i);
     maskedIndices(seg, GENERIC_MASK, genericMasked);
     const generic = GENERIC.find((p) => patternMatches(seg, p, genericMasked));
     if (generic) uncertain = { verdict: "uncertain", term: generic.source, reason: "generic" };
   }
   return uncertain ?? { verdict: "clear" };
 }
-
-const NONE: ReadonlySet<number> = new Set();
 
 /* ---------- alimenti semplici riconosciuti (regola invertita) ---------- */
 
@@ -524,6 +549,51 @@ function itemsOf(seg: Segment): string[][] {
  * («sale e pepe») vale voce per voce. Non basta un taglio da solo («petto», «coda»). Un nome noto di più parole che
  * non vale per l'allergene («fiocchi di mais» per il glutine) non si spezza in parole più corte che varrebbero.
  */
+const PURPOSE: ReadonlySet<string> = new Set(PURPOSE_WORDS);
+const CITRUS: ReadonlySet<string> = new Set(CITRUS_WORDS.map(stemWord));
+const JUICE: ReadonlySet<string> = new Set(["succo", "spremuta", "spremute", "spremuto"]);
+const FRESH: ReadonlySet<string> = new Set(["fresco", "fresca", "spremuto", "spremuta", "spremute", "appena"]);
+const COUNT_WORDS: ReadonlySet<string> = new Set(["un", "uno", "una", "mezzo", "mezza", "due", "tre", "quattro", "cinque", "sei"]);
+const AND_WORDS: ReadonlySet<string> = new Set(["e", "ed", "and"]);
+
+/**
+ * Toglie dalla voce ciò che non è da mangiare o non cambia l'alimento: lo scopo («per friggere», «per l'acqua»), la
+ * consistenza («a pasta gialla»), e «succo» davanti a un agrume spremuto al momento («succo di 1 limone»).
+ */
+function edibleWords(item: readonly string[]): string[] {
+  const skip = new Set<number>();
+  for (let j = 0; j < item.length; j++) {
+    if (item[j] !== "per") continue;
+    let k = j + 1;
+    while (k < item.length && STOPWORDS.has(item[k] as string)) k++;
+    if (PURPOSE.has(item[k] as string)) for (let x = j; x <= k; x++) skip.add(x);
+  }
+  textureIndices(item, skip);
+  const rest = item.filter((_, j) => !skip.has(j));
+  if (!rest.some((w) => JUICE.has(w))) return rest;
+  const fresh = rest.some((w) => /\d/.test(w) || COUNT_WORDS.has(w) || FRESH.has(w));
+  const content = rest.filter((w) => !STOPWORDS.has(w) && !/\d/.test(w) && !JUICE.has(w) && !FRESH.has(w));
+  const citrus = content.filter((w) => CITRUS.has(stemWord(w)));
+  const onlyCitrus = citrus.length === 1 && content.every((w) => CITRUS.has(stemWord(w)) || MODIFIER_STEMS.has(stemWord(w)));
+  return fresh && onlyCitrus ? rest.filter((w) => !JUICE.has(w) && w !== "appena") : rest;
+}
+
+let dishKeys: string[][] | undefined;
+
+/** La riga nomina un piatto noto («pasta e fagioli»), o lega con «e» un cereale a una verdura, un legume, un pesce? */
+function isDish(seg: Segment, found: readonly (readonly KnownEntry[])[]): boolean {
+  if (!seg.words.some((w) => AND_WORDS.has(w))) return false;
+  const keyOf = (ws: readonly string[]): string[] =>
+    ws.filter((w) => AND_WORDS.has(w) || !STOPWORDS.has(w)).map((w) => (AND_WORDS.has(w) ? "&" : wordKey(w)));
+  dishKeys ??= DISH_NAMES.map((d) => keyOf(words(d)));
+  const keys = keyOf(seg.words.filter((w) => !/\d/.test(w)));
+  const at = (d: readonly string[], i: number): boolean => d.every((k, j) => keys[i + j] === k);
+  if (dishKeys.some((d) => keys.some((_, i) => at(d, i)))) return true;
+  const grain = found.some((es) => es.some((e) => onlyKinds(e, ["grain"])));
+  const other = found.some((es) => es.some((e) => e.kinds.has("produce") || e.kinds.has("legume") || e.kinds.has("fish")));
+  return grain && other;
+}
+
 function recognize(text: string, target: Target): Recognition {
   const index = knownFoods();
   const full = fullNames?.get(foldText(text));
@@ -534,8 +604,10 @@ function recognize(text: string, target: Target): Recognition {
   let cutOnly: string | undefined;
   let anchored = false;
   for (const seg of segments(text)) {
-    for (const item of itemsOf(seg)) {
-      const term = item.join(" ");
+    const segFound: KnownEntry[][] = [];
+    for (const raw of itemsOf(seg)) {
+      const term = raw.join(" ");
+      const item = edibleWords(raw);
       const ws = item.filter((w) => !STOPWORDS.has(w) && !/\d/.test(w));
       const st = ws.map(wordKey);
       const found: KnownEntry[] = [];
@@ -580,6 +652,7 @@ function recognize(text: string, target: Target): Recognition {
         i++;
       }
       foods += found.length;
+      segFound.push(found);
       const main = found.filter((e) => !isCut(e));
       if (main.some((e) => onlyKinds(e, ["meat", "fish", "cut"]))) anchored = true;
       let itemFlag: Recognition["flag"];
@@ -589,6 +662,7 @@ function recognize(text: string, target: Target): Recognition {
       else if (found.length > 0 && main.length === 0) cutOnly ??= term;
       flag ??= itemFlag;
     }
+    if (segFound.length > 1 && isDish(seg, segFound)) flag ??= { reason: "generic", term: seg.words.join(" ") };
   }
   if (!flag && cutOnly !== undefined && !anchored) flag = { reason: "generic", term: cutOnly };
   return { recognized: unknown.length === 0 && foods > 0 && !flag, unknown, ...(flag ? { flag } : {}) };
