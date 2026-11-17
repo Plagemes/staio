@@ -16,6 +16,7 @@ import {
 } from "@/core/nutrition";
 import { MAIN_MEALS, MEAL_KIND_LABELS } from "../meals";
 import type { MealItemRef } from "./corrections";
+import { isPrepRef, type PrepPortionInfo } from "./prepPortion";
 import { NUTRIENT_INFO, REFERENCE_KIND_LABELS, STATE_LABELS, formatNutrient, nutrientLabel, variantLabel } from "./labels";
 
 /** Quota di dato mancante a parole: da qualunque valore maggiore di zero, mai arrotondata a niente. */
@@ -312,6 +313,78 @@ export function periodOf(today: string, n: number): { from: string; to: string }
   return { from: addDays(today, -(n - 1)), to: today };
 }
 
+/* ---------- porzioni di preparazioni ---------- */
+
+/**
+ * Frase per una porzione calcolata dagli ingredienti: è una stima, e se per qualche ingrediente manca il dato
+ * (o un nutriente è parziale) lo dice, con la quota mancante.
+ */
+export function prepPortionText(info: PrepPortionInfo): string {
+  const base = `Porzione di «${info.title}»: calcolata dagli ingredienti, è una stima.`;
+  const parts: string[] = [];
+  if (info.unresolved.length > 0) {
+    const names = info.unresolved.slice(0, 3).join(", ") + (info.unresolved.length > 3 ? "…" : "");
+    parts.push(`Non ho il dato di ${info.unresolved.length} ${info.unresolved.length === 1 ? "ingrediente" : "ingredienti"} su ${info.ingredientCount} (${names})`);
+  }
+  if (info.partial.length > 0) {
+    const shown = info.partial.slice(0, 2).map((p) => `${nutrientLabel(p.key).toLowerCase()} manca per ${missingPercentText(p.missingShare)}`).join(", ");
+    parts.push(`${info.partial.length === 1 ? "un nutriente è" : `${info.partial.length} nutrienti sono`} un minimo, non un totale (${shown}${info.partial.length > 2 ? "…" : ""})`);
+  }
+  return parts.length === 0 ? base : `${base} ${parts.join("; ")}.`;
+}
+
+/**
+ * Segna come parziali i nutrienti dei giorni che contengono porzioni di preparazione con dato mancante: il motore
+ * vede la porzione come un alimento completo, ma qui si sa che il valore è un minimo. La quota mancante aggiunta è
+ * quella della porzione divisa per le voci che portano quel nutriente nel giorno (una stima, dichiarata come tale).
+ */
+export function markPrepPartials(days: readonly DayIntake[], prepInfo: ReadonlyMap<string, PrepPortionInfo>): DayIntake[] {
+  if (prepInfo.size === 0) return [...days];
+  return days.map((day) => {
+    const extra = new Map<NutrientKey, number>();
+    const seen = new Set<string>();
+    for (const line of linesOf(day)) {
+      if (line.status !== "ok") continue;
+      const ref = line.composition.ref;
+      const info = isPrepRef(ref) ? prepInfo.get(ref) : undefined;
+      if (!info || info.partial.length === 0) continue;
+      // ogni riga conta: due porzioni della stessa preparazione sono due righe
+      const lineId = `${line.eventId}:${line.itemIndex ?? ""}`;
+      if (seen.has(lineId)) continue;
+      seen.add(lineId);
+      for (const p of info.partial) {
+        const t = day.totals[p.key];
+        if (!t) continue;
+        extra.set(p.key, (extra.get(p.key) ?? 0) + p.missingShare / Math.max(1, t.count));
+      }
+    }
+    if (extra.size === 0) return day;
+    const totals = { ...day.totals };
+    for (const [key, add] of extra) {
+      const t = totals[key];
+      if (!t) continue;
+      totals[key] = { ...t, partial: true, missingShare: Math.min(1, Math.round((t.missingShare + add) * 1e6) / 1e6) };
+    }
+    return { ...day, totals };
+  });
+}
+
+/** Le note sulle porzioni di preparazione che compaiono in un giorno e non sono complete. */
+export function prepNotes(day: DayIntake | undefined, prepInfo: ReadonlyMap<string, PrepPortionInfo>): string[] {
+  if (!day) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const line of linesOf(day)) {
+    if (line.status !== "ok") continue;
+    const ref = line.composition.ref;
+    if (!isPrepRef(ref) || seen.has(ref)) continue;
+    seen.add(ref);
+    const info = prepInfo.get(ref);
+    if (info && (info.unresolved.length > 0 || info.partial.length > 0)) out.push(prepPortionText(info));
+  }
+  return out;
+}
+
 /* ---------- da dove viene un nutriente ---------- */
 
 /**
@@ -370,7 +443,12 @@ export interface Contributor extends LineRefs {
 }
 
 /** Gli alimenti che hanno portato di più un nutriente nei giorni completi del periodo. */
-export function topContributors(days: readonly DayIntake[], key: NutrientKey, limit = 5): Contributor[] {
+export function topContributors(
+  days: readonly DayIntake[],
+  key: NutrientKey,
+  limit = 5,
+  prepInfo: ReadonlyMap<string, PrepPortionInfo> = new Map(),
+): Contributor[] {
   const sums = new Map<string, Contributor>();
   let total = 0;
   for (const day of days) {
@@ -388,7 +466,8 @@ export function topContributors(days: readonly DayIntake[], key: NutrientKey, li
       }
       else {
         const { state, statePreference } = line.composition;
-        const text = stateText(line.composition.name, state, statePreference, line.composition.selection);
+        const prep = isPrepRef(line.composition.ref) ? prepInfo.get(line.composition.ref) : undefined;
+        const text = prep ? prepPortionText(prep) : stateText(line.composition.name, state, statePreference, line.composition.selection);
         sums.set(id, {
           key: id,
           name: line.label,

@@ -1,0 +1,268 @@
+/* Spesa: voci, ragioni, costi, in negozio. Solo variabili di tema; bersagli di almeno 44 px (in negozio: 56). */
+
+.undo {
+  position: sticky;
+  bottom: calc(var(--nav-height) + var(--space-6));
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding: var(--space-4) var(--space-7);
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-size: var(--text-body-sm);
+}
+
+.undoButton {
+  min-height: var(--tap-min);
+  padding: 0 var(--space-4);
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.undoButton:focus-visible,
+.action:focus-visible,
+.bigRow:focus-within {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--space-7);
+  border: var(--rule-width) solid var(--color-rule);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.dayCard {
+  composes: card;
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  composes: card;
+}
+
+.itemHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-6);
+}
+
+.itemName {
+  margin: 0;
+  font-size: var(--text-figure);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.itemQty {
+  flex: none;
+  font-family: var(--font-data);
+  font-size: var(--text-data);
+}
+
+.reasons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-8);
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+}
+
+.meta {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: 1.4;
+  color: var(--color-graphite);
+}
+
+.tag {
+  font-family: var(--font-data);
+  font-size: var(--text-caption);
+  color: var(--color-accent);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-4);
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding: 0 var(--space-3);
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.actionDanger {
+  composes: action;
+  color: var(--color-signal);
+}
+
+.inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.inline input {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+
+.costLine {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+}
+
+.split {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: var(--space-8);
+  font-size: var(--text-body-sm);
+}
+
+.adjust {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5) 0;
+  border-top: var(--rule-width) solid var(--color-rule);
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+}
+
+.table {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rowLine {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-6);
+  padding: var(--space-5) 0;
+  border-top: var(--rule-width) solid var(--color-rule);
+  font-size: var(--text-body-sm);
+}
+
+.rowSub {
+  grid-column: 1 / -1;
+  font-size: var(--text-caption);
+  line-height: 1.4;
+  color: var(--color-graphite);
+}
+
+/* In negozio: bersagli grandi */
+
+.bigList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bigRow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-7);
+  min-height: 64px;
+  padding: var(--space-4) var(--space-7);
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  cursor: pointer;
+}
+
+.bigRowDone {
+  composes: bigRow;
+  border-color: var(--color-rule);
+  background: none;
+  color: var(--color-graphite);
+}
+
+.bigRow input {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.bigText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: var(--text-figure);
+  font-weight: 500;
+}
+
+.bigRowDone .bigText {
+  text-decoration: line-through;
+}
+
+.bigSub {
+  font-size: var(--text-caption);
+  font-weight: 400;
+  color: var(--color-graphite);
+  text-decoration: none;
+}
+
+.totalBar {
+  position: sticky;
+  bottom: calc(var(--nav-height) + var(--space-6));
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-6) var(--space-7);
+  border: var(--rule-width) solid var(--color-rule-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-paper);
+}
+

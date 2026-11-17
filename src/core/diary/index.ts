@@ -58,3 +58,4 @@ export type { DiaryEventOptions, HabitInput, MealInput } from "./create";
 export { mealsWithPantry, pantryMealReport } from "./pantry";
 export type { MealPantryReport, MealWithPantry } from "./pantry";
 export { voidMeal } from "./voidMeal";
+export { OTHER_FAMILY_EVENT_TYPES, isOtherFamilyEvent } from "./foreign";

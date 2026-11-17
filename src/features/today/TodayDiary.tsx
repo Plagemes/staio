@@ -21,6 +21,7 @@ import {
 import { useNotice } from "../notice";
 import ui from "../ui.module.css";
 import { useRecord } from "../useRecord";
+import { useTodayPlan } from "./useTodayPlan";
 import styles from "./Today.module.css";
 
 interface Props {
@@ -34,6 +35,7 @@ export function TodayDiary({ now, pantry, log }: Props) {
   const diary = useDiary();
   const notice = useNotice();
   const { recordWith, busy } = useRecord();
+  const plan = useTodayPlan();
   const [openMeal, setOpenMeal] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [undoing, setUndoing] = useState(false);
@@ -95,7 +97,14 @@ export function TodayDiary({ now, pantry, log }: Props) {
   return (
     <>
       <div className={styles.actions}>
-        <Button href="/app/pasto">Registra pasto</Button>
+        <div className={styles.primaryRow}>
+          <Button href="/app/pasto">Registra pasto</Button>
+          {plan.shoppingCount > 0 ? (
+            <Button href="/app/spesa" variant="outline">
+              {plan.shoppingCount === 1 ? "Spesa: 1 voce" : `Spesa: ${plan.shoppingCount} voci`}
+            </Button>
+          ) : null}
+        </div>
         <div className={styles.actionRow}>
           <Button variant="outline" onClick={() => void eatenOut()} disabled={busy}>
             Ho mangiato fuori
@@ -129,6 +138,28 @@ export function TodayDiary({ now, pantry, log }: Props) {
           </Button>
         </div>
       ))}
+
+      {plan.planned.length > 0 ? (
+        <section className={ui.section}>
+          <SectionHeader label="Pianificato per oggi" actionLabel="Settimana" actionHref="/app/piano/settimana" />
+          <ul className={styles.list}>
+            {plan.planned.map((p, i) => (
+              <li key={`${p.meal}-${i}`} className={styles.meal}>
+                <div className={styles.mealHead}>
+                  <span className={styles.mealTitle}>{p.text}</span>
+                  <span className={styles.mealTime}>{MEAL_KIND_LABELS[p.meal].toLowerCase()}</span>
+                </div>
+                {p.note ? <p className={styles.note}>{p.note}</p> : null}
+                <div>
+                  <Button variant="text" href="/app/piano/settimana">
+                    Registralo
+                  </Button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section className={ui.section}>
         <SectionHeader label="Pasti di oggi" />

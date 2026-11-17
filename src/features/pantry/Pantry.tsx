@@ -123,6 +123,15 @@ export function Pantry() {
               )}
             </div>
           </div>
+          <div className={styles.photoRow}>
+            <span className={styles.realignText}>
+              <span className={styles.realignTitle}>Controlla con una foto</span>
+              <span className={styles.realignHint}>Fotografa uno scaffale e confronta con la dispensa.</span>
+            </span>
+            <Link href="/app/dispensa/foto" className={styles.realignLink}>
+              Apri
+            </Link>
+          </div>
           {toConfirm > 0 ? (
             <div className={styles.realign}>
               <div className={styles.realignText}>

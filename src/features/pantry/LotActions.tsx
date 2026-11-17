@@ -29,6 +29,8 @@ import {
   LOCATION_ORDER,
   type ChosenExpiryKind,
 } from "../labels";
+import { addManualEntries } from "../shopping";
+import { useNotice } from "../notice";
 import { expiryExplanation, expiryTagView, previewExpiryAfterMove, type PantryEntry } from "../lots";
 import ui from "../ui.module.css";
 import styles from "./LotSheet.module.css";
@@ -53,7 +55,21 @@ interface LotActionsProps {
 
 export function LotActions({ entry, creation, now, busy, perform, error }: LotActionsProps) {
   const [mode, setMode] = useState<Mode>("menu");
+  const [listError, setListError] = useState<string | null>(null);
+  const notice = useNotice();
   const { lot } = entry;
+
+  /** Rimette in lista la quantità con cui era entrato: si cambia poi nella lista. */
+  async function addToList() {
+    setListError(null);
+    try {
+      const result = await addManualEntries([{ product: lot.productRef, quantity: { value: lot.initial, unit: lot.unit } }]);
+      if (result.added === 0) return;
+      notice.show({ message: `Aggiunto alla lista della spesa: ${lot.productRef}.`, onUndo: result.undo });
+    } catch {
+      setListError("Non sono riuscito ad aggiungerlo alla lista. Riprova.");
+    }
+  }
   const back = () => setMode("menu");
 
   return (
@@ -80,6 +96,9 @@ export function LotActions({ entry, creation, now, busy, perform, error }: LotAc
           <Button variant="outline" disabled={!creation} onClick={() => setMode("edit")}>
             Modifica
           </Button>
+          <Button variant="outline" onClick={() => void addToList()}>
+            Aggiungi alla spesa
+          </Button>
         </div>
       ) : null}
 
@@ -90,9 +109,9 @@ export function LotActions({ entry, creation, now, busy, perform, error }: LotAc
         <EditFormView entry={entry} creation={creation} busy={busy} perform={perform} onBack={back} />
       ) : null}
 
-      {error ? (
+      {error || listError ? (
         <p className={ui.error} role="alert">
-          {error}
+          {error ?? listError}
         </p>
       ) : null}
     </section>

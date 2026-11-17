@@ -1,0 +1,286 @@
+/* Piano: giorni, pasti, righe di verifica. Solo variabili di tema; bersagli di almeno 44 px. */
+
+.doors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-8);
+}
+
+.days {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-8) 0;
+  border-bottom: var(--rule-width) solid var(--color-rule);
+}
+
+.dayHead {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-6);
+}
+
+.dayTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-title-sm);
+  line-height: 1.1;
+}
+
+.dayNote {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: 1.4;
+  color: var(--color-graphite);
+}
+
+.mealBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.entries {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4) 0;
+  border-top: var(--rule-width) solid var(--color-rule);
+}
+
+.entryName {
+  font-size: var(--text-body);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.entryNote {
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-4);
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding: 0 var(--space-3);
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.action:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.actionDanger {
+  composes: action;
+  color: var(--color-signal);
+}
+
+.alert {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-7);
+  border: var(--rule-width) solid var(--color-signal);
+  border-radius: var(--radius-md);
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+}
+
+.alertList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding-left: var(--space-9);
+}
+
+/* Verifica */
+
+.checkLines {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checkLine {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-6);
+  padding: var(--space-5) 0;
+  border-top: var(--rule-width) solid var(--color-rule);
+}
+
+.checkName {
+  font-size: var(--text-body-sm);
+  font-weight: 500;
+}
+
+.checkValue {
+  font-family: var(--font-data);
+  font-size: var(--text-data);
+  text-align: right;
+}
+
+.checkStatus {
+  grid-column: 1 / -1;
+  font-size: var(--text-caption);
+  line-height: 1.4;
+}
+
+.toneOk {
+  color: var(--color-accent);
+}
+
+.toneAttention {
+  color: var(--color-signal);
+  font-weight: 500;
+}
+
+.toneUnknown {
+  color: var(--color-graphite);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+}
+
+/* Scelte in elenco (ricette, preparazioni) */
+
+.pickList {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pick {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  min-height: var(--tap-min);
+  padding: var(--space-3) 0;
+  border-top: var(--rule-width) solid var(--color-rule);
+  cursor: pointer;
+}
+
+.pick input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.pickText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: var(--text-body-sm);
+  font-weight: 500;
+}
+
+.pickDetail {
+  font-size: var(--text-caption);
+  font-weight: 400;
+  color: var(--color-graphite);
+}
+
+.twoCols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-6);
+}
+
+.checkGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-6);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  min-height: var(--tap-min);
+  font-size: var(--text-body-sm);
+  cursor: pointer;
+}
+
+.check input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.targetRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6) 0;
+  border-top: var(--rule-width) solid var(--color-rule);
+}
+
+.statLine {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+}

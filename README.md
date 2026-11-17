@@ -21,11 +21,15 @@ Il progetto è in costruzione. Questa tabella dice cosa c'è davvero.
 | Scadenze: etichetta, dopo l'apertura, freezer, stime per categoria | Fatto, con revisione indipendente |
 | Unità di misura e conversioni | Fatto |
 | Archivio sul dispositivo, copia ed esportazione dei dati | Fatto |
-| App: Oggi, Dispensa, aggiunta a mano, azioni sugli alimenti | Prima versione |
+| App: Oggi, Dispensa, aggiunta a mano e rapida, riallineamento | Prima versione |
+| Diario: pasti, pasti abituali, acqua, peso, umore, integratori | Prima versione |
+| Codice a barre con Open Food Facts | Scritto, da provare sui telefoni |
+| Scontrino da foto, con la chiave AI dell'utente | Scritto, da provare con una chiave vera |
+| Nutrienti e confronto con i riferimenti | Prima versione, con revisione indipendente |
 | Uso senza rete | Scritto, da provare sui telefoni |
 | Modelli 3D a incisione, 283 alimenti | Fatto, forme da rifinire |
-| Scontrino, codice a barre, foto, voce | Da fare |
-| Nutrienti, piani, meal prep, lista della spesa | Da fare |
+| Foto del piatto e del frigo, voce | Da fare |
+| Piani, meal prep, lista della spesa | Da fare |
 | Ricettario e abbinamenti di gusto | Da fare |
 | Sincronizzazione tra dispositivi | Da fare |
 
@@ -116,6 +120,8 @@ pnpm dev
 ## Note
 
 Staio non dà pareri medici: confronta ciò che mangi con valori di riferimento.
+
+I valori nutrizionali degli alimenti generici vengono da USDA FoodData Central (pubblico dominio) e descrivono prodotti statunitensi: sono stime, e per pane, pasta e cereali i nutrienti alterati dall'arricchimento non sono riportati. I valori di riferimento sono quelli dell'EFSA per adulti. I dati dei prodotti confezionati vengono da Open Food Facts.
 
 Le durate degli alimenti senza data in etichetta sono stime prudenti. Non sostituiscono l'etichetta né il giudizio di chi apre il frigo.
 

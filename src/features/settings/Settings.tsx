@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useId, useState, type ChangeEvent } from "react";
 import { APP_NAME } from "@/config";
-import { exportBackup, importBackup, useEventLog, wipeAll } from "@/data";
+import { exportBackup, exportSettings, importBackup, importSettings, useEventLog, wipeAll } from "@/data";
 import { Button, Label, SectionHeader } from "@/design";
 import { dayOf } from "../format";
 import ui from "../ui.module.css";
-import { describeImport } from "./backupMessages";
+import { describeImport, describeSettingsImport } from "./backupMessages";
 import styles from "./Settings.module.css";
 
 type Wipe = "idle" | "confirm" | "working" | "done";
@@ -17,6 +17,7 @@ export function Settings() {
   const ids = useId();
   const [exportMessage, setExportMessage] = useState<string | null>(null);
   const [importMessage, setImportMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [settingsMessage, setSettingsMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [wipe, setWipe] = useState<Wipe>("idle");
   const [wipeError, setWipeError] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -39,6 +40,44 @@ export function Settings() {
     } catch {
       setExportMessage("Non sono riuscito a preparare la copia. Riprova.");
     } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onExportSettings() {
+    setBusy(true);
+    setSettingsMessage(null);
+    try {
+      const file = await exportSettings();
+      const blob = new Blob([JSON.stringify(file, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${APP_NAME.toLowerCase()}-impostazioni-${dayOf(file.exportedAt)}.json`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      setSettingsMessage({ ok: true, text: `Copia pronta: ${Object.keys(file.settings).length} impostazioni, senza la chiave dell'intelligenza artificiale.` });
+    } catch {
+      setSettingsMessage({ ok: false, text: "Non sono riuscito a preparare la copia. Riprova." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onImportSettings(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.target;
+    const file = input.files?.[0];
+    if (!file) return;
+    setBusy(true);
+    setSettingsMessage(null);
+    try {
+      setSettingsMessage(describeSettingsImport(await importSettings(await file.text())));
+    } catch {
+      setSettingsMessage({ ok: false, text: "Non sono riuscito a leggere il file. Riprova." });
+    } finally {
+      input.value = "";
       setBusy(false);
     }
   }
@@ -146,6 +185,30 @@ export function Settings() {
           {importMessage ? (
             <p className={importMessage.ok ? ui.hint : ui.error} role={importMessage.ok ? "status" : "alert"}>
               {importMessage.text}
+            </p>
+          ) : null}
+        </div>
+      </section>
+
+      <section className={ui.section}>
+        <SectionHeader label="Copia delle impostazioni" />
+        <div className={styles.block}>
+          <p className={ui.paragraph}>
+            Le impostazioni non sensibili (profilo, obiettivi, lista della spesa, scelte ricordate) in un file a parte. La chiave
+            dell&apos;intelligenza artificiale non viene mai esportata, e se è in un file che importi viene ignorata.
+          </p>
+          <div className={ui.row}>
+            <Button variant="outline" onClick={onExportSettings} disabled={busy}>
+              Esporta le impostazioni
+            </Button>
+            <label className={styles.file}>
+              <input type="file" accept="application/json,.json" onChange={onImportSettings} disabled={busy} />
+              <span>Importa le impostazioni</span>
+            </label>
+          </div>
+          {settingsMessage ? (
+            <p className={settingsMessage.ok ? ui.hint : ui.error} role={settingsMessage.ok ? "status" : "alert"}>
+              {settingsMessage.text}
             </p>
           ) : null}
         </div>

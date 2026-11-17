@@ -5,6 +5,7 @@ import {
   type Source,
   type ValidationError,
 } from "../ledger";
+import { isOtherFamilyEvent } from "./foreign";
 import { cloneMealItems } from "./items";
 import { isValidTimeZone, localDate } from "./calendar";
 import { isVoid, prepareLog, rejectedErrors, rejectedKey, voidsOfLog } from "./log";
@@ -182,7 +183,8 @@ function anomalyKey(a: DiaryAnomaly): string {
  * Riduzione deterministica del diario. Il risultato dipende solo dall'insieme di eventi
  * (non dall'ordine né dai duplicati in ingresso). Non lancia mai.
  *
- * Accetta il registro intero: gli eventi di dispensa sono ignorati in silenzio (ma i loro id
+ * Accetta il registro intero: gli eventi di dispensa e delle altre famiglie note (piano,
+ * preparazioni, ricettario) sono ignorati in silenzio (ma i loro id
  * contano per i bersagli dei `void`), un tipo sconosciuto è segnalato come anomalia.
  * Un evento annullato non conta; un annullamento annullato ripristina l'evento.
  * Ogni evento va nella giornata di calendario del suo `at` nel fuso scelto.
@@ -217,8 +219,8 @@ export function deriveDiary(
       const errors = validateDiaryEvent(e);
       if (errors.length > 0) anomalies.push({ code: "invalid_event", eventId: rec.id, errors });
       else valid.push(e);
-    } else if (isPantryEvent(e)) {
-      // Fuori dal diario: nessuna anomalia.
+    } else if (isPantryEvent(e) || isOtherFamilyEvent(e)) {
+      // Fuori dal diario (dispensa, piano, preparazioni, ricettario): nessuna anomalia.
     } else if (typeof rec.type === "string") {
       anomalies.push({ code: "unknown_event_type", eventId: rec.id, eventType: rec.type });
     } else {

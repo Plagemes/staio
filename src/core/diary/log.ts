@@ -10,6 +10,7 @@ import {
   type EventLike,
   type ValidationError,
 } from "../ledger";
+import { isOtherFamilyEvent } from "./foreign";
 import { isDiaryEvent, validateDiaryEvent } from "./validate";
 import { resolveVoids, type VoidFinding, type VoidRef } from "./voids";
 
@@ -27,10 +28,15 @@ function safe<T>(fn: () => T, fallback: T): T {
   }
 }
 
-/** Errori di un evento noto (dispensa, diario o `void`); i tipi sconosciuti non sono mai validi. */
+/**
+ * Errori di un evento noto (dispensa, diario o `void`). Gli eventi delle altre famiglie note
+ * non sono validati qui (nessun errore); i tipi sconosciuti non sono mai validi.
+ */
 function knownErrors(e: unknown): ValidationError[] {
   if (isVoid(e) || isDiaryEvent(e)) return validateDiaryEvent(e);
   if (safe(() => isPantryEvent(e), false)) return validateEvent(e);
+  // Altre famiglie: non è compito del diario validarle.
+  if (isOtherFamilyEvent(e)) return [];
   return [{ path: "type", code: "invalid_value" }];
 }
 
@@ -39,10 +45,14 @@ export function isValidKnownEvent(e: unknown): boolean {
   return safe(() => knownErrors(e).length === 0, false);
 }
 
+/** Evento di dispensa o di un'altra famiglia nota: il diario lo ignora. */
+const isForeignToDiary = (e: unknown): boolean =>
+  safe(() => isPantryEvent(e), false) || isOtherFamilyEvent(e);
+
 export interface PreparedLog {
   /** Eventi unici per id, in ordine canonico (at, recordedAt, id). */
   events: unknown[];
-  /** Id con versioni diverse e contenuti diversi. */
+  /** Id con versioni diverse e contenuti diversi (esclusi quelli degli eventi che il diario ignora). */
   conflictIds: string[];
   /** Voci non unibili (senza id, non oggetti, non serializzabili), senza duplicati e in ordine deterministico. */
   rejected: unknown[];
@@ -54,7 +64,10 @@ export function prepareLog(events: Iterable<unknown>): PreparedLog {
   const merged = mergeEvents<EventLike>(list, [], { validate: isValidKnownEvent });
   return {
     events: merged.events as unknown[],
-    conflictIds: merged.conflicts.map((c) => c.id).sort(),
+    conflictIds: merged.conflicts
+      .filter((c) => isVoid(c.kept) || !isForeignToDiary(c.kept))
+      .map((c) => c.id)
+      .sort(),
     rejected: merged.rejected,
   };
 }

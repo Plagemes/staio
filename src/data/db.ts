@@ -54,6 +54,12 @@ export const SCHEMA_V4 = {
   events: "id, at, type, lotId, recordedAt, seq, mealId",
 } as const;
 
+/** Schema versione 5: indici sugli id di ricette e preparazioni. */
+export const SCHEMA_V5 = {
+  ...SCHEMA_V4,
+  events: "id, at, type, lotId, recordedAt, seq, mealId, recipeId, prepId",
+} as const;
+
 /** Evento come salvato: il contenuto più la sequenza di arrivo in questo archivio. */
 export type StoredEvent = AnyEvent & { seq: number };
 
@@ -76,6 +82,7 @@ export class LedgerDb extends Dexie {
       });
     this.version(3).stores(SCHEMA_V3);
     this.version(4).stores(SCHEMA_V4);
+    this.version(5).stores(SCHEMA_V5);
   }
 }
 

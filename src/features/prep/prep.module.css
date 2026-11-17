@@ -1,0 +1,202 @@
+/* Preparazioni. Solo variabili di tema. */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-2) var(--space-6);
+  padding: var(--space-7) 0;
+  border-bottom: var(--rule-width) solid var(--color-rule);
+}
+
+.itemName {
+  font-family: var(--font-display);
+  font-size: var(--text-title-sm);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.itemMeta {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
+  font-family: var(--font-data);
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+}
+
+/* Il pulsante copre tutta la riga: il bersaglio è largo quanto lo schermo. */
+.open {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.open:hover {
+  background: color-mix(in srgb, var(--color-ink) 4%, transparent);
+}
+
+.task {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-6) 0;
+  border-bottom: var(--rule-width) solid var(--color-rule);
+}
+
+.taskTitle {
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+.taskOverdue {
+  composes: taskTitle;
+  color: var(--color-signal);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: 1.4;
+  color: var(--color-graphite);
+}
+
+/* Scelta degli ingredienti */
+
+.picks {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6) 0;
+  border-bottom: var(--rule-width) solid var(--color-rule);
+}
+
+.pickHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-6);
+}
+
+.pickName {
+  font-size: var(--text-body);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.pickLeft {
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+}
+
+.pickFields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-7) var(--space-8);
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+}
+
+.previewRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-6);
+  font-size: var(--text-body-sm);
+}
+
+/* Finestra con i dettagli */
+
+.sheet {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--column-max);
+  max-height: 92dvh;
+  margin: auto auto 0;
+  padding: 0;
+  border: none;
+  border-top: var(--rule-width) solid var(--color-rule-strong);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.sheet::backdrop {
+  background: color-mix(in srgb, var(--color-ink) 45%, transparent);
+}
+
+.sheetBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--gutter) calc(var(--space-11) + env(safe-area-inset-bottom, 0px));
+}
+
+.sheetTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-title);
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.data {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  border-top: var(--rule-width) solid var(--color-rule-strong);
+}
+
+.dataRow {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: baseline;
+  padding-block: var(--space-5);
+  border-bottom: var(--rule-width) solid var(--color-rule);
+  font-size: var(--text-body-sm);
+}
+
+.dataRow dt,
+.dataRow dd {
+  margin: 0;
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}

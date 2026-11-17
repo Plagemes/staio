@@ -27,7 +27,13 @@ function areaOf(pathname: string): NavArea | "capture" | undefined {
     return "today";
   if (pathname.startsWith("/app/dispensa")) return "pantry";
   if (pathname.startsWith("/app/cattura")) return "capture";
-  if (pathname.startsWith("/app/piano")) return "plan";
+  if (
+    pathname.startsWith("/app/piano") ||
+    pathname.startsWith("/app/spesa") ||
+    pathname.startsWith("/app/ricette") ||
+    pathname.startsWith("/app/preparazioni")
+  )
+    return "plan";
   if (pathname.startsWith("/app/salute")) return "health";
   return undefined;
 }

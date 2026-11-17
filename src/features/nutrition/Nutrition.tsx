@@ -197,7 +197,7 @@ export function Nutrition() {
           row={row}
           open={openId === row.id}
           onToggle={() => setOpenId(openId === row.id ? null : row.id)}
-          contributors={openId === row.id ? topContributors(periodDays, row.nutrient) : []}
+          contributors={openId === row.id ? topContributors(periodDays, row.nutrient, 5, data.prepInfo) : []}
           search={search}
           onChangeFood={(c, option) => applyCorrection(c, c.name, option)}
         />
@@ -280,7 +280,7 @@ export function Nutrition() {
         </>
       ) : null}
 
-      {data.intake && search ? <UnresolvedList days={data.intake.days} search={search} overrides={data.overrides} /> : null}
+      {data.intake && search ? <UnresolvedList days={data.intake.days} search={search} overrides={data.overrides} prepInfo={data.prepInfo} /> : null}
 
       <WhatToKnow />
 

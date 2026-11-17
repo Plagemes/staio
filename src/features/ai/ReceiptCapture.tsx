@@ -13,6 +13,7 @@ import ui from "../ui.module.css";
 import { activeModel, configIssue, destinationHost, dexieSettingsStore, type AiSettings } from "./settings";
 import { IMAGE_ERROR_MESSAGES, ImageError, prepareImage, type PreparedImage } from "./image";
 import { describeAiError } from "./messages";
+import { NotReady } from "./NotReady";
 import { PROVIDER_LABELS } from "./providers/types";
 import { readReceipt, type ReceiptReadResult } from "./readReceipt";
 import { buildReceiptEvents, includedTotalCents, storeLabel, toReviewLines, type ReviewLine } from "./receiptEvents";
@@ -38,35 +39,10 @@ export function ReceiptCapture() {
   }
 
   const issue = configIssue(settings);
-  if (issue !== null) return <NotReady issue={issue} />;
+  if (issue !== null) {
+    return <NotReady issue={issue} title="Scontrino" what="leggere uno scontrino da una foto" alternative={{ href: "/app/cattura", label: "Aggiungi a mano" }} />;
+  }
   return <Reader settings={settings} />;
-}
-
-function NotReady({ issue }: { issue: NonNullable<ReturnType<typeof configIssue>> }) {
-  const text =
-    issue === "missing_key"
-      ? "Per leggere uno scontrino da una foto serve la tua chiave personale di un fornitore di intelligenza artificiale. È facoltativa: senza, l'app funziona lo stesso e gli alimenti li aggiungi a mano."
-      : issue === "missing_model"
-        ? "Hai scelto il fornitore, ma manca il nome del modello da usare. Scrivilo nelle impostazioni."
-        : "L'indirizzo del servizio scelto non è valido. Correggilo nelle impostazioni.";
-  return (
-    <div className={ui.screen}>
-      <div className={ui.head}>
-        <h1 className={ui.title}>Scontrino</h1>
-        <Label>Con l&apos;intelligenza artificiale</Label>
-      </div>
-      <div className={ui.empty}>
-        <h2 className={ui.emptyTitle}>{issue === "missing_key" ? "Manca la chiave" : "Impostazioni incomplete"}</h2>
-        <p className={ui.emptyText}>{text}</p>
-        <div className={ui.row}>
-          <Button href="/app/impostazioni/ai">Vai alle impostazioni</Button>
-          <Button href="/app/cattura" variant="outline">
-            Aggiungi a mano
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 type Busy = "preparing" | "reading" | "saving" | null;

@@ -31,3 +31,54 @@ export type {
   ReceiptUnit,
   TotalsCheck,
 } from "./receiptParse";
+export {
+  ABSENT_MIN_CONFIDENCE,
+  DEFAULT_CONFIDENCE,
+  DEFAULT_SCAN_MAX_TOKENS,
+  LOCATION_NAMES,
+  buildPantryScanRequest,
+  expectedLine,
+  pantryScanInstructions,
+  parsePantryScan,
+  readConfidence,
+} from "./pantryScan";
+export type {
+  ExpectedLot,
+  FreshnessState,
+  PantryScan,
+  PantryScanRequestOptions,
+  ScanLotReading,
+  ScanProblem,
+  ScanProblemCode,
+  ScanStatus,
+  ScanUnit,
+  UnexpectedItem,
+} from "./pantryScan";
+export {
+  DEFAULT_THRESHOLDS,
+  SECOND_PHOTO_MIN_SHARE,
+  SECOND_PHOTO_MIN_UNSEEN,
+  USE_SOON_DAYS,
+  addDaysTo,
+  diffScan,
+  formatAmount,
+  formatDay,
+  orderDifferences,
+  suggestSecondPhoto,
+} from "./pantryDiff";
+export type { DiffChange, DiffContext, DiffKind, Difference, SecondPhotoHint, Thresholds } from "./pantryDiff";
+export {
+  EMPTY_ZONE_MAP,
+  SCAN_LOCATIONS,
+  ZONES,
+  foodKey,
+  normalizeZoneMap,
+  readZone,
+  recordZone,
+  usualZone,
+  zoneDef,
+  zoneLabel,
+  zoneMapFrom,
+  zoneRank,
+} from "./zones";
+export type { ScanLocation, UsualZone, ZoneDef, ZoneMap, ZoneObservation, ZoneStat } from "./zones";

@@ -5,6 +5,9 @@ import { fitWithin, type AiImage, type FitLimits } from "@/core/ai";
 /** Uno scontrino lungo e stretto ha bisogno di altezza: il limite è sull'area, oltre che sul lato. */
 export const RECEIPT_IMAGE_LIMITS: FitLimits = { maxSide: 2400, maxPixels: 2_500_000 };
 
+/** Le foto di un ripiano sono più grandi e più d'una per volta: meno pixel ciascuna, per tenere basso il costo. */
+export const PANTRY_IMAGE_LIMITS: FitLimits = { maxSide: 1800, maxPixels: 1_800_000 };
+
 const MAX_BYTES = 3_500_000;
 
 export interface PreparedImage {

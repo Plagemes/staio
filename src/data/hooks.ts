@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Observable } from "dexie";
 import type { AnyEvent } from "@/core/events";
 import type { DiaryState } from "@/core/diary";
+import type { PlanState } from "@/core/plan";
+import type { PrepState } from "@/core/prep";
+import type { RecipesState } from "@/core/recipes";
 import type { PantryState } from "@/core/ledger";
 import { liveEvents } from "./eventStore";
 import { liveDiary } from "./diary";
+import { livePlan, livePreps, liveRecipes } from "./derived";
+import { liveSetting } from "./settings";
 import { livePantry } from "./pantry";
 
 export interface LiveValue<T> {
@@ -41,4 +46,21 @@ export function useEventLog(): LiveValue<AnyEvent[]> {
 
 export function useDiary(): LiveValue<DiaryState> {
   return useObservable(liveDiary);
+}
+
+export function usePlan(): LiveValue<PlanState> {
+  return useObservable(livePlan);
+}
+
+export function useRecipes(): LiveValue<RecipesState> {
+  return useObservable(liveRecipes);
+}
+
+export function usePreps(): LiveValue<PrepState> {
+  return useObservable(livePreps);
+}
+
+export function useSetting<T = unknown>(key: string): LiveValue<T | undefined> {
+  const create = useCallback(() => liveSetting<T>(key), [key]);
+  return useObservable(create);
 }

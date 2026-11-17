@@ -68,3 +68,13 @@
 .realignLink:hover {
   text-decoration: underline;
 }
+
+.photoRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-7);
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+}

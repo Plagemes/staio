@@ -217,16 +217,16 @@ export interface SettingsStore {
   update(fn: (current: unknown) => unknown): Promise<unknown>;
 }
 
-export function dexieSettingsStore(): SettingsStore {
+export function dexieSettingsStore(key: string = AI_SETTINGS_KEY): SettingsStore {
   return {
     async read() {
-      return (await getDb().settings.get(AI_SETTINGS_KEY))?.value;
+      return (await getDb().settings.get(key))?.value;
     },
     async update(fn) {
       const db = getDb();
       return db.transaction("rw", db.settings, async () => {
-        const next = fn((await db.settings.get(AI_SETTINGS_KEY))?.value);
-        await db.settings.put({ key: AI_SETTINGS_KEY, value: next });
+        const next = fn((await db.settings.get(key))?.value);
+        await db.settings.put({ key, value: next });
         return next;
       });
     },

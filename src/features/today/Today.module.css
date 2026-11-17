@@ -151,3 +151,18 @@
   font-size: var(--text-caption);
   color: var(--color-graphite);
 }
+
+.primaryRow {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.primaryRow > a {
+  flex: 1;
+  min-height: 56px;
+  font-size: var(--text-body);
+}
+
+.primaryRow > a:not(:first-child) {
+  flex: none;
+}

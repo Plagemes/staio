@@ -7,6 +7,7 @@ import { formatCalendarDate } from "../format";
 import ui from "../ui.module.css";
 import type { FoodOption, FoodSearch } from "./candidates";
 import { FoodPicker } from "./FoodCandidates";
+import type { PrepPortionInfo } from "./prepPortion";
 import { notComputableCount, unresolvedGroups, type UnresolvedGroup } from "./prepare";
 import styles from "./nutrition.module.css";
 import { type FoodOverrides } from "./resolver";
@@ -21,7 +22,17 @@ export const MISSING_COOKED_TEXT =
  * Voci che il motore non ha saputo collegare a nessun dato, con il motivo. Per le voci libere di un pasto la scelta
  * corregge il pasto (con «Annulla»); per la dispensa resta la scelta ricordata per nome.
  */
-export function UnresolvedList({ days, search, overrides }: { days: readonly DayIntake[]; search: FoodSearch; overrides: FoodOverrides }) {
+export function UnresolvedList({
+  days,
+  search,
+  overrides,
+  prepInfo,
+}: {
+  days: readonly DayIntake[];
+  search: FoodSearch;
+  overrides: FoodOverrides;
+  prepInfo?: ReadonlyMap<string, PrepPortionInfo>;
+}) {
   const groups = useMemo(() => unresolvedGroups(days), [days]);
   const skipped = useMemo(() => notComputableCount(days), [days]);
   const apply = useFoodCorrection(overrides);
@@ -81,6 +92,11 @@ export function UnresolvedList({ days, search, overrides }: { days: readonly Day
                     </Button>
                   ) : null}
                 </div>
+                {[...(prepInfo?.values() ?? [])].some((i) => i.empty && i.title.toLowerCase() === g.label.toLowerCase()) ? (
+                  <p className={ui.hint}>
+                    È una preparazione: le sue porzioni si calcolano dagli ingredienti, ma nessuno ha un dato. Scegli a mano un alimento simile.
+                  </p>
+                ) : null}
                 {g.reason === "missing_cooked_entry" ? (
                   <div className={styles.panel}>
                     <p className={ui.paragraph}>{MISSING_COOKED_TEXT}</p>

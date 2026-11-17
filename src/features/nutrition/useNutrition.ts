@@ -9,10 +9,12 @@ import type { Product } from "@/core/catalog";
 import type { FoodComposition, IntakeResult, ReferenceWithVariant } from "@/core/nutrition";
 import { derivePantry } from "@/core/ledger";
 import { computeIntake } from "@/core/nutrition";
-import { listProductRecords, useEventLog } from "@/data";
+import { listProductRecords, useEventLog, usePreps } from "@/data";
 import { setSetting, useSetting } from "../localSettings";
 import { PROFILE_SETTING_KEY, isNutritionProfile, type NutritionProfile } from "./profile";
-import { OVERRIDES_SETTING_KEY, buildResolver, isFoodOverrides, barcodesOfLots, type FoodOverrides } from "./resolver";
+import { markPrepPartials } from "./prepare";
+import type { PrepPortionInfo } from "./prepPortion";
+import { OVERRIDES_SETTING_KEY, buildResolverWithInfo, isFoodOverrides, barcodesOfLots, type FoodOverrides } from "./resolver";
 
 let foodsPromise: Promise<readonly FoodComposition[]> | undefined;
 let referencesPromise: Promise<readonly ReferenceWithVariant[]> | undefined;
@@ -88,8 +90,12 @@ export interface NutritionData {
   intake?: IntakeResult;
   foods?: readonly FoodComposition[];
   overrides: FoodOverrides;
+  /** Che cosa si sa delle porzioni di preparazione usate nel calcolo, per `ref` (`prep:<id>`). */
+  prepInfo: ReadonlyMap<string, PrepPortionInfo>;
   error: boolean;
 }
+
+const NO_PREP_INFO: ReadonlyMap<string, PrepPortionInfo> = new Map();
 
 /** Nutrienti di tutti i giorni dal registro intero: si ricalcola solo quando cambia uno degli ingressi. */
 export function useIntake(): NutritionData {
@@ -97,12 +103,25 @@ export function useIntake(): NutritionData {
   const foods = useFoods();
   const products = useProducts();
   const overrides = useFoodOverrides();
+  const prepsState = usePreps();
+  // senza l'elenco delle preparazioni (o con un errore: valgono come nessuna) non si calcola, per non rifarlo subito dopo
+  const prepsReady = prepsState.data !== undefined || Boolean(prepsState.error);
+  const preps = useMemo(() => new Map((prepsState.data?.preps ?? []).map((p) => [p.batchLotId, p])), [prepsState.data]);
 
-  const intake = useMemo(() => {
-    if (!log.data || !foods || !products) return undefined;
-    const resolver = buildResolver({ foods, products, barcodes: barcodesOfLots(derivePantry(log.data).lots), overrides });
-    return computeIntake(log.data, resolver);
-  }, [log.data, foods, products, overrides]);
+  const computed = useMemo(() => {
+    if (!log.data || !foods || !products || !prepsReady) return undefined;
+    const { resolve, prepInfo } = buildResolverWithInfo({ foods, products, barcodes: barcodesOfLots(derivePantry(log.data).lots), overrides, preps });
+    const raw = computeIntake(log.data, resolve);
+    // le porzioni calcolate dagli ingredienti con dato mancante rendono parziali i nutrienti dei loro giorni
+    return { intake: { ...raw, days: markPrepPartials(raw.days, prepInfo) }, prepInfo };
+  }, [log.data, foods, products, overrides, preps, prepsReady]);
 
-  return { ready: intake !== undefined, intake, foods, overrides, error: Boolean(log.error) };
+  return {
+    ready: computed !== undefined,
+    intake: computed?.intake,
+    foods,
+    overrides,
+    prepInfo: computed?.prepInfo ?? NO_PREP_INFO,
+    error: Boolean(log.error),
+  };
 }

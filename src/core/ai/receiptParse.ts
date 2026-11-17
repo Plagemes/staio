@@ -68,11 +68,11 @@ export interface ParseOptions {
   truncated?: boolean;
 }
 
-type Obj = Record<string, unknown>;
+export type Obj = Record<string, unknown>;
 
-const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
+export const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
 
-function pick(obj: Obj, ...keys: string[]): unknown {
+export function pick(obj: Obj, ...keys: string[]): unknown {
   for (const key of keys) {
     if (Object.hasOwn(obj, key) && obj[key] !== null && obj[key] !== undefined) return obj[key];
   }
@@ -82,7 +82,7 @@ function pick(obj: Obj, ...keys: string[]): unknown {
 // ---------------------------------------------------------------- estrazione del JSON
 
 /** Oggetti `{...}` completi al livello più alto del testo, ignorando le graffe dentro le stringhe. */
-function topLevelObjects(text: string, from = 0): string[] {
+export function topLevelObjects(text: string, from = 0): string[] {
   const found: string[] = [];
   let depth = 0;
   let start = -1;
@@ -109,7 +109,7 @@ function topLevelObjects(text: string, from = 0): string[] {
   return found;
 }
 
-function tryParse(text: string): unknown {
+export function tryParse(text: string): unknown {
   try {
     return JSON.parse(text);
   } catch {
@@ -184,14 +184,14 @@ function salvage(text: string): Payload | undefined {
 
 const NULLISH = new Set(["", "null", "none", "n/d", "nd", "n.d.", "-", "—", "non leggibile", "illeggibile", "sconosciuto"]);
 
-function readText(value: unknown, max = 120): string | undefined {
+export function readText(value: unknown, max = 120): string | undefined {
   if (typeof value !== "string" && typeof value !== "number") return undefined;
   const s = String(value).replace(/\s+/g, " ").trim();
   if (NULLISH.has(s.toLowerCase())) return undefined;
   return s.length > max ? s.slice(0, max).trimEnd() : s;
 }
 
-function readBool(value: unknown): boolean | undefined {
+export function readBool(value: unknown): boolean | undefined {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return value !== 0;
   if (typeof value === "string") {

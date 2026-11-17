@@ -6,7 +6,7 @@ import { dayOf } from "../format";
 import ui from "../ui.module.css";
 import { NutritionDisclaimer } from "./Disclaimer";
 import { CERTAINTY_LABELS, certaintyExplanation } from "./labels";
-import { dayNutritionView, type NutrientCell } from "./prepare";
+import { dayNutritionView, prepNotes, type NutrientCell } from "./prepare";
 import styles from "./nutrition.module.css";
 import { useIntake } from "./useNutrition";
 
@@ -21,7 +21,7 @@ function CellValue({ cell }: { cell: NutrientCell }) {
 
 /** Energia e macronutrienti di oggi, con certezza e parzialità dette a parole. Nessun obiettivo di energia. */
 export function TodayNutrition({ now }: { now: string }) {
-  const { intake, ready, error } = useIntake();
+  const { intake, ready, error, prepInfo } = useIntake();
   const today = dayOf(now);
   const view = useMemo(() => (intake ? dayNutritionView(intake.days.find((d) => d.date === today), today) : undefined), [intake, today]);
 
@@ -78,6 +78,11 @@ export function TodayNutrition({ now }: { now: string }) {
             </p>
           ) : null}
 
+          {prepNotes(intake?.days.find((d) => d.date === today), prepInfo).map((note) => (
+            <p key={note} className={ui.hint}>
+              {note}
+            </p>
+          ))}
           {view.partialText ? <p className={ui.callout}>{view.partialText} I numeri sono una parte, non il totale della giornata.</p> : null}
           {view.missingText ? <p className={ui.hint}>{view.missingText} Per questo i numeri con «almeno» sono un minimo.</p> : null}
           {view.coverageText ? <p className={ui.hint}>Valori {view.coverageText}.</p> : null}

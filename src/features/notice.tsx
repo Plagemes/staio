@@ -10,12 +10,15 @@ interface NoticeInput {
   message: string;
   /** Eventi appena scritti: «Annulla» li annulla con un `void` ciascuno. */
   undo?: readonly AnyEvent[];
+  /** In alternativa agli eventi: un'azione che rimette le cose com'erano (per esempio per le impostazioni). */
+  onUndo?: () => Promise<void>;
 }
 
 interface NoticeState {
   id: number;
   message: string;
   undo?: readonly AnyEvent[];
+  onUndo?: () => Promise<void>;
   busy: boolean;
 }
 
@@ -39,7 +42,7 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
 
   const show = useCallback((input: NoticeInput) => {
     counter.current += 1;
-    setNotice({ id: counter.current, message: input.message, undo: input.undo, busy: false });
+    setNotice({ id: counter.current, message: input.message, undo: input.undo, onUndo: input.onUndo, busy: false });
   }, []);
 
   const api = useMemo(() => ({ show }), [show]);
@@ -52,12 +55,15 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
   }, [notice]);
 
   async function undo() {
-    if (!notice?.undo) return;
-    const events = notice.undo;
+    if (!notice?.undo && !notice?.onUndo) return;
+    const { undo: events, onUndo } = notice;
     setNotice({ ...notice, busy: true });
     try {
-      const deviceId = await getDeviceId();
-      await appendEvents(buildUndo(events, { now: new Date().toISOString(), deviceId }));
+      if (onUndo) await onUndo();
+      if (events) {
+        const deviceId = await getDeviceId();
+        await appendEvents(buildUndo(events, { now: new Date().toISOString(), deviceId }));
+      }
       show({ message: "Annullato." });
     } catch {
       show({ message: "Non sono riuscito ad annullare. Riprova." });
@@ -71,7 +77,7 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
         <div className={styles.dock}>
           <div className={styles.notice} role="status" aria-live="polite" key={notice.id}>
             <p className={styles.message}>{notice.message}</p>
-            {notice.undo ? (
+            {notice.undo || notice.onUndo ? (
               <button type="button" className={styles.undo} onClick={undo} disabled={notice.busy}>
                 Annulla
               </button>
