@@ -44,6 +44,9 @@ Il progetto è in costruzione. Questa tabella dice cosa c'è davvero.
 | Allergeni dei prodotti letti dal codice, con ingredienti e tracce di Open Food Facts | Prima versione, con revisione indipendente |
 | Abbinamenti di gusto da FlavorGraph e dalle proprie ricette | Prima versione |
 | Tè e caffè scalati dalla dispensa, pasto pianificato da spostare | Prima versione |
+| Durata dopo l'apertura per singolo prodotto, azioni per salvare ciò che scade | Prima versione, con revisione indipendente |
+| Sostituzione degli ingredienti mancanti nelle ricette, con controllo degli allergeni | Prima versione, con revisione indipendente |
+| Varietà vegetale della settimana, proteine nella giornata | Prima versione |
 | Sincronizzazione con file e con Drive | Scritto; Drive in attesa delle credenziali |
 | Tema Vivo a colori, modelli 3D a colori | In costruzione |
 

@@ -47,6 +47,11 @@ export interface ExpiryItem {
   purchaseDate: string;
   /** Presente solo se la confezione è stata aperta. */
   openedDate?: string | null;
+  /**
+   * Giorni di consumo dopo l'apertura dai dati del prodotto (Open Food Facts, scritti da volontari). Può solo
+   * accorciare la durata della categoria: conta il minimo tra i due.
+   */
+  daysAfterOpening?: number | null;
   location: StorageLocation;
   frozenDate?: string | null;
   thawedDate?: string | null;
@@ -66,6 +71,8 @@ export interface EffectiveExpiry {
   certainty: ExpiryCertainty;
   /** Solo se aperta: data di qualità (etichetta 'preferibilmente entro') diversa da `date`, a titolo informativo. */
   qualityDate?: string;
+  /** Solo se aperta: la durata viene dai dati del prodotto (Open Food Facts), usata perché più breve della stima per categoria. */
+  openedFrom?: "product";
 }
 
 export type UrgencyLevel = "expired" | "past_quality" | "today" | "tomorrow" | "soon" | "ok";

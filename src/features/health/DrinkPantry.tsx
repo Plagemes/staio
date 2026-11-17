@@ -44,9 +44,11 @@ interface Props {
   suggestion: DrinkSuggestion | null;
   timeZone: string;
   onDone: () => void;
+  /** Aperta a mano dalla riga della bevanda: non sparisce da sola dopo qualche secondo. */
+  persistent?: boolean;
 }
 
-export function DrinkPantrySuggestion({ suggestion, timeZone, onDone }: Props) {
+export function DrinkPantrySuggestion({ suggestion, timeZone, onDone, persistent = false }: Props) {
   const pantry = usePantry();
   const now = useNow();
   const notice = useNotice();
@@ -69,18 +71,18 @@ export function DrinkPantrySuggestion({ suggestion, timeZone, onDone }: Props) {
   const id = suggestion?.drinkEventId;
   useEffect(() => {
     if (!id) return;
-    const timer = window.setTimeout(onDone, VISIBLE_MS);
+    const timer = persistent ? undefined : window.setTimeout(onDone, VISIBLE_MS);
     // al tocco successivo, fuori dalla riga, la proposta sparisce
     const onPointer = (event: PointerEvent) => {
       if (!ref.current?.contains(event.target as Node)) onDone();
     };
     const arm = window.setTimeout(() => document.addEventListener("pointerdown", onPointer), 0);
     return () => {
-      window.clearTimeout(timer);
+      if (timer !== undefined) window.clearTimeout(timer);
       window.clearTimeout(arm);
       document.removeEventListener("pointerdown", onPointer);
     };
-  }, [id, onDone]);
+  }, [id, onDone, persistent]);
 
   if (!suggestion || options.length === 0) return null;
   const index = pick?.id === suggestion.drinkEventId ? pick.index : 0;

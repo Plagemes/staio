@@ -79,6 +79,8 @@ export interface Lot {
   barcode?: string;
   /** Pezzi dentro la confezione, se dichiarati alla creazione. */
   pieces?: Pieces;
+  /** Giorni di consumo dopo l'apertura dall'etichetta del prodotto (certezza `label`), se dichiarati alla creazione. */
+  daysAfterOpening?: number;
   origin: "purchase" | "declare";
   status: "active" | "finished";
   unit: Unit;
@@ -402,6 +404,8 @@ export function derivePantry(
 
   const lots = new Map<string, Lot>();
   const winners = new Map<string, Winners>();
+  // Categoria e codice a cui la durata dopo l'apertura si riferisce: se poi cambiano, il dato non vale più.
+  const productOfDays = new Map<string, { category: string | undefined; barcode: string | undefined }>();
 
   // Passata 1: creazione dei lotti.
   for (const e of live) {
@@ -445,6 +449,12 @@ export function derivePantry(
       won.expiry = stamp;
     }
     if (!isBlank(e.receiptId)) lot.receiptId = e.receiptId;
+    // Un valore non utilizzabile (arrivato da un altro dispositivo o da una copia) si ignora: l'acquisto resta valido.
+    const days = origin.daysAfterOpening;
+    if (typeof days === "number" && Number.isInteger(days) && days >= 1 && days <= 3650) {
+      lot.daysAfterOpening = days;
+      productOfDays.set(e.lotId, { category: lot.category, barcode: lot.barcode });
+    }
     if (origin.pieces) lot.pieces = { count: origin.pieces.count, each: origin.pieces.each, ...(origin.pieces.name ? { name: origin.pieces.name } : {}) };
     if (origin.type === "purchase") {
       if (origin.priceCents !== undefined) {
@@ -611,6 +621,11 @@ export function derivePantry(
         break;
       }
     }
+  }
+
+  for (const [lotId, product] of productOfDays) {
+    const lot = lots.get(lotId);
+    if (lot && (lot.category !== product.category || lot.barcode !== product.barcode)) delete lot.daysAfterOpening;
   }
 
   const ordered = [...lots.values()].sort((a, b) => {

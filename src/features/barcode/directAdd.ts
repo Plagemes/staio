@@ -1,6 +1,6 @@
 // Aggiunta diretta dalla scheda del prodotto: dal prodotto letto al modulo di cattura, senza passare dal modulo.
 import { expiryCategoryProposal, quantityText, type ExpiryCategorySource, type PiecesHint, type Product } from "@/core/catalog";
-import { SHELF_LIFE, effectiveExpiry, type FoodCategory } from "@/core/expiry";
+import { SHELF_LIFE, effectiveExpiry, usableDaysAfterOpening, type FoodCategory } from "@/core/expiry";
 import { piecesAgree, type LedgerEvent, type Location, type Quantity } from "@/core/ledger";
 import { formatQuantity } from "@/core/units";
 import { buildCaptureEvents, cleanName, readQuantity, type CaptureContext, type CaptureInput, type FieldErrors } from "../capture";
@@ -23,6 +23,8 @@ export interface ProductDraft {
   pieceName?: string;
   barcode: string;
   brand?: string;
+  /** Giorni di consumo dopo l'apertura scritti sull'etichetta (Open Food Facts); il lotto li porta con sé. */
+  daysAfterOpening?: number;
 }
 
 export type MissingField = "name" | "quantity" | "category";
@@ -42,6 +44,7 @@ export function draftFromProduct(product: Product): ProductDraft {
     ...(text ? { quantityText: text } : {}),
     ...(match.matched ? { category: match.category, categorySource: match.source } : {}),
     ...(product.brand ? { brand: product.brand } : {}),
+    ...(usableDaysAfterOpening(product.daysAfterOpening) !== undefined ? { daysAfterOpening: product.daysAfterOpening } : {}),
     ...(product.piecesHint ? { piecesHint: product.piecesHint } : {}),
     ...(pieceNameFor(name) ? { pieceName: pieceNameFor(name) } : {}),
   };
@@ -85,6 +88,7 @@ export function inputFromDraft(draft: ProductDraft, location: Location, answers:
     alreadyHave: false,
     barcode: draft.barcode,
     brand: draft.brand,
+    ...(draft.daysAfterOpening !== undefined ? { daysAfterOpening: draft.daysAfterOpening } : {}),
   };
 }
 

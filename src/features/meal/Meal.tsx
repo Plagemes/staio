@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useId, useMemo, useState, type FormEvent } from "react";
-import { instantOfLocal, type MealKind } from "@/core/diary";
-import { isCalendarDate } from "@/core/ledger";
+import type { MealKind } from "@/core/diary";
 import { DEFAULT_TIME_ZONE } from "@/core/expiry";
 import { activeLots } from "@/core/ledger";
 import { appendEvents, getDeviceId, usePantry } from "@/data";
@@ -17,7 +16,6 @@ import {
   amountChoiceOf,
   buildMealEvents,
   defaultHabitTitle,
-  minutesOfTime,
   suggestMealKind,
   type AmountKey,
   type FreeItemInput,
@@ -34,6 +32,7 @@ import { createFoodSearch, resolveFreeItems } from "../nutrition/candidates";
 import { loadFoods, useFoods } from "../nutrition/useNutrition";
 import { formatQuantity } from "@/core/units";
 import styles from "./Meal.module.css";
+import { mealInstant, mealTargetQuery, parseMealTarget, todayHref } from "./mealTarget";
 
 type Amount = "all" | "half" | "quarter" | "text";
 interface Selection {
@@ -58,7 +57,6 @@ export function Meal() {
 
   // «Registra» da una riga di Oggi porta qui con il momento già scelto (?momento=lunch)
   // «Registra» da un giorno passato di Oggi porta qui con il giorno (?giorno=2026-11-14) e il momento già scelti
-  const dayParam = search.get("giorno");
   const [timeEdit, setTimeEdit] = useState<string | null>(null);
   const [kind, setKind] = useState<MealKind | null>(() => {
     const wanted = search.get("momento");
@@ -95,7 +93,7 @@ export function Meal() {
 
   const effectiveKind = kind ?? suggestMealKind(now);
   // Un giorno passato: l'ora del pasto è quella tipica del momento, modificabile. La dispensa si scala adesso.
-  const pastDate = dayParam !== null && isCalendarDate(dayParam) && dayParam < dayOf(now) ? dayParam : null;
+  const { pastDate } = parseMealTarget(null, search.get("giorno"), dayOf(now));
   const mealTime = timeEdit ?? TYPICAL_MEAL_TIME[effectiveKind];
   const effectiveHabitTitle = habitTitle ?? defaultHabitTitle(effectiveKind);
   const q = filter.trim().toLowerCase();
@@ -131,8 +129,7 @@ export function Meal() {
     try {
       let mealAt: string | undefined;
       if (pastDate !== null) {
-        const minutes = minutesOfTime(mealTime);
-        mealAt = minutes !== undefined ? instantOfLocal(pastDate, minutes, DEFAULT_TIME_ZONE) : undefined;
+        mealAt = mealInstant(pastDate, mealTime, DEFAULT_TIME_ZONE);
         if (mealAt === undefined) {
           setErrors({ picks: {}, free: {}, general: "Scrivi l'ora del pasto, per esempio 13:00." });
           return;
@@ -166,7 +163,7 @@ export function Meal() {
         return;
       }
       notice.show({ message: result.message, undo: result.events });
-      router.push("/app");
+      router.push(todayHref(pastDate));
     } catch {
       setErrors({ picks: {}, free: {}, general: "Non sono riuscito a salvare sul telefono. Riprova." });
     } finally {
@@ -190,10 +187,10 @@ export function Meal() {
       ) : null}
 
       <div className={ui.row}>
-        <Button href="/app/pasto/frase" variant="outline">
+        <Button href={`/app/pasto/frase${mealTargetQuery(kind, pastDate)}`} variant="outline">
           Scrivi o detta
         </Button>
-        <Button href="/app/pasto/foto" variant="outline">
+        <Button href={`/app/pasto/foto${mealTargetQuery(kind, pastDate)}`} variant="outline">
           Foto del piatto
         </Button>
       </div>
@@ -423,7 +420,7 @@ export function Meal() {
         </Button>
       </form>
 
-      <Link href="/app" className={ui.textLink}>
+      <Link href={todayHref(pastDate)} className={ui.textLink}>
         Torna a Oggi
       </Link>
     </div>

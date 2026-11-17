@@ -23,13 +23,10 @@ export type RecipeSafetyState =
       flags: Map<number, IngredientFlag>;
     };
 
-/** `loading` finché dispensa, prodotti, piano, preferenze e conferme non sono letti: mai un «nessuna corrispondenza» senza etichette. */
-export function useRecipeSafety(recipe: Recipe): RecipeSafetyState {
-  const pantry = usePantry();
+/** Ciò che l'utente ha dichiarato nel ricettario e nel piano. `ready` solo quando entrambi sono letti. */
+export function useDeclared(): { declared: { allergens: string[]; excludedFoods: string[] }; ready: boolean } {
   const plan = usePlan();
-  const products = useProducts();
   const { prefs, ready } = useRecipePrefs();
-  const { byKey: confirmations } = useConfirmations();
   const planAllergens = plan.data?.structure?.allergens;
   const planExcluded = plan.data?.structure?.excludedFoods;
   const declared = useMemo(
@@ -39,7 +36,16 @@ export function useRecipeSafety(recipe: Recipe): RecipeSafetyState {
     }),
     [prefs.allergens, prefs.excludedFoods, planAllergens, planExcluded],
   );
-  const loaded = ready && plan.data !== undefined && pantry.data !== undefined && products !== undefined && confirmations !== undefined;
+  return { declared, ready: ready && plan.data !== undefined };
+}
+
+/** `loading` finché dispensa, prodotti, piano, preferenze e conferme non sono letti: mai un «nessuna corrispondenza» senza etichette. */
+export function useRecipeSafety(recipe: Recipe): RecipeSafetyState {
+  const pantry = usePantry();
+  const products = useProducts();
+  const { declared, ready: declaredReady } = useDeclared();
+  const { byKey: confirmations } = useConfirmations();
+  const loaded = declaredReady && pantry.data !== undefined && products !== undefined && confirmations !== undefined;
   return useMemo<RecipeSafetyState>(() => {
     if (loaded && !hasDeclared(declared)) return { status: "none" };
     if (!loaded || !pantry.data) return { status: "loading" };

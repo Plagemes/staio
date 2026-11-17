@@ -66,7 +66,7 @@ export function Capture() {
   const [edits, setEdits] = useState<CaptureEdits>({});
   const edit = (patch: CaptureEdits) => setEdits((e) => ({ ...e, ...patch }));
   const fields = resolveCaptureFields(prefill, edits);
-  const { name, quantityText, barcode, brand } = fields;
+  const { name, quantityText, barcode, brand, daysAfterOpening } = fields;
 
   const [location, setLocation] = useState<Location>("frigo");
   const [expiryKind, setExpiryKind] = useState<ChosenExpiryKind | "none">("none");
@@ -147,6 +147,7 @@ export function Capture() {
         alreadyHave,
         barcode,
         brand,
+        ...(daysAfterOpening !== undefined ? { daysAfterOpening } : {}),
         ...(resolvedPieces.pieces ? { pieces: resolvedPieces.pieces } : {}),
       };
       const deps = { appendEvents, getDeviceId, now: () => new Date().toISOString() };

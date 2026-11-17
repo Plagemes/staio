@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { addDays } from "@/core/diary";
 import { activeLots } from "@/core/ledger";
@@ -17,6 +18,7 @@ import { LOCATION_LABELS } from "../labels";
 import { buildJournal } from "../journal";
 import { evaluateLots, expiryTagView, levelPercent } from "../lots";
 import { breakdownText, groupEntries, groupName } from "../pantry/groups";
+import { SaveExpiringRow } from "../pantry/SaveExpiring";
 import { entryDetail, entryExpiry } from "../pantry/rows";
 import { LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
@@ -27,6 +29,15 @@ const EAT_FIRST_COUNT = 4;
 /** Fin dove si può tornare indietro con le frecce. */
 const MAX_DAYS_BACK = 60;
 
+/** Il giorno chiesto nell'indirizzo (`?giorno=YYYY-MM-DD`), come distanza da oggi. Fuori intervallo vale oggi. */
+function daysBackFromParam(today: string, requested: string | null): number {
+  if (!today || !requested || !/^\d{4}-\d{2}-\d{2}$/.test(requested)) return 0;
+  const diff = Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${requested}T12:00:00Z`)) / 86_400_000);
+  if (!Number.isFinite(diff) || diff < 0 || diff > MAX_DAYS_BACK) return 0;
+  // Un giorno che non esiste (30 febbraio) scivolerebbe sul mese dopo: vale solo se torna uguale a sé stesso
+  return addDays(today, -diff) === requested ? diff : 0;
+}
+
 export function Today() {
   const pantry = usePantry();
   const log = useEventLog();
@@ -35,7 +46,9 @@ export function Today() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [undoError, setUndoError] = useState<string | null>(null);
-  const [daysBack, setDaysBack] = useState(0);
+  // null: nessuna scelta con le frecce, vale il giorno chiesto nell'indirizzo
+  const [chosenDaysBack, setDaysBack] = useState<number | null>(null);
+  const requestedDay = useSearchParams().get("giorno");
 
   const entries = useMemo(
     () => (pantry.data && now ? evaluateLots(activeLots(pantry.data), now) : []),
@@ -68,6 +81,7 @@ export function Today() {
 
   const ready = pantry.data !== undefined && log.data !== undefined && now !== null;
   const today = now ? dayOf(now) : "";
+  const daysBack = chosenDaysBack ?? daysBackFromParam(today, requestedDay);
   const viewDate = today ? addDays(today, -daysBack) : "";
   const isPast = daysBack > 0;
 
@@ -149,6 +163,7 @@ export function Today() {
                         levelLabel={`Rimasto circa il ${Math.round(levelPercent(entry.lot))} per cento`}
                         expiry={entryExpiry(entry)}
                       />
+                      <SaveExpiringRow entry={entry} />
                     </li>
                   );
                 })}

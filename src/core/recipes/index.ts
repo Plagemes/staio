@@ -53,3 +53,14 @@ export { decodeEntities, extractRecipeFromHtml } from "./html";
 export type { ExtractOptions, ExtractedRecipe, ExtractionResult } from "./html";
 export { recipeFieldsFromDraft } from "./draft";
 export type { RecipeDraft, RecipeEventFields } from "./draft";
+export {
+  MAX_SUBSTITUTES,
+  MIN_LOOSE_RANK,
+  MIN_LOOSE_SCORE,
+  MIN_TIGHT_SCORE,
+  SUBSTITUTE_FAMILIES,
+  applySubstitutions,
+  substitutedIndices,
+  substitutesFor,
+} from "./substitutes";
+export type { HomeFood, Substitute, SubstituteFamily, SubstituteOptions, SubstituteVerdict, Substitution } from "./substitutes";

@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { useId, useMemo, useState, type ReactNode } from "react";
 import type { MealKind } from "@/core/diary";
+import { DEFAULT_TIME_ZONE } from "@/core/expiry";
 import type { AnyEvent } from "@/core/events";
 import { formatQuantity } from "@/core/units";
 import { appendEvents, getDeviceId } from "@/data";
 import { Button, Label, SectionHeader } from "@/design";
 import { buildUndo } from "../actions";
 import type { PantryEntry } from "../lots";
-import { MEAL_KIND_LABELS, MEAL_KIND_ORDER } from "../meals";
+import { mealInstant, todayHref } from "../meal/mealTarget";
+import { MEAL_KIND_LABELS, MEAL_KIND_ORDER, TYPICAL_MEAL_TIME } from "../meals";
 import { useNotice } from "../notice";
 import { resolveFreeItems, type FoodSearch } from "../nutrition/candidates";
 import { FoodChoice } from "../nutrition/FoodChoice";
@@ -22,6 +24,8 @@ const NO_SEARCH: Pick<FoodSearch, "groups"> = { groups: () => [] };
 interface ReviewProps {
   source: DraftSource;
   initialKind: MealKind;
+  /** Il giorno passato su cui registrare (da Oggi); `null` o assente: adesso. */
+  pastDate?: string | null;
   initialRows: DraftRow[];
   /** Dispensa attuale: i lotti si leggono qui al momento della conferma, non quando è partita la richiesta. */
   entries: readonly PantryEntry[];
@@ -40,10 +44,12 @@ interface ReviewProps {
  * Revisione di un pasto proposto dall'intelligenza artificiale: ogni riga si corregge o si toglie, le voci libere
  * si legano a un alimento della tabella, e solo la conferma scrive nel registro (con «Annulla»).
  */
-export function MealDraftReview({ source, initialKind, initialRows, entries, foodSearch, banner, leftovers = [], restartLabel, onRestart, sourceNoun }: ReviewProps) {
+export function MealDraftReview({ source, initialKind, pastDate = null, initialRows, entries, foodSearch, banner, leftovers = [], restartLabel, onRestart, sourceNoun }: ReviewProps) {
   const ids = useId();
   const notice = useNotice();
   const [kind, setKind] = useState<MealKind>(initialKind);
+  const [timeEdit, setTimeEdit] = useState<string | null>(null);
+  const mealTime = timeEdit ?? TYPICAL_MEAL_TIME[kind];
   const [rows, setRows] = useState<DraftRow[]>(initialRows);
   const [submitted, setSubmitted] = useState(false);
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
@@ -81,7 +87,15 @@ export function MealDraftReview({ source, initialKind, initialRows, entries, foo
         setGeneral("Controlla le righe segnate: manca la scelta dell'alimento.");
         return;
       }
-      const built = buildDraftMealEvents({ kind, rows, lotsById, source }, { now: new Date().toISOString(), deviceId: await getDeviceId() });
+      let mealAt: string | undefined;
+      if (pastDate !== null) {
+        mealAt = mealInstant(pastDate, mealTime, DEFAULT_TIME_ZONE);
+        if (mealAt === undefined) {
+          setGeneral("Scrivi l'ora del pasto, per esempio 13:00.");
+          return;
+        }
+      }
+      const built = buildDraftMealEvents({ kind, rows, lotsById, source }, { now: new Date().toISOString(), deviceId: await getDeviceId(), ...(mealAt ? { mealAt } : {}) });
       if (!built.ok) {
         setRowErrors(built.rowErrors);
         setGeneral(built.general ?? "Controlla le righe segnate: manca qualcosa.");
@@ -134,7 +148,7 @@ export function MealDraftReview({ source, initialKind, initialRows, entries, foo
               Annulla
             </Button>
           )}
-          <Button href="/app" variant={done.undone ? "primary" : "outline"}>
+          <Button href={todayHref(pastDate)} variant={done.undone ? "primary" : "outline"}>
             Torna a Oggi
           </Button>
           <Button variant="text" onClick={onRestart}>
@@ -160,6 +174,16 @@ export function MealDraftReview({ source, initialKind, initialRows, entries, foo
           ))}
         </div>
       </fieldset>
+
+      {pastDate ? (
+        <div className={ui.field}>
+          <label className={ui.fieldLabel} htmlFor={`${ids}-time`}>
+            A che ora
+          </label>
+          <input id={`${ids}-time`} className={ui.input} type="time" value={mealTime} onChange={(e) => setTimeEdit(e.target.value)} />
+          <p className={ui.hint}>Il pasto finisce nel giorno scelto in Oggi. Gli alimenti presi dalla dispensa si scalano adesso.</p>
+        </div>
+      ) : null}
 
       <section className={ui.section}>
         <SectionHeader label={`Voci (${rows.length})`} />
@@ -224,7 +248,7 @@ export function MealDraftReview({ source, initialKind, initialRows, entries, foo
           Scarta e ricomincia
         </Button>
       </div>
-      <Link href="/app" className={ui.textLink}>
+      <Link href={todayHref(pastDate)} className={ui.textLink}>
         Torna a Oggi
       </Link>
     </>

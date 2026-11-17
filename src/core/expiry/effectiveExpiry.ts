@@ -14,6 +14,11 @@ function validate(item: ExpiryItem): ShelfLife {
   return life;
 }
 
+/** Giorni dopo l'apertura usabili: interi da 1 a 3650; qualunque altro valore si ignora e vale la stima per categoria. */
+export function usableDaysAfterOpening(value: number | null | undefined): number | undefined {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 3650 ? value : undefined;
+}
+
 function labelExpiry(item: ExpiryItem): EffectiveExpiry | null {
   if (!item.labelDate || item.labelDateType === "none") return null;
   return {
@@ -64,12 +69,18 @@ export function effectiveExpiry(item: ExpiryItem, now: string | Date): Effective
   if (!item.openedDate) return base;
 
   // Aperta: il limite dopo l'apertura è sempre di sicurezza e non lo sostituisce una data di qualità.
+  // Il dato del prodotto (scritto da volontari su Open Food Facts) può solo accorciare la durata della categoria,
+  // mai allungarla: conta solo se è più breve, e la certezza resta una stima.
+  const productDays = usableDaysAfterOpening(item.daysAfterOpening);
+  const shorter = productDays !== undefined && productDays < life.afterOpeningDays;
   const opened: EffectiveExpiry = {
-    date: addDays(item.openedDate, life.afterOpeningDays),
+    date: addDays(item.openedDate, shorter ? productDays : life.afterOpeningDays),
     basis: "opened",
     nature: "safety",
     certainty: "estimated",
+    ...(shorter ? { openedFrom: "product" as const } : {}),
   };
+
   const safety = base.nature === "safety" ? [base, opened] : [opened];
   // A parità vince il primo (l'etichetta, più affidabile).
   const winner = safety.reduce((best, c) => (c.date < best.date ? c : best));

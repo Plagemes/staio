@@ -2,16 +2,7 @@
 // Il calcolo delle date è del motore delle scadenze (`core/expiry`): qui si decide solo cosa
 // meriti un avviso e come dirlo, senza far passare una stima per una data stampata.
 
-import {
-  SHELF_LIFE,
-  effectiveExpiry,
-  parseDate,
-  toCalendarDate,
-  urgency,
-  type EffectiveExpiry,
-  type ExpiryItem,
-  type FoodCategory,
-} from "../expiry";
+import { lotExpiry, parseDate, urgency, type EffectiveExpiry } from "../expiry";
 import { activeLots, type Lot, type PantryState } from "../ledger";
 import type { PrepRecord, PrepState } from "../prep";
 import type { NoticeFact, NoticeLevel } from "./types";
@@ -26,45 +17,6 @@ const withinWhen = (days: number): string => (days === 0 ? "oggi" : days === 1 ?
 const ago = (days: number): string => (days === 1 ? "ieri" : `da ${days} giorni`);
 const portionsOf = (n: number): string => `${n} ${n === 1 ? "porzione" : "porzioni"}`;
 const packsOf = (n: number): string => `${n} confezioni`;
-
-function expiryItemOf(lot: Lot, timeZone: string): ExpiryItem | undefined {
-  if (typeof lot.category !== "string" || !Object.hasOwn(SHELF_LIFE, lot.category)) return undefined;
-  try {
-    const day = (instant: string | undefined) => (instant ? toCalendarDate(instant, timeZone) : null);
-    return {
-      id: lot.lotId,
-      labelDateType: lot.expiry ? lot.expiry.kind : "none",
-      labelDate: lot.expiry?.date ?? null,
-      purchaseDate: toCalendarDate(lot.createdAt, timeZone),
-      openedDate: day(lot.openedAt),
-      location: lot.location,
-      frozenDate: day(lot.frozenAt),
-      thawedDate: day(lot.thawedAt),
-      category: lot.category as FoodCategory,
-    };
-  } catch {
-    return undefined;
-  }
-}
-
-/** Scadenza che conta per un lotto: stima del motore se la categoria è nota, altrimenti la sola data in etichetta. */
-function lotExpiry(lot: Lot, now: string, timeZone: string): EffectiveExpiry | undefined {
-  const item = expiryItemOf(lot, timeZone);
-  if (item) {
-    try {
-      return effectiveExpiry(item, now);
-    } catch {
-      // si ripiega sulla data in etichetta
-    }
-  }
-  if (!lot.expiry) return undefined;
-  return {
-    date: lot.expiry.date,
-    basis: "label",
-    nature: lot.expiry.kind === "best_before" ? "quality" : "safety",
-    certainty: lot.expiry.kind === "estimated" ? "estimated" : "label",
-  };
-}
 
 interface Subject {
   /** Identificativo stabile della voce (lotto o preparazione). */

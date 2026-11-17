@@ -1,0 +1,38 @@
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: var(--space-6);
+}
+
+/* Il pulsante ha lo stesso disegno del collegamento di testo */
+.linkButton {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+.linkButton:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.linkButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Sotto una riga d'elenco: una riga a sé, con lo stesso separatore */
+.box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-bottom: var(--rule-width) solid var(--color-rule);
+}

@@ -373,3 +373,9 @@
 :global([data-palette="vivo"]) .bigNumber * {
   font-family: inherit;
 }
+
+.spreadRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}

@@ -1,49 +1,15 @@
 // Interrogazioni sulla dispensa e sui consumi: cosa scade, quanto si è consumato di un alimento.
 import { localDate } from "../../diary";
-import { SHELF_LIFE, effectiveExpiry, toCalendarDate, urgency, type EffectiveExpiry, type ExpiryItem, type FoodCategory } from "../../expiry";
+import { lotExpiry, urgency, type EffectiveExpiry } from "../../expiry";
 import { activeLots, type Certainty, type Lot } from "../../ledger";
 import { LOCATION_NAMES, UNIT_NAMES, formatQty, plural } from "../labels";
 import { inRange } from "../period";
 import type { QueryDef, ViewContext } from "../types";
 import { insufficient, limitOf, limitParam, normText, periodOf, periodParam, stemWords, worst } from "./kit";
 
-function expiryItemOf(lot: Lot, tz: string): ExpiryItem | undefined {
-  if (lot.category === undefined || !Object.hasOwn(SHELF_LIFE, lot.category)) return undefined;
-  try {
-    const day = (instant: string | undefined) => (instant ? toCalendarDate(instant, tz) : null);
-    return {
-      id: lot.lotId,
-      labelDateType: lot.expiry ? lot.expiry.kind : "none",
-      labelDate: lot.expiry?.date ?? null,
-      purchaseDate: toCalendarDate(lot.createdAt, tz),
-      openedDate: day(lot.openedAt),
-      location: lot.location,
-      frozenDate: day(lot.frozenAt),
-      thawedDate: day(lot.thawedAt),
-      category: lot.category as FoodCategory,
-    };
-  } catch {
-    return undefined;
-  }
-}
-
-/** La scadenza che conta: stimata dal motore se la categoria è nota, altrimenti la sola data in etichetta. */
+/** La scadenza che conta: la mappatura è quella unica di `core/expiry`. */
 function expiryOf(lot: Lot, ctx: ViewContext): EffectiveExpiry | undefined {
-  const item = expiryItemOf(lot, ctx.diary.timeZone);
-  if (item) {
-    try {
-      return effectiveExpiry(item, ctx.today);
-    } catch {
-      // si ripiega sulla data in etichetta
-    }
-  }
-  if (!lot.expiry) return undefined;
-  return {
-    date: lot.expiry.date,
-    basis: "label",
-    nature: lot.expiry.kind === "best_before" ? "quality" : "safety",
-    certainty: lot.expiry.kind === "estimated" ? "estimated" : "label",
-  };
+  return lotExpiry(lot, ctx.today, ctx.diary.timeZone);
 }
 
 function whenText(daysLeft: number, nature: "safety" | "quality"): string {

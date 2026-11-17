@@ -3,19 +3,22 @@
 // Scelte rapide delle bevande e elenco di quelle segnate oggi. Serve sia a Salute sia a Oggi:
 // stesso codice, stessi eventi, stesso avviso con «Annulla».
 
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { InvalidDiaryEventError, type DiaryDrink } from "@/core/diary";
 import type { AnyEvent } from "@/core/events";
 import type { ConsumeEvent } from "@/core/ledger";
-import { appendEvents, getAllEvents, getDeviceId, getPantry } from "@/data";
+import { activeLots } from "@/core/ledger";
+import { appendEvents, getAllEvents, getDeviceId, getPantry, useEventLog, usePantry } from "@/data";
 import { Button, Value } from "@/design";
 import {
   buildDrink,
   drinkCounts,
   drinkDetail,
+  drinkKindOf,
   drinkMomentWord,
   inputOfPreset,
   linkedConsumes,
+  pantryOptionsForDrink,
   removeDrink,
   retimeDrink,
   shortTime,
@@ -23,6 +26,8 @@ import {
 } from "../drinks";
 import { formatMl, DRINK_PRESETS, type DrinkPreset } from "../health";
 import { useNotice } from "../notice";
+import { useNow } from "../useNow";
+import { DrinkPantrySuggestion } from "./DrinkPantry";
 import ui from "../ui.module.css";
 import styles from "./health.module.css";
 
@@ -141,6 +146,7 @@ export function DrinkEntries({
   onError,
   showCounts = false,
   showMoment = false,
+  scalable = false,
 }: {
   drinks: readonly DiaryDrink[];
   date: string;
@@ -150,9 +156,28 @@ export function DrinkEntries({
   showCounts?: boolean;
   /** Aggiunge il momento a cui la bevanda appartiene («colazione», «fuori pasto»...). */
   showMoment?: boolean;
+  /** Solo per il giorno corrente: un tè o un caffè senza consumo collegato offre «Scala dalla dispensa». */
+  scalable?: boolean;
 }) {
   const [editing, setEditing] = useState<string | null>(null);
   const [timeText, setTimeText] = useState("");
+  const [scaling, setScaling] = useState<string | null>(null);
+  const log = useEventLog();
+  const pantry = usePantry();
+  const now = useNow();
+  const closeScaling = useCallback(() => setScaling(null), []);
+  // le bevande senza consumo collegato e con qualcosa da scalare in dispensa
+  const scaleState = useMemo(() => {
+    const offer = new Set<string>();
+    if (!scalable || !log.data || !pantry.data || !now) return offer;
+    const lots = activeLots(pantry.data);
+    for (const d of drinks) {
+      const kind = drinkKindOf(d.name);
+      if (!kind || linkedConsumes(d.eventId, log.data, pantry.data.voidedEventIds).length > 0) continue;
+      if (pantryOptionsForDrink(kind, lots, now, { timeZone: actions.timeZone }).length > 0) offer.add(d.eventId);
+    }
+    return offer;
+  }, [scalable, log.data, pantry.data, now, drinks, actions.timeZone]);
   if (drinks.length === 0) return null;
 
   async function confirmTime(drink: DiaryDrink) {
@@ -189,11 +214,24 @@ export function DrinkEntries({
                   >
                     Cambia ora
                   </Button>
+                  {scaleState.has(d.eventId) ? (
+                    <Button variant="text" onClick={() => setScaling(scaling === d.eventId ? null : d.eventId)} aria-expanded={scaling === d.eventId}>
+                      Scala dalla dispensa
+                    </Button>
+                  ) : null}
                   <Button variant="text" disabled={actions.busy} onClick={() => void actions.remove(d).then((r) => !r.ok && onError(r.error))}>
                     Annulla
                   </Button>
                 </span>
               </div>
+              {scaling === d.eventId && scaleState.has(d.eventId) ? (
+                <DrinkPantrySuggestion
+                  persistent
+                  suggestion={{ kind: drinkKindOf(d.name)!, drinkEventId: d.eventId }}
+                  timeZone={actions.timeZone}
+                  onDone={closeScaling}
+                />
+              ) : null}
               {open ? (
                 <div className={styles.inline}>
                   <label className={ui.srOnly} htmlFor={`drink-time-${d.eventId}`}>

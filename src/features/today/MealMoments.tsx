@@ -135,7 +135,7 @@ export function MealMoments({ date, now, timeZone, day, habits, meals, renderMea
                   ))
                 : null}
 
-              {kindDrinks.length > 0 ? <DrinkEntries drinks={kindDrinks} date={date} actions={drinkActions} onError={onError} /> : null}
+              {kindDrinks.length > 0 ? <DrinkEntries drinks={kindDrinks} date={date} actions={drinkActions} onError={onError} scalable={!pastDay} /> : null}
 
               {status === "skipped" && kindDrinks.length > 0 ? (
                 <p className={styles.notDone}>Saltato vuol dire nient&apos;altro oltre alle bevande: contano quelle, non zero.</p>
@@ -182,7 +182,7 @@ export function MealMoments({ date, now, timeZone, day, habits, meals, renderMea
                 </Button>
               </p>
             ))}
-            <DrinkEntries drinks={drinks.offMeal} date={date} actions={drinkActions} onError={onError} />
+            <DrinkEntries drinks={drinks.offMeal} date={date} actions={drinkActions} onError={onError} scalable={!pastDay} />
           </li>
         ) : null}
       </ul>

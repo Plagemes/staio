@@ -1,4 +1,5 @@
 // Dal modulo di cattura agli eventi del libro mastro. Nessuna scrittura: restituisce solo gli eventi.
+import { usableDaysAfterOpening } from "@/core/expiry";
 import {
   SCHEMA_VERSION,
   generateId,
@@ -34,6 +35,8 @@ export interface CaptureInput {
   brand?: string;
   /** Pezzi dentro la confezione (2 piadine da 100 g); la quantità resta quella della confezione. */
   pieces?: { count: number; each: number; name?: string };
+  /** Giorni di consumo dopo l'apertura dall'etichetta del prodotto (Open Food Facts); il lotto li porta con sé. */
+  daysAfterOpening?: number;
 }
 
 export type CaptureField = "name" | "quantity" | "category" | "expiryDate" | "price" | "form";
@@ -132,6 +135,8 @@ export function buildCaptureEvents(input: CaptureInput, ctx: CaptureContext): Ca
   const barcode = input.barcode !== undefined && BARCODE_RE.test(input.barcode) ? input.barcode : undefined;
   const fromBarcode = barcode !== undefined;
   const brand = input.brand?.trim();
+  // un valore non valido non blocca il salvataggio: si perde solo la durata e vale la stima per categoria
+  const daysAfterOpening = usableDaysAfterOpening(input.daysAfterOpening);
   const idGenerator = ctx.idGenerator ?? generateId;
   const lotId = idGenerator();
   // Un acquisto con la quantità letta in etichetta; ciò che c'era già in casa è, per sua natura, approssimato.
@@ -150,6 +155,7 @@ export function buildCaptureEvents(input: CaptureInput, ctx: CaptureContext): Ca
     category: input.category,
     quantity: reading.quantity,
     ...(piecesOf(input.pieces, reading.quantity) ? { pieces: piecesOf(input.pieces, reading.quantity) } : {}),
+    ...(daysAfterOpening !== undefined ? { daysAfterOpening } : {}),
     location: input.location,
     ...(expiry ? { expiry } : {}),
   };

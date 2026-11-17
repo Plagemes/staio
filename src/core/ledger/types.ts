@@ -118,6 +118,8 @@ export interface PurchaseEvent extends EventBase {
   quantity: Quantity;
   /** Pezzi dentro la confezione, se dichiarati. */
   pieces?: Pieces;
+  /** Giorni di consumo dopo l'apertura scritti dal produttore (certezza `label`); assente se il prodotto non li dichiara. */
+  daysAfterOpening?: number;
   /** Prezzo totale del lotto, in centesimi di euro. */
   priceCents?: number;
   store?: string;
@@ -136,6 +138,8 @@ export interface DeclareEvent extends EventBase {
   quantity: Quantity;
   /** Pezzi dentro la confezione, se dichiarati. */
   pieces?: Pieces;
+  /** Giorni di consumo dopo l'apertura scritti dal produttore (certezza `label`); assente se il prodotto non li dichiara. */
+  daysAfterOpening?: number;
   location: Location;
   expiry?: Expiry;
   receiptId?: string;

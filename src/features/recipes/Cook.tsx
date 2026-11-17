@@ -3,15 +3,19 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { scaleRecipe, type Recipe } from "@/core/recipes";
+import { activeLots } from "@/core/ledger";
+import { applySubstitutions, compareWithPantry, scaleRecipe, stockFromLots, type Recipe, type Substitution } from "@/core/recipes";
 import { formatQuantity } from "@/core/units";
-import { useRecipes } from "@/data";
+import { usePantry, useRecipes } from "@/data";
 import { Button, Label } from "@/design";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { formatMinutes } from "./common";
 import { FlagText, SafetyPanel } from "./SafetyPanel";
+import { SubstituteOptions } from "./SubstituteOptions";
+import { SUBSTITUTION_PARAM, chosenFor, missingIndices, parseSubstitutions, recipeHref, unappliedNote, validSubstitutions, withSubstitution } from "./substitutes";
 import { useRecipeSafety } from "./useRecipeSafety";
+import { useSubstitutes } from "./useSubstitutes";
 import {
   finishedSteps,
   formatClock,
@@ -53,23 +57,62 @@ export function Cook() {
     );
   }
   const servings = Number.isFinite(requested) && requested > 0 && requested <= 1000 ? requested : recipe.servings;
-  return <Steps key={recipe.recipeId} recipe={recipe} servings={servings} />;
+  const chosen = parseSubstitutions(params.getAll(SUBSTITUTION_PARAM), recipe.ingredients.length);
+  return <Steps key={recipe.recipeId} recipe={recipe} servings={servings} initialSubstitutions={chosen} />;
 }
 
 type Wake = "idle" | "on" | "unavailable";
 
-function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
-  const [state, setState] = useState<CookState>(() => startCook(recipe.steps.length));
+function Steps({ recipe: written, servings, initialSubstitutions }: { recipe: Recipe; servings: number; initialSubstitutions: Substitution[] }) {
+  const [state, setState] = useState<CookState>(() => startCook(written.steps.length));
   const [nowMs, setNowMs] = useState(0);
   const [wake, setWake] = useState<Wake>("idle");
-  const safety = useRecipeSafety(recipe);
+  // Le sostituzioni valgono per questa cottura: il controllo allergeni e gli ingredienti mostrati leggono la ricetta come
+  // verrà cucinata; i passi si cercano con i nomi scritti, perché il testo dei passi nomina quelli.
+  // Si applicano solo quelle tra le proposte già controllate: un indirizzo scritto a mano non ne introduce altre.
+  const [chosen, setChosen] = useState<Substitution[]>(initialSubstitutions);
   // con allergeni o esclusioni dichiarati si parte solo dopo aver visto l'esito
   const [seen, setSeen] = useState(false);
 
+  const pantry = usePantry();
+  const missing = useMemo(() => {
+    if (!pantry.data) return [];
+    const cmp = compareWithPantry(written, stockFromLots(activeLots(pantry.data)), { servings });
+    return cmp.ok ? missingIndices(cmp.value) : [];
+  }, [pantry.data, written, servings]);
+  const substitutes = useSubstitutes(written, missing);
+  const substitutions = useMemo(() => validSubstitutions(chosen, substitutes.options), [chosen, substitutes.options]);
+  const recipe = useMemo(() => applySubstitutions(written, substitutions), [written, substitutions]);
+  const safety = useRecipeSafety(recipe);
+  const unapplied =
+    substitutes.status === "loading" || !pantry.data
+      ? undefined
+      : unappliedNote(chosen, substitutions, { missing, failed: substitutes.failed, originalName: (i) => written.ingredients[i]?.name ?? "" });
+
+  const scaledWritten = useMemo(() => {
+    const r = scaleRecipe(written, servings);
+    return r.ok ? r.value.ingredients : written.ingredients;
+  }, [written, servings]);
   const ingredients = useMemo(() => {
     const r = scaleRecipe(recipe, servings);
     return r.ok ? r.value.ingredients : recipe.ingredients;
   }, [recipe, servings]);
+  const back = recipeHref("/app/ricette/vedi", written.recipeId, substitutions);
+  const choose = (i: number, name: string | null) => setChosen((subs) => withSubstitution(subs, i, name));
+  /** Accanto all'ingrediente: al posto di cosa, e ciò che hai in casa per sostituirlo se non c'è. */
+  const substitution = (i: number) => {
+    const picked = chosenFor(substitutions, i);
+    const options = substitutes.options.get(i) ?? [];
+    const original = written.ingredients[i]?.name ?? "";
+    return (
+      <>
+        {picked !== undefined ? <span className={styles.replaces}>(al posto di «{original}»)</span> : null}
+        {options.length > 0 || picked !== undefined ? (
+          <SubstituteOptions ingredient={original} options={options} chosen={picked} onChoose={(name) => choose(i, name)} />
+        ) : null}
+      </>
+    );
+  };
 
   const anyRunning = Object.values(state.timers).some(isRunning);
   useEffect(() => {
@@ -114,14 +157,14 @@ function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
     };
   }, []);
 
-  if (recipe.steps.length === 0) {
+  if (written.steps.length === 0) {
     return (
       <div className={ui.screen}>
         <EmptyState
           title="Questa ricetta non ha passi"
           text="Aggiungili con «Modifica» e potrai seguirla qui, un passo alla volta."
           actionLabel="Torna alla ricetta"
-          actionHref={`/app/ricette/vedi?id=${encodeURIComponent(recipe.recipeId)}`}
+          actionHref={back}
         />
       </div>
     );
@@ -135,6 +178,11 @@ function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
         <h1 className={ui.title}>Prima di iniziare</h1>
         <p className={ui.lead}>«{recipe.title}»: guarda l&apos;esito del controllo degli allergeni.</p>
         <SafetyPanel state={safety} />
+        {unapplied ? (
+          <p className={ui.hint} role="status">
+            {unapplied}
+          </p>
+        ) : null}
         {flags ? (
           <ul className={styles.cookIngredients} aria-label="Ingredienti">
             {ingredients.map((ing, i) => (
@@ -142,6 +190,7 @@ function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
                 <span className={styles.cookQty}>{ing.quantity ? formatQuantity(ing.quantity) : "q.b."}</span>
                 <span>{ing.name}</span>
                 <FlagText flag={flags.get(i)} />
+                {substitution(i)}
               </li>
             ))}
           </ul>
@@ -150,7 +199,7 @@ function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
           <Button disabled={safety.status !== "ready"} onClick={() => setSeen(true)}>
             {needsAck ? "Ho letto, inizia lo stesso" : "Inizia"}
           </Button>
-          <Link href={`/app/ricette/vedi?id=${encodeURIComponent(recipe.recipeId)}`} className={ui.textLink}>
+          <Link href={back} className={ui.textLink}>
             Torna alla ricetta
           </Link>
         </div>
@@ -158,10 +207,9 @@ function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
     );
   }
 
-  const step = recipe.steps[state.index];
+  const step = written.steps[state.index];
   const timer = state.timers[state.index];
-  const hint = ingredientsForStep(step, ingredients);
-  const back = `/app/ricette/vedi?id=${encodeURIComponent(recipe.recipeId)}`;
+  const hint = ingredientsForStep(step, scaledWritten);
   const left = timer ? remaining(timer, nowMs) : 0;
   const over = timer !== undefined && isRunning(timer) && left <= 0;
 
@@ -204,6 +252,12 @@ function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
         </p>
       ) : null}
 
+      {unapplied ? (
+        <p className={ui.hint} role="status">
+          {unapplied}
+        </p>
+      ) : null}
+
       <p className={styles.cookText}>{step.text}</p>
 
       {hint.length > 0 ? (
@@ -215,6 +269,7 @@ function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
                 <span className={styles.cookQty}>{ing.quantity ? formatQuantity(ing.quantity) : "q.b."}</span>
                 <span>{ing.name}</span>
                 {safety.status === "ready" ? <FlagText flag={safety.flags.get(i)} /> : null}
+                {substitution(i)}
               </li>
             );
           })}
@@ -249,7 +304,7 @@ function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
       ) : null}
 
       <div className={styles.dots} role="group" aria-label="Vai al passo">
-        {recipe.steps.map((_, i) => (
+        {written.steps.map((_, i) => (
           <button
             key={i}
             type="button"
@@ -268,7 +323,7 @@ function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
           Indietro
         </Button>
         {isLast(state) ? (
-          <Button href={`/app/ricette/cucinata?id=${encodeURIComponent(recipe.recipeId)}&porzioni=${servings}`}>Finito: registra il pasto</Button>
+          <Button href={recipeHref("/app/ricette/cucinata", written.recipeId, substitutions, servings)}>Finito: registra il pasto</Button>
         ) : (
           <Button onClick={() => setState((s) => move(s, 1))}>Avanti</Button>
         )}

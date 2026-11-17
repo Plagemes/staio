@@ -45,9 +45,9 @@ Barra in basso: Oggi, Dispensa, Cattura, Piano, Salute. Aree: Spesa, Qualità, R
 | `/app/qualita/prodotto` | scheda di un lotto con codice, lettura del codice, Qualità, Scaffale | link a Qualità |
 | `/app/ricette` | Piano, preparazioni, scheda ricetta | - |
 | `/app/ricette/vedi`, `nuova`, `importa` | Ricettario | Torna al ricettario |
-| `/app/ricette/cucina`, `cucinata` | scheda ricetta («Cucinala ora») | Torna alla ricetta |
-| `/app/ricette/idee` | Oggi («Da mangiare prima»), Dispensa («Cosa cucinare»), Ricettario | Torna al ricettario |
-| `/app/ricette/abbinamenti` | scheda ricetta («Con cosa sta bene»), scheda di un alimento in dispensa («Con cosa sta bene»), Ricettario | Torna alla ricetta / al ricettario |
+| `/app/ricette/cucina`, `cucinata` | scheda ricetta («Cucinala ora»); le sostituzioni scelte nella scheda o in cucina viaggiano nell'indirizzo (`sost=indice:nome`) | Torna alla ricetta (con le sostituzioni) |
+| `/app/ricette/idee` | Oggi («Da mangiare prima», anche «Cosa cucinare» sotto un lotto in scadenza), Dispensa («Cosa cucinare», anche dalla scheda di un lotto in scadenza), Ricettario | Torna al ricettario |
+| `/app/ricette/abbinamenti` | scheda ricetta (riga richiudibile «Con cosa sta bene», poi «Vedi tutti gli abbinamenti»), scheda di un alimento in dispensa («Con cosa sta bene»), Oggi (sotto un lotto in scadenza), Ricettario | Torna alla ricetta / al ricettario |
 | `/app/ricette/condivisa` | condivisione dal telefono (manifest), Importa | Torna al ricettario |
 | `/app/preparazioni`, `/nuova` | Piano, Ricettario, scheda ricetta | Torna alle preparazioni |
 | `/app/salute` | barra in basso | - |
@@ -58,8 +58,15 @@ Barra in basso: Oggi, Dispensa, Cattura, Piano, Salute. Aree: Spesa, Qualità, R
 - Oggi: «Da mangiare prima» e i nutrienti sono saliti sopra il registro, che passa in fondo ed è nascosto se vuoto; «Pianificato per oggi» precede «Nel piano, non fatti»; la riga «Scala una bustina da…» resta subito dopo Bevande; gli avvisi restano in cima e dicono «Avvisi», non «Impostazioni».
 - Impostazioni raggruppate: Persona (profilo, pasti abituali), Aspetto, Intelligenza artificiale (AI, ricette da video), Dati e dispositivi (dati, sincronizzazione, avvisi, copie, cancellazione).
 - Il rimando agli abbinamenti dalla scheda di un alimento passa `?alimento=Nome`: la pagina parte già con quel nome cercato.
+- Nutrizione: «Proteine nella giornata» e «Varietà vegetale della settimana» sono sezioni di `/app/salute/nutrizione` (dopo il confronto con i riferimenti, prima delle voci non riconosciute), non pagine: nascono dove si guardano i nutrienti e usano gli stessi giorni completi. Fonti e scelte in `src/core/nutrition/FONTI.md`.
+- Salvare ciò che sta scadendo: per un lotto che scade oggi, domani o entro tre giorni (con la data di qualità passata, solo le idee) compaiono, con gli stessi nomi che hanno altrove, «Sposta in freezer» (solo se la categoria si congela secondo la tabella di `core/expiry`, il lotto non è già in freezer né è stato scongelato), «Cosa cucinare» (`/app/ricette/idee`) e «Con cosa sta bene» (`/app/ricette/abbinamenti?alimento=`). Stanno in due posti: sotto le righe di «Da mangiare prima» in Oggi (il freezer è un tocco, con avviso e «Annulla») e in cima alle azioni della scheda del lotto in Dispensa (il freezer apre «Sposta» già su Freezer, con la scadenza che ne risulta). Nessuna pagina nuova. Un lotto già scaduto non ha proposte: si decide se buttarlo.
+- La durata dopo l'apertura scritta sul prodotto (Open Food Facts, certezza `label`) viaggia sull'acquisto come `daysAfterOpening` e sul lotto; dove si mostra la scadenza si legge la fonte: «dall'etichetta del prodotto» oppure «stima per categoria».
 - Titolo unico per gli abbinamenti da ricetta e da alimento: «Con cosa sta bene».
+- Sostituzione di un ingrediente che manca: nasce dove si vede che manca, sotto l'ingrediente nella scheda della ricetta e nella modalità cucina (nessuna pagina nuova). Fino a due proposte tra ciò che c'è in casa; un tocco sceglie, un tocco toglie. Vale per quella cottura: la ricetta scritta non cambia, e alla cottura («Registra il pasto») si scala il sostituto e non l'originale. Le proposte passano dal controllo di allergeni ed esclusioni delle ricette; i dati di gusto si caricano solo se c'è qualcosa da proporre.
+- La riga «Con cosa sta bene» della scheda ha preso il posto del pulsante: è chiusa, carica i dati solo quando si apre, mostra gli abbinamenti dell'ingrediente principale e rimanda alla schermata completa.
 
 ## Proposta non applicata
 
 La barra in basso non è stata toccata. Spesa e Qualità vivono sotto Piano: se in uso reale la Spesa risulta troppo nascosta, valutare di darle un posto proprio nella barra al posto di una voce meno usata.
+
+- Oggi accetta `?giorno=YYYY-MM-DD` (fino a 60 giorni indietro): dopo aver registrato un pasto di un giorno passato, anche da frase o da foto, si torna su quel giorno. Pasto da frase e da foto ereditano momento e giorno dalla riga di Oggi da cui si parte.

@@ -1,3 +1,4 @@
+import { usableDaysAfterOpening } from "@/core/expiry";
 import { expiryCategoryMatch, quantityText, type Product } from "@/core/catalog";
 
 export const CAPTURE_PATH = "/app/cattura";
@@ -13,6 +14,7 @@ export function captureHref(product: Product): string {
   if (match.matched) params.set("categoria", match.category);
   params.set("barcode", product.barcode);
   if (product.brand) params.set("marca", product.brand);
+  if (usableDaysAfterOpening(product.daysAfterOpening) !== undefined) params.set("apertura", String(product.daysAfterOpening));
   return `${CAPTURE_PATH}?${params.toString()}`;
 }
 

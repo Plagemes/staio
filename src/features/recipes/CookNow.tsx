@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useId, useMemo, useState, type FormEvent } from "react";
 import type { MealKind } from "@/core/diary";
 import { activeLots } from "@/core/ledger";
-import { scaleRecipe, type Quantity, type Recipe } from "@/core/recipes";
+import { applySubstitutions, compareWithPantry, scaleRecipe, stockFromLots, type Quantity, type Recipe, type Substitution } from "@/core/recipes";
 import { formatQuantity } from "@/core/units";
 import { usePantry, useRecipes } from "@/data";
 import { Button, Label } from "@/design";
@@ -20,7 +20,9 @@ import { useNow } from "../useNow";
 import { useRecord } from "../useRecord";
 import { makeContextFor, makeLookup } from "./facts";
 import { FlagText, SafetyPanel } from "./SafetyPanel";
+import { SUBSTITUTE_NOTICE, SUBSTITUTION_PARAM, chosenText, missingIndices, parseSubstitutions, recipeHref, unappliedNote, validSubstitutions } from "./substitutes";
 import { useRecipeSafety } from "./useRecipeSafety";
+import { useSubstitutes } from "./useSubstitutes";
 
 interface FreeRow {
   id: number;
@@ -62,15 +64,68 @@ export function CookNow() {
     );
   }
   const servings = Number.isFinite(requested) && requested > 0 && requested <= 1000 ? requested : recipe.servings;
-  return <Form key={recipe.recipeId} recipe={recipe} servings={servings} entries={entries} now={now} />;
+  const chosen = parseSubstitutions(params.getAll(SUBSTITUTION_PARAM), recipe.ingredients.length);
+  return <Checked key={recipe.recipeId} recipe={recipe} chosen={chosen} servings={servings} entries={entries} now={now} />;
 }
 
-function Form({ recipe, servings, entries, now }: { recipe: Recipe; servings: number; entries: PantryEntry[]; now: string }) {
+/**
+ * Le sostituzioni dall'indirizzo valgono solo se sono tra le proposte già controllate per quell'ingrediente (stesso
+ * controllo della scheda): il resto si scarta in silenzio. Il modulo parte solo dopo, perché calcola la proposta una volta.
+ */
+function Checked({
+  recipe,
+  chosen,
+  servings,
+  entries,
+  now,
+}: {
+  recipe: Recipe;
+  chosen: Substitution[];
+  servings: number;
+  entries: PantryEntry[];
+  now: string;
+}) {
+  const missing = useMemo(() => {
+    const cmp = compareWithPantry(recipe, stockFromLots(entries.map((e) => e.lot)), { servings });
+    return cmp.ok ? missingIndices(cmp.value) : [];
+  }, [recipe, entries, servings]);
+  const substitutes = useSubstitutes(recipe, missing);
+  const substitutions = useMemo(() => validSubstitutions(chosen, substitutes.options), [chosen, substitutes.options]);
+  if (chosen.length > 0 && substitutes.status === "loading") {
+    return (
+      <div className={ui.screen}>
+        <h1 className={ui.title}>Registra il pasto</h1>
+        <LoadingLine />
+      </div>
+    );
+  }
+  const unapplied = unappliedNote(chosen, substitutions, { missing, failed: substitutes.failed, originalName: (i) => recipe.ingredients[i]?.name ?? "" });
+  return <Form recipe={recipe} substitutions={substitutions} unapplied={unapplied} servings={servings} entries={entries} now={now} />;
+}
+
+function Form({
+  recipe: written,
+  substitutions,
+  unapplied,
+  servings,
+  entries,
+  now,
+}: {
+  recipe: Recipe;
+  substitutions: Substitution[];
+  unapplied: string | undefined;
+  servings: number;
+  entries: PantryEntry[];
+  now: string;
+}) {
   const router = useRouter();
   const ids = useId();
   const foods = useFoods();
   const overrides = useFoodOverrides();
   const { recordWith, busy } = useRecord();
+  // Con una sostituzione scelta si scala il sostituto e non l'originale: la ricetta come verrà cucinata sostituisce
+  // il nome dell'ingrediente, e dispensa, quantità e controllo allergeni la leggono così.
+  const recipe = useMemo(() => applySubstitutions(written, substitutions), [written, substitutions]);
   const safety = useRecipeSafety(recipe);
 
   // Calcolata una volta, alla prima apertura: le correzioni dell'utente non vengono mai riscritte.
@@ -142,6 +197,19 @@ function Form({ recipe, servings, entries, now }: { recipe: Recipe; servings: nu
       <p className={ui.lead}>
         «{recipe.title}» per {servings === 1 ? "1 porzione" : `${servings} porzioni`}, mangiate adesso. Ho proposto dalla dispensa ciò che serve, prima ciò che scade: controlla le quantità.
       </p>
+
+      {substitutions.length > 0 ? (
+        <p className={ui.hint}>
+          Per questa cottura: {substitutions.map((s) => chosenText(written.ingredients[s.index]?.name ?? "", s.name)).join("; ")}, nella stessa quantità
+          (cambiala qui sotto). {SUBSTITUTE_NOTICE}
+        </p>
+      ) : null}
+
+      {unapplied ? (
+        <p className={ui.hint} role="status">
+          {unapplied}
+        </p>
+      ) : null}
 
       <SafetyPanel state={safety} />
 
@@ -233,7 +301,7 @@ function Form({ recipe, servings, entries, now }: { recipe: Recipe; servings: nu
         </p>
       </form>
 
-      <Link href={`/app/ricette/vedi?id=${encodeURIComponent(recipe.recipeId)}`} className={ui.textLink}>
+      <Link href={recipeHref("/app/ricette/vedi", written.recipeId, substitutions)} className={ui.textLink}>
         Torna alla ricetta
       </Link>
     </div>

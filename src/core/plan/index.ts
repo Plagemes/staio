@@ -27,7 +27,7 @@ export { batchPrepUses, coverPrepUses } from "./batching";
 export type { CoveredUse, ExistingPortions, PrepBatch, PrepCoverage, PrepUse } from "./batching";
 export { computeNeeds } from "./needs";
 export type { NeedLine, NeedSource, NeedsOptions, NeedsResult, UnresolvedNeed } from "./needs";
-export { compareWeek, getAdherenceDay } from "./adherence";
+export { compareDayEntries, compareWeek, getAdherenceDay } from "./adherence";
 export type {
   ActualItem,
   AdherenceCounts,
@@ -56,14 +56,16 @@ export type {
   ConstraintsResult,
   UnverifiedItem,
 } from "./constraints";
-export { dropMeal, freeSlots, missedMeals, moveMeal } from "./move";
+export { dropMeal, freeSlots, missedMeals, moveMeal, moveMealToWeek } from "./move";
 export type {
   FreeSlotsOptions,
   MissedMeal,
   MissedOptions,
   MissedReason,
   MomentStatus,
+  MoveAcrossResult,
   MoveError,
   MoveResult,
   Slot,
+  WeekEntries,
 } from "./move";

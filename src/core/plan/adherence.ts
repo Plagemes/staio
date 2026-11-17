@@ -289,6 +289,60 @@ function compareDay(
   return { date, entries, extras, counts };
 }
 
+function consumesLookup(
+  diary: DiaryState,
+  options: AdherenceOptions,
+): (mealId: string) => readonly { lotId: string; quantity: Quantity }[] {
+  const consumesByMeal = new Map<string, { lotId: string; quantity: Quantity }[]>();
+  if (options.events) {
+    for (const m of mealsWithPantry(diary, options.events)) {
+      consumesByMeal.set(
+        m.mealId,
+        m.pantryConsumes.map((c) => ({ lotId: c.lotId, quantity: c.quantity })),
+      );
+    }
+  }
+  return (mealId) => consumesByMeal.get(mealId) ?? [];
+}
+
+function compareDayOf(
+  date: string,
+  planned: readonly PlannedEntry[],
+  diary: DiaryState,
+  consumesOf: (mealId: string) => readonly { lotId: string; quantity: Quantity }[],
+  options: AdherenceOptions,
+): AdherenceDay {
+  const day = getDay(diary, date);
+  const moments = mealMoments(day);
+  const declaredKinds = new Set<MealKind>([
+    ...(day?.untrackedMeals ?? []).map((m) => m.kind),
+    ...moments.filter((m) => m.status === "untracked").map((m) => m.kind),
+  ]);
+  const skippedKinds = new Set<MealKind>(moments.filter((m) => m.status === "skipped").map((m) => m.kind));
+  const kindOrder = new Map<string, number>(MEAL_KINDS.map((k, i) => [k, i]));
+  const sorted = [...planned].sort((a, b) => (kindOrder.get(a.meal) ?? 99) - (kindOrder.get(b.meal) ?? 99));
+  return compareDay(date, sorted, day?.meals ?? [], declaredKinds, skippedKinds, consumesOf, options);
+}
+
+/**
+ * Il confronto di un solo giorno, anche se non è tracciato per intero: serve a chi deve sapere se una voce del piano è
+ * stata mangiata (anche in un altro momento del giorno) mentre il giorno è ancora aperto. Le voci sono quelle del giorno.
+ */
+export function compareDayEntries(
+  date: string,
+  planned: readonly PlannedEntry[],
+  diary: DiaryState,
+  options: AdherenceOptions = {},
+): AdherenceDay {
+  return compareDayOf(
+    date,
+    planned.filter((e) => e.date === date),
+    diary,
+    consumesLookup(diary, options),
+    options,
+  );
+}
+
 /**
  * Confronto di una settimana di piano con il diario. Solo i giorni con voci pianificate e con
  * colazione, pranzo e cena tracciati sono confrontati; gli altri sono elencati in `excluded`.
@@ -303,16 +357,7 @@ export function compareWeek(
   options: AdherenceOptions = {},
 ): AdherenceWeek {
   const week = getWeek(state, weekStart);
-  const consumesByMeal = new Map<string, { lotId: string; quantity: Quantity }[]>();
-  if (options.events) {
-    for (const m of mealsWithPantry(diary, options.events)) {
-      consumesByMeal.set(
-        m.mealId,
-        m.pantryConsumes.map((c) => ({ lotId: c.lotId, quantity: c.quantity })),
-      );
-    }
-  }
-  const consumesOf = (mealId: string) => consumesByMeal.get(mealId) ?? [];
+  const consumesOf = consumesLookup(diary, options);
 
   const days: AdherenceDay[] = [];
   const excluded = { declared: [] as string[], gaps: [] as string[], unplanned: [] as string[] };
@@ -332,17 +377,7 @@ export function compareWeek(
       excluded.gaps.push(date);
       continue;
     }
-    const moments = mealMoments(day);
-    const declaredKinds = new Set<MealKind>([
-      ...(day?.untrackedMeals ?? []).map((m) => m.kind),
-      ...moments.filter((m) => m.status === "untracked").map((m) => m.kind),
-    ]);
-    const skippedKinds = new Set<MealKind>(moments.filter((m) => m.status === "skipped").map((m) => m.kind));
-    const kindOrder = new Map<string, number>(MEAL_KINDS.map((k, i) => [k, i]));
-    const sorted = [...planned].sort(
-      (a, b) => (kindOrder.get(a.meal) ?? 99) - (kindOrder.get(b.meal) ?? 99),
-    );
-    days.push(compareDay(date, sorted, day?.meals ?? [], declaredKinds, skippedKinds, consumesOf, options));
+    days.push(compareDayOf(date, planned, diary, consumesOf, options));
   }
 
   const totals = emptyCounts();

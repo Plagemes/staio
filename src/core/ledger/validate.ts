@@ -215,6 +215,7 @@ export function validateEvent(
       if (event.barcode !== undefined) checkBarcode(event.barcode, "barcode");
       checkQuantity("quantity", false, lotId);
       if (event.pieces !== undefined) checkPieces(event.pieces, "pieces");
+      // `daysAfterOpening` non si valida: un valore inutilizzabile si ignora in `derive`, l'evento resta valido.
       requireEnum(event, "location", LOCATIONS);
       if (event.expiry !== undefined) checkExpiry(event.expiry, "expiry");
       optionalString(event, "receiptId");

@@ -98,7 +98,7 @@ export function freeSlots(entries: readonly PlannedEntry[], options: FreeSlotsOp
   return out;
 }
 
-export type MoveError = "nothing_to_move" | "same_slot" | "outside_week" | "slot_taken";
+export type MoveError = "nothing_to_move" | "same_slot" | "outside_week" | "slot_taken" | "same_week";
 
 export type MoveResult = { ok: true; entries: PlannedEntry[] } | { ok: false; error: MoveError };
 
@@ -112,6 +112,32 @@ export function moveMeal(entries: readonly PlannedEntry[], weekStart: string, fr
   if (!entries.some((e) => at(e, from))) return { ok: false, error: "nothing_to_move" };
   if (entries.some((e) => at(e, to))) return { ok: false, error: "slot_taken" };
   return { ok: true, entries: entries.map((e) => (at(e, from) ? { ...clone(e), date: to.date, meal: to.meal } : clone(e))) };
+}
+
+/** Una settimana di piano: il lunedì e le sue voci. */
+export interface WeekEntries {
+  weekStart: string;
+  entries: readonly PlannedEntry[];
+}
+
+export type MoveAcrossResult = { ok: true; from: PlannedEntry[]; to: PlannedEntry[] } | { ok: false; error: MoveError };
+
+/**
+ * Sposta le voci di un posto su un posto libero di un'altra settimana. Restituisce le due settimane già riscritte: chi
+ * scrive deve metterle nello stesso gruppo di eventi, così o cambiano entrambe o nessuna. Il pasto esce dalla
+ * settimana di partenza e compare solo in quella di arrivo: spesa e aderenza lo contano una volta sola.
+ */
+export function moveMealToWeek(source: WeekEntries, target: WeekEntries, from: Slot, to: Slot): MoveAcrossResult {
+  if (source.weekStart === target.weekStart) return { ok: false, error: "same_week" };
+  if (!inWeek(target.weekStart, to.date)) return { ok: false, error: "outside_week" };
+  if (!source.entries.some((e) => at(e, from))) return { ok: false, error: "nothing_to_move" };
+  if (target.entries.some((e) => at(e, to))) return { ok: false, error: "slot_taken" };
+  const moving = source.entries.filter((e) => at(e, from)).map((e) => ({ ...clone(e), date: to.date, meal: to.meal }));
+  return {
+    ok: true,
+    from: source.entries.filter((e) => !at(e, from)).map(clone),
+    to: [...target.entries.map(clone), ...moving],
+  };
 }
 
 /** Toglie dal piano tutte le voci di un posto. */

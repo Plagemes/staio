@@ -717,3 +717,90 @@
   background: var(--color-accent);
   color: var(--color-on-fill);
 }
+
+/* Sostituzioni sotto un ingrediente che manca: stesse pastiglie dei filtri, ma sono bottoni a due stati */
+
+.substitutes {
+  grid-column: 1 / -1;
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.subChoices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.subChoice {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding: 0 var(--space-7);
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--text-caption);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.subChoiceOn {
+  composes: subChoice;
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+  color: var(--color-on-ink);
+}
+
+.subChoice:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.replaces {
+  composes: note;
+  margin-left: var(--space-3);
+}
+
+/* Riga «Con cosa sta bene» della scheda: una riga richiudibile, come i filtri dell'elenco */
+
+.summaryNote {
+  margin-left: var(--space-4);
+  font-weight: 400;
+  color: var(--color-graphite);
+}
+
+.pairBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-bottom: var(--space-8);
+}
+
+.pairList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-body-sm);
+}
+
+:global([data-palette="vivo"]) .subChoice {
+  border-color: transparent;
+  border-radius: 999px;
+  background: var(--color-fill);
+}
+
+:global([data-palette="vivo"]) .subChoiceOn {
+  border-color: transparent;
+  background: var(--button-fill);
+  color: var(--button-text);
+  font-weight: 600;
+}

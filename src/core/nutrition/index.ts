@@ -88,3 +88,23 @@ export {
   isValidYieldFactor,
 } from "./yield";
 export type { YieldDirection, YieldRule } from "./yield";
+export {
+  MIN_MEALS_FOR_MONOTONY,
+  PLANT_GROUPS,
+  VARIETY_DAYS,
+  analyzeVariety,
+  foodLookup,
+  plantKindOf,
+} from "./variety";
+export type {
+  AbsentGroup,
+  FoodLookup,
+  Monotony,
+  PlantEntry,
+  PlantGroup,
+  PlantKind,
+  VarietyReport,
+  VarietyWindow,
+} from "./variety";
+export { PROTEIN_MOMENTS, proteinSpread } from "./proteinSpread";
+export type { MomentProtein, ProteinMoment, ProteinSpread } from "./proteinSpread";

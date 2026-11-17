@@ -41,6 +41,8 @@ import {
 } from "../labels";
 import { addManualEntries } from "../shopping";
 import { entryDate } from "./groups";
+import { SaveExpiringLinks } from "./SaveExpiring";
+import { saveActions } from "./saveActions";
 import { pieceChoices } from "../pieces";
 import { formatCalendarDate } from "../format";
 import { useNotice } from "../notice";
@@ -71,6 +73,8 @@ interface LotActionsProps {
 export function LotActions({ entry, creation, group = [], now, busy, perform, error }: LotActionsProps) {
   const [mode, setMode] = useState<Mode>("menu");
   const [listError, setListError] = useState<string | null>(null);
+  /** Luogo con cui si apre «Sposta»: il freezer se si arriva da «Sposta in freezer». */
+  const [moveTo, setMoveTo] = useState<Location | undefined>();
   const notice = useNotice();
   const { lot } = entry;
   const grouped = group.length > 1;
@@ -88,9 +92,24 @@ export function LotActions({ entry, creation, group = [], now, busy, perform, er
     }
   }
   const back = () => setMode("menu");
+  const freezeEntry = saveActions(entry).includes("freeze") ? previewExpiryAfterMove(lot, "freezer", now) : undefined;
+  const freezePreview = freezeEntry?.expiry ? expiryExplanation(freezeEntry) : null;
 
   return (
     <section className={styles.actions} aria-label="Azioni">
+      {mode === "menu" && saveActions(entry).length > 0 ? (
+        <div className={styles.save}>
+          <span className={ui.hint}>Sta per scadere. Per non buttarlo:</span>
+          <SaveExpiringLinks
+            entry={entry}
+            onFreeze={() => {
+              setMoveTo("freezer");
+              setMode("move");
+            }}
+          />
+          {freezePreview ? <span className={ui.hint}>{`In freezer: ${freezePreview}`}</span> : null}
+        </div>
+      ) : null}
       {mode === "menu" ? (
         <div className={styles.menu}>
           {grouped ? (
@@ -138,7 +157,13 @@ export function LotActions({ entry, creation, group = [], now, busy, perform, er
           >
             {lot.openedAt !== undefined ? "Già aperto" : grouped ? "Una aperta" : "Aperto"}
           </Button>
-          <Button variant="outline" onClick={() => setMode("move")}>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setMoveTo(undefined);
+              setMode("move");
+            }}
+          >
             Sposta
           </Button>
           <Button variant="outline" disabled={!creation} onClick={() => setMode("edit")}>
@@ -159,7 +184,7 @@ export function LotActions({ entry, creation, group = [], now, busy, perform, er
       {mode === "eat" ? <AmountForm entry={entry} kind="eat" busy={busy} perform={perform} onBack={back} /> : null}
       {mode === "discard" ? <AmountForm entry={entry} kind="discard" busy={busy} perform={perform} onBack={back} /> : null}
       {mode === "dates" ? <DatesForm entry={entry} group={group} busy={busy} perform={perform} onBack={back} /> : null}
-      {mode === "move" ? <MoveForm entry={entry} group={group} now={now} busy={busy} perform={perform} onBack={back} /> : null}
+      {mode === "move" ? <MoveForm entry={entry} group={group} now={now} initialTo={moveTo} busy={busy} perform={perform} onBack={back} /> : null}
       {mode === "edit" && creation ? (
         <EditFormView entry={entry} group={group} creation={creation} busy={busy} perform={perform} onBack={back} />
       ) : null}
@@ -311,13 +336,13 @@ function AmountForm({ entry, kind, busy, perform, onBack }: SubFormProps & { kin
   );
 }
 
-function MoveForm({ entry, group = [], now, busy, perform, onBack }: SubFormProps & { now: string }) {
+function MoveForm({ entry, group = [], now, initialTo, busy, perform, onBack }: SubFormProps & { now: string; initialTo?: Location }) {
   const { lot } = entry;
   const [scope, setScope] = useState<Scope>("one");
   const lots = scope === "all" ? group.map((g) => g.lot) : [lot];
   const ids = useId();
   const targets = LOCATION_ORDER.filter((l) => l !== lot.location);
-  const [to, setTo] = useState<Location>(targets[0]);
+  const [to, setTo] = useState<Location>(initialTo && targets.includes(initialTo) ? initialTo : targets[0]);
   const preview = previewExpiryAfterMove(lot, to, now);
   const tag = preview ? expiryTagView(preview) : undefined;
   const crossesFreezer = to === "freezer" || lot.location === "freezer";

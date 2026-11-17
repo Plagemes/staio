@@ -62,3 +62,25 @@ export const SHELF_LIFE: Record<FoodCategory, ShelfLife> = {
 export function getShelfLife(category: FoodCategory): ShelfLife {
   return SHELF_LIFE[category];
 }
+
+/**
+ * Categorie che non si propongono per il freezer: uova in guscio, verdure a foglia, surgelati (già congelati: fuori dal
+ * freezer sarebbe un ricongelamento), bevande, scatolame chiuso e alimenti secchi, per cui la tabella non prevede un uso
+ * del freezer.
+ */
+const NOT_FREEZABLE: ReadonlySet<FoodCategory> = new Set<FoodCategory>([
+  "eggs",
+  "leafy_vegetables",
+  "frozen_foods",
+  "beverages",
+  "canned_closed",
+  "pasta_dry",
+  "rice_cereals",
+  "legumes_dry",
+  "snacks_dry",
+]);
+
+/** La categoria si può proporre per il freezer: non è nell'elenco di quelle escluse e la tabella dà almeno due mesi. */
+export function canFreeze(category: FoodCategory): boolean {
+  return !NOT_FREEZABLE.has(category) && SHELF_LIFE[category].freezerMonths >= 2;
+}

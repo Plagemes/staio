@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { isAiError } from "@/core/ai";
 import type { MealPhraseDraft } from "@/core/ai/mealPhraseParse";
@@ -10,6 +11,7 @@ import { activeLots } from "@/core/ledger";
 import { useDiary, useEventLog, usePantry } from "@/data";
 import { Button } from "@/design";
 import { dayOf } from "../format";
+import { parseMealTarget } from "../meal/mealTarget";
 import { describeAiError } from "../ai/messages";
 import { NotReady } from "../ai/NotReady";
 import { activeModel, configIssue, dexieSettingsStore, type AiSettings } from "../ai/settings";
@@ -66,6 +68,7 @@ function Phraser({ settings }: { settings: AiSettings }) {
   const diary = useDiary();
   const log = useEventLog();
   const foods = useFoods();
+  const search = useSearchParams();
   const abortRef = useRef<AbortController | null>(null);
   const runs = useRef(0);
 
@@ -93,6 +96,8 @@ function Phraser({ settings }: { settings: AiSettings }) {
   }
   const model = activeModel(settings);
   const today = dayOf(now);
+  // da una riga di Oggi: il momento e il giorno arrivano dall'indirizzo e valgono come punto di partenza
+  const mealTarget = parseMealTarget(search.get("momento"), search.get("giorno"), today);
 
   async function onRead() {
     if (busy || phrase.trim() === "" || !pantry.data || !diary.data || !log.data) return;
@@ -107,7 +112,7 @@ function Phraser({ settings }: { settings: AiSettings }) {
       const recent = recentMealsFor(meals, pantry.data.lots, target, today);
       const out = await readMealPhrase({ store: dexieSettingsStore(), phrase, target, recent, today, signal: controller.signal });
       runs.current += 1;
-      setOutcome({ ...out, rows: rowsFromPhrase(out.draft, target), kind: out.draft.kind ?? suggestMealKind(new Date().toISOString()), run: runs.current });
+      setOutcome({ ...out, rows: rowsFromPhrase(out.draft, target), kind: mealTarget.kind ?? out.draft.kind ?? suggestMealKind(new Date().toISOString()), run: runs.current });
     } catch (e) {
       setError(isAiError(e) ? describeAiError(e, { provider: settings.provider, model }) : "La lettura non è riuscita. Riprova.");
     } finally {
@@ -131,6 +136,7 @@ function Phraser({ settings }: { settings: AiSettings }) {
           key={outcome.run}
           source="voice"
           initialKind={outcome.kind}
+          pastDate={mealTarget.pastDate}
           initialRows={outcome.rows}
           entries={entries}
           foodSearch={foodSearch}

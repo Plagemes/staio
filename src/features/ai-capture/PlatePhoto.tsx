@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { isAiError } from "@/core/ai";
 import { PLATE_MIN_CONFIDENCE, type PlatePhotoDraft } from "@/core/ai/platePhotoParse";
@@ -12,6 +13,8 @@ import { describeAiError } from "../ai/messages";
 import { NotReady } from "../ai/NotReady";
 import { activeModel, configIssue, dexieSettingsStore, type AiSettings } from "../ai/settings";
 import { useAiSettings } from "../ai/useAiSettings";
+import { parseMealTarget } from "../meal/mealTarget";
+import { dayOf } from "../format";
 import { evaluateLots } from "../lots";
 import { suggestMealKind } from "../meals";
 import { createFoodSearch } from "../nutrition/candidates";
@@ -63,6 +66,7 @@ function Plate({ settings }: { settings: AiSettings }) {
   const now = useNow();
   const pantry = usePantry();
   const foods = useFoods();
+  const search = useSearchParams();
   const abortRef = useRef<AbortController | null>(null);
   const runs = useRef(0);
 
@@ -91,6 +95,8 @@ function Plate({ settings }: { settings: AiSettings }) {
     );
   }
   const model = activeModel(settings);
+  // da una riga di Oggi: il momento e il giorno arrivano dall'indirizzo
+  const mealTarget = parseMealTarget(search.get("momento"), search.get("giorno"), dayOf(now));
 
   async function onFile(event: ChangeEvent<HTMLInputElement>) {
     const input = event.target;
@@ -148,7 +154,8 @@ function Plate({ settings }: { settings: AiSettings }) {
         <MealDraftReview
           key={outcome.run}
           source="photo"
-          initialKind={suggestMealKind(new Date().toISOString())}
+          initialKind={mealTarget.kind ?? suggestMealKind(new Date().toISOString())}
+          pastDate={mealTarget.pastDate}
           initialRows={outcome.rows}
           entries={entries}
           foodSearch={foodSearch}

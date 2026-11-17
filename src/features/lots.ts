@@ -1,18 +1,21 @@
 // Dal lotto del libro mastro alla voce del motore delle scadenze, e ritorno alla riga di schermata.
 import {
   DEFAULT_TIME_ZONE,
-  SHELF_LIFE,
   eatFirstOrder,
-  toCalendarDate,
+  isFoodCategory,
+  labelOnlyExpiry,
+  lotToExpiryItem,
   urgency,
   type EffectiveExpiry,
   type ExpiryItem,
-  type FoodCategory,
   type Urgency,
 } from "@/core/expiry";
 import type { Location, Lot } from "@/core/ledger";
 import type { ExpiryLevel } from "@/design";
 import { expiryTagText, formatCalendarDate } from "./format";
+
+// La mappatura lotto → voce di scadenza vive in `core/expiry`; qui si rilancia per le schermate.
+export { isFoodCategory, lotToExpiryItem };
 
 export interface PantryEntry {
   lot: Lot;
@@ -21,43 +24,9 @@ export interface PantryEntry {
   urgency?: Urgency;
 }
 
-export function isFoodCategory(value: unknown): value is FoodCategory {
-  return typeof value === "string" && Object.hasOwn(SHELF_LIFE, value);
-}
-
-/**
- * Voce per il motore delle scadenze, o null se il lotto non ha una categoria nota.
- * Un lotto dichiarato ("già in casa") conta come entrato il giorno della dichiarazione:
- * il libro mastro non conosce la vera data d'acquisto.
- */
-export function lotToExpiryItem(lot: Lot, timeZone: string = DEFAULT_TIME_ZONE): ExpiryItem | null {
-  if (!isFoodCategory(lot.category)) return null;
-  try {
-    const day = (instant: string | undefined) => (instant ? toCalendarDate(instant, timeZone) : null);
-    return {
-      id: lot.lotId,
-      labelDateType: lot.expiry ? lot.expiry.kind : "none",
-      labelDate: lot.expiry?.date ?? null,
-      purchaseDate: toCalendarDate(lot.createdAt, timeZone),
-      openedDate: day(lot.openedAt),
-      location: lot.location,
-      frozenDate: day(lot.frozenAt),
-      thawedDate: day(lot.thawedAt),
-      category: lot.category,
-    };
-  } catch {
-    return null;
-  }
-}
-
 function labelOnly(lot: Lot, now: string, timeZone: string): PantryEntry {
-  if (!lot.expiry) return { lot };
-  const expiry: EffectiveExpiry = {
-    date: lot.expiry.date,
-    basis: "label",
-    nature: lot.expiry.kind === "best_before" ? "quality" : "safety",
-    certainty: lot.expiry.kind === "estimated" ? "estimated" : "label",
-  };
+  const expiry = labelOnlyExpiry(lot);
+  if (!expiry) return { lot };
   return { lot, expiry, urgency: urgency(expiry, now, timeZone) };
 }
 
@@ -147,7 +116,11 @@ export function expiryExplanation(entry: PantryEntry): string {
       return `Stima dalla categoria e dal luogo: entro ${date}`;
     case "opened": {
       const quality = expiry.qualityDate ? ` (in etichetta: ${formatCalendarDate(expiry.qualityDate)})` : "";
-      return `Stima dopo l'apertura: entro ${date}${quality}`;
+      // la fonte della durata si legge: dai dati di Open Food Facts (se più breve) oppure dalla categoria
+      if (expiry.openedFrom === "product") {
+        return `Dopo l'apertura: entro ${date}${quality}. Durata dai dati di Open Food Facts, più breve della stima per categoria.`;
+      }
+      return `Dopo l'apertura: entro ${date}, stima per categoria${quality}`;
     }
     case "frozen":
       return `Stima in freezer: ${date}`;

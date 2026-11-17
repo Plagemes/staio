@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { deriveDiary } from "@/core/diary";
 import { derivePlan, type PlannedEntry } from "@/core/plan";
-import { buildClearDayType } from "./edit";
-import { buildDropMeal, buildMoveMeal, missedThisWeek, slotText, slotsToMoveTo } from "./moveMeal";
+import { generateId, voidEvent } from "@/core/ledger";
+import { meal } from "@/core/diary/test-helpers";
+import { buildClearDayType, buildWeek } from "./edit";
+import { buildDropMeal, buildMoveMeal, buildMoveMealAnywhere, missedThisWeek, slotText, slotsToMoveTo } from "./moveMeal";
 
 const W = "2026-11-16";
 const ctx = { now: "2026-11-17T08:00:00.000Z", deviceId: "dev-a" };
@@ -69,5 +71,67 @@ describe("pasti non fatti di questa settimana", () => {
     expect(slots[0]).toEqual({ date: "2026-11-17", meal: "lunch" }); // la colazione di oggi è già passata
     expect(slots).not.toContainEqual({ date: "2026-11-17", meal: "dinner" }); // occupato dalla zuppa
     expect(slots.every((s) => s.date >= "2026-11-17")).toBe(true);
+  });
+});
+
+describe("spostare alla settimana successiva", () => {
+  const NEXT = "2026-11-23";
+  const next = { weekStart: NEXT, entries: [] as PlannedEntry[] };
+  const to = { date: "2026-11-24", meal: "lunch" } as const;
+
+  it("scrive le due settimane nello stesso gruppo di eventi, senza doppi conteggi", () => {
+    const r = buildMoveMealAnywhere({ weekStart: W, entries }, next, from, to, ctx);
+    if (!r.ok) throw new Error("atteso ok");
+    expect(r.events.map((e) => e.type)).toEqual(["planWeek", "planWeek"]);
+    const state = derivePlan(r.events);
+    const all = state.weeks.flatMap((w) => w.entries);
+    expect(all.filter((e) => e.item.kind === "food" && e.item.name === "Riso")).toHaveLength(1);
+    expect(state.weeks.find((w) => w.weekStart === W)?.entries.some((e) => e.meal === "lunch" && e.date === "2026-11-16")).toBe(false);
+    expect(state.weeks.find((w) => w.weekStart === NEXT)?.entries.map((e) => `${e.date}|${e.meal}`)).toEqual(["2026-11-24|lunch"]);
+  });
+
+  it("annullando i due eventi il pasto torna dov'era", () => {
+    const base = buildWeek(W, entries, { ...ctx, now: "2026-11-17T07:00:00.000Z" }, "");
+    const moved = buildMoveMealAnywhere({ weekStart: W, entries }, next, from, to, ctx);
+    if (!base.ok || !moved.ok) throw new Error("atteso ok");
+    const undo = moved.events.map((e) => voidEvent({ id: e.id, deviceId: "dev-a" }, { idGenerator: generateId, now: () => "2026-11-17T09:00:00.000Z", deviceId: "dev-a" }));
+    const state = derivePlan([...base.events, ...moved.events, ...undo]);
+    expect(state.weeks.find((w) => w.weekStart === W)?.entries).toHaveLength(entries.length);
+    expect(state.weeks.find((w) => w.weekStart === NEXT)).toBeUndefined();
+  });
+
+  it("dentro la settimana resta un solo evento; un errore non scrive nulla", () => {
+    const same = buildMoveMealAnywhere({ weekStart: W, entries }, next, from, { date: "2026-11-19", meal: "lunch" }, ctx);
+    if (!same.ok) throw new Error("atteso ok");
+    expect(same.events).toHaveLength(1);
+    const busy = buildMoveMealAnywhere({ weekStart: W, entries }, { weekStart: NEXT, entries: [food("2026-11-24", "lunch", "X")] }, from, to, ctx);
+    expect(busy).toEqual({ ok: false, error: "Quel momento ha già un pasto pianificato: scegline uno libero." });
+  });
+
+  it("i posti liberi comprendono la settimana successiva", () => {
+    const args = { weekEntries: entries, now: "2026-11-17T12:00:00.000Z", timeZone: "Europe/Rome", today: "2026-11-17", diary: deriveDiary([]), weekStart: W, from };
+    const slots = slotsToMoveTo({ ...args, nextWeek: next });
+    expect(slots).toContainEqual({ date: "2026-11-23", meal: "breakfast" });
+    expect(slots.at(-1)).toEqual({ date: "2026-11-29", meal: "dinner" });
+    expect(slotsToMoveTo(args).some((s) => s.date >= NEXT)).toBe(false);
+  });
+});
+
+describe("pasto mangiato in un altro momento dello stesso giorno", () => {
+  const NOW = "2026-11-17T21:00:00.000Z";
+  const week = [food("2026-11-17", "lunch", "Riso")];
+  const args = { weekEntries: week, now: NOW, timeZone: "Europe/Rome", today: "2026-11-17" };
+  const eatenAt = (iso: string, kind: "lunch" | "dinner", name: string) =>
+    meal(`ev-${kind}`, iso, { mealId: kind, kind, items: [{ name, quantity: { value: 80, unit: "g" }, certainty: "estimated" }] });
+
+  it("pianificato a pranzo, mangiato a cena: non risulta mancato", () => {
+    const diary = deriveDiary([eatenAt("2026-11-17T18:30:00.000Z", "dinner", "Riso")]);
+    expect(missedThisWeek({ ...args, diary }).map((m) => m.meal)).toEqual(["lunch"]);
+    expect(missedThisWeek({ ...args, diary, adherence: {} })).toEqual([]);
+  });
+
+  it("se a cena si è mangiato altro, il pranzo resta tra i non fatti", () => {
+    const diary = deriveDiary([eatenAt("2026-11-17T18:30:00.000Z", "dinner", "Pizza")]);
+    expect(missedThisWeek({ ...args, diary, adherence: {} }).map((m) => m.meal)).toEqual(["lunch"]);
   });
 });

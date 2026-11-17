@@ -21,6 +21,7 @@ import styles from "./nutrition.module.css";
 import { createFoodSearch, type FoodOption, type FoodSearch } from "./candidates";
 import { FoodPicker } from "./FoodCandidates";
 import { UnresolvedList } from "./UnresolvedList";
+import { ProteinSpreadSection, VarietySection } from "./WeekSections";
 import { useFoodCorrection } from "./useCorrection";
 import { useIntake, useNutritionProfile, useReferences } from "./useNutrition";
 
@@ -281,6 +282,9 @@ export function Nutrition() {
           ) : null}
         </>
       ) : null}
+
+      {data.intake ? <ProteinSpreadSection days={data.intake.days} today={today} /> : null}
+      {data.intake && data.foods ? <VarietySection days={data.intake.days} foods={data.foods} today={today} /> : null}
 
       {data.intake && search ? <UnresolvedList days={data.intake.days} search={search} overrides={data.overrides} prepInfo={data.prepInfo} /> : null}
 

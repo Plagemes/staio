@@ -11,6 +11,7 @@ import {
   getWeek,
   missedMeals,
   moveMeal,
+  moveMealToWeek,
   type MomentStatus,
   type PlannedEntry,
 } from "./index";
@@ -171,5 +172,29 @@ describe("un pasto spostato non è un pasto mancato", () => {
     const moments = new Map(mealMoments(day).map((m) => [m.kind, m.status]));
     const r = missedMeals(planned, { today: MON, overdue: () => false, status: (_d, k) => moments.get(k as "breakfast") ?? "none" });
     expect(r.map((m) => m.meal)).toEqual(["lunch"]);
+  });
+});
+
+describe("moveMealToWeek", () => {
+  const NEXT = "2026-11-23";
+  const source = { weekStart: W, entries: entries() };
+  const target = { weekStart: NEXT, entries: [food("2026-11-24", "dinner", "Lasagne", 300)] };
+
+  it("toglie le voci dalla settimana di partenza e le mette in quella di arrivo, una volta sola", () => {
+    const r = moveMealToWeek(source, target, { date: MON, meal: "lunch" }, { date: "2026-11-23", meal: "lunch" });
+    if (!r.ok) throw new Error("atteso ok");
+    expect(r.from.some((e) => e.date === MON && e.meal === "lunch")).toBe(false);
+    expect(r.from).toHaveLength(entries().length - 2);
+    expect(r.to.filter((e) => e.date === "2026-11-23" && e.meal === "lunch")).toHaveLength(2);
+    expect(r.to).toHaveLength(3);
+    expect(source.entries).toEqual(entries());
+  });
+
+  it("rifiuta posto occupato, fuori dalla settimana di arrivo, stessa settimana, pasto assente", () => {
+    const from = { date: MON, meal: "lunch" } as const;
+    expect(moveMealToWeek(source, target, from, { date: "2026-11-24", meal: "dinner" })).toEqual({ ok: false, error: "slot_taken" });
+    expect(moveMealToWeek(source, target, from, { date: "2026-11-30", meal: "lunch" })).toEqual({ ok: false, error: "outside_week" });
+    expect(moveMealToWeek(source, source, from, { date: THU, meal: "lunch" })).toEqual({ ok: false, error: "same_week" });
+    expect(moveMealToWeek(source, target, { date: WED, meal: "lunch" }, { date: "2026-11-23", meal: "lunch" })).toEqual({ ok: false, error: "nothing_to_move" });
   });
 });

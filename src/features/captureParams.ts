@@ -1,4 +1,5 @@
 // Dati che la pagina del codice a barre passa alla Cattura tramite l'indirizzo. Tutti facoltativi, tutti verificati.
+import { usableDaysAfterOpening } from "@/core/expiry";
 import { isFoodCategory } from "./lots";
 
 export interface CaptureParams {
@@ -9,6 +10,8 @@ export interface CaptureParams {
   category?: string;
   barcode?: string;
   brand?: string;
+  /** Giorni dopo l'apertura scritti sull'etichetta del prodotto: valgono solo finché il codice a barre resta collegato. */
+  daysAfterOpening?: number;
 }
 
 const clean = (value: string | null | undefined, max: number): string | undefined => {
@@ -29,6 +32,8 @@ export function readCaptureParams(get: (key: string) => string | null | undefine
   if (barcode && /^\d{8,14}$/.test(barcode)) params.barcode = barcode;
   const brand = clean(get("marca"), 60);
   if (brand) params.brand = brand;
+  const days = Number(clean(get("apertura"), 5));
+  if (params.barcode && usableDaysAfterOpening(days) !== undefined) params.daysAfterOpening = days;
   return params;
 }
 
@@ -39,7 +44,7 @@ export function mergeCaptureParams(primary: CaptureParams, fallback: CapturePara
 
 /** Chiave stabile dei parametri: serve a sapere se sono gli stessi già usati. */
 export function captureParamsKey(params: CaptureParams): string {
-  return JSON.stringify([params.name, params.quantityText, params.category, params.barcode, params.brand]);
+  return JSON.stringify([params.name, params.quantityText, params.category, params.barcode, params.brand, params.daysAfterOpening]);
 }
 
 /**
@@ -62,6 +67,7 @@ export interface ResolvedCaptureFields {
   category: string | undefined;
   barcode: string | undefined;
   brand: string | undefined;
+  daysAfterOpening: number | undefined;
 }
 
 export function resolveCaptureFields(params: CaptureParams, edits: CaptureEdits): ResolvedCaptureFields {
@@ -71,5 +77,7 @@ export function resolveCaptureFields(params: CaptureParams, edits: CaptureEdits)
     category: edits.category ?? params.category,
     barcode: edits.barcode === undefined ? params.barcode : (edits.barcode ?? undefined),
     brand: edits.brand === undefined ? params.brand : (edits.brand ?? undefined),
+    // senza codice a barre il dato non ha più un prodotto a cui riferirsi
+    daysAfterOpening: edits.barcode === null ? undefined : params.daysAfterOpening,
   };
 }

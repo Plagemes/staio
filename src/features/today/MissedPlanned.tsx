@@ -8,7 +8,7 @@ import { MEAL_KIND_LABELS } from "../meals";
 import { dayHeading } from "../plan/dates";
 import { itemLabel, type Catalog } from "../plan/describe";
 import { MoveSheet } from "../plan/MoveSheet";
-import { buildDropMeal, buildMoveMeal, slotsToMoveTo } from "../plan/moveMeal";
+import { buildDropMeal, buildMoveMealAnywhere, slotsToMoveTo } from "../plan/moveMeal";
 import { useWriter } from "../plan/useWriter";
 import ui from "../ui.module.css";
 import styles from "./Today.module.css";
@@ -17,6 +17,8 @@ interface Props {
   missed: readonly MissedMeal[];
   weekStart: string;
   weekEntries: readonly PlannedEntry[];
+  nextWeekStart: string;
+  nextWeekEntries: readonly PlannedEntry[];
   kinds: readonly MealKind[] | undefined;
   catalog: Catalog | undefined;
   diary: DiaryState;
@@ -29,10 +31,10 @@ const REASON_TEXT = { skipped: "saltato", not_logged: "non registrato" } as cons
 
 /**
  * Pasti del piano di questa settimana, fino a oggi, che risultano saltati o non registrati. Non è una domanda che
- * blocca: ognuno si può spostare su un posto libero della settimana oppure togliere dal piano, e restare dov'è.
+ * blocca: ognuno si può spostare su un posto libero della settimana (o della successiva) oppure togliere dal piano, e restare dov'è.
  * Gli ingredienti seguono il pasto: la spesa e l'aderenza lo contano una volta sola, nel posto nuovo.
  */
-export function MissedPlanned({ missed, weekStart, weekEntries, kinds, catalog, diary, now, timeZone, today }: Props) {
+export function MissedPlanned({ missed, weekStart, weekEntries, nextWeekStart, nextWeekEntries, kinds, catalog, diary, now, timeZone, today }: Props) {
   const write = useWriter();
   const [moving, setMoving] = useState<MissedMeal | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +42,7 @@ export function MissedPlanned({ missed, weekStart, weekEntries, kinds, catalog, 
 
   if (missed.length === 0 || !catalog) return null;
 
-  const options = moving ? slotsToMoveTo({ weekEntries, diary, now, timeZone, today, weekStart, kinds, from: moving }) : [];
+  const options = moving ? slotsToMoveTo({ weekEntries, diary, now, timeZone, today, weekStart, kinds, from: moving, nextWeek: { weekStart: nextWeekStart, entries: nextWeekEntries } }) : [];
   const text = (m: MissedMeal) => m.entries.map((e) => itemLabel(e.item, catalog)).join(", ");
 
   async function run(build: Parameters<typeof write>[0]) {
@@ -97,7 +99,9 @@ export function MissedPlanned({ missed, weekStart, weekEntries, kinds, catalog, 
           today={today}
           onClose={() => setMoving(null)}
           onMove={async (to) => {
-            const failure = await write((ctx) => buildMoveMeal(weekStart, weekEntries, moving, to, ctx));
+            const failure = await write((ctx) =>
+              buildMoveMealAnywhere({ weekStart, entries: weekEntries }, { weekStart: nextWeekStart, entries: nextWeekEntries }, moving, to, ctx),
+            );
             if (!failure) setMoving(null);
             return failure;
           }}

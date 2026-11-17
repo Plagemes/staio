@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { activeLots } from "@/core/ledger";
-import { compareWithPantry, scaleRecipe, stockFromLots, totalMinutes, type Recipe } from "@/core/recipes";
+import { applySubstitutions, compareWithPantry, scaleRecipe, stockFromLots, totalMinutes, type Recipe, type Substitution } from "@/core/recipes";
 import { formatQuantity } from "@/core/units";
 import { buildPriceBook } from "@/core/shopping";
 import { usePantry, useRecipes } from "@/data";
@@ -18,14 +18,29 @@ import { useRecord } from "../useRecord";
 import { formatMinutes, formatServings, safeSourceUrl } from "./common";
 import { computeFacts, costText, coverageText, makeContextFor, makeLookup, nutrientLines } from "./facts";
 import { availabilityLabel, pendingConfirmations, shortfallsWith, type Answers } from "./list";
+import { PairingsRow } from "./PairingsRow";
 import { rateRecipe, retireRecipe } from "./model";
 import { FlagText, SafetyPanel } from "./SafetyPanel";
+import { SubstituteOptions } from "./SubstituteOptions";
+import {
+  SUBSTITUTE_BASIS,
+  SUBSTITUTION_PARAM,
+  chosenFor,
+  missingIndices,
+  parseSubstitutions,
+  recipeHref,
+  unappliedNote,
+  validSubstitutions,
+  withSubstitution,
+} from "./substitutes";
 import { useRecipeSafety } from "./useRecipeSafety";
+import { useSubstitutes } from "./useSubstitutes";
 import styles from "./recipes.module.css";
 import { addToShoppingListWithUndo, proposalFromShortfalls } from "./shopping";
 
 export function RecipeView() {
-  const id = useSearchParams().get("id");
+  const params = useSearchParams();
+  const id = params.get("id");
   const recipes = useRecipes();
   const pantry = usePantry();
 
@@ -55,12 +70,13 @@ export function RecipeView() {
       </div>
     );
   }
-  return <Detail key={recipe.recipeId} recipe={recipe} />;
+  // chi torna dalla modalità cucina ritrova le sostituzioni scelte
+  const chosen = parseSubstitutions(params.getAll(SUBSTITUTION_PARAM), recipe.ingredients.length);
+  return <Detail key={recipe.recipeId} recipe={recipe} initialSubstitutions={chosen} />;
 }
 
-function Detail({ recipe }: { recipe: Recipe }) {
+function Detail({ recipe: written, initialSubstitutions }: { recipe: Recipe; initialSubstitutions: Substitution[] }) {
   const pantry = usePantry();
-  const safetyState = useRecipeSafety(recipe);
   const foods = useFoods();
   const overrides = useFoodOverrides();
   const router = useRouter();
@@ -72,13 +88,37 @@ function Detail({ recipe }: { recipe: Recipe }) {
   const [cooking, setCooking] = useState(false);
   const [answers, setAnswers] = useState<Answers>({});
 
-  const typed = servingsText === null ? recipe.servings : Number(servingsText.replace(",", "."));
+  const typed = servingsText === null ? written.servings : Number(servingsText.replace(",", "."));
   const servingsValid = Number.isFinite(typed) && typed > 0 && typed <= 1000;
-  const servings = servingsValid ? typed : recipe.servings;
+  const servings = servingsValid ? typed : written.servings;
 
   const lots = useMemo(() => (pantry.data ? activeLots(pantry.data) : []), [pantry.data]);
   const lookup = useMemo(() => (foods ? makeLookup(foods, overrides) : undefined), [foods, overrides]);
   const book = useMemo(() => (pantry.data ? buildPriceBook(pantry.data) : undefined), [pantry.data]);
+
+  // Ciò che manca davvero (ricetta scritta) decide dove proporre un sostituto.
+  const writtenComparison = useMemo(() => {
+    const cmp = compareWithPantry(written, stockFromLots(lots), {
+      servings,
+      ...(lookup ? { contextFor: makeContextFor(lookup) } : {}),
+    });
+    return cmp.ok ? cmp.value : undefined;
+  }, [written, lots, servings, lookup]);
+  const missing = useMemo(() => (writtenComparison ? missingIndices(writtenComparison, answers) : []), [writtenComparison, answers]);
+  const substitutes = useSubstitutes(written, missing);
+
+  // Le sostituzioni valgono per questa cottura: la ricetta scritta non cambia. Si applicano solo quelle che sono tra le
+  // proposte già controllate (un indirizzo scritto a mano non ne introduce altre). Tutto il resto (controllo allergeni,
+  // dispensa, nutrienti) legge la ricetta come verrà cucinata.
+  const [chosen, setChosen] = useState<Substitution[]>(initialSubstitutions);
+  const substitutions = useMemo(() => validSubstitutions(chosen, substitutes.options), [chosen, substitutes.options]);
+  const recipe = useMemo(() => applySubstitutions(written, substitutions), [written, substitutions]);
+  const unapplied =
+    substitutes.status === "loading"
+      ? undefined
+      : unappliedNote(chosen, substitutions, { missing, failed: substitutes.failed, originalName: (i) => written.ingredients[i]?.name ?? "" });
+  const safetyState = useRecipeSafety(recipe);
+
   const scaled = useMemo(() => {
     const r = scaleRecipe(recipe, servings);
     return r.ok ? r.value : undefined;
@@ -124,7 +164,7 @@ function Detail({ recipe }: { recipe: Recipe }) {
   async function rate(value: number) {
     const next = recipe.rating === value ? undefined : value;
     const r = await recordWith((deviceId) => {
-      const res = rateRecipe(recipe, next, { now: new Date().toISOString(), deviceId });
+      const res = rateRecipe(written, next, { now: new Date().toISOString(), deviceId });
       if (!res.ok) throw new Error(res.error);
       return { events: [res.event], message: next === undefined ? "Voto tolto." : `Voto: ${next} su 5.` };
     });
@@ -133,7 +173,7 @@ function Detail({ recipe }: { recipe: Recipe }) {
 
   async function retire() {
     const r = await recordWith((deviceId) => {
-      const res = retireRecipe(recipe, { now: new Date().toISOString(), deviceId });
+      const res = retireRecipe(written, { now: new Date().toISOString(), deviceId });
       if (!res.ok) throw new Error(res.error);
       return { events: [res.event], message: `«${recipe.title}» è stata ritirata dal ricettario.` };
     });
@@ -165,12 +205,22 @@ function Detail({ recipe }: { recipe: Recipe }) {
         <Button href={`/app/ricette/nuova?modifica=${encodeURIComponent(recipe.recipeId)}`} variant="outline">
           Modifica
         </Button>
-        <Button href={`/app/ricette/abbinamenti?ricetta=${encodeURIComponent(recipe.recipeId)}`} variant="outline">
-          Con cosa sta bene
-        </Button>
       </div>
 
       <SafetyPanel state={safetyState} heading="Allergeni ed esclusioni" />
+      {substitutions.length > 0 && safetyState.status !== "none" ? (
+        <p className={ui.hint}>
+          Il controllo legge la ricetta con le sostituzioni scelte. I passi restano quelli scritti: se nominano l&apos;ingrediente originale, il controllo li legge così.
+        </p>
+      ) : null}
+
+      {unapplied ? (
+        <p className={ui.hint} role="status">
+          {unapplied}
+        </p>
+      ) : null}
+
+      <PairingsRow recipe={written} lots={lots} foods={foods} safety={safetyState} />
 
       <section className={ui.section} aria-labelledby={`${ids}-ing`}>
         <div className={ui.head}>
@@ -226,11 +276,15 @@ function Detail({ recipe }: { recipe: Recipe }) {
             const item = comparison?.items[i];
             const answer = answers[i];
             const label = item ? availabilityLabel(item, answer) : undefined;
+            const original = written.ingredients[i]?.name ?? ing.name;
+            const picked = chosenFor(substitutions, i);
+            const options = substitutes.options.get(i) ?? [];
             return (
               <li key={i} className={styles.ingredient}>
                 <span className={styles.ingredientName}>
                   <span className={styles.ingredientQty}>{ing.quantity ? formatQuantity(ing.quantity) : "q.b."}</span>
                   {ing.name}
+                  {picked !== undefined ? <span className={styles.replaces}> (al posto di «{original}»)</span> : null}
                   {ing.note ? <span className={styles.note}> ({ing.note})</span> : null}
                   {safetyState.status === "ready" ? <FlagText flag={safetyState.flags.get(i)} /> : null}
                 </span>
@@ -260,10 +314,19 @@ function Detail({ recipe }: { recipe: Recipe }) {
                     </Button>
                   </div>
                 ) : null}
+                {options.length > 0 || picked !== undefined ? (
+                  <SubstituteOptions
+                    ingredient={original}
+                    options={options}
+                    chosen={picked}
+                    onChoose={(name) => setChosen((subs) => withSubstitution(subs, i, name))}
+                  />
+                ) : null}
               </li>
             );
           })}
         </ul>
+        {substitutes.options.size > 0 ? <p className={ui.hint}>{SUBSTITUTE_BASIS}</p> : null}
         {pending > 0 ? (
           <p className={ui.hint}>
             {pending === 1 ? "Un ingrediente è da confermare" : `${pending} ingredienti sono da confermare`}: finché non rispondi non lo conto tra quelli che hai né tra quelli che mancano.
@@ -400,12 +463,22 @@ function Detail({ recipe }: { recipe: Recipe }) {
       </div>
       <p className={ui.hint}>La ricetta ritirata resta nel registro e si può rimettere dall&apos;elenco, o con «Annulla» subito dopo.</p>
 
-      {cooking ? <CookChoice recipeId={recipe.recipeId} servings={servings} onClose={() => setCooking(false)} /> : null}
+      {cooking ? <CookChoice recipeId={recipe.recipeId} servings={servings} substitutions={substitutions} onClose={() => setCooking(false)} /> : null}
     </div>
   );
 }
 
-function CookChoice({ recipeId, servings, onClose }: { recipeId: string; servings: number; onClose: () => void }) {
+function CookChoice({
+  recipeId,
+  servings,
+  substitutions,
+  onClose,
+}: {
+  recipeId: string;
+  servings: number;
+  substitutions: readonly Substitution[];
+  onClose: () => void;
+}) {
   const id = encodeURIComponent(recipeId);
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -432,11 +505,11 @@ function CookChoice({ recipeId, servings, onClose }: { recipeId: string; serving
         <h2 id={titleId} className={styles.sheetTitle}>
           Cucinala ora
         </h2>
-        <Link className={styles.option} href={`/app/ricette/cucina?id=${id}&porzioni=${servings}`}>
+        <Link className={styles.option} href={recipeHref("/app/ricette/cucina", recipeId, substitutions, servings)}>
           <span className={styles.optionTitle}>Segui i passi</span>
           <span className={styles.optionText}>Un passo alla volta, con caratteri grandi e i timer.</span>
         </Link>
-        <Link className={styles.option} href={`/app/ricette/cucinata?id=${id}&porzioni=${servings}`}>
+        <Link className={styles.option} href={recipeHref("/app/ricette/cucinata", recipeId, substitutions, servings)}>
           <span className={styles.optionTitle}>Registra il pasto</span>
           <span className={styles.optionText}>Scegli cosa togli dalla dispensa e segna il pasto.</span>
         </Link>

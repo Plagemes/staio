@@ -17,6 +17,7 @@ import { expiryExplanation, expiryTagView, isFoodCategory, levelPercent, type Pa
 import { useNotice } from "../notice";
 import ui from "../ui.module.css";
 import { LotActions, type Perform } from "./LotActions";
+import { saveActions } from "./saveActions";
 import styles from "./LotSheet.module.css";
 
 interface LotSheetProps {
@@ -101,6 +102,8 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
   const remainingText = formatQuantity({ value: lot.remaining, unit: lot.unit });
   const initialText = formatQuantity({ value: lot.initial, unit: lot.unit });
   const urgent = tag?.level === "urgent";
+  // vicino alla scadenza «Con cosa sta bene» sta già tra le azioni per salvarlo
+  const pairsShown = saveActions(entry).includes("pair");
 
   return (
     <dialog
@@ -210,16 +213,20 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
           <LotNutrients lotId={lot.lotId} productRef={lot.productRef} barcode={lot.barcode} />
         </section>
 
+        {pairsShown && !lot.barcode ? null : (
         <div className={ui.row}>
-          <Link href={`/app/ricette/abbinamenti?alimento=${encodeURIComponent(lot.productRef)}`} className={ui.textLink}>
-            Con cosa sta bene
-          </Link>
+          {pairsShown ? null : (
+            <Link href={`/app/ricette/abbinamenti?alimento=${encodeURIComponent(lot.productRef)}`} className={ui.textLink}>
+              Con cosa sta bene
+            </Link>
+          )}
           {lot.barcode ? (
             <Link href={`/app/qualita/prodotto?codice=${encodeURIComponent(lot.barcode)}`} className={ui.textLink}>
               Qualità
             </Link>
           ) : null}
         </div>
+        )}
 
         {lot.remaining > 0 ? (
           <LotActions entry={entry} creation={creation} group={members} now={now} busy={busy} perform={perform} error={error} />

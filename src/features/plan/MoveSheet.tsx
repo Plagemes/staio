@@ -43,7 +43,7 @@ export function MoveSheet({ what, from, options, today, onMove, onClose }: Props
         {what} · {slotText(from)}
       </p>
       {options.length === 0 ? (
-        <p className={ui.hint}>In questa settimana non c&apos;è un momento libero. Puoi toglierlo dal piano.</p>
+        <p className={ui.hint}>In questa settimana e nella prossima non c&apos;è un momento libero. Puoi toglierlo dal piano.</p>
       ) : (
         <fieldset className={ui.field}>
           <legend className={ui.fieldLabel}>Dove lo metto</legend>

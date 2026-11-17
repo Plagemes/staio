@@ -83,8 +83,8 @@ export function TodayDiary({ now, date, pantry, log }: Props) {
   );
 
   const missed = useMemo(
-    () => (diary.data && !pastDay && plan.ready ? missedThisWeek({ weekEntries: plan.weekEntries, diary: diary.data, now, timeZone, today }) : []),
-    [diary.data, pastDay, plan.ready, plan.weekEntries, now, timeZone, today],
+    () => (diary.data && !pastDay && plan.ready ? missedThisWeek({ weekEntries: plan.weekEntries, diary: diary.data, now, timeZone, today, adherence: plan.adherence }) : []),
+    [diary.data, pastDay, plan.ready, plan.weekEntries, plan.adherence, now, timeZone, today],
   );
 
   if (!diary.data) return null;
@@ -273,6 +273,8 @@ export function TodayDiary({ now, date, pantry, log }: Props) {
           missed={missed}
           weekStart={plan.weekStart}
           weekEntries={plan.weekEntries}
+          nextWeekStart={plan.nextWeekStart}
+          nextWeekEntries={plan.nextWeekEntries}
           kinds={plan.kinds}
           catalog={plan.catalog}
           diary={diary.data}
