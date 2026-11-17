@@ -1,36 +1,122 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/intestazione-scura.svg">
+  <img src="docs/intestazione-chiara.svg" alt="Staio. Il registro del tuo cibo" width="100%">
+</picture>
 
-## Getting Started
+Staio è un registro di tutto il cibo che entra in casa, viene mangiato o buttato. Scrivi cosa compri e cosa mangi; dispensa, scadenze, nutrienti e spesa si calcolano dal registro.
 
-First, run the development server:
+È una web app da installare sul telefono. I dati restano sul dispositivo e l'app funziona anche senza rete.
+
+**[Apri Staio](https://staio-black.vercel.app)** · **[Apri l'app](https://staio-black.vercel.app/app)** · **[Catalogo dei modelli](https://staio-black.vercel.app/modelli)**
+
+---
+
+## Stato
+
+Il progetto è in costruzione. Questa tabella dice cosa c'è davvero.
+
+| Parte | Stato |
+|---|---|
+| Registro a eventi, dispensa calcolata | Fatto, con revisione indipendente |
+| Scadenze: etichetta, dopo l'apertura, freezer, stime per categoria | Fatto, con revisione indipendente |
+| Unità di misura e conversioni | Fatto |
+| Archivio sul dispositivo, copia ed esportazione dei dati | Fatto |
+| App: Oggi, Dispensa, aggiunta a mano, azioni sugli alimenti | Prima versione |
+| Uso senza rete | Scritto, da provare sui telefoni |
+| Modelli 3D a incisione, 283 alimenti | Fatto, forme da rifinire |
+| Scontrino, codice a barre, foto, voce | Da fare |
+| Nutrienti, piani, meal prep, lista della spesa | Da fare |
+| Ricettario e abbinamenti di gusto | Da fare |
+| Sincronizzazione tra dispositivi | Da fare |
+
+## Com'è
+
+<p>
+  <img src="docs/schermate/dispensa.jpg" alt="La dispensa: cinque alimenti con livello e scadenza stimata" width="31%">
+  &nbsp;
+  <img src="docs/schermate/scheda.jpg" alt="La scheda di un alimento con la sua figura a incisione e le azioni" width="31%">
+</p>
+
+<p>
+  <img src="docs/schermate/vetrina.jpg" alt="Il sito: marchio, motto e lo staio disegnato a incisione" width="64%">
+</p>
+
+Carta e inchiostro, un solo colore d'accento, gerarchia fatta di filetti. Tre caratteri con ruoli netti: con grazie per titoli e cifre grandi, lineare per l'interfaccia, a larghezza fissa per i dati.
+
+## Tre idee
+
+### Un solo registro
+
+Ogni fatto è un evento: comprato, aperto, mangiato, buttato, spostato in freezer. Gli eventi si aggiungono e non si modificano mai; una correzione è un nuovo evento. Dispensa, costi e spreco sono calcolati da lì, quindi non possono contraddirsi.
+
+Unire i registri di due dispositivi dà lo stesso risultato in qualunque ordine. È la proprietà su cui si regge la sincronizzazione, ed è verificata con permutazioni casuali nei test.
+
+### Il dato dice quanto è certo
+
+| Come appare | Cosa significa |
+|---|---|
+| `92 g` | Pesato o letto dall'etichetta |
+| `~6 mg` con sottolineatura a puntini | Stimato |
+| `—` | Non tracciato |
+
+Una scadenza stimata dalla categoria non si presenta come una data stampata. Un giorno senza dati non conta come digiuno.
+
+### Ogni alimento ha la sua figura
+
+<p>
+  <img src="docs/schermate/modelli.jpg" alt="Il catalogo dei modelli: albicocca, anacardo, ananas disegnati a tratto" width="64%">
+</p>
+
+I modelli 3D non sono file: sono ricette di pochi numeri che il telefono trasforma in geometria, anche senza rete. Sette forme di base (solido di rotazione, scatola, sacchetto, forma allungata, foglia, grappolo, fetta) coprono 283 alimenti. Il volume è reso a incisione: tratti a inchiostro che seguono la forma, più fitti dove c'è ombra.
+
+Per un prodotto senza ricetta l'app sceglie una forma adatta alla confezione e alla quantità.
+
+## Come è fatto
+
+| Cartella | Contenuto |
+|---|---|
+| `src/core/ledger` | Registro a eventi, unione tra dispositivi, dispensa calcolata |
+| `src/core/expiry` | Scadenze e tabella delle durate per categoria |
+| `src/core/units` | Unità, conversioni, lettura di quantità scritte a parole |
+| `src/data` | Archivio sul dispositivo (IndexedDB), copia e ripristino |
+| `src/design` | Tema e componenti dell'interfaccia |
+| `src/models3d` | Generatore dei modelli, materiale a incisione, catalogo |
+| `src/features` | Logica e componenti delle schermate |
+| `src/pwa` | Uso senza rete |
+| `src/app` | Pagine: sito, app, catalogo |
+
+`src/core` è logica pura: non dipende da React, dalla rete né dal disco, e ha i suoi test accanto.
+
+Next.js 16, React 19, TypeScript, three.js, Dexie, Vitest. Stili con CSS Modules e variabili di tema.
+
+## Avvio
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| Comando | Cosa fa |
+|---|---|
+| `pnpm test` | Test |
+| `pnpm typecheck` | Controllo dei tipi |
+| `pnpm lint` | Lint |
+| `pnpm build` | Build |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Strada
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **Cattura, dispensa, scadenze.** Aggiunta a mano fatta; scontrino, codice a barre, foto e voce da fare.
+2. **Diario.** Pasti, acqua, peso, umore, integratori.
+3. **Nutrizione e qualità.** Macro e micronutrienti, indice di qualità personale, alternative migliori.
+4. **Piani, meal prep, spesa.** Lista della spesa calcolata da piano, consumi e scorte.
+5. **Ricettario.** Ricette personali, importazione da link e video, abbinamenti di gusto.
+6. **Rete di dati condivisa.** Catalogo comune tra chi usa l'app.
+7. **Analisi.** Fabbisogno reale, andamenti, esperimenti personali.
 
-## Learn More
+## Note
 
-To learn more about Next.js, take a look at the following resources:
+Staio non dà pareri medici: confronta ciò che mangi con valori di riferimento.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Le durate degli alimenti senza data in etichetta sono stime prudenti. Non sostituiscono l'etichetta né il giudizio di chi apre il frigo.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Il codice è pubblico per essere letto. Non ha ancora una licenza, quindi per ora non è riutilizzabile.

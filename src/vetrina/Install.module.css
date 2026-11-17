@@ -1,0 +1,95 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-9);
+  max-width: 32rem;
+}
+
+.status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.lead {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-title-sm);
+  line-height: 1.25;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+  color: var(--color-graphite);
+}
+
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: var(--rule-width) solid var(--color-rule-strong);
+}
+
+.step {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr);
+  align-items: baseline;
+  padding-block: var(--space-6);
+  border-bottom: var(--rule-width) solid var(--color-rule);
+  font-size: var(--text-body);
+  line-height: 1.45;
+}
+
+.stepNo {
+  font-family: var(--font-data);
+  font-size: var(--text-data);
+  color: var(--color-graphite);
+}
+
+.icon {
+  display: inline-block;
+  width: 1.15em;
+  height: 1.15em;
+  margin-inline: 0.15em;
+  vertical-align: -0.2em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.devices {
+  margin: 0;
+  border-top: var(--rule-width) solid var(--color-rule-strong);
+}
+
+.device {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  padding-block: var(--space-6);
+  border-bottom: var(--rule-width) solid var(--color-rule);
+}
+
+.device dd {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: 1.45;
+}
+
+@media (min-width: 40rem) {
+  .device {
+    grid-template-columns: 9rem minmax(0, 1fr);
+    gap: var(--space-8);
+    align-items: baseline;
+  }
+}

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 380" width="1200" height="380" role="img" aria-label="Staio. Il registro del tuo cibo">
+  <rect width="1200" height="380" fill="#101214"/>
+  <g font-family="ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace" font-size="15" letter-spacing="1.6" fill="#A1A6AC">
+    <text x="56" y="62">APP INSTALLABILE</text>
+    <text x="1144" y="62" text-anchor="end">IN COSTRUZIONE</text>
+  </g>
+  <rect x="56" y="82" width="1088" height="1.5" fill="#EDEBE6"/>
+  <text x="50" y="246" font-family="Georgia, 'Times New Roman', serif" font-size="168" letter-spacing="-5" fill="#EDEBE6">Staio<tspan fill="#8CC2A6">.</tspan></text>
+  <text x="58" y="304" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="34" fill="#EDEBE6">Il registro del tuo cibo</text>
+  <rect x="56" y="336" width="1088" height="1" fill="#2A2E33"/>
+  <g font-family="ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace" font-size="15" fill="#A1A6AC" text-anchor="end">
+    <text x="1144" y="216">entra</text>
+    <text x="1144" y="246">resta</text>
+    <text x="1144" y="276">esce</text>
+    <text x="1144" y="306" fill="#EDEBE6"><tspan text-decoration="underline">~stimato</tspan></text>
+  </g>
+</svg>

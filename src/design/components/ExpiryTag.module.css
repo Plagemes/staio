@@ -1,0 +1,41 @@
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--font-data);
+  font-size: var(--text-caption);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.marker {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-round);
+  box-sizing: border-box;
+}
+
+.urgent {
+  color: var(--color-signal);
+}
+
+.urgent .marker {
+  background: var(--color-signal);
+}
+
+.near {
+  color: var(--color-ochre);
+}
+
+.near .marker {
+  border: 1.5px solid var(--color-ochre);
+}
+
+.calm {
+  font-weight: 400;
+  color: var(--color-ink);
+}
+
+.estimated {
+  border-bottom: 1px dotted currentColor;
+}

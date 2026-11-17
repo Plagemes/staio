@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Oggi</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Instrument Sans',system-ui,sans-serif}
+a{color:#14171A;text-decoration:none}a:hover{color:#1E4634}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #F6F5F1; color: #14171A; display: flex; flex-direction: column">
+<div style="padding: 28px 24px 0; display: flex; flex-direction: column; gap: 22px; flex-grow: 1">
+
+<div style="display: flex; justify-content: space-between; align-items: baseline">
+<div style="font-family: 'Instrument Serif', serif; font-size: 28px; letter-spacing: -0.01em; line-height: 1">Madia<span style="color: {{accent}}">.</span></div>
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #5B6168">Lun 16 nov</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 10px">
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #5B6168">Energia di oggi</div>
+<div style="display: flex; align-items: baseline; gap: 10px">
+<div style="font-family: 'Instrument Serif', serif; font-size: 76px; line-height: 0.88; letter-spacing: -0.02em">1.840</div>
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #5B6168">di 2.400 kcal</div>
+</div>
+<div style="height: 2px; background: #DEDCD5"><div style="width: 77%; height: 2px; background: {{accent}}"></div></div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid #14171A; border-bottom: 1px solid #DEDCD5">
+<div style="padding: 12px 0; display: flex; flex-direction: column; gap: 4px">
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #5B6168">Proteine</div>
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 17px; font-weight: 500">92<span style="font-size: 12px; font-weight: 400; color: #5B6168"> / 130 g</span></div>
+</div>
+<div style="padding: 12px 0 12px 14px; border-left: 1px solid #DEDCD5; display: flex; flex-direction: column; gap: 4px">
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #5B6168">Acqua</div>
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 17px; font-weight: 500">1,4<span style="font-size: 12px; font-weight: 400; color: #5B6168"> / 2,5 l</span></div>
+</div>
+<div style="padding: 12px 0 12px 14px; border-left: 1px solid #DEDCD5; display: flex; flex-direction: column; gap: 4px">
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #5B6168">Ferro</div>
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 17px; font-weight: 500"><span style="border-bottom: 1px dotted #14171A">~6</span><span style="font-size: 12px; font-weight: 400; color: #5B6168"> / 10 mg</span></div>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column">
+<div style="display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 6px; border-bottom: 1px solid #14171A">
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #5B6168">Da mangiare prima</div>
+<a href="Dispensa.dc.html" style="font-size: 12px; font-weight: 500; color: {{accent}}">Tutta la dispensa</a>
+</div>
+<div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #DEDCD5">
+<div style="display: flex; flex-direction: column; gap: 2px"><div style="font-size: 15px; font-weight: 500">Petto di pollo</div><div style="font-size: 12px; color: #5B6168">Frigo · 400 g</div></div>
+<div style="display: flex; align-items: center; gap: 7px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500; color: #A8321C"><span style="width: 6px; height: 6px; border-radius: 50%; background: #A8321C"></span>domani</div>
+</div>
+<div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #DEDCD5">
+<div style="display: flex; flex-direction: column; gap: 2px"><div style="font-size: 15px; font-weight: 500">Yogurt greco</div><div style="font-size: 12px; color: #5B6168">Frigo · 2 di 4</div></div>
+<div style="display: flex; align-items: center; gap: 7px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 500; color: #8A5A00"><span style="width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid #8A5A00; box-sizing: border-box"></span>3 giorni</div>
+</div>
+<div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #DEDCD5">
+<div style="display: flex; flex-direction: column; gap: 2px"><div style="font-size: 15px; font-weight: 500">Spinaci freschi</div><div style="font-size: 12px; color: #5B6168">Frigo · <span style="border-bottom: 1px dotted #5B6168">~150 g</span></div></div>
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #14171A"><span style="border-bottom: 1px dotted #14171A">~4 giorni</span></div>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column">
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #5B6168; padding-bottom: 6px; border-bottom: 1px solid #14171A">Registro di oggi</div>
+<div style="display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: baseline; gap: 8px; padding: 9px 0; border-bottom: 1px solid #DEDCD5">
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #5B6168">08:10</div>
+<div style="font-size: 14px">Colazione abituale</div>
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px">420 kcal</div>
+</div>
+<div style="display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: baseline; gap: 8px; padding: 9px 0; border-bottom: 1px solid #DEDCD5">
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #5B6168">13:05</div>
+<div style="font-size: 14px">Pollo, riso, spinaci</div>
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px"><span style="border-bottom: 1px dotted #14171A">~610 kcal</span></div>
+</div>
+<div style="display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: baseline; gap: 8px; padding: 9px 0; border-bottom: 1px solid #DEDCD5">
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: #5B6168">17:40</div>
+<div style="font-size: 14px">Spesa · Conad</div>
+<div style="font-family: 'IBM Plex Mono', monospace; font-size: 13px">38,40 €</div>
+</div>
+</div>
+
+<a href="Dispensa.dc.html" style="display: flex; justify-content: space-between; align-items: center; min-height: 56px; box-sizing: border-box; padding: 10px 14px; border: 1px solid #14171A; border-radius: 10px">
+<span style="display: flex; flex-direction: column; gap: 2px"><span style="font-family: 'Instrument Serif', serif; font-size: 20px; line-height: 1.1">Cosa cucino stasera</span><span style="font-size: 12px; color: #5B6168">Tre proposte con il pollo che scade domani</span></span>
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+</a>
+
+</div>
+
+<nav aria-label="Aree" style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: center; height: 84px; box-sizing: border-box; padding: 0 8px; border-top: 1px solid #DEDCD5; background: #F6F5F1">
+<a href="Main.dc.html" aria-current="page" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 48px; font-size: 11px; font-weight: 600; color: #14171A">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"></path></svg>Oggi</a>
+<a href="Dispensa.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 48px; font-size: 11px; font-weight: 500; color: #5B6168">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="1.5"></rect><path d="M4 9.5h16"></path><path d="M4 15.5h16"></path></svg>Dispensa</a>
+<button aria-label="Cattura" style="justify-self: center; width: 56px; height: 56px; border-radius: 50%; border: none; background: #14171A; color: #F6F5F1; display: flex; align-items: center; justify-content: center; cursor: pointer">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"></path><circle cx="12" cy="13" r="3.5"></circle></svg>
+</button>
+<a href="Main.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 48px; font-size: 11px; font-weight: 500; color: #5B6168">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="1.5"></rect><path d="M4 10h16"></path><path d="M8 3v4"></path><path d="M16 3v4"></path></svg>Piano</a>
+<a href="Salute.dc.html" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 48px; font-size: 11px; font-weight: 500; color: #5B6168">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"></path></svg>Salute</a>
+</nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#1E4634","options":["#1E4634","#1F3A5F","#6B1F2A"]},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return { accent: this.props.accent ?? '#1E4634' };
+}
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,436 @@
+<title>Tavola a incisione</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: una tavola da libro. Colonna unica stretta, scena al centro, didascalia a registro sotto. */
+:root {
+  --paper: #F6F5F1;
+  --ink: #14171A;
+  --mute: #5B6168;
+  --rule: #DEDCD5;
+  --accent: #1E4634;
+  --signal: #A8321C;
+  --serif: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --sans: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --paper: #101214; --ink: #EDEBE6; --mute: #A1A6AC; --rule: #2A2E33; --accent: #8CC2A6; --signal: #E8826B; color-scheme: dark }
+}
+:root[data-theme="dark"] { --paper: #101214; --ink: #EDEBE6; --mute: #A1A6AC; --rule: #2A2E33; --accent: #8CC2A6; --signal: #E8826B; color-scheme: dark }
+
+[hidden] { display: none !important }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px;
+}
+.plate { max-width: 560px; margin-inline: auto; display: flex; flex-direction: column; gap: 20px }
+.head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--ink) }
+.mark { font-family: var(--serif); font-size: 28px; line-height: 1; letter-spacing: -0.01em }
+.mark span { color: var(--accent) }
+.label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--mute) }
+
+.stage { position: relative; width: 100%; max-width: 100%; aspect-ratio: 1 / 1 }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: pan-y; cursor: grab }
+.stage canvas:active { cursor: grabbing }
+.fallback { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; color: var(--mute) }
+
+.caption { display: flex; flex-direction: column; gap: 14px }
+.caption h1 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: 44px; line-height: 1; letter-spacing: -0.015em; text-wrap: balance }
+.figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--rule) }
+.figures div { min-width: 0; padding: 12px 0; display: flex; flex-direction: column; gap: 4px }
+.figures div + div { padding-left: 14px; border-left: 1px solid var(--rule) }
+.figures dt { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--mute) }
+.figures dd { margin: 0; font-family: var(--mono); font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums }
+.figures .est { border-bottom: 1px dotted var(--ink) }
+.figures .sig { color: var(--signal) }
+
+.controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px }
+.tabs { display: flex; flex-wrap: wrap; gap: 0 22px }
+.tabs button { min-height: 44px; padding: 0; border: none; border-bottom: 2px solid transparent; background: none; font: inherit; font-size: 14px; font-weight: 500; color: var(--mute); cursor: pointer }
+.tabs button[aria-pressed="true"] { border-bottom-color: var(--ink); color: var(--ink); font-weight: 600 }
+.knobs { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px }
+.knobs label { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 13px; color: var(--mute) }
+.knobs input[type="range"] { width: 120px; accent-color: var(--ink) }
+.knobs input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--ink) }
+.hint { margin: 0; font-size: 13px; color: var(--mute) }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px }
+</style>
+
+<main class="plate">
+  <div class="head">
+    <div class="mark">Madia<span>.</span></div>
+    <div class="label" id="tavola">Tavola I</div>
+  </div>
+
+  <div class="stage">
+    <canvas id="scena" aria-label="Modello tridimensionale reso a incisione, ruotabile"></canvas>
+    <div class="fallback" id="ripiego" hidden>Questo dispositivo non mostra la scena in 3D. Nell'app qui comparirebbe la stessa tavola come immagine.</div>
+  </div>
+
+  <div class="caption">
+    <h1 id="nome">Pera Abate</h1>
+    <dl class="figures" id="campi"></dl>
+  </div>
+
+  <div class="controls">
+    <div class="tabs" role="group" aria-label="Soggetto">
+      <button type="button" id="s-pera" data-s="pera" aria-pressed="true">Pera</button>
+      <button type="button" id="s-limone" data-s="limone" aria-pressed="false">Limone</button>
+      <button type="button" id="s-uovo" data-s="uovo" aria-pressed="false">Uovo</button>
+      <button type="button" id="s-frigo" data-s="frigo" aria-pressed="false">Frigo</button>
+    </div>
+    <div class="knobs">
+      <label for="fitta">Tratto <input type="range" id="fitta" min="0.6" max="1.6" step="0.05" value="1"></label>
+      <label for="ruota"><input type="checkbox" id="ruota" checked> Rotazione</label>
+    </div>
+  </div>
+  <p class="hint" id="nota">Trascina la figura per girarla. Le ombre sono fatte di tratti, come in una stampa.</p>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  var canvas = document.getElementById('scena');
+  var stage = canvas.parentElement;
+  var ripiego = document.getElementById('ripiego');
+  function mostraRipiego() { canvas.hidden = true; ripiego.hidden = false; }
+
+  if (typeof THREE === 'undefined') { mostraRipiego(); return; }
+  var renderer;
+  try { renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true }); }
+  catch (e) { mostraRipiego(); return; }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setClearColor(0x000000, 0);
+
+  var scene = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
+  camera.position.set(0, 0.95, 6.6);
+  camera.lookAt(0, 0.05, 0);
+
+  var shared = {
+    uInk: { value: new THREE.Color('#14171A') },
+    uSignal: { value: new THREE.Color('#A8321C') },
+    uPaper: { value: new THREE.Color('#F6F5F1') },
+    uLight: { value: new THREE.Vector3(-0.55, 0.65, 0.55).normalize() },
+    uDensity: { value: 1 }
+  };
+
+  var VERT = [
+    'varying vec3 vN; varying vec3 vV; varying vec2 vUv;',
+    'void main(){',
+    '  vUv = uv;',
+    '  vec4 mv = modelViewMatrix * vec4(position, 1.0);',
+    '  vN = normalize(normalMatrix * normal);',
+    '  vV = normalize(-mv.xyz);',
+    '  gl_Position = projectionMatrix * mv;',
+    '}'
+  ].join('\n');
+
+  var HATCH = [
+    'float hatch(float coord, float w){',
+    '  float d = fwidth(coord);',
+    '  float dist = abs(fract(coord) - 0.5);',
+    '  float a = 1.0 - smoothstep(w * 0.5 - d, w * 0.5 + d, dist);',
+    '  a = mix(a, w, smoothstep(0.35, 0.7, d));',
+    '  return a * smoothstep(0.0, 0.04, w);',
+    '}'
+  ].join('\n');
+
+  var FRAG = [
+    'uniform vec3 uInk; uniform vec3 uPaper; uniform vec3 uLight; uniform float uDensity; uniform vec2 uScale;',
+    'varying vec3 vN; varying vec3 vV; varying vec2 vUv;',
+    HATCH,
+    'void main(){',
+    '  vec3 n = normalize(vN);',
+    '  if (!gl_FrontFacing) n = -n;',
+    '  float lum = clamp(dot(n, uLight) * 0.6 + 0.45, 0.0, 1.0);',
+    '  float fres = 1.0 - clamp(dot(n, normalize(vV)), 0.0, 1.0);',
+    '  float tone = clamp(1.0 - lum + pow(fres, 3.0) * 0.35, 0.0, 1.0);',
+    '  float w1 = smoothstep(0.12, 0.85, tone) * 0.78;',
+    '  float w2 = smoothstep(0.5, 1.0, tone) * 0.6;',
+    '  float a = hatch(vUv.y * uScale.y * uDensity, w1);',
+    '  float b = hatch((vUv.x * uScale.x + vUv.y * uScale.y * 0.35) * uDensity, w2);',
+    '  gl_FragColor = vec4(mix(uPaper, uInk, max(a, b)), 1.0);',
+    '}'
+  ].join('\n');
+
+  function engrave(sx, sy, opts) {
+    opts = opts || {};
+    return new THREE.ShaderMaterial({
+      uniforms: { uInk: opts.sig ? shared.uSignal : shared.uInk, uPaper: shared.uPaper, uLight: shared.uLight, uDensity: shared.uDensity, uScale: { value: new THREE.Vector2(sx, sy) } },
+      vertexShader: VERT, fragmentShader: FRAG,
+      side: opts.doppio ? THREE.DoubleSide : THREE.FrontSide,
+      extensions: { derivatives: true }
+    });
+  }
+
+  function outline(width) {
+    return new THREE.ShaderMaterial({
+      uniforms: { uInk: shared.uInk, uWidth: { value: width } },
+      vertexShader: 'uniform float uWidth; void main(){ gl_Position = projectionMatrix * modelViewMatrix * vec4(position + normal * uWidth, 1.0); }',
+      fragmentShader: 'uniform vec3 uInk; void main(){ gl_FragColor = vec4(uInk, 1.0); }',
+      side: THREE.BackSide
+    });
+  }
+
+  var linee = [];
+  function linea(sig) {
+    var m = new THREE.LineBasicMaterial({ color: 0x14171A });
+    m.userData.sig = !!sig;
+    linee.push(m);
+    return m;
+  }
+
+  function lathe(pts) {
+    var curve = new THREE.SplineCurve(pts.map(function (p) { return new THREE.Vector2(p[0], p[1]); }));
+    var sp = curve.getSpacedPoints(90).map(function (p) { return new THREE.Vector2(Math.max(p.x, 0.0001), p.y); });
+    return new THREE.LatheGeometry(sp, 96);
+  }
+
+  function tondo(geo, sx, sy, bordo) {
+    var g = new THREE.Group();
+    g.add(new THREE.Mesh(geo, engrave(sx, sy)));
+    g.add(new THREE.Mesh(geo, outline(bordo)));
+    return g;
+  }
+
+  function scatola(w, h, d, x, y, z, sig) {
+    var geo = new THREE.BoxGeometry(w, h, d);
+    var m = new THREE.Mesh(geo, engrave(Math.max(2, w * 16), Math.max(2, h * 16), { sig: sig }));
+    m.position.set(x, y, z);
+    m.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), linea(sig)));
+    return m;
+  }
+
+  var NOTA_FRUTTO = 'Trascina la figura per girarla. Le ombre sono fatte di tratti, come in una stampa.';
+  var DATI = {
+    pera: {
+      tavola: 'Tavola I', nome: 'Pera Abate', nota: NOTA_FRUTTO,
+      campi: [['Peso', '180 g'], ['Energia', '~104 kcal', 'est'], ['Stagione', 'ago – ott']],
+      pts: [[0, -1.0], [0.34, -0.99], [0.62, -0.82], [0.76, -0.5], [0.72, -0.14], [0.54, 0.2], [0.37, 0.5], [0.29, 0.74], [0.2, 0.92], [0, 1.0]],
+      rotZ: 0.1, lift: 0.02, picciolo: true
+    },
+    limone: {
+      tavola: 'Tavola II', nome: 'Limone di Sorrento', nota: NOTA_FRUTTO,
+      campi: [['Peso', '120 g'], ['Energia', '~35 kcal', 'est'], ['Stagione', 'nov – mag']],
+      pts: [[0, -1.02], [0.07, -0.98], [0.16, -0.9], [0.46, -0.62], [0.64, -0.22], [0.64, 0.22], [0.46, 0.62], [0.16, 0.9], [0.07, 0.98], [0, 1.02]],
+      rotZ: Math.PI / 2 - 0.2, lift: -0.3, picciolo: false
+    },
+    uovo: {
+      tavola: 'Tavola III', nome: 'Uovo di gallina', nota: NOTA_FRUTTO,
+      campi: [['Peso', '60 g'], ['Energia', '~86 kcal', 'est'], ['Stagione', 'tutto l’anno']],
+      pts: [[0, -0.86], [0.36, -0.8], [0.6, -0.5], [0.68, -0.1], [0.6, 0.32], [0.42, 0.64], [0.2, 0.84], [0, 0.9]],
+      rotZ: 1.15, lift: -0.32, picciolo: false
+    },
+    frigo: {
+      tavola: 'Tavola IV', nome: 'Frigo',
+      nota: 'Il vassoio in rosso è il pollo che scade domani: il frigo diventa la mappa di ciò che va mangiato prima.',
+      campi: [['Voci', '14'], ['In scadenza', '1', 'sig'], ['Certezza', '81%']]
+    }
+  };
+
+  function costruisciFrutto(d) {
+    var corpo = new THREE.Group();
+    corpo.rotation.z = d.rotZ;
+    corpo.position.y = d.lift;
+    var geo = lathe(d.pts);
+    corpo.add(tondo(geo, 64, 44, 0.02));
+    if (d.picciolo) {
+      var curva = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0, 0.96, 0), new THREE.Vector3(0.03, 1.15, 0), new THREE.Vector3(0.13, 1.36, 0.02)
+      ]);
+      corpo.add(tondo(new THREE.TubeGeometry(curva, 20, 0.034, 10, false), 10, 6, 0.012));
+      var forma = new THREE.Shape();
+      forma.moveTo(0, 0);
+      forma.quadraticCurveTo(0.3, 0.17, 0.66, 0.02);
+      forma.quadraticCurveTo(0.3, -0.15, 0, 0);
+      var foglia = new THREE.Group();
+      foglia.add(new THREE.Mesh(new THREE.ShapeGeometry(forma, 24), engrave(30, 64, { doppio: true })));
+      foglia.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(forma.getPoints(24)), linea()));
+      foglia.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0.001), new THREE.Vector3(0.62, 0.02, 0.001)]), linea()));
+      foglia.position.set(0.05, 1.18, 0);
+      foglia.rotation.set(0.5, 0.35, 0.55);
+      corpo.add(foglia);
+    }
+    return corpo;
+  }
+
+  function costruisciFrigo() {
+    var W = 1.3, H = 2.2, D = 0.9, t = 0.06;
+    var f = new THREE.Group();
+    f.add(scatola(W, H, t, 0, H / 2, -D / 2 + t / 2));
+    f.add(scatola(t, H, D, -W / 2 + t / 2, H / 2, 0));
+    f.add(scatola(t, H, D, W / 2 - t / 2, H / 2, 0));
+    f.add(scatola(W, t, D, 0, H - t / 2, 0));
+    f.add(scatola(W, t, D, 0, t / 2, 0));
+    [0.66, 1.14, 1.62].forEach(function (y) { f.add(scatola(W - 2 * t, 0.03, D - 0.14, 0, y, 0)); });
+    f.add(scatola(W - 2 * t - 0.06, 0.36, D - 0.22, 0, 0.27, 0.03));
+
+    var porta = new THREE.Group();
+    porta.position.set(-W / 2, 0, D / 2);
+    porta.rotation.y = -1.95;
+    porta.add(scatola(W, H, t, W / 2, H / 2, t / 2));
+    porta.add(scatola(W - 0.24, 0.04, 0.16, W / 2, 0.6, -0.08));
+    porta.add(scatola(W - 0.24, 0.04, 0.16, W / 2, 1.3, -0.08));
+    var bottiglia = tondo(lathe([[0, 0], [0.1, 0], [0.11, 0.16], [0.1, 0.3], [0.05, 0.4], [0.05, 0.5], [0, 0.5]]), 18, 16, 0.012);
+    bottiglia.position.set(W / 2 - 0.2, 0.62, -0.08);
+    porta.add(bottiglia);
+    f.add(porta);
+
+    var uovoGeo = lathe(DATI.uovo.pts);
+    [-0.36, -0.18, 0].forEach(function (x) {
+      var u = tondo(uovoGeo, 16, 10, 0.1);
+      u.scale.setScalar(0.1);
+      u.position.set(x, 1.635 + 0.086, 0.08);
+      f.add(u);
+    });
+    [0.26, 0.44].forEach(function (x) {
+      var v = tondo(new THREE.CylinderGeometry(0.07, 0.06, 0.15, 24), 12, 5, 0.01);
+      v.position.set(x, 1.635 + 0.075, 0.08);
+      f.add(v);
+    });
+    var barattolo = tondo(new THREE.CylinderGeometry(0.1, 0.1, 0.26, 24), 14, 8, 0.01);
+    barattolo.position.set(0.32, 1.155 + 0.13, 0.05);
+    f.add(barattolo);
+    var pera = tondo(lathe(DATI.pera.pts), 28, 18, 0.06);
+    pera.scale.setScalar(0.2);
+    pera.position.set(-0.28, 1.155 + 0.2, 0.08);
+    f.add(pera);
+    f.add(scatola(0.44, 0.1, 0.3, -0.18, 0.675 + 0.05, 0.1, true));
+
+    f.scale.setScalar(0.86);
+    f.position.set(0.22, -1.0, 0);
+    return f;
+  }
+
+  var pivot = new THREE.Group();
+  scene.add(pivot);
+  var gruppi = {};
+  Object.keys(DATI).forEach(function (k) {
+    var g = new THREE.Group();
+    g.add(k === 'frigo' ? costruisciFrigo() : costruisciFrutto(DATI[k]));
+    g.visible = false;
+    pivot.add(g);
+    gruppi[k] = g;
+  });
+
+  var ombra = new THREE.Mesh(
+    new THREE.PlaneGeometry(3.8, 3.8),
+    new THREE.ShaderMaterial({
+      uniforms: { uInk: shared.uInk, uDensity: shared.uDensity },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: [
+        'uniform vec3 uInk; uniform float uDensity; varying vec2 vUv;',
+        HATCH,
+        'void main(){',
+        '  vec2 p = (vUv - 0.5) * vec2(2.0, 3.0);',
+        '  float w = (1.0 - smoothstep(0.12, 0.72, length(p))) * 0.5;',
+        '  gl_FragColor = vec4(uInk, hatch((vUv.x + vUv.y) * 46.0 * uDensity, w));',
+        '}'
+      ].join('\n'),
+      transparent: true, depthWrite: false, extensions: { derivatives: true }
+    })
+  );
+  ombra.rotation.x = -Math.PI / 2;
+  ombra.position.set(0.3, -1.0, 0);
+  scene.add(ombra);
+
+  var campi = document.getElementById('campi');
+  function scegli(k) {
+    Object.keys(gruppi).forEach(function (n) { gruppi[n].visible = (n === k); });
+    var d = DATI[k];
+    document.getElementById('tavola').textContent = d.tavola;
+    document.getElementById('nome').textContent = d.nome;
+    document.getElementById('nota').textContent = d.nota;
+    campi.textContent = '';
+    d.campi.forEach(function (c) {
+      var riga = document.createElement('div');
+      var dt = document.createElement('dt');
+      var dd = document.createElement('dd');
+      var val = document.createElement('span');
+      dt.textContent = c[0];
+      val.textContent = c[1];
+      if (c[2]) val.className = c[2];
+      dd.appendChild(val);
+      riga.appendChild(dt);
+      riga.appendChild(dd);
+      campi.appendChild(riga);
+    });
+    document.querySelectorAll('.tabs button').forEach(function (b) {
+      b.setAttribute('aria-pressed', b.dataset.s === k ? 'true' : 'false');
+    });
+    pivot.rotation.set(0, -0.5, 0);
+  }
+  document.querySelectorAll('.tabs button').forEach(function (b) {
+    b.addEventListener('click', function () { scegli(b.dataset.s); });
+  });
+  scegli('pera');
+
+  var fitta = document.getElementById('fitta');
+  fitta.addEventListener('input', function () { shared.uDensity.value = parseFloat(fitta.value) || 1; });
+
+  var ruota = document.getElementById('ruota');
+  var calmo = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (calmo) ruota.checked = false;
+
+  function leggiTema() {
+    var cs = getComputedStyle(document.documentElement);
+    var ink = cs.getPropertyValue('--ink').trim();
+    var paper = cs.getPropertyValue('--paper').trim();
+    var signal = cs.getPropertyValue('--signal').trim();
+    if (ink) shared.uInk.value.set(ink);
+    if (paper) shared.uPaper.value.set(paper);
+    if (signal) shared.uSignal.value.set(signal);
+    linee.forEach(function (m) { m.color.copy(m.userData.sig ? shared.uSignal.value : shared.uInk.value); });
+  }
+  leggiTema();
+  new MutationObserver(leggiTema).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', leggiTema);
+  }
+
+  function misura() {
+    var w = stage.clientWidth, h = stage.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  misura();
+  if (window.ResizeObserver) new ResizeObserver(misura).observe(stage);
+  else window.addEventListener('resize', misura);
+
+  var trascina = false, ultimoX = 0, ultimoY = 0;
+  canvas.addEventListener('pointerdown', function (e) {
+    trascina = true; ultimoX = e.clientX; ultimoY = e.clientY;
+    if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    if (!trascina) return;
+    pivot.rotation.y += (e.clientX - ultimoX) * 0.01;
+    pivot.rotation.x = Math.max(-0.35, Math.min(0.35, pivot.rotation.x + (e.clientY - ultimoY) * 0.004));
+    ultimoX = e.clientX; ultimoY = e.clientY;
+  });
+  function rilascia() { trascina = false; }
+  canvas.addEventListener('pointerup', rilascia);
+  canvas.addEventListener('pointercancel', rilascia);
+
+  var prima = performance.now();
+  function passo(ora) {
+    var dt = Math.min((ora - prima) / 1000, 0.05);
+    prima = ora;
+    if (ruota.checked && !trascina) pivot.rotation.y += dt * 0.35;
+    renderer.render(scene, camera);
+    requestAnimationFrame(passo);
+  }
+  requestAnimationFrame(passo);
+})();
+</script>

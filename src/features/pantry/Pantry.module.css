@@ -1,0 +1,27 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  position: relative;
+}
+
+/* Il pulsante copre tutta la riga: il bersaglio è largo quanto lo schermo e la riga resta leggibile. */
+.open {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.open:hover {
+  background: color-mix(in srgb, var(--color-ink) 4%, transparent);
+}
+

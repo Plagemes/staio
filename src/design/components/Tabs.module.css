@@ -1,0 +1,24 @@
+.list {
+  display: flex;
+  gap: var(--space-10);
+  border-bottom: var(--rule-width) solid var(--color-rule);
+}
+
+.tab {
+  min-height: var(--tap-min);
+  padding: 0;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font: inherit;
+  font-size: var(--text-body-sm);
+  font-weight: 500;
+  color: var(--color-graphite);
+  cursor: pointer;
+}
+
+.selected {
+  border-bottom-color: var(--color-ink);
+  font-weight: 600;
+  color: var(--color-ink);
+}

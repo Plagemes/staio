@@ -1,0 +1,5 @@
+.noDate {
+  font-family: var(--font-data);
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+}

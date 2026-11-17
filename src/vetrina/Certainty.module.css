@@ -1,0 +1,23 @@
+.explain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.explain p {
+  margin: 0;
+  font-size: var(--text-figure);
+  line-height: 1.5;
+}
+
+.explain p:last-child {
+  font-family: var(--font-display);
+  font-size: var(--text-title-sm);
+  line-height: 1.25;
+}
+
+.example {
+  display: flex;
+  flex-direction: column;
+  max-width: 32rem;
+}

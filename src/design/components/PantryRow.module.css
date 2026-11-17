@@ -1,0 +1,35 @@
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-6);
+  padding-block: var(--space-5);
+  border-bottom: var(--rule-width) solid var(--color-rule);
+}
+
+.withBar {
+  grid-template-columns: minmax(0, 1fr) 52px 84px;
+  padding-block: 11px;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.name {
+  font-size: var(--text-body);
+  font-weight: 500;
+}
+
+.detail {
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+}
+
+.expiry {
+  display: flex;
+  justify-content: flex-end;
+}

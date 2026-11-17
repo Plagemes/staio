@@ -1,0 +1,22 @@
+.value {
+  font-family: var(--font-data);
+}
+
+.estimated {
+  border-bottom: 1px dotted currentColor;
+}
+
+.untracked {
+  color: var(--color-graphite);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

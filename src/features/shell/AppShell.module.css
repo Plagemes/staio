@@ -1,0 +1,30 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  max-width: var(--column-max);
+  min-height: 100dvh;
+  margin-inline: auto;
+}
+
+.offline {
+  margin: 0;
+  padding: var(--space-4) var(--gutter);
+  border-bottom: var(--rule-width) solid var(--color-rule);
+  background: var(--color-surface);
+  font-family: var(--font-data);
+  font-size: var(--text-caption);
+  text-align: center;
+  color: var(--color-graphite);
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-12) var(--gutter) var(--space-11);
+}
+
+.nav {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+}

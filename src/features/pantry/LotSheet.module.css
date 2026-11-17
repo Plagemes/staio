@@ -1,0 +1,162 @@
+.sheet {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--column-max);
+  max-height: 92dvh;
+  margin: auto auto 0;
+  padding: 0;
+  border: none;
+  border-top: var(--rule-width) solid var(--color-rule-strong);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.sheet::backdrop {
+  background: color-mix(in srgb, var(--color-ink) 45%, transparent);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-9);
+  padding: var(--space-4) var(--gutter) calc(var(--space-11) + env(safe-area-inset-bottom, 0px));
+}
+
+.grip {
+  align-self: center;
+  width: 36px;
+  height: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--color-rule);
+}
+
+.top {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-7);
+}
+
+.figure {
+  width: 112px;
+}
+
+.heading {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-title);
+  line-height: 1.05;
+  letter-spacing: var(--tracking-title);
+  overflow-wrap: anywhere;
+}
+
+.sub {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+}
+
+.closeButton {
+  align-self: start;
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+  padding: 0 var(--space-4);
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.data {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  border-top: var(--rule-width) solid var(--color-rule-strong);
+}
+
+.dataRow {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: baseline;
+  padding-block: var(--space-5);
+  border-bottom: var(--rule-width) solid var(--color-rule);
+}
+
+.dataRow dt,
+.dataRow dd {
+  margin: 0;
+}
+
+.dataRow dd {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  font-size: var(--text-body-sm);
+  line-height: 1.4;
+}
+
+.muted {
+  color: var(--color-graphite);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+}
+
+.menu {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+
+.menu > :first-child {
+  grid-column: 1 / -1;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+.formTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-title-sm);
+}
+
+.inline {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.inline > input {
+  flex: 1;
+  min-width: 0;
+}
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}

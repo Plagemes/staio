@@ -1,0 +1,21 @@
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.suggestion {
+  min-height: var(--tap-min);
+  padding: 0 var(--space-7);
+  border: var(--rule-width) solid var(--color-rule);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--text-body-sm);
+  cursor: pointer;
+}
+
+.suggestion:hover {
+  background: var(--color-surface);
+}

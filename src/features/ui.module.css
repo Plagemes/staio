@@ -1,0 +1,295 @@
+/* Pezzi comuni alle schermate: intestazioni, campi, avvisi. Solo variabili di tema. */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-6);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-heading);
+  line-height: 1;
+  letter-spacing: var(--tracking-title);
+}
+
+.lead {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: 1.45;
+  color: var(--color-graphite);
+}
+
+.paragraph {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  line-height: 1.5;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-6);
+  padding: var(--space-8) 0;
+  border-bottom: var(--rule-width) solid var(--color-rule);
+}
+
+.emptyTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-title-sm);
+  line-height: 1.1;
+}
+
+.emptyText {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+  color: var(--color-graphite);
+}
+
+.callout {
+  padding: var(--space-6) var(--space-7);
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+}
+
+.calloutStrong {
+  composes: callout;
+  border-color: var(--color-signal);
+}
+
+/* Campi del modulo */
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-9);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.fieldLabel {
+  font-size: var(--text-body-sm);
+  font-weight: 500;
+}
+
+.optional {
+  font-weight: 400;
+  color: var(--color-graphite);
+}
+
+.input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 var(--space-7);
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 1rem;
+}
+
+select.input {
+  appearance: auto;
+}
+
+.input[aria-invalid="true"] {
+  border-color: var(--color-signal);
+}
+
+.input:disabled {
+  opacity: 0.5;
+}
+
+.hint {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: 1.4;
+  color: var(--color-graphite);
+}
+
+.error {
+  margin: 0;
+  font-size: var(--text-caption);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--color-signal);
+}
+
+/* Scelta tra poche voci: veri radio, disegnati come pulsanti */
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.choice {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+
+.choice input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.choice span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-min);
+  padding: 0 var(--space-8);
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-body-sm);
+  font-weight: 500;
+  color: var(--color-ink);
+  text-align: center;
+}
+
+.choice input:checked + span {
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+  color: var(--color-on-ink);
+  font-weight: 600;
+}
+
+.choice input:focus-visible + span {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.choice input:disabled + span {
+  opacity: 0.45;
+}
+
+/* Interruttore: casella vera con ruolo switch */
+
+.switch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-7);
+  min-height: var(--tap-min);
+  cursor: pointer;
+}
+
+.switch input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.switchText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-body-sm);
+  font-weight: 500;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+/* Pulsante per le azioni che non si annullano: stesso disegno del contorno, nel colore segnale */
+.danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding-inline: 20px;
+  border: var(--rule-width) solid var(--color-signal);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-signal);
+  font: inherit;
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.danger:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dangerSolid {
+  composes: danger;
+  background: var(--color-signal);
+  color: var(--color-paper);
+}
+
+.textLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.textLink:hover {
+  text-decoration: underline;
+}
+
+.bullets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding-left: var(--space-9);
+}

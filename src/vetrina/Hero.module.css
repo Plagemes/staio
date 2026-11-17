@@ -1,0 +1,132 @@
+.hero {
+  padding-bottom: var(--space-12);
+}
+
+.bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-8);
+  padding-block: var(--space-8);
+  border-bottom: var(--rule-width) solid var(--color-rule-strong);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "head"
+    "body"
+    "plate";
+  gap: var(--space-11);
+  padding-top: var(--space-11);
+}
+
+.head {
+  grid-area: head;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.title {
+  margin: 0;
+  font-weight: 400;
+}
+
+.tagline {
+  margin: 0;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: var(--text-figure-md);
+  line-height: 1.1;
+}
+
+.plate {
+  grid-area: plate;
+  min-width: 0;
+  max-width: 26rem;
+}
+
+.body {
+  grid-area: body;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-9);
+  min-width: 0;
+}
+
+.lede {
+  margin: 0;
+  max-width: 22em;
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  line-height: 1.12;
+  letter-spacing: var(--tracking-title);
+  text-wrap: balance;
+}
+
+.text {
+  margin: 0;
+  font-size: var(--text-figure);
+  line-height: 1.5;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  padding-top: var(--space-4);
+}
+
+@media (min-width: 40rem) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 18rem);
+    grid-template-areas:
+      "head plate"
+      "body plate";
+    grid-template-rows: auto 1fr;
+    column-gap: var(--space-12);
+    row-gap: var(--space-11);
+    padding-top: var(--space-12);
+  }
+
+  .title > span {
+    font-size: calc(var(--text-display) * 1.2);
+  }
+
+  .tagline {
+    font-size: var(--text-title-sm);
+  }
+
+  .plate {
+    align-self: start;
+  }
+}
+
+@media (min-width: 56rem) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
+    column-gap: calc(var(--space-12) * 2);
+    padding-top: calc(var(--space-12) * 1.5);
+  }
+
+  .title > span {
+    font-size: calc(var(--text-display) * 1.6);
+  }
+
+  .tagline {
+    font-size: var(--text-title);
+  }
+}
+
+@media (min-width: 72rem) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 26rem);
+  }
+
+  .lede {
+    font-size: var(--text-heading);
+    line-height: 1.05;
+  }
+}

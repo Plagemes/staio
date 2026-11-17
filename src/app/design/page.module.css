@@ -1,0 +1,111 @@
+.column {
+  max-width: var(--column-max);
+  margin-inline: auto;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  padding: var(--space-12) var(--gutter) var(--space-11);
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.energy {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-5);
+}
+
+.bigNumber {
+  font-family: var(--font-display);
+  font-size: var(--text-display);
+  line-height: 0.88;
+  letter-spacing: var(--tracking-display);
+}
+
+.energyOf {
+  font-family: var(--font-data);
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.catalog {
+  padding: var(--space-11) var(--gutter);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+  border-top: var(--rule-width) solid var(--color-rule-strong);
+}
+
+.catalogTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-heading);
+  line-height: 1;
+  letter-spacing: var(--tracking-title);
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.itemName {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-title-sm);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.certaintyRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-block: var(--space-3);
+  border-bottom: var(--rule-width) solid var(--color-rule);
+  font-family: var(--font-data);
+  font-size: var(--text-figure);
+  font-weight: 500;
+}
+
+.note {
+  font-family: var(--font-ui);
+  font-size: var(--text-caption);
+  font-weight: 400;
+  color: var(--color-graphite);
+}
+
+.bottom {
+  position: sticky;
+  bottom: 0;
+  margin-top: auto;
+}

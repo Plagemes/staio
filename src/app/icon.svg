@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <style>
+    .paper { fill: #f6f5f1; }
+    .ink { fill: none; stroke: #14171a; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+    .thin { stroke-width: 1.5; }
+    .grain { fill: #1e4634; stroke: none; }
+    @media (prefers-color-scheme: dark) {
+      .paper { fill: #101214; }
+      .ink { stroke: #edebe6; }
+      .grain { fill: #8cc2a6; }
+    }
+  </style>
+  <rect class="paper" width="64" height="64"/>
+  <g transform="translate(0 -3.5)">
+    <path class="ink" d="M19 26C21 16 43 16 45 26"/>
+    <circle class="grain" cx="27.5" cy="23" r="1.3"/>
+    <circle class="grain" cx="33" cy="21.6" r="1.3"/>
+    <circle class="grain" cx="38" cy="23.4" r="1.3"/>
+    <path class="ink" d="M17 26A15 4.6 0 0 0 47 26"/>
+    <path class="ink" d="M17 26V48M47 26V48"/>
+    <path class="ink" d="M17 48A15 4.6 0 0 0 47 48"/>
+    <path class="ink" d="M17 33A15 4.6 0 0 0 47 33"/>
+    <path class="ink" d="M17 41.5A15 4.6 0 0 0 47 41.5"/>
+    <path class="ink thin" d="M25.5 30.2V36.3M38.5 30.2V36.3M25.5 38.6V45M38.5 38.6V45M25.5 47V51.8M38.5 47V51.8"/>
+  </g>
+</svg>

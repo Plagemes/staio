@@ -1,0 +1,64 @@
+.intro {
+  margin: 0;
+  font-size: var(--text-figure);
+  line-height: 1.5;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  grid-template-areas:
+    "mark name"
+    ". text";
+  column-gap: var(--space-4);
+  row-gap: var(--space-2);
+  padding-block: var(--space-7);
+  border-bottom: var(--rule-width) solid var(--color-rule);
+}
+
+.mark {
+  grid-area: mark;
+  font-family: var(--font-data);
+  font-size: var(--text-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-graphite);
+  line-height: 1.9;
+}
+
+.name {
+  grid-area: name;
+  font-size: var(--text-body);
+  font-weight: 500;
+}
+
+.text {
+  grid-area: text;
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+  color: var(--color-graphite);
+}
+
+@media (min-width: 40rem) {
+  .row {
+    grid-template-columns: 4.5rem minmax(0, 1fr) minmax(0, 1.4fr);
+    grid-template-areas: "mark name text";
+    align-items: baseline;
+    column-gap: var(--space-8);
+  }
+
+  .mark {
+    line-height: 1.4;
+  }
+}

@@ -1,0 +1,110 @@
+/* Tema "Registro premium". Unico posto in cui compaiono colori e caratteri letterali. */
+
+:root {
+  color-scheme: light;
+
+  /* Colori */
+  --color-paper: #f6f5f1;
+  --color-surface: #fbfaf7;
+  --color-ink: #14171a;
+  --color-graphite: #5b6168;
+  --color-rule: #dedcd5;
+  --color-rule-strong: #14171a;
+  --color-control-border: #14171a;
+  --color-accent: #1e4634;
+  --color-signal: #a8321c;
+  --color-ochre: #8a5a00;
+  --color-on-ink: #f6f5f1;
+  --color-bar-track: #dedcd5;
+  --color-bar-fill: #14171a;
+  --color-focus: #1e4634;
+
+  /* Famiglie di caratteri: le variabili --font-instrument-* e --font-ibm-plex-mono arrivano da next/font in layout.tsx */
+  --font-display: var(--font-instrument-serif), "Iowan Old Style", Georgia, serif;
+  --font-ui: var(--font-instrument-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: var(--font-ibm-plex-mono), ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  /* Scala tipografica */
+  --text-label: 0.6875rem;
+  --text-caption: 0.75rem;
+  --text-data: 0.8125rem;
+  --text-body-sm: 0.875rem;
+  --text-body: 0.9375rem;
+  --text-figure: 1.0625rem;
+  --text-title-sm: 1.25rem;
+  --text-figure-md: 1.5rem;
+  --text-title: 1.75rem;
+  --text-heading: 2.5rem;
+  --text-display: 4.75rem;
+
+  --tracking-label: 0.08em;
+  --tracking-display: -0.02em;
+  --tracking-title: -0.01em;
+
+  /* Spaziature */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 10px;
+  --space-6: 12px;
+  --space-7: 14px;
+  --space-8: 16px;
+  --space-9: 18px;
+  --space-10: 22px;
+  --space-11: 24px;
+  --space-12: 28px;
+
+  /* Raggi */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-round: 50%;
+
+  /* Misure */
+  --tap-min: 44px;
+  --nav-height: 84px;
+  --capture-size: 56px;
+  --column-max: 430px;
+  --gutter: 16px;
+  --rule-width: 1px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --color-paper: #101214;
+    --color-surface: #181b1e;
+    --color-ink: #edebe6;
+    --color-graphite: #a1a6ac;
+    --color-rule: #2a2e33;
+    --color-rule-strong: #edebe6;
+    --color-control-border: #3a3f45;
+    --color-accent: #8cc2a6;
+    --color-signal: #e8826b;
+    --color-ochre: #dba84a;
+    --color-on-ink: #101214;
+    --color-bar-track: #2a2e33;
+    --color-bar-fill: #edebe6;
+    --color-focus: #8cc2a6;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-paper: #101214;
+  --color-surface: #181b1e;
+  --color-ink: #edebe6;
+  --color-graphite: #a1a6ac;
+  --color-rule: #2a2e33;
+  --color-rule-strong: #edebe6;
+  --color-control-border: #3a3f45;
+  --color-accent: #8cc2a6;
+  --color-signal: #e8826b;
+  --color-ochre: #dba84a;
+  --color-on-ink: #101214;
+  --color-bar-track: #2a2e33;
+  --color-bar-fill: #edebe6;
+  --color-focus: #8cc2a6;
+}
