@@ -42,6 +42,9 @@
   --space-10: 22px;
   --space-11: 24px;
   --space-12: 28px;
+  --gap-section: var(--space-12); /* tra le sezioni di una schermata */
+  --gap-group: var(--space-8); /* tra cose diverse nella stessa sezione */
+  --gap-item: var(--space-4); /* tra cose uguali in fila */
 
   /* Raggi */
   --radius-sm: 8px;

@@ -324,7 +324,7 @@ export function buildMealDeclaration(
   const name = MEAL_KIND_LABELS[kind].toLowerCase();
   return {
     events: [event],
-    message: status === "skipped" ? `Segnato: ${name} saltato.` : `Segnato: ${name} mangiato, non registrato.`,
+    message: status === "skipped" ? `Segnato: ${name} saltato.` : `Segnato: ${name} mangiato, senza dettagli.`,
   };
 }
 
@@ -356,7 +356,7 @@ export type MomentOffer = "hidden" | "register" | "declare";
  * Che cosa propone Oggi per un momento senza pasto. `hidden`: la fascia non è ancora cominciata, non
  * si mostra niente. `register`: si può registrare, ma non si propone «Saltato» (il momento è in corso o
  * appena iniziato). `declare`: passato l'orario abituale (quello del pasto abituale se c'è, più un'ora
- * e mezza; altrimenti quello tipico della fascia) si offrono anche «Saltato» e «Mangiato, non registrato».
+ * e mezza; altrimenti quello tipico della fascia) si offrono anche «Saltato» e «Mangiato, senza dettagli».
  * Un giorno passato offre sempre tutto.
  */
 export function momentOffer(
@@ -374,7 +374,7 @@ export function momentOffer(
 const MOMENT_STATUS_TEXT: Record<MealMoment["status"], string> = {
   recorded: "registrato",
   skipped: "saltato",
-  untracked: "mangiato, non registrato",
+  untracked: "mangiato, senza dettagli",
   none: "",
 };
 

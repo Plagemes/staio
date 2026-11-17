@@ -1,30 +1,34 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+// La scheda di un alimento: quanto ne resta e un solo pulsante pieno, «Mangiato», con la quantità già scelta.
+// «Buttato» e «Aperto» sono accanto, il resto è dietro «Altro». Ogni azione riuscita chiude la scheda e lascia
+// l'avviso con «Annulla»; un errore resta scritto dentro la scheda.
+import { useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { isLocalProduct } from "@/core/catalog";
-import { dayBefore, deriveDiary, localMoment, type DiaryState, type MealKind } from "@/core/diary";
-import type { AnyEvent } from "@/core/events";
+import { deriveDiary, type DiaryState } from "@/core/diary";
 import { DEFAULT_TIME_ZONE } from "@/core/expiry";
-import type { DeclareEvent, PurchaseEvent } from "@/core/ledger";
+import type { DeclareEvent, Location, PurchaseEvent } from "@/core/ledger";
 import { formatQuantity } from "@/core/units";
 import { appendEvents, getAllEvents, getDeviceId, getPantry, useDiary, useEventLog, usePantry } from "@/data";
-import { useProducts } from "../nutrition/useNutrition";
-import { ExpiryTag, Label, LevelBar, Value } from "@/design";
+import { Button, ExpiryTag, Label, LevelBar, Value } from "@/design";
 import { recipeForUnknown } from "@/models3d/fallback";
 import ModelViewer from "@/models3d/ModelViewer";
-import { findCreationEvent, type EditResult } from "../actions";
+import { buildOpen, findCreationEvent, type EditResult } from "../actions";
+import { Disclosure, QuantityPicker, Sheet, type QuantityValue } from "../common";
 import { dayOf, formatCalendarDate, formatPrice, relativeDay } from "../format";
-import { byNearestExpiry, entryDate } from "./groups";
 import { FOOD_CATEGORY_LABELS, LOCATION_LABELS, MODEL_CATEGORY_OF } from "../labels";
-import { expiryExplanation, expiryTagView, isFoodCategory, levelPercent, type PantryEntry } from "../lots";
+import { evaluateLots, expiryExplanation, expiryTagView, isFoodCategory, levelPercent, previewExpiryAfterMove, type PantryEntry } from "../lots";
 import { useNotice } from "../notice";
+import { useProducts } from "../nutrition/useNutrition";
+import { addManualEntries } from "../shopping";
 import ui from "../ui.module.css";
-import { buildChangeMoment, buildEaten, eatenDayOf, eventsOfMarked, undoPlacement, type Marked } from "./eaten";
-import { EatenPanel, UndoneNote } from "./EatenPanel";
-import { LotActions, type Eat, type Perform } from "./LotActions";
-import { LotNutrition, useLotValues } from "./LotNutrition";
-import { saveActions } from "./saveActions";
+import { buildEaten, undoPlacement } from "./eaten";
+import { byNearestExpiry, entryDate } from "./groups";
+import { LotActions, type Perform, type Step } from "./LotActions";
+import { LotNutrition, lotValuesSummary, useLotValues } from "./LotNutrition";
+import { amountFor, amountLabel, quantityOptions, remembersPortion } from "./quantityOptions";
+import { SAVE_LABELS, saveActions } from "./saveActions";
+import { rememberPortion, useUsualPortion } from "./usePortions";
 import styles from "./LotSheet.module.css";
 
 interface LotSheetProps {
@@ -38,58 +42,41 @@ interface LotSheetProps {
   onClose: () => void;
 }
 
+/** «17 nov»: l'anno si scrive solo se non è quello in corso. */
+function shortDate(date: string, today: string): string {
+  const text = formatCalendarDate(date);
+  return date.slice(0, 4) === today.slice(0, 4) ? text.replace(/\s\d{4}$/, "") : text;
+}
+
+/** Una frase che finisce con un punto solo. */
+const sentence = (text: string): string => `${text.replace(/\.+$/, "")}.`;
+
 export function LotSheet({ entry: initialEntry, creation: givenCreation, group, initialLotId, now, onClose }: LotSheetProps) {
   const log = useEventLog();
   const pantry = usePantry();
+  const diary = useDiary();
+  const products = useProducts();
+  const notice = useNotice();
+  const ids = useId();
   const members = useMemo(() => (group && group.length > 1 ? byNearestExpiry(group) : []), [group]);
   const [chosenId, setChosenId] = useState<string | null>(initialLotId ?? null);
   const entry = members.find((m) => m.lot.lotId === chosenId) ?? members[0] ?? initialEntry;
-  const creation = group
-    ? log.data && pantry.data
-      ? findCreationEvent(log.data, entry.lot.lotId, pantry.data.voidedEventIds)
-      : undefined
-    : givenCreation;
   const { lot } = entry;
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const titleId = useId();
-  const notice = useNotice();
-  const products = useProducts();
-  const diary = useDiary();
+  const registryRead = log.data !== undefined && pantry.data !== undefined;
+  const ownCreation = log.data && pantry.data ? findCreationEvent(log.data, lot.lotId, pantry.data.voidedEventIds) : undefined;
+  // per un gruppo la creazione data è quella della prima confezione, non di quella scelta
+  const creation = group ? ownCreation : (givenCreation ?? ownCreation);
+
+  const [step, setStep] = useState<Step>("main");
+  /** Luogo con cui si apre «Sposta»: il freezer se si arriva da «Sposta in freezer». */
+  const [moveTo, setMoveTo] = useState<Location | undefined>();
+  /** La quantità scelta a mano; `undefined` finché non si tocca il selettore: vale quella proposta. */
+  const [picked, setPicked] = useState<QuantityValue | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
-  /** L'ultima cosa mangiata da questa scheda: resta visibile finché la scheda è aperta. */
-  const [last, setLast] = useState<{ marked: Marked; message: string } | null>(null);
-  const [undoneText, setUndoneText] = useState<string | null>(null);
-  /** Ciò che l'avviso dirà quando la scheda si chiude (anche perché l'alimento è finito): testo, eventi da annullare, rimando. */
-  const closing = useRef<{ message: string; events: readonly AnyEvent[]; href: string } | null>(null);
-  const toToday = useRef(false);
   const values = useLotValues(lot);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (dialog && !dialog.open) dialog.showModal();
-    return () => {
-      if (dialog?.open) dialog.close();
-    };
-  }, []);
-
-  // la scheda si chiude (o sparisce, se l'alimento è finito): l'avviso con «Annulla» e il rimando a Oggi
-  useEffect(
-    () => () => {
-      const c = closing.current;
-      if (c && !toToday.current) {
-        // «Annulla» guarda il registro com'è in quel momento: il pasto si annulla solo se nessun altro consumo lo usa
-        const onUndo = async () => {
-          const [events, pantry] = await Promise.all([getAllEvents(), getPantry()]);
-          await appendEvents(undoPlacement(c.events, events, pantry.voidedEventIds, { now: new Date().toISOString(), deviceId: await getDeviceId() }));
-        };
-        notice.show({ message: c.message, onUndo, link: { label: "Vedi in Oggi", href: c.href } });
-      }
-    },
-    [notice],
-  );
-
-  const close = () => dialogRef.current?.close();
+  const usual = useUsualPortion(lot.productRef, lot.unit);
 
   const recipe = useMemo(
     () =>
@@ -101,256 +88,378 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
     [lot.productRef, lot.category, lot.initial, lot.unit],
   );
 
-  const perform: Perform = async (build, inline = false) => {
-    setBusy(true);
-    setError(null);
-    try {
-      const result: EditResult = build({ now: new Date().toISOString(), deviceId: await getDeviceId() });
-      if (!result.ok) {
-        if (!inline) setError(result.error);
-        return result;
-      }
-      const written = await appendEvents(result.events);
-      if (written.added === 0 || written.rejected.length > 0) {
-        const failed: EditResult = { ok: false, error: "Non sono riuscito a salvare. Riprova." };
-        if (!inline) setError(failed.error);
-        return failed;
-      }
-      close();
-      notice.show({ message: result.message, undo: result.events });
-      return null;
-    } catch {
-      const failed: EditResult = { ok: false, error: "Non sono riuscito a salvare sul telefono. Riprova." };
-      setError(failed.error);
-      return failed;
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const diaryNow = (): DiaryState | undefined => diary.data ?? (log.data ? deriveDiary(log.data) : undefined);
   const timeZone = diary.data?.timeZone ?? DEFAULT_TIME_ZONE;
   const today = dayOf(now, timeZone);
+  const choices = quantityOptions({ lot, group: members.map((m) => m.lot), usual });
+  const amount = picked === undefined ? choices.initial : picked;
 
-  /** Scrive eventi e racconta che cosa è successo: nella scheda subito, e nell'avviso quando si chiude. */
-  async function write(
-    build: (ctx: { now: string; deviceId: string }, state: DiaryState | undefined) => ReturnType<typeof buildEaten>,
-    inline: boolean,
-  ): Promise<EditResult | null> {
+  const go = (next: Step) => {
+    setStep(next);
+    setError(null);
+  };
+
+  /** Una scrittura alla volta: un secondo tocco mentre la prima è in corso non fa niente. */
+  const begin = (): boolean => {
+    if (busyRef.current) return false;
+    busyRef.current = true;
     setBusy(true);
     setError(null);
+    return true;
+  };
+  const end = () => {
+    busyRef.current = false;
+    setBusy(false);
+  };
+
+  const perform: Perform = async (build, inline = false) => {
+    if (!begin()) return null;
     const fail = (message: string): EditResult => {
       if (!inline) setError(message);
       return { ok: false, error: message };
     };
     try {
-      const state = diaryNow();
-      if (!state) return fail("Un attimo, sto ancora caricando. Riprova.");
-      const result = build({ now: new Date().toISOString(), deviceId: await getDeviceId() }, state);
-      if (!result.ok) return fail(result.error);
+      const result = build({ now: new Date().toISOString(), deviceId: await getDeviceId() });
+      if (!result.ok) {
+        if (!inline) setError(result.error);
+        return result;
+      }
       const written = await appendEvents(result.events);
       if (written.added === 0 || written.rejected.length > 0) return fail("Non sono riuscito a salvare. Riprova.");
-      setLast({ marked: result.marked, message: result.message });
-      setUndoneText(null);
-      const date = result.marked.date;
-      closing.current = { message: result.message, events: result.events, href: date === dayOf(new Date().toISOString(), timeZone) ? "/app" : `/app?giorno=${date}` };
+      // prima la scheda si chiude, poi nasce l'avviso: sotto una scheda aperta non si vedrebbe
+      onClose();
+      notice.show({ message: result.message, undo: result.events });
       return null;
     } catch {
       return fail("Non sono riuscito a salvare sul telefono. Riprova.");
     } finally {
-      setBusy(false);
+      end();
+    }
+  };
+
+  /** «Mangiato»: il consumo va nel diario del giorno, nel momento dell'ora (vedi `eaten.ts`). */
+  async function eat() {
+    if (!amount || !begin()) return;
+    const { target, choice } = amountFor(amount);
+    const lots = target === "group" ? members.map((m) => m.lot) : [lot];
+    try {
+      const state: DiaryState | undefined = diary.data ?? (log.data ? deriveDiary(log.data) : undefined);
+      if (!state) {
+        setError("Un attimo, sto ancora caricando. Riprova.");
+        return;
+      }
+      const at = new Date().toISOString();
+      const result = buildEaten(lots, choice, { now: at, deviceId: await getDeviceId() }, state);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      const written = await appendEvents(result.events);
+      if (written.added === 0 || written.rejected.length > 0) {
+        setError("Non sono riuscito a salvare. Riprova.");
+        return;
+      }
+      const eaten = result.marked.consumes[0]?.quantity;
+      if (remembersPortion(amount) && eaten) {
+        void rememberPortion(lot.productRef, { ...eaten, ...(amount.estimated ? { estimated: true } : {}) }, at);
+      }
+
+      const { events } = result;
+      const date = result.marked.date;
+      onClose();
+      notice.show({
+        message: result.message,
+        // «Annulla» guarda il registro com'è in quel momento: il pasto si annulla solo se nessun altro consumo lo usa
+        onUndo: async () => {
+          const [all, current] = await Promise.all([getAllEvents(), getPantry()]);
+          await appendEvents(undoPlacement(events, all, current.voidedEventIds, { now: new Date().toISOString(), deviceId: await getDeviceId() }));
+        },
+        link: { label: "Vedi in Oggi", href: date === dayOf(at, timeZone) ? "/app" : `/app?giorno=${date}` },
+      });
+    } catch {
+      setError("Non sono riuscito a salvare sul telefono. Riprova.");
+    } finally {
+      end();
     }
   }
 
-  // il giorno di un cambio di momento è quello in cui si è mangiato, non quello di adesso (pannello aperto a cavallo della mezzanotte)
-  const eatenAt = last?.marked.consumes[0]?.at;
-  const eatenDay = last ? eatenDayOf(last.marked, timeZone, today) : today;
-  const eatenMinutes = (eatenAt ? localMoment(eatenAt, timeZone)?.minutes : undefined) ?? 1440;
+  /** «Aperto»: l'avviso dice anche la scadenza che vale da adesso. */
+  const markOpened = () =>
+    void perform((ctx) => {
+      const result = buildOpen(lot, ctx);
+      if (!result.ok) return result;
+      const after = evaluateLots([{ ...lot, openedAt: ctx.now }], ctx.now)[0];
+      return after?.expiry ? { ...result, message: `${result.message} ${sentence(expiryExplanation(after))}` } : result;
+    });
 
-  const eat: Eat = (lots, choice, inline = false) => write((ctx, state) => buildEaten(lots, choice, ctx, state), inline);
-
-  function changeMoment(kind: MealKind, date: string) {
-    if (!last) return;
-    void write((ctx, state) => buildChangeMoment(last.marked, { kind, date }, ctx, state), false);
-  }
-
-  async function undoLast() {
-    if (!last) return;
-    setBusy(true);
-    setError(null);
+  /** Rimette in lista la quantità con cui era entrato: si cambia poi nella lista. */
+  async function addToList() {
+    if (!begin()) return;
     try {
-      const { marked } = last;
-      const [events, pantry] = await Promise.all([getAllEvents(), getPantry()]);
-      await appendEvents(undoPlacement(eventsOfMarked(marked, events), events, pantry.voidedEventIds, { now: new Date().toISOString(), deviceId: await getDeviceId() }));
-      setLast(null);
-      closing.current = null;
-      setUndoneText(`Annullato: ${marked.amount} di ${marked.name} sono tornati in dispensa e non sono più in Oggi.`);
+      const result = await addManualEntries([{ product: lot.productRef, quantity: { value: lot.initial, unit: lot.unit } }]);
+      if (result.added === 0) {
+        setError("Non sono riuscito ad aggiungerlo alla lista. Riprova.");
+        return;
+      }
+      onClose();
+      notice.show({ message: `Aggiunto alla lista della spesa: ${lot.productRef}.`, onUndo: result.undo });
     } catch {
-      setError("Non sono riuscito ad annullare. Riprova.");
+      setError("Non sono riuscito ad aggiungerlo alla lista. Riprova.");
     } finally {
-      setBusy(false);
+      end();
     }
   }
 
   const tag = expiryTagView(entry);
+  const left = lot.remaining > 0;
+  const opened = lot.openedAt !== undefined;
   const partial = lot.remaining < lot.initial;
   const remainingText = formatQuantity({ value: lot.remaining, unit: lot.unit });
   const initialText = formatQuantity({ value: lot.initial, unit: lot.unit });
-  const urgent = tag?.level === "urgent";
-  // vicino alla scadenza «Con cosa sta bene» sta già tra le azioni per salvarlo
-  const pairsShown = saveActions(entry).includes("pair");
+  const remainingCertainty = lot.remainingCertainty === "estimated" ? "estimated" : "measured";
+  const freezeEntry = saveActions(entry).includes("freeze") ? previewExpiryAfterMove(lot, "freezer", now) : undefined;
+  const freezePreview = freezeEntry?.expiry ? expiryExplanation(freezeEntry) : null;
+  const qualityHref =
+    lot.barcode && !isLocalProduct(products?.get(lot.barcode)) ? `/app/qualita/prodotto?codice=${encodeURIComponent(lot.barcode)}` : undefined;
 
-  return (
-    <dialog
-      ref={dialogRef}
-      className={styles.sheet}
-      aria-labelledby={titleId}
-      // in sviluppo React monta due volte: un evento di chiusura che arriva a pannello già riaperto va ignorato
-      onClose={(e) => {
-        if (!e.currentTarget.open) onClose();
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) close();
-      }}
-    >
-      <div className={styles.body}>
-        <div className={styles.grip} aria-hidden="true" />
-        <header className={styles.top}>
-          <div className={styles.figure}>
-            <ModelViewer recipe={recipe} seed={lot.lotId} signal={urgent} autoRotate />
-          </div>
-          <div className={styles.heading}>
-            <h2 id={titleId} className={styles.name}>
-              {lot.productRef}
-            </h2>
-            <p className={styles.sub}>
-              {LOCATION_LABELS[lot.location]}
-              {lot.openedAt ? ` · aperto ${relativeDay(dayOf(lot.openedAt), today)}` : ""}
-            </p>
-            {tag ? (
-              <ExpiryTag level={tag.level} estimated={tag.estimated}>
-                {tag.text}
-              </ExpiryTag>
+  const detailsSummary = [
+    isFoodCategory(lot.category) ? FOOD_CATEGORY_LABELS[lot.category] : undefined,
+    `entrato il ${shortDate(dayOf(lot.createdAt), today)}`,
+    tag?.estimated ? "scadenza stimata" : undefined,
+  ]
+    .filter((part) => part !== undefined)
+    .join(" · ");
+
+  const head = (
+    <div className={styles.head}>
+      <div className={styles.top}>
+        <div className={styles.figure}>
+          <ModelViewer recipe={recipe} seed={lot.lotId} signal={tag?.level === "urgent"} autoRotate />
+        </div>
+        <div className={styles.heading}>
+          <p className={styles.name}>{lot.productRef}</p>
+          <p className={styles.sub}>
+            {LOCATION_LABELS[lot.location]}
+            {left ? (
+              <>
+                {lot.unit === "pz" && lot.remaining === 1 ? " · resta " : " · restano "}
+                <Value certainty={remainingCertainty}>{remainingText}</Value>
+              </>
             ) : null}
-          </div>
-          <button type="button" className={styles.closeButton} onClick={close}>
-            Chiudi
-          </button>
-        </header>
-
-        {members.length > 1 ? (
-          <div className={styles.groupPick}>
-            <label htmlFor={`${titleId}-pack`} className={ui.fieldLabel}>
-              Hai {members.length} confezioni uguali. Agisci su
-            </label>
-            <select
-              id={`${titleId}-pack`}
-              className={ui.input}
-              value={entry.lot.lotId}
-              onChange={(e) => setChosenId(e.target.value)}
-            >
-              {members.map((m, i) => {
-                const date = entryDate(m);
-                return (
-                  <option key={m.lot.lotId} value={m.lot.lotId}>
-                    {`Confezione ${i + 1}: ${date ? `entro il ${formatCalendarDate(date)}` : "senza data"}${i === 0 ? " (la prima a scadere)" : ""}`}
-                  </option>
-                );
-              })}
-            </select>
-          </div>
-        ) : null}
-
-        <dl className={styles.data}>
-          <div className={styles.dataRow}>
-            <dt>
-              <Label>Quantità</Label>
-            </dt>
-            <dd>
-              <Value certainty={lot.remainingCertainty === "estimated" ? "estimated" : "measured"}>{remainingText}</Value>
-              {partial ? <span className={styles.muted}> di {initialText}</span> : null}
-              <LevelBar value={levelPercent(lot)} label={`Rimasto circa il ${Math.round(levelPercent(lot))} per cento`} />
-            </dd>
-          </div>
-          <div className={styles.dataRow}>
-            <dt>
-              <Label>Scadenza</Label>
-            </dt>
-            <dd>{expiryExplanation(entry)}</dd>
-          </div>
-          <div className={styles.dataRow}>
-            <dt>
-              <Label>Categoria</Label>
-            </dt>
-            <dd>{isFoodCategory(lot.category) ? FOOD_CATEGORY_LABELS[lot.category] : "Non scelta"}</dd>
-          </div>
-          <div className={styles.dataRow}>
-            <dt>
-              <Label>Entrato</Label>
-            </dt>
-            <dd>
-              {lot.origin === "purchase" ? "Acquistato" : "Già in casa"} il {formatCalendarDate(dayOf(lot.createdAt))}
-            </dd>
-          </div>
-          {lot.priceCents !== undefined ? (
-            <div className={styles.dataRow}>
-              <dt>
-                <Label>Prezzo</Label>
-              </dt>
-              <dd>
-                <Value certainty={lot.priceCertainty === "estimated" ? "estimated" : "measured"}>{formatPrice(lot.priceCents)}</Value>
-              </dd>
-            </div>
-          ) : null}
-        </dl>
-
-        <section className={styles.nutrients} aria-label="Nutrienti">
-          <LotNutrition lot={lot} />
-        </section>
-
-        {pairsShown && !lot.barcode ? null : (
-        <div className={ui.row}>
-          {pairsShown ? null : (
-            <Link href={`/app/ricette/abbinamenti?alimento=${encodeURIComponent(lot.productRef)}`} className={ui.textLink}>
-              Con cosa sta bene
-            </Link>
-          )}
-          {lot.barcode && isLocalProduct(products?.get(lot.barcode)) ? (
-            <p className={ui.hint}>Valori inseriti da te</p>
-          ) : lot.barcode ? (
-            <Link href={`/app/qualita/prodotto?codice=${encodeURIComponent(lot.barcode)}`} className={ui.textLink}>
-              Qualità
-            </Link>
+            {lot.openedAt ? ` · aperto ${relativeDay(dayOf(lot.openedAt), today)}` : ""}
+          </p>
+          {tag ? (
+            <ExpiryTag level={tag.level} estimated={tag.estimated}>
+              {tag.text}
+            </ExpiryTag>
           ) : null}
         </div>
-        )}
-
-        {lot.remaining > 0 ? (
-          <LotActions entry={entry} creation={creation} group={members} now={now} busy={busy} perform={perform} eat={eat} error={error} />
-        ) : (
-          <p className={ui.hint}>Di questo alimento non resta niente.</p>
-        )}
-
-        {last ? (
-          <EatenPanel
-            message={last.message}
-            marked={last.marked}
-            hasValues={values.status === "loading" ? undefined : values.status === "found"}
-            today={today}
-            eatenDay={eatenDay}
-            yesterday={dayBefore(eatenDay)}
-            offerYesterday={eatenMinutes < 4 * 60}
-            busy={busy}
-            onMove={changeMoment}
-            onUndo={() => void undoLast()}
-            onOpenToday={() => {
-              toToday.current = true;
-            }}
-          />
-        ) : undoneText ? (
-          <UndoneNote text={undoneText} />
-        ) : null}
       </div>
-    </dialog>
+
+      {step === "main" && freezeEntry ? (
+        <div className={styles.save}>
+          <div className={styles.saveLine}>
+            <span className={styles.saveText}>Sta per scadere.</span>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setMoveTo("freezer");
+                go("move");
+              }}
+            >
+              {SAVE_LABELS.freeze}
+            </Button>
+          </div>
+          {freezePreview ? <span className={ui.hint}>{`In freezer: ${freezePreview}`}</span> : null}
+        </div>
+      ) : null}
+
+      {members.length > 1 ? (
+        <div className={styles.groupPick}>
+          <label htmlFor={`${ids}-pack`} className={ui.fieldLabel}>
+            Hai {members.length} confezioni uguali. Agisci su
+          </label>
+          <select
+            id={`${ids}-pack`}
+            className={ui.input}
+            value={lot.lotId}
+            disabled={busy}
+            onChange={(e) => {
+              setChosenId(e.target.value);
+              setPicked(undefined);
+              setError(null);
+            }}
+          >
+            {members.map((m, i) => {
+              const date = entryDate(m);
+              return (
+                <option key={m.lot.lotId} value={m.lot.lotId}>
+                  {`Confezione ${i + 1}: ${date ? `entro il ${formatCalendarDate(date)}` : "senza data"}${i === 0 ? " (la prima a scadere)" : ""}`}
+                </option>
+              );
+            })}
+          </select>
+        </div>
+      ) : null}
+    </div>
+  );
+
+  const errorLine = error ? (
+    <p className={ui.error} role="alert">
+      {error}
+    </p>
+  ) : null;
+
+  let footer: ReactNode;
+  if (step !== "main") {
+    footer = (
+      <Button variant="text" className={styles.back} disabled={busy} onClick={() => go(step === "dates" ? "correct" : "main")}>
+        Indietro
+      </Button>
+    );
+  } else if (left) {
+    footer = (
+      <>
+        <Button disabled={busy || amount === null} onClick={() => void eat()}>
+          {amountLabel("Mangiato", amount, choices.options, lot.unit)}
+        </Button>
+        <div className={styles.secondary}>
+          <Button variant="outline" disabled={busy} onClick={() => go("discard")}>
+            Buttato
+          </Button>
+          {opened ? (
+            <Button
+              variant="outline"
+              disabled={busy}
+              onClick={() => {
+                setMoveTo(undefined);
+                go("move");
+              }}
+            >
+              Sposta
+            </Button>
+          ) : (
+            <Button variant="outline" disabled={busy} onClick={markOpened}>
+              Aperto
+            </Button>
+          )}
+          <Button variant="text" disabled={busy} onClick={() => go("more")}>
+            Altro
+          </Button>
+        </div>
+        {errorLine}
+      </>
+    );
+  } else {
+    footer = (
+      <>
+        <div className={styles.secondary}>
+          <Button variant="outline" disabled={busy} onClick={() => void addToList()}>
+            Aggiungi alla spesa
+          </Button>
+          <button type="button" className={ui.danger} disabled={busy} onClick={() => go("remove")}>
+            Elimina dalla dispensa
+          </button>
+        </div>
+        {errorLine}
+      </>
+    );
+  }
+
+  return (
+    <Sheet title={lot.productRef} titleHidden head={head} footer={footer} busy={busy} onClose={onClose}>
+      {step === "main" ? (
+        <>
+          {left ? (
+            <div className={styles.quantity}>
+              <QuantityPicker
+                key={lot.lotId}
+                label="Quanto"
+                unit={lot.unit}
+                options={choices.options}
+                value={amount}
+                onChange={(next) => {
+                  setPicked(next);
+                  setError(null);
+                }}
+                max={lot.remaining}
+              />
+              {amount === null ? <p className={ui.hint}>Scegli quanto</p> : null}
+            </div>
+          ) : (
+            <p className={ui.hint}>Di questo alimento non resta niente.</p>
+          )}
+
+          <div className={styles.rows}>
+            <Disclosure title="Dettagli" summary={detailsSummary}>
+              <dl className={styles.data}>
+                <div className={styles.dataRow}>
+                  <dt>
+                    <Label>Quantità</Label>
+                  </dt>
+                  <dd>
+                    <Value certainty={remainingCertainty}>{remainingText}</Value>
+                    {partial ? <span className={styles.muted}> di {initialText}</span> : null}
+                    <LevelBar value={levelPercent(lot)} label={`Rimasto circa il ${Math.round(levelPercent(lot))} per cento`} />
+                  </dd>
+                </div>
+                <div className={styles.dataRow}>
+                  <dt>
+                    <Label>Scadenza</Label>
+                  </dt>
+                  <dd>{entry.expiry ? expiryExplanation(entry) : "Nessuna scadenza nota. Scegli una categoria con «Correggi», in «Altro», per avere una stima."}</dd>
+                </div>
+                <div className={styles.dataRow}>
+                  <dt>
+                    <Label>Categoria</Label>
+                  </dt>
+                  <dd>{isFoodCategory(lot.category) ? FOOD_CATEGORY_LABELS[lot.category] : "Non scelta"}</dd>
+                </div>
+                <div className={styles.dataRow}>
+                  <dt>
+                    <Label>Entrato</Label>
+                  </dt>
+                  <dd>
+                    {lot.origin === "purchase" ? "Acquistato" : "Già in casa"} il {formatCalendarDate(dayOf(lot.createdAt))}
+                  </dd>
+                </div>
+                {lot.priceCents !== undefined ? (
+                  <div className={styles.dataRow}>
+                    <dt>
+                      <Label>Prezzo</Label>
+                    </dt>
+                    <dd>
+                      <Value certainty={lot.priceCertainty === "estimated" ? "estimated" : "measured"}>{formatPrice(lot.priceCents)}</Value>
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
+            </Disclosure>
+            <Disclosure title="Valori nutrizionali" summary={lotValuesSummary(values)}>
+              <LotNutrition lot={lot} />
+            </Disclosure>
+          </div>
+        </>
+      ) : (
+        <LotActions
+          step={step}
+          entry={entry}
+          creation={creation}
+          creationKnown={registryRead}
+          group={members}
+          now={now}
+          busy={busy}
+          perform={perform}
+          error={error}
+          moveTo={moveTo}
+          moveInFooter={opened}
+          qualityHref={qualityHref}
+          onStep={(next) => {
+            if (next === "move") setMoveTo(undefined);
+            go(next);
+          }}
+          onAddToList={() => void addToList()}
+        />
+      )}
+    </Sheet>
   );
 }

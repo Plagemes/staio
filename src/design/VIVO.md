@@ -86,6 +86,7 @@ I `font-weight: 400` scritti accanto a `--font-display` sono diventati `var(--we
 | Stato di una riga o scheda | striscia a sinistra (4 px nelle righe, 6 px nelle schede) nel colore dello stato; lo stato resta scritto |
 | Scelte (`ui.choices`) | segmenti su guida `--color-fill`; scelta fatta `--button-fill` / `--button-text`, in grassetto |
 | Campi | i campi di `.screen > .form` e di `ui.fields` sono schede; legenda dentro la scheda; focus con anello `--area-current-tint` |
+| Distanze | `--gap-section` tra sezioni, `--gap-group` tra gruppi, `--gap-item` tra voci; `ui.fields` tiene i campi a 8 px |
 | Pulsanti secondari pieni | `--color-fill` su carta o superficie, `--color-surface` dentro una scheda tinta |
 | Interruttore | `ui.switch`: 51×31, spento con bordo dei controlli, acceso `--button-fill` |
 

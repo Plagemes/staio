@@ -3,7 +3,7 @@
 .card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-9);
+  gap: var(--gap-section);
   min-width: 0;
 }
 
@@ -44,6 +44,15 @@
   margin: 0;
   font-size: var(--text-body);
   color: var(--color-graphite);
+}
+
+/* Allergeni e tracce dichiarati dal prodotto, e l'invito a controllare la confezione: sempre in vista, nel colore del testo */
+.declared {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  line-height: 1.4;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
 }
 
 .code {
@@ -192,31 +201,41 @@
   color: var(--color-graphite);
 }
 
-.add,
-.added {
+/* Sezione «Aggiungi alla dispensa»: il titolo a 6 px dai campi, i campi tra loro a --gap-group (in Vivo, con ui.fields, a --gap-item) */
+.formSection {
   display: flex;
   flex-direction: column;
-  gap: var(--space-7);
+  gap: var(--space-3);
   min-width: 0;
 }
 
-.more {
+.fields {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--gap-group);
+  min-width: 0;
 }
 
-.more summary {
-  min-height: 44px;
+/* Righe richiuse in fila: «Altri dettagli», «Valori e qualità», «Che cosa significa» */
+.rows {
   display: flex;
-  align-items: center;
-  cursor: pointer;
-  font-size: var(--text-body-sm);
-  font-weight: 500;
+  flex-direction: column;
+  gap: var(--gap-item);
+  min-width: 0;
 }
 
-.more[open] summary {
-  margin-bottom: var(--space-5);
+.values {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-group);
+  min-width: 0;
+}
+
+.links {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
 }
 
 .shortcuts {
@@ -268,7 +287,7 @@
 
 /* ------------------------------------------------------------------------------------------------
    Vivo: intestazione del prodotto in una scheda, i dati in un elenco raggruppato, scorciatoie in pastiglie piene,
-   «Altri dati» in una scheda. Stesse misure delle altre schermate (--radius-card, --space-7 / --space-8).
+   le righe richiuse sono le schede di Disclosure. Stesse misure delle altre schermate (--radius-card, --space-7 / --space-8).
    ------------------------------------------------------------------------------------------------ */
 
 :global([data-palette="vivo"]) .top {
@@ -283,13 +302,9 @@
   background: var(--color-fill);
 }
 
+/* l'elenco dei dati sta dentro la scheda di «Valori e qualità»: niente scheda nella scheda */
 :global([data-palette="vivo"]) .facts {
-  padding-inline: var(--space-8);
-  overflow: hidden;
   border-top: none;
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  box-shadow: var(--card-shadow);
 }
 
 :global([data-palette="vivo"]) .fact:last-child {
@@ -301,16 +316,4 @@
   border-radius: 999px;
   background: var(--color-fill);
   font-weight: 500;
-}
-
-:global([data-palette="vivo"]) .more {
-  padding: var(--space-4) var(--space-8) var(--space-7);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  box-shadow: var(--card-shadow);
-}
-
-:global([data-palette="vivo"]) .more summary {
-  font-weight: 600;
-  color: var(--color-accent);
 }

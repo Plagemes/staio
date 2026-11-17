@@ -1,8 +1,11 @@
 "use client";
 
-import { useId, useState, type FormEvent } from "react";
-import type { DeclareEvent, DiscardReason, Location, Lot, PurchaseEvent } from "@/core/ledger";
-import { formatQuantity } from "@/core/units";
+// I passi della scheda di un alimento oltre a quello principale: «Altro», «Buttato», «Sposta», «Correggi»,
+// «Date diverse per confezione», «Elimina dalla dispensa». Cambiano il contenuto dello stesso foglio: il foglio,
+// la testa e «Indietro» li mette `LotSheet`.
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { addDays } from "@/core/expiry";
+import type { DeclareEvent, DiscardReason, Location, PurchaseEvent } from "@/core/ledger";
 import { useEventLog, usePantry } from "@/data";
 import { Button, ExpiryTag } from "@/design";
 import {
@@ -16,17 +19,20 @@ import {
   buildRemoveMistaken,
   buildSetExpiry,
   buildMove,
-  buildOpen,
   canEditPrice,
   formFromLot,
   needsSameProductAnswer,
   type ActionContext,
-  type AmountChoice,
   type EditErrors,
   type EditForm,
   type EditResult,
   type RemoveManyKind,
 } from "../actions";
+import { EXPIRY_SHORTCUTS } from "../barcode/expiryShortcuts";
+import { cleanName } from "../capture";
+import { ActionList, QuantityPicker, type ActionItem, type QuantityValue } from "../common";
+import { readAmount, writeAmount } from "../common/quantity";
+import { dayOf, formatCalendarDate } from "../format";
 import {
   DISCARD_REASON_LABELS,
   DISCARD_REASON_ORDER,
@@ -37,169 +43,128 @@ import {
   LOCATION_ORDER,
   type ChosenExpiryKind,
 } from "../labels";
-import { addManualEntries } from "../shopping";
-import { entryDate } from "./groups";
-import { SaveExpiringLinks } from "./SaveExpiring";
-import { saveActions } from "./saveActions";
-import { pieceChoices } from "../pieces";
-import { formatCalendarDate } from "../format";
-import { useNotice } from "../notice";
 import { expiryExplanation, expiryTagView, previewExpiryAfterMove, type PantryEntry } from "../lots";
 import ui from "../ui.module.css";
+import { buildQuantityCorrection, mergeCorrection, overInitialQuestion, type QuantityCorrection } from "./correctQuantity";
+import { entryDate } from "./groups";
+import { amountFor, amountLabel, quantityOptions } from "./quantityOptions";
+import { SAVE_LABELS, cookHref, pairHref } from "./saveActions";
 import styles from "./LotSheet.module.css";
 
 /**
- * Scrive gli eventi di un'azione. Restituisce il risultato solo se è fallita, altrimenti null.
- * Con `inline` l'errore non va nell'avviso del pannello: lo mostra il campo che l'ha provocato.
+ * Scrive gli eventi di un'azione; se riesce chiude la scheda e mostra l'avviso con «Annulla».
+ * Restituisce il risultato solo se è fallita, altrimenti null.
+ * Con `inline` l'errore non va nella riga della scheda: lo mostra il campo che l'ha provocato.
  */
 export type Perform = (build: (ctx: ActionContext) => EditResult, inline?: boolean) => Promise<EditResult | null>;
 
-/**
- * «Mangiato»: scrive il consumo nel diario del giorno, nel momento giusto (vedi `eaten.ts`), e la scheda lo racconta.
- * Come `Perform`, restituisce il risultato solo se è fallita.
- */
-export type Eat = (lots: readonly Lot[], choice: AmountChoice, inline?: boolean) => Promise<EditResult | null>;
-
-type Mode = "menu" | "eat" | "discard" | "move" | "edit" | "remove" | "dates";
+/** I passi del foglio. `main` è la scheda com'è all'apertura; gli altri ne prendono il posto, con «Indietro». */
+export type Step = "main" | "more" | "discard" | "move" | "correct" | "dates" | "remove";
 
 interface LotActionsProps {
+  /** Il passo da mostrare: mai `main`, che è di `LotSheet`. */
+  step: Exclude<Step, "main">;
   entry: PantryEntry;
   creation: PurchaseEvent | DeclareEvent | undefined;
+  /** Falso finché il registro non è stato letto: non si sa ancora se l'inserimento c'è. */
+  creationKnown: boolean;
   /** Le confezioni uguali del gruppo (almeno due), la prima è la più vicina a scadere; vuoto se il lotto è solo. */
   group?: readonly PantryEntry[];
   now: string;
   busy: boolean;
   perform: Perform;
-  eat: Eat;
-  /** Il pannello mostra qui gli errori generici di un'azione. */
+  /** La riga d'errore della scheda, sotto il comando che l'ha dato. */
   error: string | null;
+  /** Luogo con cui si apre «Sposta»: il freezer se si arriva da «Sposta in freezer». */
+  moveTo?: Location;
+  /** «Sposta» è già nel piede (alimento aperto): in «Altro» non si ripete. */
+  moveInFooter: boolean;
+  /** La pagina «Qualità del prodotto», se l'alimento ha un codice e la sua scheda non l'ha scritta l'utente. */
+  qualityHref?: string;
+  onStep: (step: Step) => void;
+  onAddToList: () => void;
 }
 
-export function LotActions({ entry, creation, group = [], now, busy, perform, eat, error }: LotActionsProps) {
-  const [mode, setMode] = useState<Mode>("menu");
-  const [listError, setListError] = useState<string | null>(null);
-  /** Luogo con cui si apre «Sposta»: il freezer se si arriva da «Sposta in freezer». */
-  const [moveTo, setMoveTo] = useState<Location | undefined>();
-  const notice = useNotice();
+export function LotActions({
+  step,
+  entry,
+  creation,
+  creationKnown,
+  group = [],
+  now,
+  busy,
+  perform,
+  error,
+  moveTo,
+  moveInFooter,
+  qualityHref,
+  onStep,
+  onAddToList,
+}: LotActionsProps) {
   const { lot } = entry;
-  const grouped = group.length > 1;
-  const pieces = pieceChoices(lot);
+  // i moduli partono dai dati della confezione scelta: cambiando confezione ripartono
+  const key = `${step}:${lot.lotId}`;
+  const rootRef = useRef<HTMLDivElement>(null);
 
-  /** Rimette in lista la quantità con cui era entrato: si cambia poi nella lista. */
-  async function addToList() {
-    setListError(null);
-    try {
-      const result = await addManualEntries([{ product: lot.productRef, quantity: { value: lot.initial, unit: lot.unit } }]);
-      if (result.added === 0) return;
-      notice.show({ message: `Aggiunto alla lista della spesa: ${lot.productRef}.`, onUndo: result.undo });
-    } catch {
-      setListError("Non sono riuscito ad aggiungerlo alla lista. Riprova.");
-    }
+  // a ogni cambio di passo il fuoco va sul suo titolo: chi usa il lettore dello schermo sente dove si trova
+  useEffect(() => {
+    rootRef.current?.querySelector<HTMLElement>("h3")?.focus();
+  }, [step]);
+
+  let content: ReactNode = null;
+  if (step === "more") {
+    const items: ActionItem[] = [
+      ...(moveInFooter ? [] : [{ id: "move", label: "Sposta", onSelect: () => onStep("move") }]),
+      {
+        id: "correct",
+        label: "Correggi",
+        disabled: !creation,
+        ...(creationKnown && !creation ? { hint: "Non trovo l'inserimento di questo alimento." } : {}),
+        onSelect: () => onStep("correct"),
+      },
+      { id: "shopping", label: "Aggiungi alla spesa", disabled: busy, onSelect: onAddToList },
+      { id: "meal", label: "Aggiungi a un pasto", href: `/app/pasto?lotto=${encodeURIComponent(lot.lotId)}` },
+      { id: "cook", label: SAVE_LABELS.cook, href: cookHref(lot.productRef) },
+      { id: "pair", label: SAVE_LABELS.pair, href: pairHref(lot.productRef) },
+      ...(qualityHref ? [{ id: "quality", label: "Qualità del prodotto", href: qualityHref }] : []),
+      { id: "remove", label: "Elimina dalla dispensa", danger: true, onSelect: () => onStep("remove") },
+    ];
+    content = (
+      <div className={styles.form}>
+        <StepTitle>Altro</StepTitle>
+        <ActionList items={items} />
+      </div>
+    );
+  } else if (step === "discard") {
+    content = <DiscardForm key={key} entry={entry} busy={busy} perform={perform} />;
+  } else if (step === "move") {
+    content = <MoveForm key={key} entry={entry} group={group} now={now} initialTo={moveTo} busy={busy} perform={perform} />;
+  } else if (step === "correct" && creation) {
+    content = <CorrectForm key={key} entry={entry} group={group} creation={creation} now={now} busy={busy} perform={perform} onDates={() => onStep("dates")} />;
+  } else if (step === "dates") {
+    content = <DatesForm key={key} entry={entry} group={group} now={now} busy={busy} perform={perform} />;
+  } else if (step === "remove") {
+    content = <RemoveForm key={key} entry={entry} group={group} busy={busy} perform={perform} onDiscard={() => onStep("discard")} />;
   }
-  const back = () => setMode("menu");
-  const freezeEntry = saveActions(entry).includes("freeze") ? previewExpiryAfterMove(lot, "freezer", now) : undefined;
-  const freezePreview = freezeEntry?.expiry ? expiryExplanation(freezeEntry) : null;
 
   return (
-    <section className={styles.actions} aria-label="Azioni">
-      {mode === "menu" && saveActions(entry).length > 0 ? (
-        <div className={styles.save}>
-          <span className={ui.hint}>Sta per scadere. Per non buttarlo:</span>
-          <SaveExpiringLinks
-            entry={entry}
-            onFreeze={() => {
-              setMoveTo("freezer");
-              setMode("move");
-            }}
-          />
-          {freezePreview ? <span className={ui.hint}>{`In freezer: ${freezePreview}`}</span> : null}
-        </div>
-      ) : null}
-      {mode === "menu" ? (
-        <div className={styles.menu}>
-          {grouped ? (
-            <>
-              <Button disabled={busy} onClick={() => void eat([lot], { kind: "all" })}>
-                {pieces.length > 0 ? "Una confezione mangiata" : "Una mangiata"}
-              </Button>
-              <Button variant="outline" disabled={busy} onClick={() => void eat(group.map((g) => g.lot), { kind: "all" })}>
-                {`Tutte mangiate (${group.length})`}
-              </Button>
-              <Button variant="outline" onClick={() => setMode("dates")}>
-                Cambia la data
-              </Button>
-            </>
-          ) : null}
-          {pieces.length > 0 ? (
-            <>
-              <Button disabled={busy} onClick={() => void eat([lot], { kind: "value", value: pieces[0].quantity.value })}>
-                Un pezzo mangiato
-              </Button>
-              {pieces.some((p) => p.id === "pieces-half") ? (
-                <Button
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() => void eat([lot], { kind: "value", value: pieces.find((p) => p.id === "pieces-half")!.quantity.value, estimated: true })}
-                >
-                  Mezzo pezzo
-                </Button>
-              ) : null}
-            </>
-          ) : null}
-          <Button variant={grouped || pieces.length > 0 ? "outline" : "primary"} onClick={() => setMode("eat")}>
-            {grouped ? "Mangiata in parte" : "Mangiato"}
-          </Button>
-          <Button variant="outline" href={`/app/pasto?lotto=${encodeURIComponent(lot.lotId)}`}>
-            Mangiato in un pasto
-          </Button>
-          <Button variant="outline" onClick={() => setMode("discard")}>
-            Buttato
-          </Button>
-          <Button
-            variant="outline"
-            disabled={busy || lot.openedAt !== undefined}
-            onClick={() => void perform((ctx) => buildOpen(lot, ctx))}
-          >
-            {lot.openedAt !== undefined ? "Già aperto" : grouped ? "Una aperta" : "Aperto"}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => {
-              setMoveTo(undefined);
-              setMode("move");
-            }}
-          >
-            Sposta
-          </Button>
-          <Button variant="outline" disabled={!creation} onClick={() => setMode("edit")}>
-            Modifica
-          </Button>
-          <Button variant="outline" onClick={() => void addToList()}>
-            Aggiungi alla spesa
-          </Button>
-          <div className={styles.removeZone}>
-            <button type="button" className={ui.danger} onClick={() => setMode("remove")}>
-              Elimina dalla dispensa
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      {mode === "remove" ? <RemoveForm entry={entry} group={group} busy={busy} perform={perform} onBack={back} onDiscard={() => setMode("discard")} /> : null}
-      {mode === "eat" ? <AmountForm entry={entry} kind="eat" busy={busy} perform={perform} eat={eat} onBack={back} /> : null}
-      {mode === "discard" ? <AmountForm entry={entry} kind="discard" busy={busy} perform={perform} eat={eat} onBack={back} /> : null}
-      {mode === "dates" ? <DatesForm entry={entry} group={group} busy={busy} perform={perform} onBack={back} /> : null}
-      {mode === "move" ? <MoveForm entry={entry} group={group} now={now} initialTo={moveTo} busy={busy} perform={perform} onBack={back} /> : null}
-      {mode === "edit" && creation ? (
-        <EditFormView entry={entry} group={group} creation={creation} busy={busy} perform={perform} onBack={back} />
-      ) : null}
-
-      {error || listError ? (
+    <div ref={rootRef} className={styles.step}>
+      {content}
+      {error ? (
         <p className={ui.error} role="alert">
-          {error ?? listError}
+          {error}
         </p>
       ) : null}
-    </section>
+    </div>
+  );
+}
+
+/** Il titolo del passo: può ricevere il fuoco da codice, non con il tasto di tabulazione. */
+function StepTitle({ children }: { children: ReactNode }) {
+  return (
+    <h3 tabIndex={-1} className={styles.formTitle}>
+      {children}
+    </h3>
   );
 }
 
@@ -209,7 +174,6 @@ interface SubFormProps {
   group?: readonly PantryEntry[];
   busy: boolean;
   perform: Perform;
-  onBack: () => void;
 }
 
 type Scope = "one" | "all";
@@ -237,112 +201,62 @@ function ScopePick({ count, value, onChange }: { count: number; value: Scope; on
 
 const packsText = (n: number) => (n === 1 ? "1 confezione" : `${n} confezioni`);
 
-function AmountForm({ entry, kind, busy, perform, eat, onBack }: SubFormProps & { kind: "eat" | "discard"; eat: Eat }) {
+/** I tasti rapidi sotto un campo data: riempiono la data contando da oggi. */
+function ExpiryShortcuts({ today, onPick }: { today: string; onPick: (date: string) => void }) {
+  return (
+    <div className={styles.shortcuts}>
+      {EXPIRY_SHORTCUTS.map(([label, days]) => (
+        <button key={days} type="button" className={styles.shortcut} onClick={() => onPick(addDays(today, days))}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** «Buttato»: motivo e quantità, della confezione scelta. */
+function DiscardForm({ entry, busy, perform }: SubFormProps) {
   const { lot } = entry;
   const ids = useId();
-  const [text, setText] = useState("");
-  const [fieldError, setFieldError] = useState<string | null>(null);
   const level = entry.urgency?.level;
   const [reason, setReason] = useState<DiscardReason>(level === "expired" || level === "past_quality" ? "expired" : "other");
-
-  const total = formatQuantity({ value: lot.remaining, unit: lot.unit });
-  const verb = kind === "eat" ? "mangiato" : "buttato";
-
-  async function go(choice: AmountChoice) {
-    const failed = await (kind === "eat"
-      ? eat([lot], choice, choice.kind === "text")
-      : perform((ctx) => buildDiscard(lot, choice, reason, ctx), choice.kind === "text"));
-    if (failed && choice.kind === "text") setFieldError(failed.ok ? null : failed.error);
-    // mangiato: la scheda resta aperta con l'avviso di dove è finito, e si torna alle azioni
-    if (!failed && kind === "eat") onBack();
-  }
-
-  function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    setFieldError(null);
-    void go({ kind: "text", text });
-  }
+  const [amount, setAmount] = useState<QuantityValue | null>(null);
+  const { options } = quantityOptions({ lot });
 
   return (
     <div className={styles.form}>
-      <h3 className={styles.formTitle}>{kind === "eat" ? "Quanto hai mangiato?" : "Che cosa butti?"}</h3>
+      <StepTitle>Che cosa butti?</StepTitle>
 
-      {kind === "discard" ? (
-        <fieldset className={ui.field}>
-          <legend className={ui.fieldLabel}>Motivo</legend>
-          <div className={ui.choices}>
-            {DISCARD_REASON_ORDER.map((r) => (
-              <label key={r} className={ui.choice}>
-                <input type="radio" name={`${ids}-reason`} value={r} checked={reason === r} onChange={() => setReason(r)} />
-                <span>{DISCARD_REASON_LABELS[r]}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      ) : null}
-
-      {pieceChoices(lot).length > 0 ? (
-        <div className={ui.row}>
-          {pieceChoices(lot).map((p) => (
-            <Button
-              key={p.id}
-              variant="outline"
-              disabled={busy}
-              onClick={() => void go({ kind: "value", value: p.quantity.value, estimated: p.estimated })}
-            >
-              {p.label}
-            </Button>
+      <fieldset className={ui.field}>
+        <legend className={ui.fieldLabel}>Motivo</legend>
+        <div className={ui.choices}>
+          {DISCARD_REASON_ORDER.map((r) => (
+            <label key={r} className={ui.choice}>
+              <input type="radio" name={`${ids}-reason`} value={r} checked={reason === r} onChange={() => setReason(r)} />
+              <span>{DISCARD_REASON_LABELS[r]}</span>
+            </label>
           ))}
         </div>
-      ) : null}
+      </fieldset>
 
-      <div className={ui.row}>
-        <Button disabled={busy} onClick={() => void go({ kind: "all" })}>
-          {kind === "eat" ? `Tutto (${total})` : `Butta tutto (${total})`}
-        </Button>
-        <Button variant="outline" disabled={busy} onClick={() => void go({ kind: "half" })}>
-          Metà (stima)
-        </Button>
+      <div className={styles.quantity}>
+        <QuantityPicker label="Quanto" unit={lot.unit} options={options} value={amount} onChange={setAmount} max={lot.remaining} />
+        {amount === null ? <p className={ui.hint}>Scegli quanto</p> : null}
       </div>
 
-      <form className={ui.field} onSubmit={onSubmit} noValidate>
-        <label className={ui.fieldLabel} htmlFor={`${ids}-amount`}>
-          Oppure scrivi quanto
-        </label>
-        <div className={styles.inline}>
-          <input
-            id={`${ids}-amount`}
-            className={ui.input}
-            type="text"
-            value={text}
-            onChange={(e) => {
-              setText(e.target.value);
-              setFieldError(null);
-            }}
-            autoComplete="off"
-            placeholder={lot.unit === "pz" ? "2" : lot.unit === "ml" ? "200 ml" : "200 g"}
-            aria-invalid={fieldError ? true : undefined}
-            aria-describedby={fieldError ? `${ids}-amount-error` : undefined}
-          />
-          <Button type="submit" variant="outline" disabled={busy}>
-            {`Segna ${verb}`}
-          </Button>
-        </div>
-        {fieldError ? (
-          <p className={ui.error} id={`${ids}-amount-error`}>
-            {fieldError}
-          </p>
-        ) : null}
-      </form>
-
-      <Button variant="text" onClick={onBack}>
-        Indietro
+      <Button
+        disabled={busy || amount === null}
+        onClick={() => {
+          if (amount) void perform((ctx) => buildDiscard(lot, amountFor(amount).choice, reason, ctx));
+        }}
+      >
+        {amountLabel("Buttato", amount, options, lot.unit)}
       </Button>
     </div>
   );
 }
 
-function MoveForm({ entry, group = [], now, initialTo, busy, perform, onBack }: SubFormProps & { now: string; initialTo?: Location }) {
+function MoveForm({ entry, group = [], now, initialTo, busy, perform }: SubFormProps & { now: string; initialTo?: Location }) {
   const { lot } = entry;
   const [scope, setScope] = useState<Scope>("one");
   const lots = scope === "all" ? group.map((g) => g.lot) : [lot];
@@ -355,7 +269,7 @@ function MoveForm({ entry, group = [], now, initialTo, busy, perform, onBack }: 
 
   return (
     <div className={styles.form}>
-      <h3 className={styles.formTitle}>Dove lo sposti?</h3>
+      <StepTitle>Dove lo sposti?</StepTitle>
       <ScopePick count={group.length} value={scope} onChange={setScope} />
       <fieldset className={ui.field}>
         <legend className={ui.srOnly}>Nuovo luogo</legend>
@@ -380,78 +294,146 @@ function MoveForm({ entry, group = [], now, initialTo, busy, perform, onBack }: 
           <span className={ui.hint}>{expiryExplanation(preview)}</span>
         </div>
       ) : null}
-      <div className={ui.row}>
-        <Button
-          disabled={busy}
-          onClick={() =>
-            void perform((ctx) =>
-              buildForLots(
-                lots,
-                (l) => buildMove(l, to, ctx),
-                (n, name) =>
-                  n === 1
-                    ? `Spostato in ${LOCATION_LABELS[to].toLowerCase()}: ${name}.`
-                    : `Spostate in ${LOCATION_LABELS[to].toLowerCase()}: ${n} confezioni di ${name}.`,
-              ),
-            )
-          }
-        >
-          {`Sposta in ${LOCATION_LABELS[to].toLowerCase()}${lots.length > 1 ? ` (${packsText(lots.length)})` : ""}`}
-        </Button>
-        <Button variant="text" onClick={onBack}>
-          Indietro
-        </Button>
-      </div>
+      <Button
+        disabled={busy}
+        onClick={() =>
+          void perform((ctx) =>
+            buildForLots(
+              lots,
+              (l) => buildMove(l, to, ctx),
+              (n, name) =>
+                n === 1
+                  ? `Spostato in ${LOCATION_LABELS[to].toLowerCase()}: ${name}.`
+                  : `Spostate in ${LOCATION_LABELS[to].toLowerCase()}: ${n} confezioni di ${name}.`,
+            ),
+          )
+        }
+      >
+        {`Sposta in ${LOCATION_LABELS[to].toLowerCase()}${lots.length > 1 ? ` (${packsText(lots.length)})` : ""}`}
+      </Button>
     </div>
   );
 }
 
-function EditFormView({
+type CorrectErrors = EditErrors & { remaining?: string };
+
+/** «Correggi»: quanto ne resta, nome, categoria, scadenza, prezzo. Scrive tutto insieme, con un solo avviso. */
+function CorrectForm({
   entry,
   group = [],
   creation,
+  now,
   busy,
   perform,
-  onBack,
-}: SubFormProps & { creation: PurchaseEvent | DeclareEvent }) {
+  onDates,
+}: SubFormProps & { creation: PurchaseEvent | DeclareEvent; now: string; onDates: () => void }) {
   const { lot } = entry;
   const ids = useId();
   const log = useEventLog();
   const pantry = usePantry();
   const [scope, setScope] = useState<Scope>("one");
   const [form, setForm] = useState<EditForm>(() => formFromLot(lot));
-  const [errors, setErrors] = useState<EditErrors>({});
+  const [remainingText, setRemainingText] = useState(() => writeAmount(lot.remaining));
+  const [errors, setErrors] = useState<CorrectErrors>({});
+  /** La domanda di conferma per un rimasto più grande di quanto era entrato; finché c'è, «Salva» lascia il posto alla risposta. */
+  const [question, setQuestion] = useState<string | null>(null);
+  const remainingRef = useRef<HTMLInputElement>(null);
   const set = <K extends keyof EditForm>(key: K, value: EditForm[K]) => {
     setForm((f) => ({ ...f, [key]: value }));
     setErrors({});
   };
+  const many = scope === "all" && group.length > 1;
 
-  async function onSubmit(event: FormEvent) {
+  function onSubmit(event: FormEvent) {
     event.preventDefault();
-    const failed = await perform((ctx) => {
-      if (scope === "one" || group.length < 2) return buildEdit(creation, lot, form, ctx);
-      const targets = group.flatMap((g) => {
-        const c = findCreationEvent(log.data ?? [], g.lot.lotId, pantry.data?.voidedEventIds ?? []);
-        return c ? [{ lot: g.lot, creation: c }] : [];
-      });
-      return buildEditMany(targets, lot, form, ctx);
-    }, true);
-    if (failed && !failed.ok) setErrors("fields" in failed ? failed.fields : { form: failed.error });
+    const wanted = many ? null : readAmount(remainingText);
+    const ask = wanted === null ? null : overInitialQuestion(lot, wanted);
+    if (ask) {
+      setErrors({});
+      setQuestion(ask);
+      return;
+    }
+    void save();
   }
 
-  const field = (key: keyof EditErrors) =>
+  async function save() {
+    const events = log.data;
+    const voided = pantry.data?.voidedEventIds;
+    if (!events || !voided) {
+      setErrors({ form: "Un attimo, sto ancora caricando. Riprova." });
+      return;
+    }
+    const found: { remaining?: string } = {};
+    const failed = await perform((ctx) => {
+      const wanted = readAmount(remainingText);
+      const quantity: QuantityCorrection | undefined = many
+        ? undefined
+        : buildQuantityCorrection({ lot, creation, remaining: wanted ?? Number.NaN, log: events, ctx });
+      const targets = many
+        ? group.flatMap((g) => {
+            const c = findCreationEvent(events, g.lot.lotId, voided);
+            return c ? [{ lot: g.lot, creation: c }] : [];
+          })
+        : [];
+      const result = mergeCorrection({
+        quantity,
+        edit: many ? buildEditMany(targets, lot, form, ctx) : buildEdit(creation, lot, form, ctx),
+        name: cleanName(form.name) || lot.productRef,
+        ...(wanted !== null ? { remaining: { value: wanted, unit: lot.unit } } : {}),
+        packs: many ? targets.length : 1,
+      });
+      if (!result.ok) found.remaining = result.remaining;
+      return result;
+    }, true);
+    if (failed && !failed.ok) {
+      const fields = "fields" in failed ? failed.fields : undefined;
+      setErrors({ ...(fields ?? (found.remaining ? {} : { form: failed.error })), ...(found.remaining ? { remaining: found.remaining } : {}) });
+    }
+  }
+
+  const field = (key: keyof CorrectErrors) =>
     errors[key] ? (
       <p className={ui.error} id={`${ids}-${key}-error`}>
         {errors[key]}
       </p>
     ) : null;
-  const invalid = (key: keyof EditErrors) => (errors[key] ? { "aria-invalid": true, "aria-describedby": `${ids}-${key}-error` } : {});
+  const invalid = (key: keyof CorrectErrors) => (errors[key] ? { "aria-invalid": true, "aria-describedby": `${ids}-${key}-error` } : {});
 
   return (
     <form className={styles.form} onSubmit={onSubmit} noValidate>
-      <h3 className={styles.formTitle}>Modifica</h3>
+      <StepTitle>Correggi</StepTitle>
       <ScopePick count={group.length} value={scope} onChange={setScope} />
-      {scope === "all" ? <p className={ui.hint}>Cambio solo ciò che modifichi qui: le altre date restano come sono.</p> : null}
+      {many ? <p className={ui.hint}>Cambio solo ciò che correggi qui: le altre date restano come sono.</p> : null}
+
+      {many ? null : (
+        <div className={ui.field}>
+          <label className={ui.fieldLabel} htmlFor={`${ids}-remaining`}>
+            Quanto ne resta
+          </label>
+          <div className={styles.withUnit}>
+            <input
+              id={`${ids}-remaining`}
+              ref={remainingRef}
+              className={ui.input}
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              value={remainingText}
+              onChange={(e) => {
+                setRemainingText(e.target.value);
+                setErrors({});
+                setQuestion(null);
+              }}
+              aria-describedby={errors.remaining ? `${ids}-unit ${ids}-remaining-error` : `${ids}-unit`}
+              aria-invalid={errors.remaining ? true : undefined}
+            />
+            <span className={styles.unit} id={`${ids}-unit`}>
+              {lot.unit}
+            </span>
+          </div>
+          {field("remaining")}
+        </div>
+      )}
 
       <div className={ui.field}>
         <label className={ui.fieldLabel} htmlFor={`${ids}-name`}>
@@ -548,6 +530,7 @@ function EditFormView({
               {...invalid("expiryDate")}
             />
             {field("expiryDate")}
+            <ExpiryShortcuts today={dayOf(now)} onPick={(date) => set("expiryDate", date)} />
           </>
         ) : null}
       </fieldset>
@@ -578,27 +561,48 @@ function EditFormView({
         </p>
       ) : null}
 
-      <div className={ui.row}>
+      {question && !many ? (
+        <div className={ui.calloutStrong} role="alert">
+          <p className={ui.paragraph}>{question}</p>
+          <div className={ui.row}>
+            <Button disabled={busy} onClick={() => void save()}>
+              Confermo
+            </Button>
+            <Button
+              variant="text"
+              disabled={busy}
+              onClick={() => {
+                setQuestion(null);
+                remainingRef.current?.focus();
+              }}
+            >
+              Correggo il numero
+            </Button>
+          </div>
+        </div>
+      ) : (
         <Button type="submit" disabled={busy}>
-          {scope === "all" ? `Salva modifiche (${packsText(group.length)})` : "Salva modifiche"}
+          {many ? `Salva (${packsText(group.length)})` : "Salva"}
         </Button>
-        <Button variant="text" onClick={onBack}>
-          Indietro
+      )}
+      {group.length > 1 ? (
+        <Button variant="text" onClick={onDates}>
+          Date diverse per confezione
         </Button>
-      </div>
+      ) : null}
     </form>
   );
 }
 
-function RemoveForm({ entry, group = [], busy, perform, onBack, onDiscard }: SubFormProps & { onDiscard: () => void }) {
+function RemoveForm({ entry, group = [], busy, perform, onDiscard }: SubFormProps & { onDiscard: () => void }) {
   const { lot } = entry;
   const log = useEventLog();
   const pantry = usePantry();
   const ready = log.data !== undefined && pantry.data !== undefined;
   const [scope, setScope] = useState<Scope>("one");
-  const [pending, setPending] = useState<RemoveManyKind | null>(null);
   const many = scope === "all" && group.length > 1;
   const lots = many ? group.map((g) => g.lot) : [lot];
+  const left = lot.remaining > 0;
 
   function run(kind: RemoveManyKind) {
     void perform((ctx) =>
@@ -610,56 +614,40 @@ function RemoveForm({ entry, group = [], busy, perform, onBack, onDiscard }: Sub
     );
   }
 
-  if (pending) {
-    return (
-      <div className={styles.form}>
-        <h3 className={styles.formTitle}>{`Eliminare ${packsText(lots.length)}?`}</h3>
-        <p className={ui.hint}>
-          {pending === "mistaken"
-            ? "Le tolgo come se non le avessi mai aggiunte, senza contarle come acquisto, spreco o spesa. Si può annullare subito dopo."
-            : "Le segno finite, senza contarle come spreco. Si può annullare subito dopo."}
-        </p>
-        <div className={ui.row}>
-          <Button disabled={busy || !ready} onClick={() => run(pending)}>{`Elimina ${packsText(lots.length)}`}</Button>
-          <Button variant="text" disabled={busy} onClick={() => setPending(null)}>
-            Indietro
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  const choose = (kind: RemoveManyKind) => (many ? setPending(kind) : run(kind));
-
   return (
     <div className={styles.form}>
-      <h3 className={styles.formTitle}>Elimina dalla dispensa</h3>
+      <StepTitle>Elimina dalla dispensa</StepTitle>
       <ScopePick count={group.length} value={scope} onChange={setScope} />
       <p className={ui.hint}>
-        Inserito per sbaglio: lo tolgo come se non l&apos;avessi mai aggiunto, senza contarlo come acquisto, spreco o spesa. Si
-        può annullare subito dopo.
+        {many
+          ? "Inserite per sbaglio: le tolgo come se non le avessi mai aggiunte, senza contarle come acquisto, spreco o spesa. Si può annullare subito dopo."
+          : "Inserito per sbaglio: lo tolgo come se non l'avessi mai aggiunto, senza contarlo come acquisto, spreco o spesa. Si può annullare subito dopo."}
       </p>
-      <Button variant="outline" disabled={busy || !ready} onClick={() => choose("mistaken")}>
+      <Button variant="outline" disabled={busy || !ready} onClick={() => run("mistaken")}>
         {many ? `Inserite per sbaglio (${packsText(lots.length)})` : "Inserito per sbaglio"}
       </Button>
-      <p className={ui.hint}>Non c&apos;è più: finito, regalato o buttato.</p>
-      <div className={ui.row}>
-        <Button variant="outline" disabled={busy || !ready} onClick={() => choose("finished")}>
-          {many ? `Finite (${packsText(lots.length)})` : "Finito"}
-        </Button>
-        <Button variant="outline" disabled={busy || many} onClick={onDiscard}>
-          Buttato
-        </Button>
-      </div>
-      {many ? <p className={ui.hint}>Per segnare come buttato, scegli «Questa confezione»: si fa una alla volta.</p> : null}
-      <Button variant="text" onClick={onBack}>
-        Indietro
-      </Button>
+      {left ? (
+        <>
+          <p className={ui.hint}>Non c&apos;è più: finito, regalato o buttato. «Finito» non conta come spreco.</p>
+          <div className={ui.row}>
+            <Button variant="outline" disabled={busy || !ready} onClick={() => run("finished")}>
+              {many ? `Finite (${packsText(lots.length)})` : "Finito"}
+            </Button>
+            {many ? null : (
+              <Button variant="text" disabled={busy} onClick={onDiscard}>
+                Buttato
+              </Button>
+            )}
+          </div>
+          {many ? <p className={ui.hint}>Per segnare come buttato, scegli «Questa confezione»: si fa una alla volta.</p> : null}
+        </>
+      ) : null}
     </div>
   );
 }
 
-function DatesForm({ entry, group, busy, perform, onBack }: SubFormProps & { group: readonly PantryEntry[] }) {
+/** Per un gruppo: una data diversa per alcune confezioni soltanto. */
+function DatesForm({ entry, group = [], now, busy, perform }: SubFormProps & { now: string }) {
   const ids = useId();
   const log = useEventLog();
   const pantry = usePantry();
@@ -681,7 +669,7 @@ function DatesForm({ entry, group, busy, perform, onBack }: SubFormProps & { gro
 
   return (
     <div className={styles.form}>
-      <h3 className={styles.formTitle}>Cambia la data</h3>
+      <StepTitle>Date diverse per confezione</StepTitle>
       <fieldset className={ui.field}>
         <legend className={ui.fieldLabel}>Per quali confezioni</legend>
         <div className={ui.choices}>
@@ -721,8 +709,28 @@ function DatesForm({ entry, group, busy, perform, onBack }: SubFormProps & { gro
         <label className={ui.fieldLabel} htmlFor={`${ids}-date`}>
           Nuova data
         </label>
-        <input id={`${ids}-date`} className={ui.input} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        {fieldError ? <p className={ui.error}>{fieldError}</p> : null}
+        <input
+          id={`${ids}-date`}
+          className={ui.input}
+          type="date"
+          value={date}
+          onChange={(e) => {
+            setDate(e.target.value);
+            setFieldError(null);
+          }}
+        />
+        {fieldError ? (
+          <p className={ui.error} role="alert">
+            {fieldError}
+          </p>
+        ) : null}
+        <ExpiryShortcuts
+          today={dayOf(now)}
+          onPick={(next) => {
+            setDate(next);
+            setFieldError(null);
+          }}
+        />
       </div>
       <div className={ui.row}>
         <Button disabled={busy || !ready || chosen.length === 0 || date === ""} onClick={() => void save({ date, kind })}>
@@ -730,9 +738,6 @@ function DatesForm({ entry, group, busy, perform, onBack }: SubFormProps & { gro
         </Button>
         <Button variant="outline" disabled={busy || !ready || chosen.length === 0} onClick={() => void save(null)}>
           Togli la data
-        </Button>
-        <Button variant="text" onClick={onBack}>
-          Indietro
         </Button>
       </div>
     </div>

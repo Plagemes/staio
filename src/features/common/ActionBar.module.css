@@ -1,0 +1,40 @@
+/* La barra fissa sopra la barra di navigazione, con l'azione principale di un modulo. */
+
+.bar {
+  position: fixed;
+  z-index: 10;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  align-items: center;
+  gap: var(--gap-item);
+  max-width: var(--column-max);
+  margin-inline: auto;
+  padding: var(--space-6) var(--gutter);
+  border-top: var(--rule-width) solid var(--color-rule);
+  background: var(--color-paper);
+}
+
+/* Il primo figlio è l'azione principale: prende lo spazio che resta */
+.bar > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Lo spazio che la barra copre in fondo alla pagina; prima della misura vale l'altezza di un pulsante con i suoi margini */
+.space {
+  flex: none;
+  height: var(--action-bar-height, 73px);
+}
+
+/* ------------------------------------------------------------------------------------------------
+   Vivo: come la barra di navigazione, piena e senza filetto.
+   ------------------------------------------------------------------------------------------------ */
+
+:global([data-palette="vivo"]) .bar {
+  border-top-color: transparent;
+  background: var(--nav-fill);
+  backdrop-filter: var(--nav-backdrop);
+  -webkit-backdrop-filter: var(--nav-backdrop);
+}

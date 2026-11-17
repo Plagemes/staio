@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { monthlyBudgetProgress, spendRanges, type ProductPriceHistory, type SpendSummary } from "@/core/prices";
+import { FOOD_CATEGORY_LABELS } from "../labels";
 import { budgetText, categoryLabel, changeText, priceNote, spendText } from "./priceText";
 
 const hist = (over: Partial<ProductPriceHistory> = {}): ProductPriceHistory => ({
@@ -52,5 +53,10 @@ describe("frasi sui prezzi", () => {
   it("categoria", () => {
     expect(categoryLabel(null)).toBe("Senza categoria");
     expect(categoryLabel("latticini")).toBe("Latticini");
+  });
+  it("categoria nota: il nome italiano, non la chiave interna", () => {
+    expect(categoryLabel("eggs")).toBe("Uova");
+    expect(categoryLabel("leafy_vegetables")).toBe(FOOD_CATEGORY_LABELS.leafy_vegetables);
+    expect(categoryLabel("leafy_vegetables")).not.toContain("_");
   });
 });

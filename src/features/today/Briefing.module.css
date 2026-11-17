@@ -67,6 +67,11 @@
   gap: var(--space-4);
 }
 
+/* L'elenco che una riga apre sotto di sé («Nel piano, non fatti») */
+.under {
+  margin-top: var(--gap-item);
+}
+
 :global([data-palette="vivo"]) .list {
   gap: var(--space-4);
 }

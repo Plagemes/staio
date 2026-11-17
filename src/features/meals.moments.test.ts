@@ -17,9 +17,9 @@ describe("buildMealDeclaration", () => {
     expect(r.events[0]).toMatchObject({ type: "mealDeclaration", date: "2026-11-16", kind: "lunch", status: "skipped" });
   });
 
-  it("«Mangiato, non registrato» dichiara che il dato manca", () => {
+  it("«Mangiato, senza dettagli» dichiara che il dato manca", () => {
     const r = buildMealDeclaration("2026-11-16", "dinner", "untracked", ctx);
-    expect(r.message).toBe("Segnato: cena mangiato, non registrato.");
+    expect(r.message).toBe("Segnato: cena mangiato, senza dettagli.");
   });
 
   it("«Annulla» toglie la dichiarazione; si può anche cambiare idea con una nuova", () => {
@@ -72,7 +72,7 @@ describe("momentOffer: quando proporre «Saltato»", () => {
 describe("momentTitle: lo stato resta scritto", () => {
   it("«Pranzo · saltato» e «Colazione · solo una bevanda: tè»", () => {
     expect(momentTitle("lunch", "skipped")).toBe("Pranzo · saltato");
-    expect(momentTitle("dinner", "untracked")).toBe("Cena · mangiato, non registrato");
+    expect(momentTitle("dinner", "untracked")).toBe("Cena · mangiato, senza dettagli");
     expect(momentTitle("breakfast", "none", ["Tè"])).toBe("Colazione · solo una bevanda: tè");
     expect(momentTitle("breakfast", "none", ["Tè", "Caffè espresso"])).toBe("Colazione · solo bevande: tè, caffè espresso");
     expect(momentTitle("lunch", "none")).toBe("Pranzo");
@@ -116,7 +116,7 @@ describe("summarizeDay con i momenti saltati", () => {
     expect(s.text).toBe("Giornata completa: colazione e cena registrati, pranzo saltato.");
   });
 
-  it("con «mangiato, non registrato» il giorno è dichiarato e il totale è incompleto", () => {
+  it("con «mangiato, senza dettagli» il giorno è dichiarato e il totale è incompleto", () => {
     const s = day(buildMealDeclaration("2026-11-16", "lunch", "untracked", ctx).events);
     expect(s.status).toBe("declared");
   });

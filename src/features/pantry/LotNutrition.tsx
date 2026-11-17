@@ -24,7 +24,11 @@ import { useFoodCorrection } from "../nutrition/useCorrection";
 import { useFoodOverrides, useFoods, useProducts } from "../nutrition/useNutrition";
 import ui from "../ui.module.css";
 
-export type LotValues = { status: "loading" } | { status: "found" } | { status: "none" };
+export type LotValues =
+  | { status: "loading" }
+  /** `energy` c'è quando i valori trovati dicono le calorie: basta per il riepilogo, senza altri calcoli. */
+  | { status: "found"; energy?: { kcal: number; basis: "g" | "ml"; estimated: boolean } }
+  | { status: "none" };
 
 /** Trova i valori di un alimento come li troverebbe il calcolo del giorno. */
 export function useLotValues(lot: Pick<Lot, "lotId" | "productRef" | "barcode">): LotValues {
@@ -35,8 +39,20 @@ export function useLotValues(lot: Pick<Lot, "lotId" | "productRef" | "barcode">)
     if (!foods || !products) return { status: "loading" };
     const resolve = buildResolver({ foods, products, barcodes: new Map(lot.barcode ? [[lot.lotId, lot.barcode]] : []), overrides });
     const result = resolve({ kind: "pantry", productRef: lot.productRef, lotId: lot.lotId, preferStates: DEFAULT_STATE_PREFERENCE.pantry });
-    return result ? { status: "found" } : { status: "none" };
+    if (!result) return { status: "none" };
+    if ("failure" in result) return { status: "found" };
+    const kcal = result.per100.energyKcal;
+    if (typeof kcal !== "number") return { status: "found" };
+    return { status: "found", energy: { kcal, basis: result.basis, estimated: result.origin !== "label" } };
   }, [foods, products, overrides, lot.lotId, lot.productRef, lot.barcode]);
+}
+
+/** Il riepilogo della riga richiusa: «~120 kcal per 100 g · stima», «mancano»; niente finché non si sa. */
+export function lotValuesSummary(values: LotValues): string | undefined {
+  if (values.status === "none") return "mancano";
+  if (values.status !== "found" || !values.energy) return undefined;
+  const { kcal, basis, estimated } = values.energy;
+  return `${estimated ? "~" : ""}${Math.round(kcal)} kcal per 100 ${basis} · ${estimated ? "stima" : "etichetta"}`;
 }
 
 type Panel = "none" | "link" | "values";

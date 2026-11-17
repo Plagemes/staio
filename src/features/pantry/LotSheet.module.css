@@ -1,41 +1,17 @@
-.sheet {
-  box-sizing: border-box;
-  width: 100%;
-  max-width: var(--column-max);
-  max-height: 92dvh;
-  margin: auto auto 0;
-  padding: 0;
-  border: none;
-  border-top: var(--rule-width) solid var(--color-rule-strong);
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
-  background: var(--color-paper);
-  color: var(--color-ink);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
+/* La scheda di un alimento. Il foglio, la maniglia e «Chiudi» sono di common/Sheet: qui la testa, i dati e i passi. */
 
-.sheet::backdrop {
-  background: color-mix(in srgb, var(--color-ink) 45%, transparent);
-}
+/* Testa: figura e nome affiancati; sotto, solo se servono, l'avviso e la scelta della confezione */
 
-.body {
+.head {
   display: flex;
   flex-direction: column;
-  gap: var(--space-9);
-  padding: var(--space-4) var(--gutter) calc(var(--space-11) + env(safe-area-inset-bottom, 0px));
-}
-
-.grip {
-  align-self: center;
-  width: 36px;
-  height: 4px;
-  border-radius: var(--radius-sm);
-  background: var(--color-rule);
+  gap: var(--space-6);
+  min-width: 0;
 }
 
 .top {
   display: grid;
-  grid-template-columns: 112px minmax(0, 1fr) auto;
+  grid-template-columns: 112px minmax(0, 1fr);
   align-items: center;
   gap: var(--space-7);
 }
@@ -68,25 +44,44 @@
   color: var(--color-graphite);
 }
 
-.closeButton {
-  align-self: start;
-  min-width: var(--tap-min);
-  min-height: var(--tap-min);
-  padding: 0 var(--space-4);
-  border: none;
-  background: none;
-  color: var(--color-accent);
-  font: inherit;
+.save {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.saveLine {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3) var(--space-6);
+}
+
+.saveText {
   font-size: var(--text-body-sm);
   font-weight: 600;
-  cursor: pointer;
+}
+
+.groupPick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Corpo: il selettore con la sua riga di aiuto, poi le righe richiuse */
+
+.quantity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .data {
   display: flex;
   flex-direction: column;
   margin: 0;
-  border-top: var(--rule-width) solid var(--color-rule-strong);
+  border-top: var(--rule-width) solid var(--color-rule);
 }
 
 .dataRow {
@@ -96,6 +91,12 @@
   align-items: baseline;
   padding-block: var(--space-5);
   border-bottom: var(--rule-width) solid var(--color-rule);
+}
+
+/* l'ultima riga si chiude con il filetto della riga richiusa */
+.dataRow:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .dataRow dt,
@@ -115,46 +116,36 @@
   color: var(--color-graphite);
 }
 
-.actions {
+/* Piede: sotto il pulsante pieno, i due a contorno e «Altro» in fondo alla riga */
+
+.secondary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-item);
+}
+
+.secondary > :last-child {
+  margin-left: auto;
+}
+
+.back {
+  align-self: flex-start;
+}
+
+/* Gli altri passi dello stesso foglio */
+
+.step {
   display: flex;
   flex-direction: column;
-  gap: var(--space-7);
-}
-
-.save {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.menu {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-5);
-}
-
-.menu > :first-child,
-.menu > :nth-child(2) {
-  grid-column: 1 / -1;
-}
-
-.removeZone {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-direction: column;
-  margin-top: var(--space-6);
-  padding-top: var(--space-6);
-  border-top: var(--rule-width) solid var(--color-control-border);
-}
-
-.removeZone > button {
-  width: 100%;
+  gap: var(--gap-group);
+  min-width: 0;
 }
 
 .form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
+  gap: var(--gap-group);
 }
 
 .formTitle {
@@ -164,117 +155,38 @@
   font-size: var(--text-title-sm);
 }
 
-.inline {
-  display: flex;
-  gap: var(--space-4);
+/* il titolo prende il fuoco solo da codice, al cambio di passo */
+.formTitle:focus {
+  outline: none;
 }
 
-.inline > input {
+.withUnit {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-item);
+}
+
+.withUnit > input {
   flex: 1;
   min-width: 0;
 }
 
-.preview {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-3);
-}
-
-.nutrients {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.groupPick {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-/* ------------------------------------------------------------------------------------------------
-   Vivo: foglio con angoli ampi su fondo raggruppato; il modello 3D (a colori) su un riquadro chiaro, i dati in
-   una scheda, la zona di rimozione separata da spazio invece che da una riga.
-   ------------------------------------------------------------------------------------------------ */
-
-:global([data-palette="vivo"]) .sheet {
-  border-top: none;
-  border-radius: var(--radius-card) var(--radius-card) 0 0;
-}
-
-:global([data-palette="vivo"]) .grip {
-  background: var(--color-rule-strong);
-}
-
-:global([data-palette="vivo"]) .figure {
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  box-shadow: var(--card-shadow);
-}
-
-:global([data-palette="vivo"]) .data {
-  padding-inline: var(--space-8);
-  overflow: hidden;
-  border-top: none;
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  box-shadow: var(--card-shadow);
-}
-
-:global([data-palette="vivo"]) .dataRow:last-child {
-  border-bottom: none;
-}
-
-:global([data-palette="vivo"]) .dataRow dt {
-  font-weight: 600;
-}
-
-:global([data-palette="vivo"]) .removeZone {
-  border-top: none;
-}
-
-/* ------------------------------------------------------------------------------------------------
-   «Segnato a pranzo…»: l'ultima cosa mangiata da questa scheda, sempre in vista in fondo al foglio finché è aperto.
-   ------------------------------------------------------------------------------------------------ */
-
-.marked {
-  position: sticky;
-  bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-6) var(--space-7);
-  border: var(--rule-width) solid var(--color-rule-strong);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  box-shadow: 0 6px 20px rgb(0 0 0 / 0.14);
-}
-
-.markedText {
-  margin: 0;
-  font-size: var(--text-body-sm);
-  font-weight: 600;
-  line-height: 1.35;
-}
-
-.moments {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-}
-
-.momentLabel {
-  display: block;
-  margin: 0;
-  font-size: var(--text-label);
+.unit {
+  flex: none;
+  min-width: 2ch;
+  font-size: var(--text-body);
   color: var(--color-graphite);
 }
 
-.momentChip {
+.shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.shortcut {
   min-height: var(--tap-min);
-  padding: 0 var(--space-5);
+  padding: 0 var(--space-6);
   border: var(--rule-width) solid var(--color-control-border);
   border-radius: var(--radius-md);
   background: none;
@@ -284,33 +196,42 @@
   cursor: pointer;
 }
 
-.momentChip[aria-pressed="true"] {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-  font-weight: 600;
-}
-
-.momentChip:disabled {
-  opacity: 0.5;
-}
-
-.momentChip:focus-visible {
+.shortcut:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 
-:global([data-palette="vivo"]) .marked {
-  border-color: transparent;
-  border-radius: var(--radius-card);
+.preview {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
 }
 
-:global([data-palette="vivo"]) .momentChip {
+/* ------------------------------------------------------------------------------------------------
+   Vivo: il modello 3D (a colori) su un riquadro chiaro; le due righe richiuse sono due schede in fila, e i dati
+   stanno dentro la scheda di «Dettagli» senza un riquadro loro.
+   ------------------------------------------------------------------------------------------------ */
+
+:global([data-palette="vivo"]) .figure {
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-item);
+}
+
+:global([data-palette="vivo"]) .dataRow dt {
+  font-weight: 600;
+}
+
+:global([data-palette="vivo"]) .shortcut {
   border-color: transparent;
   border-radius: 999px;
   background: var(--color-fill);
-}
-
-:global([data-palette="vivo"]) .momentChip[aria-pressed="true"] {
-  background: var(--color-accent);
-  color: var(--color-paper);
+  font-weight: 500;
 }

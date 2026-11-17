@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { locationFromStorage, type Product } from "@/core/catalog";
 import { addDays } from "@/core/expiry";
-import { activeLots, type LedgerEvent, type Location } from "@/core/ledger";
+import { activeLots, type Location } from "@/core/ledger";
 import { formatQuantity } from "@/core/units";
 import { appendEvents, getDeviceId, getSetting, setSetting, usePantry } from "@/data";
-import { Button } from "@/design";
+import { Button, SectionHeader, cx } from "@/design";
 import { ExpiryFromPhoto } from "../ai-capture/ExpiryFromPhoto";
 import { readQuantity, type CaptureInput, type FieldErrors } from "../capture";
-import { singleFlight, undoCapture, type SaveDeps } from "../capture/saveCapture";
+import { singleFlight, type SaveDeps } from "../capture/saveCapture";
 import { manualLotEvents } from "../capture/localProduct";
+import { ActionBar, Disclosure } from "../common";
 import { dayOf, formatCalendarDate } from "../format";
 import {
   EXPIRY_KIND_LABELS,
@@ -20,6 +22,7 @@ import {
   LOCATION_ORDER,
   type ChosenExpiryKind,
 } from "../labels";
+import { useNotice } from "../notice";
 import { useNow } from "../useNow";
 import ui from "../ui.module.css";
 import { EXPIRY_SHORTCUTS } from "./expiryShortcuts";
@@ -41,8 +44,10 @@ import {
   type DirectAnswers,
   type PackEventsResult,
   type PackGroup,
+  type ProductDraft,
 } from "./directAdd";
 import { loadRemembered, rememberChoice, type ChoiceStore, type Remembered } from "./memory";
+import { detailsSummary } from "./summaries";
 import { PackCounter, PackGroupsEditor, PiecesField } from "../capture/PackControls";
 import styles from "./BarcodeCapture.module.css";
 
@@ -50,24 +55,29 @@ const deps: SaveDeps = { appendEvents, getDeviceId, now: () => new Date().toISOS
 const choiceStore: ChoiceStore = { get: (key) => getSetting(key), set: (key, value) => setSetting(key, value) };
 const KINDS: readonly ChosenExpiryKind[] = ["use_by", "best_before"];
 
-interface Added {
-  events: LedgerEvent[];
-  text: string;
-}
-
-/** Azioni della scheda: aggiunta con un tocco e, subito dopo, la conferma con «Annulla». */
+/**
+ * Il modulo della scheda: i campi che servono ogni volta in vista, il resto in «Altri dettagli», l'azione nella barra fissa.
+ * Dopo l'aggiunta l'avviso dice che cosa è entrato (con «Annulla») e si torna al lettore.
+ */
 export function AddToPantry({
   product,
   scannedExpiry,
   onAgain,
+  onAdded,
+  after,
 }: {
   product: Product;
   /** Data letta da un codice GS1: precompila la scadenza. */
   scannedExpiry?: { date: string; kind: ChosenExpiryKind };
   onAgain: () => void;
+  /** Dopo un'aggiunta riuscita, al posto di `onAgain`: chi la usa torna al lettore. */
+  onAdded?: () => void;
+  /** Righe richiuse della scheda da mettere in fila dopo «Altri dettagli», prima della barra. */
+  after?: ReactNode;
 }) {
   const ids = useId();
   const now = useNow();
+  const notice = useNotice();
   const today = now ? dayOf(now) : null;
   const draft = useMemo(() => draftFromProduct(product), [product]);
   const missing = useMemo(() => missingFields(draft), [draft]);
@@ -83,13 +93,12 @@ export function AddToPantry({
   const [place, setPlace] = useState<Location | null>(null);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [saving, setSaving] = useState(false);
-  const [added, setAdded] = useState<Added | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [packs, setPacks] = useState(1);
   const [differentDates, setDifferentDates] = useState(false);
   const [groups, setGroups] = useState<PackGroup[]>([]);
   const [remembered, setRemembered] = useState<Remembered | undefined>(undefined);
+  const [memoryRead, setMemoryRead] = useState(false);
   // pezzi dentro la confezione: la scritta «2 x 100 g» li precompila, la porzione e gli imballaggi li propongono soltanto
   const [piecesCount, setPiecesCount] = useState(() => (draft.piecesHint?.source === "label" ? draft.piecesHint.count : 0));
   const [eachText, setEachText] = useState<string | null>(null);
@@ -98,16 +107,10 @@ export function AddToPantry({
   const [photoDate, setPhotoDate] = useState<string | null>(null);
 
   const piecesTouchedRef = useRef(false);
+  const focusedFor = useRef<ProductDraft | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const quantityRef = useRef<HTMLInputElement>(null);
   const categoryRef = useRef<HTMLSelectElement>(null);
-
-  // il primo dato mancante parte già a fuoco
-  useEffect(() => {
-    const first = missingFields(draft)[0];
-    const ref = first === "name" ? nameRef : first === "quantity" ? quantityRef : first === "category" ? categoryRef : null;
-    ref?.current?.focus();
-  }, [draft]);
 
   // categoria e luogo scelti l'ultima volta per questo codice, o per un prodotto simile
   useEffect(() => {
@@ -121,11 +124,31 @@ export function AddToPantry({
           setEachText((t) => (piecesTouchedRef.current ? t : String(r.pieces!.each)));
         }
       })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => {
+        if (alive) setMemoryRead(true);
+      });
     return () => {
       alive = false;
     };
   }, [product]);
+
+  // la categoria è un campo in vista solo se né il prodotto né la memoria l'hanno data; si decide dopo aver letto la
+  // memoria, così il campo non compare per poi sparire
+  const categoryInView = memoryRead && !draft.category && !remembered?.category;
+
+  // il primo dato mancante parte già a fuoco
+  useEffect(() => {
+    if (focusedFor.current === draft) return;
+    const first = missing[0];
+    if (first === "name") nameRef.current?.focus();
+    else if (first === "quantity") quantityRef.current?.focus();
+    else if (first === "category") {
+      if (!memoryRead) return;
+      if (categoryInView) categoryRef.current?.focus();
+    }
+    focusedFor.current = draft;
+  }, [draft, missing, memoryRead, categoryInView]);
 
   const category = answers.category || remembered?.category || draft.category;
   const storagePlace = locationFromStorage(product.storageText);
@@ -168,7 +191,6 @@ export function AddToPantry({
       }),
     [product.barcode, product.localFromName],
   );
-  const undo = useMemo(() => singleFlight((events: LedgerEvent[]) => undoCapture(events, deps)), []);
 
   function set(patch: DirectAnswers) {
     setAnswers((a) => ({ ...a, ...patch }));
@@ -200,6 +222,8 @@ export function AddToPantry({
     if (saving) return;
     if (resolved.error) {
       setErrors({ form: resolved.error });
+      // l'errore è sotto «Pezzi dentro la confezione», che sta in «Altri dettagli»
+      setMoreOpen(true);
       return;
     }
     const groupError = splitDates ? checkPackGroups(groups, packs) : null;
@@ -211,7 +235,6 @@ export function AddToPantry({
       ? groups.filter((g) => g.count > 0)
       : [{ count: packs, expiryDate: answers.expiryDate ?? "" }];
     setSaving(true);
-    setMessage(null);
     try {
       const inputs = buildPackInputs(draft, location, { ...answers, category, expiryKind }, effective).map((i) =>
         resolved.pieces ? { ...i, pieces: resolved.pieces } : i,
@@ -219,19 +242,31 @@ export function AddToPantry({
       const result = await save(inputs);
       if (!result.ok) {
         setErrors(result.errors);
-        if (result.errors.price) setMoreOpen(true);
+        const categoryHidden = result.errors.category !== undefined && !categoryInView;
+        if (result.errors.price || categoryHidden) setMoreOpen(true);
         if (result.errors.name) nameRef.current?.focus();
         else if (result.errors.quantity) quantityRef.current?.focus();
-        else if (result.errors.category) categoryRef.current?.focus();
+        else if (result.errors.category) {
+          // dentro «Altri dettagli» il campo si può mettere a fuoco solo quando la riga è aperta
+          if (categoryHidden) requestAnimationFrame(() => categoryRef.current?.focus());
+          else categoryRef.current?.focus();
+        }
         return;
       }
       setErrors({});
-      setAdded({ events: result.events, text: packsConfirmationText(result.events, dayOf(new Date().toISOString())) });
       if (category) {
         rememberChoice(product, { category, location, ...(resolved.pieces ? { pieces: resolved.pieces } : {}) }, choiceStore).catch(
           () => undefined,
         );
       }
+      const lotId = result.lotIds[0];
+      notice.show({
+        message: packsConfirmationText(result.events, dayOf(new Date().toISOString())),
+        undo: result.events,
+        ...(lotId ? { link: { label: "Vedi", href: `/app/dispensa?lotto=${encodeURIComponent(lotId)}` } } : {}),
+      });
+      // di nuovo il lettore, con la fotocamera accesa per il prodotto dopo
+      (onAdded ?? onAgain)();
     } catch {
       setErrors({ form: "Non sono riuscito a salvare sul telefono. Riprova." });
     } finally {
@@ -239,297 +274,297 @@ export function AddToPantry({
     }
   }
 
-  async function onUndo() {
-    if (!added || saving) return;
-    setSaving(true);
-    try {
-      await undo(added.events);
-      setAdded(null);
-      setMessage("Annullato: non è più in dispensa.");
-    } catch {
-      setMessage("Non sono riuscito ad annullare. Riprova.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (added) {
-    return (
-      <div className={styles.added}>
-        <p className={ui.paragraph} role="status">
-          {added.text}
-        </p>
-        {message ? <p className={ui.error}>{message}</p> : null}
-        <div className={ui.row}>
-          <Button href="/app/dispensa">Vai alla dispensa</Button>
-          <Button variant="outline" onClick={onAgain}>
-            Leggi un altro codice
-          </Button>
-          <Button variant="text" onClick={() => void onUndo()} disabled={saving}>
-            Annulla
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   const err = (field: keyof FieldErrors) => errors[field];
+  const missingInView = missing.filter((f) => f !== "category");
+
+  const categoryField = (
+    <div className={ui.field}>
+      <label className={ui.fieldLabel} htmlFor={`${ids}-category`}>
+        Categoria
+      </label>
+      <select
+        ref={categoryRef}
+        id={`${ids}-category`}
+        className={ui.input}
+        value={category ?? ""}
+        onChange={(e) => set({ category: e.target.value })}
+        aria-invalid={err("category") ? true : undefined}
+        aria-describedby={`${ids}-category-note${err("category") ? ` ${ids}-category-error` : ""}`}
+      >
+        <option value="">Scegli una categoria</option>
+        {FOOD_CATEGORY_GROUPS.map((g) => (
+          <optgroup key={g.label} label={g.label}>
+            {g.categories.map((c) => (
+              <option key={c} value={c}>
+                {FOOD_CATEGORY_LABELS[c]}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+      <p className={ui.hint} id={`${ids}-category-note`}>
+        {answers.category
+          ? "Serve a stimare la scadenza quando manca la data."
+          : remembered && category === remembered.category
+            ? remembered.kind === "barcode"
+              ? "Come l'ultima volta che l'hai aggiunto. Serve a stimare la scadenza."
+              : "Proposta da un prodotto simile che hai già aggiunto. Puoi cambiarla."
+            : draft.category && category === draft.category
+              ? "Proposta dal prodotto: serve a stimare la scadenza, puoi cambiarla."
+              : "Non l'ho riconosciuta: scegline una, serve a stimare la scadenza."}
+      </p>
+      {err("category") ? (
+        <p className={ui.error} id={`${ids}-category-error`}>
+          {err("category")}
+        </p>
+      ) : null}
+    </div>
+  );
 
   return (
-    <div className={`${styles.add} ${ui.fields}`}>
-      {missing.filter((f) => f !== "category").length > 0 ? (
-        <p className={ui.hint}>
-          {missing.filter((f) => f !== "category").length === 1
-            ? "Un dato non l'ho trovato: scrivilo qui sotto e poi aggiungi."
-            : "Alcuni dati non li ho trovati: scrivili qui sotto e poi aggiungi."}
-        </p>
-      ) : null}
-
+    <>
       {alreadyHave > 0 ? <p className={ui.hint}>Ne hai già {alreadyHave} in dispensa.</p> : null}
 
-      <PackCounter packs={packs} onChange={changePacks} quantityOne={quantityOne} />
-
-      <PiecesField
-        total={totalOne}
-        count={piecesCount}
-        onCount={(n) => changePieces(n, n >= 2 ? eachText : null)}
-        eachText={eachText}
-        onEachText={(t) => changePieces(piecesCount, t)}
-        resolved={resolved}
-        pieceName={draft.pieceName}
-        note={
-          hint && !piecesTouched && piecesCount === hint.count
-            ? "Secondo Open Food Facts: puoi cambiarlo."
-            : remembered?.kind === "barcode" && remembered.pieces && !piecesTouched
-              ? "Come l'ultima volta che l'hai aggiunto."
-              : undefined
-        }
-        suggestion={suggestion}
-      />
-      {totalOne && (packs > 1 || resolved.pieces) ? (
-        <p className={ui.paragraph} aria-live="polite">
-          {packsSummary(packs, totalOne, resolved.pieces)}
-        </p>
-      ) : null}
-
-      {missing.includes("name") ? (
-        <div className={ui.field}>
-          <label className={ui.fieldLabel} htmlFor={`${ids}-name`}>
-            Nome
-          </label>
-          <input
-            ref={nameRef}
-            id={`${ids}-name`}
-            className={ui.input}
-            type="text"
-            value={answers.name ?? ""}
-            onChange={(e) => set({ name: e.target.value })}
-            autoComplete="off"
-            aria-invalid={err("name") ? true : undefined}
-            aria-describedby={err("name") ? `${ids}-name-error` : undefined}
-          />
-          {err("name") ? (
-            <p className={ui.error} id={`${ids}-name-error`}>
-              {err("name")}
+      <section className={styles.formSection} aria-label="Aggiungi alla dispensa">
+        <SectionHeader label="Aggiungi alla dispensa" />
+        <div className={cx(styles.fields, ui.fields)}>
+          {missingInView.length > 0 ? (
+            <p className={ui.hint}>
+              {missingInView.length === 1
+                ? "Un dato non l'ho trovato: scrivilo qui sotto e poi aggiungi."
+                : "Alcuni dati non li ho trovati: scrivili qui sotto e poi aggiungi."}
             </p>
           ) : null}
-        </div>
-      ) : null}
 
-      {missing.includes("quantity") ? (
-        <div className={ui.field}>
-          <label className={ui.fieldLabel} htmlFor={`${ids}-quantity`}>
-            Quantità di una confezione
-          </label>
-          <input
-            ref={quantityRef}
-            id={`${ids}-quantity`}
-            className={ui.input}
-            type="text"
-            value={answers.quantityText ?? ""}
-            onChange={(e) => set({ quantityText: e.target.value })}
-            autoComplete="off"
-            autoCapitalize="none"
-            placeholder="500 g, 1 l, 6 uova"
-            aria-invalid={err("quantity") ? true : undefined}
-            aria-describedby={err("quantity") ? `${ids}-quantity-error` : undefined}
-          />
-          {err("quantity") ? (
-            <p className={ui.error} id={`${ids}-quantity-error`}>
-              {err("quantity")}
-            </p>
+          {missing.includes("name") ? (
+            <div className={ui.field}>
+              <label className={ui.fieldLabel} htmlFor={`${ids}-name`}>
+                Nome
+              </label>
+              <input
+                ref={nameRef}
+                id={`${ids}-name`}
+                className={ui.input}
+                type="text"
+                value={answers.name ?? ""}
+                onChange={(e) => set({ name: e.target.value })}
+                autoComplete="off"
+                aria-invalid={err("name") ? true : undefined}
+                aria-describedby={err("name") ? `${ids}-name-error` : undefined}
+              />
+              {err("name") ? (
+                <p className={ui.error} id={`${ids}-name-error`}>
+                  {err("name")}
+                </p>
+              ) : null}
+            </div>
           ) : null}
-        </div>
-      ) : null}
 
-      <div className={ui.field}>
-        <label className={ui.fieldLabel} htmlFor={`${ids}-category`}>
-          Categoria
-        </label>
-        <select
-          ref={categoryRef}
-          id={`${ids}-category`}
-          className={ui.input}
-          value={category ?? ""}
-          onChange={(e) => set({ category: e.target.value })}
-          aria-invalid={err("category") ? true : undefined}
-          aria-describedby={`${ids}-category-note${err("category") ? ` ${ids}-category-error` : ""}`}
-        >
-          <option value="">Scegli una categoria</option>
-          {FOOD_CATEGORY_GROUPS.map((g) => (
-            <optgroup key={g.label} label={g.label}>
-              {g.categories.map((c) => (
-                <option key={c} value={c}>
-                  {FOOD_CATEGORY_LABELS[c]}
-                </option>
+          {missing.includes("quantity") ? (
+            <div className={ui.field}>
+              <label className={ui.fieldLabel} htmlFor={`${ids}-quantity`}>
+                Quantità di una confezione
+              </label>
+              <input
+                ref={quantityRef}
+                id={`${ids}-quantity`}
+                className={ui.input}
+                type="text"
+                value={answers.quantityText ?? ""}
+                onChange={(e) => set({ quantityText: e.target.value })}
+                autoComplete="off"
+                autoCapitalize="none"
+                placeholder="500 g, 1 l, 6 uova"
+                aria-invalid={err("quantity") ? true : undefined}
+                aria-describedby={err("quantity") ? `${ids}-quantity-error` : undefined}
+              />
+              {err("quantity") ? (
+                <p className={ui.error} id={`${ids}-quantity-error`}>
+                  {err("quantity")}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {categoryInView ? categoryField : null}
+
+          <fieldset className={ui.field}>
+            <legend className={ui.fieldLabel}>
+              Scadenza <span className={ui.optional}>(facoltativa)</span>
+            </legend>
+
+            {splitDates ? (
+              <PackGroupsEditor groups={groups} packs={packs} onChange={setGroups} onSameDate={() => setDifferentDates(false)} />
+            ) : (
+              <>
+                <label className={ui.fieldLabel} htmlFor={`${ids}-date`}>
+                  Data in etichetta
+                </label>
+                <input
+                  id={`${ids}-date`}
+                  className={`${ui.input} ${styles.dateInput}`}
+                  type="date"
+                  value={answers.expiryDate ?? ""}
+                  onChange={(e) => set({ expiryDate: e.target.value })}
+                  aria-invalid={err("expiryDate") ? true : undefined}
+                  aria-describedby={`${ids}-date-note`}
+                />
+                {err("expiryDate") ? <p className={ui.error}>{err("expiryDate")}</p> : null}
+                {today ? (
+                  <div className={styles.shortcuts}>
+                    {EXPIRY_SHORTCUTS.map(([label, days]) => (
+                      <button key={days} type="button" className={styles.shortcut} onClick={() => set({ expiryDate: addDays(today, days) })}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <ExpiryFromPhoto
+                  today={today}
+                  currentKind={expiryKind}
+                  onPick={(date, kind) => {
+                    setPhotoDate(date);
+                    set({ expiryDate: date, ...(kind ? { expiryKind: kind } : {}) });
+                  }}
+                />
+                {packs > 1 ? (
+                  <div className={ui.row}>
+                    <Button variant="text" onClick={startDifferentDates}>
+                      Date diverse
+                    </Button>
+                  </div>
+                ) : null}
+              </>
+            )}
+            <p className={ui.hint} id={`${ids}-date-note`}>
+              {!splitDates && !answers.expiryDate ? "Scrivi o scegli la data stampata sulla confezione (giorno, mese, anno). " : ""}
+              {splitDates ? "" : packs > 1 ? "La data vale per tutte le confezioni. " : ""}
+              {!splitDates && !answers.expiryDate
+                ? `Senza data uso una stima${estimate ? `: ${formatCalendarDate(estimate)}` : " dalla categoria"}. `
+                : ""}
+              {scannedExpiry && answers.expiryDate === scannedExpiry.date
+                ? "Data letta dal codice: controllala."
+                : photoDate !== null && answers.expiryDate === photoDate
+                  ? "Data letta dalla foto: controllala."
+                  : "Il codice a barre contiene solo il codice del prodotto, non la data."}
+            </p>
+          </fieldset>
+
+          <fieldset className={ui.field}>
+            <legend className={ui.fieldLabel}>Dove lo metti</legend>
+            <div className={ui.choices}>
+              {LOCATION_ORDER.map((l) => (
+                <label key={l} className={ui.choice}>
+                  <input type="radio" name={`${ids}-location`} value={l} checked={location === l} onChange={() => setPlace(l)} />
+                  <span>{LOCATION_LABELS[l]}</span>
+                </label>
               ))}
-            </optgroup>
-          ))}
-        </select>
-        <p className={ui.hint} id={`${ids}-category-note`}>
-          {answers.category
-            ? "Serve a stimare la scadenza quando manca la data."
-            : remembered && category === remembered.category
-              ? remembered.kind === "barcode"
-                ? "Come l'ultima volta che l'hai aggiunto. Serve a stimare la scadenza."
-                : "Proposta da un prodotto simile che hai già aggiunto. Puoi cambiarla."
-              : draft.category && category === draft.category
-                ? "Proposta dal prodotto: serve a stimare la scadenza, puoi cambiarla."
-                : "Non l'ho riconosciuta: scegline una, serve a stimare la scadenza."}
-        </p>
-        {err("category") ? (
-          <p className={ui.error} id={`${ids}-category-error`}>
-            {err("category")}
-          </p>
-        ) : null}
-      </div>
+            </div>
+            {locationFromOff ? (
+              <p className={ui.hint}>Secondo Open Food Facts va tenuto qui: «{product.storageText?.slice(0, 90)}». Puoi cambiarlo.</p>
+            ) : null}
+          </fieldset>
 
-      <fieldset className={ui.field}>
-        <legend className={ui.fieldLabel}>Dove lo metti</legend>
-        <div className={ui.choices}>
-          {LOCATION_ORDER.map((l) => (
-            <label key={l} className={ui.choice}>
-              <input type="radio" name={`${ids}-location`} value={l} checked={location === l} onChange={() => setPlace(l)} />
-              <span>{LOCATION_LABELS[l]}</span>
-            </label>
-          ))}
+          <PackCounter packs={packs} onChange={changePacks} quantityOne={quantityOne} />
+          {totalOne && resolved.pieces ? (
+            <p className={ui.paragraph} aria-live="polite">
+              {packsSummary(packs, totalOne, resolved.pieces)}
+            </p>
+          ) : null}
         </div>
-        {locationFromOff ? (
-          <p className={ui.hint}>Secondo Open Food Facts va tenuto qui: «{product.storageText?.slice(0, 90)}». Puoi cambiarlo.</p>
-        ) : null}
-      </fieldset>
+      </section>
 
-      <fieldset className={ui.field}>
-        <legend className={ui.fieldLabel}>
-          Scadenza <span className={ui.optional}>(facoltativa)</span>
-        </legend>
-        <div className={ui.choices}>
-          {KINDS.map((k) => (
-            <label key={k} className={ui.choice}>
-              <input type="radio" name={`${ids}-kind`} value={k} checked={expiryKind === k} onChange={() => set({ expiryKind: k })} />
-              <span>{EXPIRY_KIND_LABELS[k]}</span>
-            </label>
-          ))}
-        </div>
+      <div className={styles.rows}>
+        <Disclosure
+          title="Altri dettagli"
+          summary={detailsSummary({
+            category,
+            categoryInView,
+            expiryKind,
+            pieces: resolved.pieces,
+            unit: totalOne?.unit,
+            priceText: answers.priceText,
+          })}
+          open={moreOpen}
+          onOpenChange={setMoreOpen}
+        >
+          {categoryInView ? null : categoryField}
 
-        {splitDates ? (
-          <>
-            <PackGroupsEditor groups={groups} packs={packs} onChange={setGroups} onSameDate={() => setDifferentDates(false)} />
-          </>
-        ) : (
-          <>
-            <label className={ui.fieldLabel} htmlFor={`${ids}-date`}>
-              Data in etichetta
+          <fieldset className={ui.field}>
+            <legend className={ui.fieldLabel}>Tipo di data</legend>
+            <div className={ui.choices}>
+              {KINDS.map((k) => (
+                <label key={k} className={ui.choice}>
+                  <input type="radio" name={`${ids}-kind`} value={k} checked={expiryKind === k} onChange={() => set({ expiryKind: k })} />
+                  <span>{EXPIRY_KIND_LABELS[k]}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          <PiecesField
+            total={totalOne}
+            count={piecesCount}
+            onCount={(n) => changePieces(n, n >= 2 ? eachText : null)}
+            eachText={eachText}
+            onEachText={(t) => changePieces(piecesCount, t)}
+            resolved={resolved}
+            pieceName={draft.pieceName}
+            note={
+              hint && !piecesTouched && piecesCount === hint.count
+                ? "Secondo Open Food Facts: puoi cambiarlo."
+                : remembered?.kind === "barcode" && remembered.pieces && !piecesTouched
+                  ? "Come l'ultima volta che l'hai aggiunto."
+                  : undefined
+            }
+            suggestion={suggestion}
+          />
+
+          <div className={ui.field}>
+            <label className={ui.fieldLabel} htmlFor={`${ids}-price`}>
+              {packs > 1 ? "Prezzo di una confezione" : "Prezzo"} <span className={ui.optional}>(facoltativo)</span>
             </label>
             <input
-              id={`${ids}-date`}
-              className={`${ui.input} ${styles.dateInput}`}
-              type="date"
-              value={answers.expiryDate ?? ""}
-              onChange={(e) => set({ expiryDate: e.target.value })}
-              aria-invalid={err("expiryDate") ? true : undefined}
-              aria-describedby={`${ids}-date-note`}
+              id={`${ids}-price`}
+              className={ui.input}
+              type="text"
+              inputMode="decimal"
+              value={answers.priceText ?? ""}
+              onChange={(e) => set({ priceText: e.target.value })}
+              autoComplete="off"
+              placeholder="3,50"
+              aria-invalid={err("price") ? true : undefined}
+              aria-describedby={err("price") ? `${ids}-price-error` : undefined}
             />
-            {err("expiryDate") ? <p className={ui.error}>{err("expiryDate")}</p> : null}
-            {today ? (
-              <div className={styles.shortcuts}>
-                {EXPIRY_SHORTCUTS.map(([label, days]) => (
-                  <button key={days} type="button" className={styles.shortcut} onClick={() => set({ expiryDate: addDays(today, days) })}>
-                    {label}
-                  </button>
-                ))}
-              </div>
+            {err("price") ? (
+              <p className={ui.error} id={`${ids}-price-error`}>
+                {err("price")}
+              </p>
             ) : null}
-            <ExpiryFromPhoto
-              today={today}
-              currentKind={expiryKind}
-              onPick={(date, kind) => {
-                setPhotoDate(date);
-                set({ expiryDate: date, ...(kind ? { expiryKind: kind } : {}) });
-              }}
-            />
-            {packs > 1 ? (
-              <div className={ui.row}>
-                <Button variant="text" onClick={startDifferentDates}>
-                  Date diverse
-                </Button>
-              </div>
-            ) : null}
-          </>
-        )}
-        <p className={ui.hint} id={`${ids}-date-note`}>
-          {!splitDates && !answers.expiryDate ? "Scrivi o scegli la data stampata sulla confezione (giorno, mese, anno). " : ""}
-          {splitDates ? "" : packs > 1 ? "La data vale per tutte le confezioni. " : ""}
-          {!splitDates && !answers.expiryDate
-            ? `Senza data uso una stima${estimate ? `: ${formatCalendarDate(estimate)}` : " dalla categoria"}. `
-            : ""}
-          {scannedExpiry && answers.expiryDate === scannedExpiry.date
-            ? "Data letta dal codice: controllala."
-            : photoDate !== null && answers.expiryDate === photoDate
-              ? "Data letta dalla foto: controllala."
-              : "Il codice a barre contiene solo il codice del prodotto, non la data."}
-        </p>
-      </fieldset>
+          </div>
 
-      <details className={styles.more} open={moreOpen} onToggle={(e) => setMoreOpen(e.currentTarget.open)}>
-        <summary>Prezzo (facoltativo)</summary>
-        <div className={ui.field}>
-          <label className={ui.fieldLabel} htmlFor={`${ids}-price`}>
-            {packs > 1 ? "Prezzo di una confezione" : "Prezzo"} <span className={ui.optional}>(facoltativo)</span>
-          </label>
-          <input
-            id={`${ids}-price`}
-            className={ui.input}
-            type="text"
-            inputMode="decimal"
-            value={answers.priceText ?? ""}
-            onChange={(e) => set({ priceText: e.target.value })}
-            autoComplete="off"
-            placeholder="3,50"
-            aria-invalid={err("price") ? true : undefined}
-          />
-          {err("price") ? <p className={ui.error}>{err("price")}</p> : null}
-        </div>
-      </details>
+          <Link href={captureHref(product)} className={ui.textLink}>
+            Apri il modulo completo
+          </Link>
+        </Disclosure>
+
+        {after}
+      </div>
 
       {err("form") ? (
         <p className={ui.error} role="alert">
           {err("form")}
         </p>
       ) : null}
-      {message ? <p className={ui.hint}>{message}</p> : null}
 
-      <div className={ui.row}>
+      <ActionBar>
         <Button onClick={() => void onAdd()} disabled={saving}>
-          {saving ? "Salvo…" : packs > 1 ? `Aggiungi ${packs} confezioni alla dispensa` : "Aggiungi alla dispensa"}
+          {saving ? "Salvo…" : packs > 1 ? `Aggiungi ${packs} confezioni` : "Aggiungi alla dispensa"}
         </Button>
-        <Button variant="outline" onClick={onAgain}>
-          Leggi un altro codice
+        <Button variant="text" onClick={onAgain}>
+          Altro codice
         </Button>
-      </div>
-      <Button variant="text" href={captureHref(product)}>
-        Modifica prima di aggiungere
-      </Button>
-    </div>
+      </ActionBar>
+    </>
   );
 }

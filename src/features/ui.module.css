@@ -3,7 +3,7 @@
 .screen {
   display: flex;
   flex-direction: column;
-  gap: var(--space-10);
+  gap: var(--gap-section);
   min-width: 0;
 }
 
@@ -95,7 +95,7 @@
 .form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-9);
+  gap: var(--gap-group);
 }
 
 .field {
@@ -272,10 +272,16 @@ select.input {
   color: var(--color-paper);
 }
 
+/* Vale anche su un <button>: senza queste righe resterebbe il pulsante grigio del browser */
 .textLink {
   display: inline-flex;
   align-items: center;
   min-height: var(--tap-min);
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
   font-size: var(--text-body-sm);
   font-weight: 600;
   color: var(--color-accent);
@@ -543,4 +549,9 @@ select.input {
 
 :global([data-palette="vivo"]) .switch input:disabled {
   opacity: 0.45;
+}
+
+/* I campi-scheda di uno stesso gruppo stanno vicini: si leggono come un gruppo solo */
+:global([data-palette="vivo"]) .fields {
+  gap: var(--gap-item);
 }

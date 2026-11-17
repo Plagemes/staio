@@ -26,57 +26,58 @@
 }
 
 
-.realign {
+/* Ricerca, luoghi, riga delle quantità ed elenco: una sola sezione */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-group);
+  min-width: 0;
+}
+
+.lists {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-group);
+}
+
+/* Un gruppo dell'elenco: la sua etichetta e le sue righe */
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.groupLabel {
+  margin: 0;
+  font-weight: inherit;
+}
+
+.checkRow {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: var(--space-6);
-  padding: var(--space-6) var(--space-7);
-  border: var(--rule-width) solid var(--color-control-border);
-  border-radius: var(--radius-md);
 }
 
-.realignText {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.realignTitle {
-  font-size: var(--text-body-sm);
-  font-weight: 500;
-}
-
-.realignHint {
-  font-size: var(--text-caption);
-  color: var(--color-graphite);
-}
-
-.realignLink {
+.checkLink {
   display: inline-flex;
   align-items: center;
   flex: none;
   min-height: var(--tap-min);
   padding-inline: var(--space-4);
-  font-size: var(--text-body-sm);
   font-weight: 600;
   color: var(--color-accent);
   text-decoration: none;
 }
 
-.realignLink:hover {
+.checkLink:hover {
   text-decoration: underline;
 }
 
-.photoRow {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-6);
-  padding: var(--space-6) var(--space-7);
-  border: var(--rule-width) solid var(--color-control-border);
-  border-radius: var(--radius-md);
+.value {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--color-graphite);
 }
 
 .headTools {
@@ -183,38 +184,17 @@
 }
 
 /* ------------------------------------------------------------------------------------------------
-   Vivo: elenco in una scheda sotto i segmenti; «Vedi in 3D», «Controlla con una foto» e «Riallinea» sono riquadri
-   colorati (colore dell'area o dello stato), con l'azione in una pastiglia bianca (nera in scuro).
+   Vivo: elenco in una scheda sotto i segmenti, con la sua etichetta sopra.
    ------------------------------------------------------------------------------------------------ */
-
-:global([data-palette="vivo"]) .list {
-  margin-top: var(--space-6);
-}
 
 :global([data-palette="vivo"]) .open:hover {
   background: color-mix(in srgb, var(--color-accent) 6%, transparent);
 }
 
-:global([data-palette="vivo"]) .realignTitle {
-  font-size: var(--text-body);
-  font-weight: 600;
-}
-
-:global([data-palette="vivo"]) .realignLink {
-  justify-content: center;
-  padding-inline: var(--space-8);
-  border-radius: 999px;
-  background: var(--color-surface);
-  color: var(--tone, var(--color-accent));
-  transition: transform var(--motion-fast) ease;
-}
-
-:global([data-palette="vivo"]) .realignLink:hover {
+/* «Controlla» sta nella riga tinta: resta testo, senza sottolineatura */
+:global([data-palette="vivo"]) .checkLink:hover {
   text-decoration: none;
-}
-
-:global([data-palette="vivo"]) .realignLink:active {
-  transform: var(--press-transform);
+  opacity: var(--press-opacity);
 }
 
 :global([data-palette="vivo"]) .tool:hover {

@@ -25,9 +25,11 @@ interface ScannerProps {
   disabled?: boolean;
   /** Accende la fotocamera appena la scheda compare, senza il tocco su «Leggi il codice». Predefinito: spento. */
   autoStart?: boolean;
+  /** Lettura dalla fotocamera: un codice per cui restituisce vero non conta e la lettura continua. Predefinito: nessuno. */
+  ignoreCode?: (code: string) => boolean;
 }
 
-export function Scanner({ onCode, disabled = false, autoStart = false }: ScannerProps) {
+export function Scanner({ onCode, disabled = false, autoStart = false, ignoreCode }: ScannerProps) {
   const ids = useId();
   const [phase, setPhase] = useState<Phase>("idle");
   const [problem, setProblem] = useState<CameraProblem | null>(null);
@@ -44,6 +46,10 @@ export function Scanner({ onCode, disabled = false, autoStart = false }: Scanner
   useEffect(() => {
     onCodeRef.current = onCode;
   }, [onCode]);
+  const ignoreRef = useRef(ignoreCode);
+  useEffect(() => {
+    ignoreRef.current = ignoreCode;
+  }, [ignoreCode]);
 
   const stop = useCallback(() => {
     runRef.current += 1;
@@ -127,6 +133,7 @@ export function Scanner({ onCode, disabled = false, autoStart = false }: Scanner
             for (const item of found) {
               const check = validateBarcode(item.rawValue);
               if (check.ok) {
+                if (ignoreRef.current?.(check.code)) continue;
                 stop();
                 setPhase("idle");
                 onCodeRef.current(check.code);
@@ -136,7 +143,7 @@ export function Scanner({ onCode, disabled = false, autoStart = false }: Scanner
               const gs1 = parseGs1(item.rawValue);
               const retail = gs1?.gtin ? gtinToRetailCode(gs1.gtin) : null;
               const fromGs1 = retail ? validateBarcode(retail) : null;
-              if (gs1 && fromGs1?.ok) {
+              if (gs1 && fromGs1?.ok && !ignoreRef.current?.(fromGs1.code)) {
                 stop();
                 setPhase("idle");
                 onCodeRef.current(fromGs1.code, gs1.expiry ? { expiry: gs1.expiry } : undefined);

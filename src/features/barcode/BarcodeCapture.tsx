@@ -7,6 +7,7 @@ import { compositionFromProduct } from "@/core/nutrition";
 import { deleteProductRecord, putProductRecord } from "@/data";
 import { Button, Label } from "@/design";
 import { NutritionEntry } from "../ai-capture/NutritionFromPhoto";
+import { Disclosure } from "../common";
 import { Per100Table, ProductNutrients } from "../nutrition/Per100";
 import ui from "../ui.module.css";
 import { SHELF_PATH, qualityHref } from "../quality/links";
@@ -18,6 +19,7 @@ import { ProductSafety } from "./ProductSafety";
 import { lookupProduct, type LookupOutcome } from "./lookup";
 import { LOOKUP_FAILURE_MESSAGES, NOVA_LABELS, allergenLabel, displayProductCode } from "./messages";
 import { RESTRICTED_WARNING_TEXT, RESTRICTED_WARNING_TITLE, storeCodeQuestion } from "./safetyText";
+import { checkPackLine, declaredAllergensLine, ignoresRescan, valuesSummary, type RecentAdd } from "./summaries";
 import type { LookupFailure } from "./offClient";
 import styles from "./BarcodeCapture.module.css";
 
@@ -36,6 +38,7 @@ interface LabelSaved {
 export function BarcodeCapture() {
   const [view, setView] = useState<View>({ kind: "input" });
   const abortRef = useRef<AbortController | null>(null);
+  const recentAddRef = useRef<RecentAdd | null>(null);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -103,19 +106,30 @@ export function BarcodeCapture() {
 
       {view.kind === "input" ? (
         <>
-          <p className={ui.lead}>Leggi il codice sulla confezione e cerco il prodotto, così non devi scrivere nome e quantità.</p>
-          <Scanner onCode={(code, info) => void search(code, info)} />
-          <p className={ui.hint}>
-            Riservatezza: il codice letto viene inviato a Open Food Facts per cercare il prodotto. Non parte nient&apos;altro:
-            gli alimenti che registri restano sul telefono.
-          </p>
+          <p className={ui.lead}>Inquadra il codice sulla confezione.</p>
+          <Scanner
+            autoStart
+            onCode={(code, info) => void search(code, info)}
+            ignoreCode={(code) => ignoresRescan(recentAddRef.current, code, Date.now())}
+          />
+          <Disclosure quiet title="Che cosa significa">
+            <p>
+              Riservatezza: il codice letto viene inviato a Open Food Facts per cercare il prodotto. Non parte nient&apos;altro:
+              gli alimenti che registri restano sul telefono.
+            </p>
+          </Disclosure>
         </>
       ) : null}
 
       {view.kind === "searching" ? (
-        <p className={ui.lead} role="status">
-          Cerco il codice {view.code}…
-        </p>
+        <div className={ui.row}>
+          <p className={ui.lead} role="status">
+            Cerco il codice {view.code}…
+          </p>
+          <Button variant="text" onClick={reset}>
+            Ferma
+          </Button>
+        </div>
       ) : null}
 
       {view.kind === "found" ? (
@@ -130,6 +144,11 @@ export function BarcodeCapture() {
           confirmed={view.confirmed === true}
           onConfirm={() => setView({ ...view, confirmed: true })}
           onAgain={reset}
+          onAdded={() => {
+            // la confezione appena aggiunta può essere ancora inquadrata: il lettore che riparte non la rilegge subito
+            recentAddRef.current = { code: view.product.barcode, at: Date.now() };
+            reset();
+          }}
         />
       ) : null}
 
@@ -144,9 +163,9 @@ export function BarcodeCapture() {
                 : `Open Food Facts non conosce il codice ${view.code}. Lo aggiungi a mano: ti ricordo il codice nel modulo.`}
           </p>
           <div className={ui.row}>
-            <Button href={captureHrefForCode(view.code)}>Inserisci a mano</Button>
+            <Button href={captureHrefForCode(view.code)}>Aggiungi a mano</Button>
             <Button variant="outline" onClick={reset}>
-              Leggi un altro codice
+              Altro codice
             </Button>
           </div>
           <NutritionEntry barcode={view.code} product={undefined} safety={(draft) => <ProductSafety product={draft} confirmed />} onSaved={onLabelSaved} />
@@ -160,7 +179,7 @@ export function BarcodeCapture() {
           <div className={ui.row}>
             <Button onClick={() => void search(view.code)}>Riprova</Button>
             <Button variant="outline" href={captureHrefForCode(view.code)}>
-              Inserisci a mano
+              Aggiungi a mano
             </Button>
             <Button variant="text" onClick={reset}>
               Altro codice
@@ -183,6 +202,7 @@ function ProductCard({
   confirmed,
   onConfirm,
   onAgain,
+  onAdded,
 }: {
   product: Product;
   from: "memory" | "service";
@@ -194,47 +214,41 @@ function ProductCard({
   confirmed: boolean;
   onConfirm: () => void;
   onAgain: () => void;
+  onAdded: () => void;
 }) {
   const [imageFailed, setImageFailed] = useState(false);
   const quantity = product.quantity?.text ?? quantityText(product.quantity);
   // codice interno del negozio con la scheda dell'utente: va confermata a ogni lettura prima di usarla
   const needsConfirm = needsStoreCodeConfirmation(product) && !confirmed;
   const packaging = translatePackaging(product.packaging);
+  const meta = [product.brand, quantity].filter(Boolean).join(" · ");
+  const packLine = checkPackLine(product.source);
+  // valori appena salvati dalla foto o a mano: la riga resta aperta, con «Annulla» in vista
+  const [valuesOpen, setValuesOpen] = useState(labelSaved !== undefined);
+  const [seenLabelSaved, setSeenLabelSaved] = useState(labelSaved);
+  if (seenLabelSaved !== labelSaved) {
+    setSeenLabelSaved(labelSaved);
+    if (labelSaved) setValuesOpen(true);
+  }
 
-  return (
-    <article className={styles.card} aria-label="Scheda del prodotto">
-      <div className={styles.top}>
-        {product.imageUrl && !imageFailed ? (
-          // eslint-disable-next-line @next/next/no-img-element -- immagine remota di Open Food Facts, non ottimizzabile
-          <img
-            className={styles.image}
-            src={product.imageUrl}
-            alt=""
-            width={96}
-            height={96}
-            referrerPolicy="no-referrer"
-            onError={() => setImageFailed(true)}
-          />
-        ) : null}
-        <div className={styles.heading}>
-          <h2 className={styles.name}>{product.name ?? "Nome non indicato"}</h2>
-          {product.brand ? <p className={styles.brand}>{product.brand}</p> : null}
-          <p className={styles.code}>{displayProductCode(product)}</p>
-        </div>
-      </div>
-
-      {product.source === "openfoodfacts" && isRestrictedCode(product.barcode) ? (
-        <div className={ui.calloutStrong} role="alert">
-          <p className={ui.paragraph}>
-            <strong>{RESTRICTED_WARNING_TITLE}.</strong> {RESTRICTED_WARNING_TEXT}
-          </p>
+  const values = (
+    <Disclosure title="Valori e qualità" summary={valuesSummary(product)} open={valuesOpen} onOpenChange={setValuesOpen}>
+      <section aria-label="Valori nutrizionali" className={styles.values}>
+        <ProductValues product={product} />
+        {labelSaved ? (
           <div className={ui.row}>
-            <Button variant="outline" onClick={onNotThisProduct}>
-              Non è questo prodotto
+            <p className={ui.paragraph} role="status">
+              Valori salvati sul telefono, legati {displayProductCode(product) === product.barcode ? `al codice ${product.barcode}` : "a questo prodotto"}.
+            </p>
+            <Button variant="text" onClick={onLabelUndo}>
+              Annulla
             </Button>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+        {needsConfirm ? null : (
+          <NutritionEntry barcode={product.barcode} product={product} safety={(draft) => <ProductSafety product={draft} confirmed />} onSaved={onLabelSaved} />
+        )}
+      </section>
 
       <dl className={styles.facts}>
         <div className={styles.fact}>
@@ -267,31 +281,21 @@ function ProductCard({
             <dd>{product.traces.map(allergenLabel).join(", ")}</dd>
           </div>
         ) : null}
-        <div className={styles.fact}>
-          <dt>
-            <Label>{product.nutriScore || product.nova ? "Indici" : "Qualità"}</Label>
-          </dt>
-          <dd>
-            {product.nutriScore || product.nova ? (
-              <>
-                {[
-                  product.nutriScore ? `Nutri-Score ${product.nutriScore.toUpperCase()}` : null,
-                  product.nova ? `NOVA ${product.nova} (${NOVA_LABELS[product.nova]})` : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-                <br />
-              </>
-            ) : null}
-            <Link href={qualityHref(product.barcode)} className={ui.textLink}>
-              Vedi la qualità del prodotto
-            </Link>
-            <br />
-            <Link href={SHELF_PATH} className={ui.textLink}>
-              Confronta sullo scaffale
-            </Link>
-          </dd>
-        </div>
+        {product.nutriScore || product.nova ? (
+          <div className={styles.fact}>
+            <dt>
+              <Label>Indici</Label>
+            </dt>
+            <dd>
+              {[
+                product.nutriScore ? `Nutri-Score ${product.nutriScore.toUpperCase()}` : null,
+                product.nova ? `NOVA ${product.nova} (${NOVA_LABELS[product.nova]})` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </dd>
+          </div>
+        ) : null}
         {product.additives ? (
           <div className={styles.fact}>
             <dt>
@@ -300,7 +304,72 @@ function ProductCard({
             <dd>{product.additives.length > 0 ? product.additives.join(", ") : "Nessuno dichiarato"}</dd>
           </div>
         ) : null}
+        <div className={styles.fact}>
+          <dt>
+            <Label>Codice</Label>
+          </dt>
+          <dd className={styles.code}>{displayProductCode(product)}</dd>
+        </div>
       </dl>
+
+      <div className={styles.links}>
+        <Link href={qualityHref(product.barcode)} className={ui.textLink}>
+          Vedi la qualità del prodotto
+        </Link>
+        <Link href={SHELF_PATH} className={ui.textLink}>
+          Confronta sullo scaffale
+        </Link>
+      </div>
+    </Disclosure>
+  );
+
+  const meaning = (
+    <Disclosure quiet title="Che cosa significa">
+      <p>
+        {from === "memory"
+          ? "Scheda già letta, salvata sul telefono: la trovi anche senza rete. "
+          : "Scheda appena letta e salvata sul telefono. "}
+        {packLine ?? "I dati vengono da Open Food Facts, un archivio compilato da volontari, e possono essere incompleti o non aggiornati: controlla sulla confezione."}
+      </p>
+    </Disclosure>
+  );
+
+  return (
+    <article className={styles.card} aria-label="Scheda del prodotto">
+      <div className={styles.top}>
+        {product.imageUrl && !imageFailed ? (
+          // eslint-disable-next-line @next/next/no-img-element -- immagine remota di Open Food Facts, non ottimizzabile
+          <img
+            className={styles.image}
+            src={product.imageUrl}
+            alt=""
+            width={96}
+            height={96}
+            referrerPolicy="no-referrer"
+            onError={() => setImageFailed(true)}
+          />
+        ) : null}
+        <div className={styles.heading}>
+          <h2 className={styles.name}>{product.name ?? "Nome non indicato"}</h2>
+          {meta ? <p className={styles.brand}>{meta}</p> : null}
+          <p className={styles.declared}>{declaredAllergensLine(product)}</p>
+          {packLine ? <p className={styles.declared}>{packLine}</p> : null}
+        </div>
+      </div>
+
+      {/* avvisi che cambiano la decisione: sempre sopra il modulo, interi */}
+      {product.source === "openfoodfacts" && isRestrictedCode(product.barcode) ? (
+        <div className={ui.calloutStrong} role="alert">
+          <p className={ui.paragraph}>
+            <strong>{RESTRICTED_WARNING_TITLE}.</strong> {RESTRICTED_WARNING_TEXT}
+          </p>
+          <div className={ui.row}>
+            <Button variant="outline" onClick={onNotThisProduct}>
+              Non è questo prodotto
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       {needsConfirm ? (
         <div className={ui.calloutStrong} role="alert">
@@ -316,44 +385,33 @@ function ProductCard({
         </div>
       ) : null}
 
-      <section aria-label="Valori nutrizionali">
-        <ProductValues product={product} />
-        {labelSaved ? (
-          <div className={ui.row}>
-            <p className={ui.paragraph} role="status">
-              Valori salvati sul telefono, legati {displayProductCode(product) === product.barcode ? `al codice ${product.barcode}` : "a questo prodotto"}.
-            </p>
-            <Button variant="text" onClick={onLabelUndo}>
-              Annulla
-            </Button>
-          </div>
-        ) : null}
-        {needsConfirm ? null : (
-          <NutritionEntry barcode={product.barcode} product={product} safety={(draft) => <ProductSafety product={draft} confirmed />} onSaved={onLabelSaved} />
-        )}
-      </section>
-
       <ProductSafety product={product} confirmed={confirmed} />
 
-      <p className={ui.hint}>
-        {from === "memory"
-          ? "Scheda già letta, salvata sul telefono: la trovi anche senza rete. "
-          : "Scheda appena letta e salvata sul telefono. "}
-        {product.source === "manual"
-          ? "Non è su Open Food Facts: i dati li hai scritti tu. Controlla sulla confezione."
-          : product.source === "label_photo"
-          ? "Non è su Open Food Facts: i dati li hai letti tu dalla foto dell'etichetta, con l'intelligenza artificiale, e li hai confermati. Controlla sulla confezione."
-          : "I dati vengono da Open Food Facts, un archivio compilato da volontari, e possono essere incompleti o non aggiornati: controlla sulla confezione."}
-      </p>
-
       {needsConfirm ? (
-        <div className={ui.row}>
-          <Button variant="outline" onClick={onAgain}>
-            Leggi un altro codice
-          </Button>
-        </div>
+        <>
+          <div className={styles.rows}>
+            {values}
+            {meaning}
+          </div>
+          <div className={ui.row}>
+            <Button variant="outline" onClick={onAgain}>
+              Altro codice
+            </Button>
+          </div>
+        </>
       ) : (
-        <AddToPantry product={product} scannedExpiry={scanned?.expiry} onAgain={onAgain} />
+        <AddToPantry
+          product={product}
+          scannedExpiry={scanned?.expiry}
+          onAgain={onAgain}
+          onAdded={onAdded}
+          after={
+            <>
+              {values}
+              {meaning}
+            </>
+          }
+        />
       )}
     </article>
   );

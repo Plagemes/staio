@@ -1,4 +1,4 @@
-// Registro di oggi: gli eventi del giorno, in ordine di orario, già in parole.
+// I movimenti della dispensa di un giorno, in ordine di orario, già in parole: la riga «Dispensa» del diario di Oggi.
 import { QUICK_CONSUME_NOTE } from "@/core/diary";
 import { DEFAULT_TIME_ZONE } from "@/core/expiry";
 import { sortEvents, type LotPatch, type PantryState } from "@/core/ledger";
@@ -18,9 +18,9 @@ export interface JournalRow {
   value: string;
   /** La quantità è una stima: il valore si mostra con tilde e puntini. */
   estimated: boolean;
-  /** L'evento si può annullare da qui. */
+  /** La riga si può togliere da qui. */
   canUndo: boolean;
-  /** Perché non si può annullare, se è così. */
+  /** Perché non si può togliere, se è così. */
   undoBlocked?: string;
 }
 
@@ -84,6 +84,14 @@ const PATCH_LABELS: Record<keyof LotPatch, string> = {
   store: "negozio",
 };
 
+export interface JournalOptions {
+  /**
+   * Lascia fuori i consumi che fanno parte di un pasto (quelli con `mealId`): nel diario di Oggi stanno già nel loro
+   * momento, e nella riga «Dispensa» sarebbero doppi.
+   */
+  withoutMealConsumes?: boolean;
+}
+
 /**
  * Eventi del giorno `today` (giorno di calendario di Roma). Restano fuori gli eventi annullati
  * e gli annullamenti stessi: il registro racconta ciò che è successo davvero.
@@ -93,6 +101,7 @@ export function buildJournal(
   pantry: PantryState,
   today: string,
   timeZone: string = DEFAULT_TIME_ZONE,
+  options: JournalOptions = {},
 ): JournalRow[] {
   const voided = new Set(pantry.voidedEventIds);
   const names = new Map(pantry.lots.map((l) => [l.lotId, l.productRef]));
@@ -102,16 +111,17 @@ export function buildJournal(
   for (const e of sortEvents(ledgerEventsOf(events))) {
     if (e.type === "void" || voided.has(e.id)) continue;
     if (dayOf(e.at, timeZone) !== today) continue;
+    if (options.withoutMealConsumes && e.type === "consume" && e.mealId) continue;
     const name = ("lotId" in e ? names.get(e.lotId) : undefined) ?? (e.type === "purchase" || e.type === "declare" ? e.productRef : "alimento");
     // annullare l'ingresso di un alimento lascerebbe senza lotto i movimenti che lo seguono
     const isCreation = e.type === "purchase" || e.type === "declare";
     const blocked =
       e.type === "consume" && e.mealId && e.note === QUICK_CONSUME_NOTE
-        ? "Sta nel momento in cui l'hai segnato: lo annulli o lo sposti da «Momenti di oggi»."
+        ? "Sta nel momento in cui l'hai segnato: lo togli o lo sposti da «Diario di oggi»."
         : e.type === "consume" && e.mealId
-        ? "Fa parte di un pasto: annulla il pasto da «Momenti di oggi», così tornano a posto anche gli altri alimenti."
+        ? "Fa parte di un pasto: togli il pasto da «Diario di oggi», così tornano a posto anche gli altri alimenti."
         : isCreation && (lots.get(e.lotId)?.history.length ?? 0) > 1
-          ? "Questo alimento ha già altri movimenti: annullali prima, poi potrai annullare l'ingresso."
+          ? "Questo alimento ha già altri movimenti: toglili prima, poi potrai togliere l'ingresso."
           : undefined;
     const row = (title: string, value: string, estimated = false, quantity?: Quantity): RawRow => ({
       id: e.id,

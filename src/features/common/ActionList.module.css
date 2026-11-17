@@ -1,0 +1,65 @@
+/* «Altro»: le azioni secondarie, una per riga, tutta la riga si tocca. */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item + .item {
+  border-top: var(--rule-width) solid var(--color-rule);
+}
+
+/* Le azioni che non si annullano stanno in fondo, dopo un filetto forte */
+.item.afterRule {
+  border-top-color: var(--color-control-border);
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: var(--space-1);
+  width: 100%;
+  min-height: 48px;
+  padding: var(--space-3) 0;
+  border: none;
+  background: none;
+  color: var(--color-ink);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.row:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.label {
+  font-size: var(--text-body);
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.hint {
+  font-size: var(--text-caption);
+  line-height: 1.4;
+  color: var(--color-graphite);
+}
+
+.danger {
+  color: var(--color-signal);
+}
+
+/* ------------------------------------------------------------------------------------------------
+   Vivo: l'elenco è una scheda sola (la disegna ui.group); qui solo la pressione delle righe.
+   ------------------------------------------------------------------------------------------------ */
+
+:global([data-palette="vivo"]) .row:active {
+  opacity: var(--press-opacity);
+}

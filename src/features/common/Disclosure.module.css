@@ -1,0 +1,129 @@
+/* La riga richiusa: titolo, riepilogo di ciò che contiene, freccia. Più righe in fila si toccano. */
+
+.disclosure {
+  min-width: 0;
+  border-bottom: var(--rule-width) solid var(--color-rule);
+}
+
+.quiet {
+  min-width: 0;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-6);
+  min-height: var(--tap-min);
+  padding-block: var(--space-4);
+  color: var(--color-ink);
+  cursor: pointer;
+  list-style: none;
+}
+
+.row::-webkit-details-marker {
+  display: none;
+}
+
+.text {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-5);
+  row-gap: var(--space-1);
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--text-body);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* Accanto al titolo finché ci sta; altrimenti sotto, sempre su una riga sola */
+.summary {
+  flex: 1 1 9rem;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-caption);
+  line-height: 1.4;
+  color: var(--color-graphite);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.arrow {
+  flex: none;
+  color: var(--color-graphite);
+  transition: transform var(--motion-fast) ease;
+}
+
+.disclosure[open] > .row .arrow,
+.quiet[open] > .row .arrow {
+  transform: rotate(90deg);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-group);
+  min-width: 0;
+  padding-block: var(--space-2) var(--space-8);
+}
+
+/* «Che cosa significa»: una riga di testo piccolo, nel colore dei collegamenti */
+
+.quiet > .row {
+  justify-content: flex-start;
+  gap: var(--space-2);
+  padding-block: 0;
+  color: var(--color-accent);
+}
+
+.quiet > .row .text {
+  flex: 0 1 auto;
+}
+
+.quiet > .row .title {
+  font-size: var(--text-caption);
+}
+
+.quiet > .row .arrow {
+  color: inherit;
+}
+
+/* testo che scorre, non blocchi impilati: dentro possono esserci parole in evidenza e collegamenti */
+.quiet > .content {
+  display: block;
+  padding-block: 0 var(--space-4);
+}
+
+.quiet > .content > p {
+  margin: 0;
+}
+
+.quiet > .content > p + p {
+  margin-top: var(--space-3);
+}
+
+/* ------------------------------------------------------------------------------------------------
+   Vivo: ogni riga è una scheda, e il contenuto aperto sta nella stessa scheda. Chi mette più righe in fila
+   le distanzia con --gap-item.
+   ------------------------------------------------------------------------------------------------ */
+
+:global([data-palette="vivo"]) .disclosure {
+  overflow: hidden;
+  border-bottom: none;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .disclosure > .row {
+  padding: var(--space-7) var(--space-8);
+}
+
+:global([data-palette="vivo"]) .disclosure > .content {
+  padding: 0 var(--space-8) var(--space-7);
+}

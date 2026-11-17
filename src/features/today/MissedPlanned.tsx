@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { DiaryState, MealKind } from "@/core/diary";
 import type { MissedMeal, PlannedEntry } from "@/core/plan";
-import { Button, SectionHeader } from "@/design";
+import { Button } from "@/design";
 import { MEAL_KIND_LABELS } from "../meals";
 import { dayHeading } from "../plan/dates";
 import { itemLabel, type Catalog } from "../plan/describe";
@@ -13,7 +13,9 @@ import { useWriter } from "../plan/useWriter";
 import ui from "../ui.module.css";
 import styles from "./Today.module.css";
 
-interface Props {
+export interface MissedPlannedProps {
+  /** L'id del contenitore: lo cita il pulsante che lo apre e lo chiude. */
+  id?: string;
   missed: readonly MissedMeal[];
   weekStart: string;
   weekEntries: readonly PlannedEntry[];
@@ -30,11 +32,12 @@ interface Props {
 const REASON_TEXT = { skipped: "saltato", not_logged: "non registrato" } as const;
 
 /**
- * Pasti del piano di questa settimana, fino a oggi, che risultano saltati o non registrati. Non è una domanda che
- * blocca: ognuno si può spostare su un posto libero della settimana (o della successiva) oppure togliere dal piano, e restare dov'è.
- * Gli ingredienti seguono il pasto: la spesa e l'aderenza lo contano una volta sola, nel posto nuovo.
+ * Pasti del piano di questa settimana, fino a oggi, che risultano saltati o non registrati: l'elenco che «Da guardare
+ * oggi» apre sotto la riga «Nel piano, non fatti». Non è una domanda che blocca: ognuno si può spostare su un posto
+ * libero della settimana (o della successiva) oppure togliere dal piano, e restare dov'è. Gli ingredienti seguono il
+ * pasto: la spesa e l'aderenza lo contano una volta sola, nel posto nuovo.
  */
-export function MissedPlanned({ missed, weekStart, weekEntries, nextWeekStart, nextWeekEntries, kinds, catalog, diary, now, timeZone, today }: Props) {
+export function MissedPlanned({ id, missed, weekStart, weekEntries, nextWeekStart, nextWeekEntries, kinds, catalog, diary, now, timeZone, today }: MissedPlannedProps) {
   const write = useWriter();
   const [moving, setMoving] = useState<MissedMeal | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,8 +58,7 @@ export function MissedPlanned({ missed, weekStart, weekEntries, nextWeekStart, n
   }
 
   return (
-    <section className={ui.section} aria-label="Pasti del piano non fatti">
-      <SectionHeader label="Nel piano, non fatti" />
+    <div id={id} role="group" aria-label="Pasti del piano non fatti">
       <ul className={`${styles.list} ${ui.group}`}>
         {missed.map((m) => (
           <li key={`${m.date}-${m.meal}`} className={styles.meal}>
@@ -107,6 +109,6 @@ export function MissedPlanned({ missed, weekStart, weekEntries, nextWeekStart, n
           }}
         />
       ) : null}
-    </section>
+    </div>
   );
 }

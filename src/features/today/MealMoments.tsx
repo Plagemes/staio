@@ -1,22 +1,30 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import {
   drinksByMoment,
   localMoment,
+  momentOfMinutes,
+  voidMeal,
   type DiaryDay,
-  type DiaryHabit,
+  type DiaryDrink,
+  type DiaryState,
   type MealDeclarationStatus,
   type MealKind,
   type MealWithPantry,
 } from "@/core/diary";
-import type { ConsumeEvent } from "@/core/ledger";
-import { Button, SectionHeader } from "@/design";
+import type { AnyEvent } from "@/core/events";
+import type { ConsumeEvent, PantryState } from "@/core/ledger";
+import { Button, Value } from "@/design";
+import { buildUndo } from "../actions";
+import { Disclosure } from "../common";
+import { shortTime } from "../drinks";
 import { formatTime } from "../format";
-import { DrinkEntries, useDrinkActions } from "../health/Drinks";
+import { useDrinkActions } from "../health/Drinks";
 import {
   MEAL_KIND_LABELS,
   buildMealDeclaration,
+  itemText,
   momentOffer,
   momentTitle,
   momentsOf,
@@ -24,178 +32,257 @@ import {
 } from "../meals";
 import ui from "../ui.module.css";
 import { useRecord } from "../useRecord";
+import { DrinkLines } from "./DrinkLines";
+import { LooseLine, PantryLine, type DayIntakeLookup } from "./MealLines";
+import { mealSummary } from "./summaries";
+import { useRemove } from "./useRemove";
 import styles from "./Today.module.css";
 
 interface Props {
   /** Giorno di calendario a cui si riferiscono le righe (`YYYY-MM-DD`). */
   date: string;
-  /** Istante corrente: decide quali momenti compaiono e quando si propone «Saltato». */
+  /** Oggi, `YYYY-MM-DD`. */
+  today: string;
+  /** Istante corrente: decide quali momenti compaiono e quale parte aperto. */
   now: string;
-  timeZone: string;
+  diary: DiaryState;
   day: DiaryDay | undefined;
-  habits: readonly DiaryHabit[];
   /** Pasti registrati del giorno, in ordine di orario. */
   meals: readonly MealWithPantry[];
-  /** Come si mostra un pasto registrato (alimenti, annulla). */
-  renderMeal: (meal: MealWithPantry) => ReactNode;
-  /** Gli alimenti mangiati senza un pasto, nel momento della loro ora, e come si mostrano (con «In quale momento?»). */
-  loose?: Readonly<Record<MealKind, readonly ConsumeEvent[]>>;
-  renderLoose?: (consume: ConsumeEvent) => ReactNode;
-  /** Un giorno già passato: ogni momento è dichiarabile e non si propone di registrare adesso. */
-  pastDay?: boolean;
-  /** Toglie una dichiarazione o un «non tracciato» (un `void`, con «Annulla» sull'avviso). */
-  onRemoveDeclaration: (eventId: string, description: string) => void;
-  onError: (message: string | null) => void;
+  /** Gli alimenti mangiati senza un pasto, nel momento della loro ora. */
+  loose: Readonly<Record<MealKind, readonly ConsumeEvent[]>>;
+  log: readonly AnyEvent[];
+  pantry: PantryState;
+  /** Ciò che il piano prevede per oggi: si legge nella riga del momento ancora vuoto. */
+  planned: readonly { meal: MealKind; text: string }[];
+  intake: DayIntakeLookup;
+  /** Un giorno già passato: tutti i momenti compaiono. */
+  pastDay: boolean;
 }
 
+const STATUS_WORD: Record<MealDeclarationStatus, string> = { skipped: "saltato", untracked: "mangiato, senza dettagli" };
+
 /**
- * Il giorno per momenti: colazione, pranzo, cena e fuori pasto. Ogni momento mostra i suoi pasti, le sue bevande e,
- * se non c'è un pasto registrato, una riga compatta con «Registra», «Saltato» e, meno in evidenza, «Mangiato, non
- * registrato». Lo stato scelto resta scritto («Pranzo · saltato») e si può cambiare. Una bevanda non vale un pasto.
+ * Il giorno per momenti: colazione, pranzo, cena e ciò che sta fuori pasto, una voce per momento già cominciato. Un
+ * momento senza pasto ha un solo comando in vista, «Registra»; «Saltato» e «Mangiato, senza dettagli» stanno dietro
+ * «Altro». Un pasto registrato è una riga richiusa che dice che cosa contiene. Una bevanda non vale un pasto.
  */
-export function MealMoments({ date, now, timeZone, day, habits, meals, renderMeal, loose, renderLoose, pastDay = false, onRemoveDeclaration, onError }: Props) {
-  const { recordWith, busy } = useRecord();
+export function MealMoments({ date, today, now, diary, day, meals, loose, log, pantry, planned, intake, pastDay }: Props) {
+  const timeZone = diary.timeZone;
+  const { recordWith, busy: recording } = useRecord();
+  const { remove, busy: removing } = useRemove();
   const drinkActions = useDrinkActions(timeZone);
   const [changing, setChanging] = useState<DeclarableKind | null>(null);
+  const [more, setMore] = useState<DeclarableKind | null>(null);
+  // l'errore si legge nel momento in cui è nato
+  const [problem, setProblem] = useState<{ key: string; text: string } | null>(null);
+  const busy = recording || removing;
   const nowMinutes = localMoment(now, timeZone)?.minutes ?? 0;
+  const current = pastDay ? undefined : momentOfMinutes(nowMinutes);
   const drinks = drinksByMoment(day, timeZone);
+  const lotNames = new Map(pantry.lots.map((l) => [l.lotId, l.productRef]));
+  const nameOf = (c: ConsumeEvent) => lotNames.get(c.lotId) ?? "Alimento";
+
+  const errorIn = (key: string) => (text: string | null) => setProblem(text ? { key, text } : null);
+  const errorLine = (key: string) =>
+    problem?.key === key ? (
+      <p className={ui.error} role="alert">
+        {problem.text}
+      </p>
+    ) : null;
 
   async function declare(kind: DeclarableKind, status: MealDeclarationStatus) {
-    onError(null);
+    setProblem(null);
     const result = await recordWith((deviceId) => buildMealDeclaration(date, kind, status, { now: new Date().toISOString(), deviceId }));
-    if (result.ok) setChanging(null);
-    else onError(result.error);
+    if (result.ok) {
+      setChanging(null);
+      setMore(null);
+    } else errorIn(kind)(result.error);
   }
+
+  async function removeWith(key: string, make: Parameters<typeof remove>[0], description: string) {
+    setProblem(null);
+    const failure = await remove(make, description);
+    if (failure) errorIn(key)(failure);
+  }
+
+  function removeDeclaration(key: string, eventId: string, description: string) {
+    const event = log.find((e) => e.id === eventId);
+    if (event) void removeWith(key, (deviceId, at) => buildUndo([event], { deviceId, now: at }), description);
+  }
+
+  const registerHref = (kind: DeclarableKind) => (pastDay ? `/app/pasto?momento=${kind}&giorno=${date}` : `/app/pasto?momento=${kind}`);
+
+  function renderMeal(meal: MealWithPantry, key: string) {
+    const label = MEAL_KIND_LABELS[meal.kind];
+    const title = meal.title ?? label;
+    const summary = mealSummary({
+      time: shortTime(meal.at, timeZone),
+      ...(meal.title ? { moment: label.toLowerCase() } : {}),
+      names: [...meal.pantryConsumes.map(nameOf), ...meal.items.map((i) => i.name)],
+      energy: intake.mealOf(meal.mealId)?.totals.energyKcal,
+    });
+    return (
+      <Disclosure key={meal.mealId} title={title} summary={summary} defaultOpen={meal.kind === current}>
+        <ul className={styles.items}>
+          {meal.pantryConsumes.map((c) => (
+            <PantryLine key={c.id} consume={c} name={nameOf(c)} date={date} today={today} diary={diary} line={intake.lineOf(c.id)} kind={meal.kind} onError={errorIn(key)} />
+          ))}
+          {meal.items.map((i, index) => (
+            <li key={`${i.name}-${index}`}>
+              <Value certainty="estimated">{itemText(i.name, i.quantity)}</Value> <span className={styles.note}>voce libera</span>
+            </li>
+          ))}
+        </ul>
+        {meal.removedLines ? (
+          <p className={styles.note}>
+            {meal.removedLines === 1 ? "Una voce è stata tolta dalla dispensa." : `${meal.removedLines} voci sono state tolte dalla dispensa.`}
+          </p>
+        ) : null}
+        <div>
+          <Button variant="text" disabled={busy} onClick={() => void removeWith(key, (deviceId, at) => voidMeal(meal.mealId, log, { deviceId, now: () => at }), title)}>
+            Togli il pasto
+          </Button>
+        </div>
+      </Disclosure>
+    );
+  }
+
+  const renderLoose = (c: ConsumeEvent, key: string) => (
+    <LooseLine key={c.id} consume={c} name={nameOf(c)} date={date} today={today} diary={diary} line={intake.lineOf(c.id)} onError={errorIn(key)} />
+  );
+
+  const renderDrinks = (list: readonly DiaryDrink[], key: string) => (
+    <DrinkLines drinks={list} date={date} now={now} actions={drinkActions} log={log} pantry={pantry} scalable={!pastDay} onError={errorIn(key)} />
+  );
 
   const rows = momentsOf(day).flatMap((moment) => {
     const kindMeals = meals.filter((m) => m.kind === moment.kind);
     const kindDrinks = drinks[moment.kind];
-    const usualTime = habits.find((h) => h.kind === moment.kind && h.usualTime !== undefined)?.usualTime;
-    const offer = momentOffer(moment.kind, nowMinutes, { pastDay, usualTime });
+    const kindLoose = loose[moment.kind];
     // Un momento con qualcosa dentro o dichiarato si mostra sempre; uno non ancora cominciato, no.
-    const kindLoose = loose?.[moment.kind] ?? [];
-    if (offer === "hidden" && moment.status === "none" && kindDrinks.length === 0 && kindLoose.length === 0) return [];
+    const hidden = momentOffer(moment.kind, nowMinutes, { pastDay }) === "hidden";
+    if (hidden && moment.status === "none" && kindDrinks.length === 0 && kindLoose.length === 0) return [];
     const legacy = (day?.untrackedMeals ?? []).filter((u) => u.kind === moment.kind);
-    return [{ moment, kindMeals, kindDrinks, kindLoose, offer, legacy }];
+    return [{ moment, kindMeals, kindDrinks, kindLoose, legacy }];
   });
   const snackMeals = meals.filter((m) => m.kind === "snack");
   const snackLegacy = (day?.untrackedMeals ?? []).filter((u) => u.kind === "snack");
-  const snackLoose = loose?.snack ?? [];
-  const hasLoose = snackMeals.length > 0 || drinks.offMeal.length > 0 || snackLegacy.length > 0 || snackLoose.length > 0;
+  const hasSnacks = snackMeals.length > 0 || drinks.offMeal.length > 0 || snackLegacy.length > 0 || loose.snack.length > 0;
 
-  if (rows.length === 0 && !hasLoose) {
-    return pastDay ? null : (
-      <section className={ui.section} aria-label="Momenti del giorno">
-        <SectionHeader label="Momenti di oggi" />
-        <p className={styles.quiet}>Nessun pasto registrato. Quando ne registri uno, compare qui con gli alimenti.</p>
-      </section>
-    );
-  }
+  if (rows.length === 0 && !hasSnacks) return null;
 
   return (
-    <section className={ui.section} aria-label="Momenti del giorno">
-      <SectionHeader label={pastDay ? "Pasti del giorno" : "Momenti di oggi"} />
-      <ul className={`${styles.list} ${styles.momentList}`}>
-        {rows.map(({ moment, kindMeals, kindDrinks, kindLoose, offer, legacy }) => {
-          const { kind, status } = moment;
-          const declared = status === "skipped" || status === "untracked";
-          const recorded = status === "recorded";
-          const showChoices = !recorded && (!declared || changing === kind);
-          const name = MEAL_KIND_LABELS[kind].toLowerCase();
-          const removeId = moment.declarationEventId ?? legacy[0]?.eventId;
-          return (
-            <li key={kind} className={styles.moment} data-status={status}>
-              {!recorded ? (
-                <div className={styles.momentHead}>
+    <ul className={`${styles.list} ${styles.momentList}`}>
+      {rows.map(({ moment, kindMeals, kindDrinks, kindLoose, legacy }) => {
+        const { kind, status } = moment;
+        const declared = status === "skipped" || status === "untracked";
+        const recorded = status === "recorded";
+        const name = MEAL_KIND_LABELS[kind].toLowerCase();
+        const removeId = moment.declarationEventId ?? legacy[0]?.eventId;
+        const plannedText = pastDay ? "" : planned.filter((p) => p.meal === kind).map((p) => p.text).join(", ");
+        const under = plannedText !== "" ? `nel piano: ${plannedText}` : kindDrinks.length === 0 && kindLoose.length === 0 ? "niente registrato" : "";
+        return (
+          <li key={kind} className={styles.moment} data-status={status}>
+            {recorded ? null : (
+              <div className={styles.momentHead}>
+                <div className={styles.momentText}>
                   <span className={styles.mealTitle}>{momentTitle(kind, status, kindDrinks.map((d) => d.name))}</span>
-                  {declared ? (
-                    <span className={styles.momentChoices}>
-                      <Button variant="text" disabled={busy} onClick={() => setChanging(changing === kind ? null : kind)} aria-expanded={changing === kind}>
-                        Cambia
-                      </Button>
-                      {removeId ? (
-                        <Button
-                          variant="text"
-                          disabled={busy}
-                          onClick={() => onRemoveDeclaration(removeId, `${name}: ${status === "skipped" ? "saltato" : "mangiato, non registrato"}`)}
-                        >
-                          Togli
-                        </Button>
-                      ) : null}
-                    </span>
-                  ) : null}
+                  {status === "none" && under !== "" ? <span className={styles.note}>{under}</span> : null}
                 </div>
-              ) : null}
-
-              {kindMeals.map((m) => (
-                <div key={m.mealId}>{renderMeal(m)}</div>
-              ))}
-
-              {kindLoose.map((c) => renderLoose?.(c))}
-
-              {recorded
-                ? legacy.map((u) => (
-                    <p key={u.eventId} className={styles.note}>
-                      {MEAL_KIND_LABELS[kind]} fuori, non tracciato · {formatTime(u.at, timeZone)}{" "}
-                      <Button variant="text" disabled={busy} onClick={() => onRemoveDeclaration(u.eventId, `${name} fuori`)}>
+                {declared ? (
+                  <span className={styles.momentChoices}>
+                    <Button variant="text" disabled={busy} onClick={() => setChanging(changing === kind ? null : kind)} aria-expanded={changing === kind}>
+                      Cambia
+                    </Button>
+                    {removeId ? (
+                      <Button variant="text" disabled={busy} onClick={() => removeDeclaration(kind, removeId, `${name} ${STATUS_WORD[status]}`)}>
                         Togli
                       </Button>
-                    </p>
-                  ))
-                : null}
+                    ) : null}
+                  </span>
+                ) : (
+                  <span className={styles.momentChoices}>
+                    <Button href={registerHref(kind)} variant="outline">
+                      Registra
+                    </Button>
+                    <Button variant="text" disabled={busy} onClick={() => setMore(more === kind ? null : kind)} aria-expanded={more === kind}>
+                      Altro
+                    </Button>
+                  </span>
+                )}
+              </div>
+            )}
 
-              {kindDrinks.length > 0 ? <DrinkEntries drinks={kindDrinks} date={date} actions={drinkActions} onError={onError} scalable={!pastDay} /> : null}
-
-              {status === "skipped" && kindDrinks.length > 0 ? (
-                <p className={styles.notDone}>Saltato vuol dire nient&apos;altro oltre alle bevande: contano quelle, non zero.</p>
-              ) : null}
-
-              {showChoices ? (
-                <div className={styles.momentChoices}>
-                  <Button href={pastDay ? `/app/pasto?momento=${kind}&giorno=${date}` : `/app/pasto?momento=${kind}`} variant="outline">
-                    Registra
-                  </Button>
-                  {offer === "declare" || declared ? (
-                    <>
-                      {status === "skipped" ? null : (
-                        <Button variant="outline" disabled={busy} onClick={() => void declare(kind, "skipped")}>
-                          Saltato
-                        </Button>
-                      )}
-                      {status === "untracked" ? null : (
-                        <Button variant="text" disabled={busy} onClick={() => void declare(kind, "untracked")}>
-                          Mangiato, non registrato
-                        </Button>
-                      )}
-                    </>
-                  ) : null}
-                </div>
-              ) : null}
-            </li>
-          );
-        })}
-
-        {hasLoose ? (
-          <li className={styles.moment}>
-            <div className={styles.momentHead}>
-              <span className={styles.mealTitle}>Fuori pasto</span>
-            </div>
-            {snackMeals.map((m) => (
-              <div key={m.mealId}>{renderMeal(m)}</div>
-            ))}
-            {snackLoose.map((c) => renderLoose?.(c))}
-            {snackLegacy.map((u) => (
-              <p key={u.eventId} className={styles.note}>
-                Fuori, non tracciato · {formatTime(u.at, timeZone)}{" "}
-                <Button variant="text" disabled={busy} onClick={() => onRemoveDeclaration(u.eventId, "spuntino fuori")}>
-                  Togli
+            {status === "none" && more === kind ? (
+              <div className={styles.momentChoices} role="group" aria-label={`Altro per ${name}`}>
+                <Button variant="outline" disabled={busy} onClick={() => void declare(kind, "skipped")}>
+                  Saltato
                 </Button>
-              </p>
-            ))}
-            <DrinkEntries drinks={drinks.offMeal} date={date} actions={drinkActions} onError={onError} scalable={!pastDay} />
+                <Button variant="text" disabled={busy} onClick={() => void declare(kind, "untracked")}>
+                  Mangiato, senza dettagli
+                </Button>
+              </div>
+            ) : null}
+
+            {declared && changing === kind ? (
+              <div className={styles.momentChoices} role="group" aria-label={`Cambia ${name}`}>
+                <Button href={registerHref(kind)} variant="outline">
+                  Registra
+                </Button>
+                {status === "skipped" ? (
+                  <Button variant="text" disabled={busy} onClick={() => void declare(kind, "untracked")}>
+                    Mangiato, senza dettagli
+                  </Button>
+                ) : (
+                  <Button variant="text" disabled={busy} onClick={() => void declare(kind, "skipped")}>
+                    Saltato
+                  </Button>
+                )}
+              </div>
+            ) : null}
+
+            {kindMeals.map((m) => renderMeal(m, kind))}
+
+            {kindLoose.map((c) => renderLoose(c, kind))}
+
+            {recorded
+              ? legacy.map((u) => (
+                  <p key={u.eventId} className={styles.note}>
+                    {MEAL_KIND_LABELS[kind]} fuori, non tracciato · {formatTime(u.at, timeZone)}{" "}
+                    <Button variant="text" disabled={busy} onClick={() => removeDeclaration(kind, u.eventId, `${name} fuori`)}>
+                      Togli
+                    </Button>
+                  </p>
+                ))
+              : null}
+
+            {renderDrinks(kindDrinks, kind)}
+
+            {errorLine(kind)}
           </li>
-        ) : null}
-      </ul>
-    </section>
+        );
+      })}
+
+      {hasSnacks ? (
+        <li className={styles.moment}>
+          <div className={styles.momentHead}>
+            <span className={styles.mealTitle}>Fuori pasto</span>
+          </div>
+          {snackMeals.map((m) => renderMeal(m, "snack"))}
+          {loose.snack.map((c) => renderLoose(c, "snack"))}
+          {snackLegacy.map((u) => (
+            <p key={u.eventId} className={styles.note}>
+              Fuori, non tracciato · {formatTime(u.at, timeZone)}{" "}
+              <Button variant="text" disabled={busy} onClick={() => removeDeclaration("snack", u.eventId, "spuntino fuori")}>
+                Togli
+              </Button>
+            </p>
+          ))}
+          {renderDrinks(drinks.offMeal, "snack")}
+          {errorLine("snack")}
+        </li>
+      ) : null}
+    </ul>
   );
 }

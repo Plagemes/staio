@@ -2,6 +2,8 @@
 import type { MonthlyBudgetProgress, ProductPriceHistory, SpendSummary } from "@/core/prices";
 import type { UnitPrice } from "@/core/shopping";
 import { formatPrice } from "../format";
+import { FOOD_CATEGORY_LABELS } from "../labels";
+import { isFoodCategory } from "../lots";
 
 export function unitPriceText(u: UnitPrice): string {
   return `${formatPrice(u.cents)}/${u.per === "pz" ? "pezzo" : u.per}`;
@@ -37,5 +39,6 @@ export function budgetText(p: MonthlyBudgetProgress): string {
 
 export function categoryLabel(category: string | null): string {
   if (category === null) return "Senza categoria";
+  if (isFoodCategory(category)) return FOOD_CATEGORY_LABELS[category];
   return category.charAt(0).toUpperCase() + category.slice(1);
 }

@@ -56,6 +56,7 @@ Il progetto è in costruzione. Questa tabella dice cosa c'è davvero.
 | Voti ai piatti e profilo dei propri gusti | Prima versione, con revisione indipendente |
 | Riepilogo del mese e dell'anno, con lo spreco, stampabile | Prima versione |
 | Consumo rapido dalla dispensa registrato nel diario del giorno | Prima versione, con revisione indipendente |
+| Redesign funzionale, ondata 1 di 5: Oggi, scheda dell'alimento, Dispensa con ricerca, aggiunta a mano, scheda del codice ([progetto](docs/REDESIGN.md)) | Fatto, con revisione indipendente; da provare sui telefoni |
 | Sincronizzazione con file e con Drive | Scritto; Drive in attesa delle credenziali |
 | Tema Vivo a colori, modelli 3D a colori | In costruzione |
 

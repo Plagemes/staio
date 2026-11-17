@@ -1,0 +1,135 @@
+/* Il foglio dal basso: testa ferma (maniglia, titolo, «Chiudi»), corpo che scorre, piede sempre in vista. */
+
+.sheet {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: var(--column-max);
+  max-height: 92dvh;
+  margin: auto auto 0;
+  padding: 0;
+  border: none;
+  border-top: var(--rule-width) solid var(--color-rule-strong);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  overflow: hidden;
+}
+
+/* Solo da aperto: un dialog chiuso deve restare nascosto */
+.sheet[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.sheet::backdrop {
+  background: color-mix(in srgb, var(--color-ink) 45%, transparent);
+}
+
+.top {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--gutter) 0;
+}
+
+.grip {
+  align-self: center;
+  width: 36px;
+  height: 4px;
+  border-radius: var(--radius-sm);
+  background: var(--color-rule);
+}
+
+.bar {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-6);
+}
+
+.title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  /* allinea il titolo al centro di «Chiudi» anche quando va a capo */
+  padding-block: var(--space-3);
+  font-family: var(--font-display);
+  font-weight: var(--weight-display);
+  font-size: var(--text-title);
+  line-height: 1.05;
+  letter-spacing: var(--tracking-title);
+  overflow-wrap: anywhere;
+}
+
+.headBeside {
+  flex: 1;
+  min-width: 0;
+}
+
+.head {
+  min-width: 0;
+}
+
+.close {
+  flex: none;
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+  padding: 0 var(--space-4);
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.close[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.body {
+  flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-group);
+  min-height: 0;
+  padding: var(--gap-group) var(--gutter) calc(var(--space-11) + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* gli elementi del corpo non si schiacciano per far stare il foglio in altezza: è il corpo che scorre */
+.body > * {
+  flex: none;
+}
+
+.bodyAboveFooter {
+  padding-bottom: var(--gap-group);
+}
+
+.footer {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-item);
+  padding: var(--space-6) var(--gutter) calc(var(--space-6) + env(safe-area-inset-bottom, 0px));
+  border-top: var(--rule-width) solid var(--color-rule);
+  background: var(--color-paper);
+}
+
+/* ------------------------------------------------------------------------------------------------
+   Vivo: foglio con angoli ampi su fondo raggruppato, senza filetto in cima.
+   ------------------------------------------------------------------------------------------------ */
+
+:global([data-palette="vivo"]) .sheet {
+  border-top: none;
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+}
+
+:global([data-palette="vivo"]) .grip {
+  background: var(--color-rule-strong);
+}

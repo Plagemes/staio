@@ -2,33 +2,30 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { addDays } from "@/core/diary";
+import { DEFAULT_TIME_ZONE } from "@/core/expiry";
 import { activeLots } from "@/core/ledger";
-import { appendEvents, getDeviceId, useEventLog, usePantry } from "@/data";
-import { Button, LedgerRow, Label, PantryRow, PromptCard, SectionHeader, Value, Wordmark } from "@/design";
+import { useDiary, useEventLog, usePantry } from "@/data";
+import { Label, PromptCard, Wordmark } from "@/design";
 import { PinnedViews } from "@/features/assistant";
-import { buildUndo } from "../actions";
+import { dayOf, formatDayLabel } from "../format";
+import { evaluateLots } from "../lots";
 import { TodayNutrition } from "../nutrition/TodayNutrition";
-import { DayBriefing } from "./DayBriefing";
-import { TodayDiary } from "./TodayDiary";
-import { useBriefing } from "./useBriefing";
-import { useTodayPlan } from "./useTodayPlan";
-import { useNotice } from "../notice";
-import { dayOf, formatDayLabel, relativeDay } from "../format";
-import { LOCATION_LABELS } from "../labels";
-import { buildJournal } from "../journal";
-import { evaluateLots, expiryTagView, levelPercent } from "../lots";
-import { breakdownText, groupEntries, groupName } from "../pantry/groups";
-import { SaveExpiringRow } from "../pantry/SaveExpiring";
-import { entryDetail, entryExpiry } from "../pantry/rows";
+import { missedThisWeek } from "../plan/moveMeal";
 import { LoadingLine, StorageError } from "../shell/EmptyState";
 import { FirstStepToday } from "../shell/FirstStep";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
+import { DayBriefing, MISSED_ID } from "./DayBriefing";
+import { Expiring } from "./Expiring";
+import { MissedPlanned } from "./MissedPlanned";
+import { Now } from "./Now";
+import { TodayDiary } from "./TodayDiary";
+import { useBriefing } from "./useBriefing";
+import { useTodayPlan } from "./useTodayPlan";
 import styles from "./Today.module.css";
 
-const EAT_FIRST_COUNT = 4;
 /** Fin dove si può tornare indietro con le frecce. */
 const MAX_DAYS_BACK = 60;
 
@@ -41,54 +38,57 @@ function daysBackFromParam(today: string, requested: string | null): number {
   return addDays(today, -diff) === requested ? diff : 0;
 }
 
+/**
+ * Oggi, nell'ordine del bisogno: che cosa registrare adesso, che cosa guardare, il diario del giorno, e richiuso ciò
+ * che non serve a ogni visita (che cosa scade, i nutrienti). Un giorno passato mostra solo il suo diario.
+ */
 export function Today() {
   const pantry = usePantry();
   const log = useEventLog();
+  const diary = useDiary();
   const now = useNow();
-  const notice = useNotice();
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [undoError, setUndoError] = useState<string | null>(null);
   // null: nessuna scelta con le frecce, vale il giorno chiesto nell'indirizzo
   const [chosenDaysBack, setDaysBack] = useState<number | null>(null);
+  const [waterOpen, setWaterOpen] = useState(false);
+  const [waterShown, setWaterShown] = useState(0);
   const requestedDay = useSearchParams().get("giorno");
 
   const entries = useMemo(
     () => (pantry.data && now ? evaluateLots(activeLots(pantry.data), now) : []),
     [pantry.data, now],
   );
-  const eatFirst = useMemo(() => groupEntries(entries).slice(0, EAT_FIRST_COUNT), [entries]);
-  const rows = useMemo(
-    () => (pantry.data && log.data && now ? buildJournal(log.data, pantry.data, dayOf(now)) : []),
-    [pantry.data, log.data, now],
-  );
 
-  /** Una riga del registro può raccontare più eventi uguali (tre confezioni arrivate insieme): si annullano tutti. */
-  async function undoEvent(eventIds: readonly string[], description: string) {
-    const targets = (log.data ?? []).filter((e) => eventIds.includes(e.id));
-    if (targets.length === 0 || busy) return;
-    setBusy(true);
-    setUndoError(null);
-    try {
-      const voids = buildUndo(targets, { now: new Date().toISOString(), deviceId: await getDeviceId() });
-      await appendEvents(voids);
-      setOpenId(null);
-      // «Annulla» sull'avviso annulla l'annullamento: l'evento torna com'era
-      notice.show({ message: `Annullato: ${description}.`, undo: voids });
-    } catch {
-      setUndoError("Non sono riuscito ad annullare. Riprova.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const ready = pantry.data !== undefined && log.data !== undefined && now !== null;
+  // niente nel registro e niente in dispensa: la prima apertura, con la scheda guidata e «Adesso» soltanto
+  const firstTime = entries.length === 0 && log.data?.length === 0;
+  const failed = Boolean(pantry.error || log.error || diary.error);
   const today = now ? dayOf(now) : "";
   const daysBack = chosenDaysBack ?? daysBackFromParam(today, requestedDay);
   const viewDate = today ? addDays(today, -daysBack) : "";
   const isPast = daysBack > 0;
   const todayPlan = useTodayPlan();
   const briefing = useBriefing({ now, viewDate, pantry: pantry.data, log: log.data, plan: todayPlan });
+  const timeZone = diary.data?.timeZone ?? DEFAULT_TIME_ZONE;
+
+  const missed = useMemo(
+    () =>
+      diary.data && now && !isPast && todayPlan.ready && todayPlan.catalog
+        ? missedThisWeek({ weekEntries: todayPlan.weekEntries, diary: diary.data, now, timeZone, today, adherence: todayPlan.adherence })
+        : [],
+    [diary.data, now, isPast, todayPlan.ready, todayPlan.catalog, todayPlan.weekEntries, todayPlan.adherence, timeZone, today],
+  );
+
+  /** Apre la riga «Acqua» del diario e la porta in vista. */
+  const showWater = useCallback(() => {
+    setWaterOpen(true);
+    setWaterShown((n) => n + 1);
+  }, []);
+
+  useEffect(() => {
+    if (waterShown === 0) return;
+    // il foglio «Bevande», chiudendosi, fa un passo indietro nella cronologia: si scorre quando il browser ha finito
+    const timer = window.setTimeout(() => document.getElementById("acqua")?.scrollIntoView({ block: "center" }), 250);
+    return () => window.clearTimeout(timer);
+  }, [waterShown]);
 
   return (
     <div className={ui.screen}>
@@ -127,134 +127,67 @@ export function Today() {
         </div>
       </div>
 
-      {pantry.error || log.error ? <StorageError /> : null}
-      {!ready && !pantry.error && !log.error ? <LoadingLine /> : null}
+      {failed ? <StorageError /> : null}
+      {!failed && !(pantry.data && log.data && diary.data && now) ? <LoadingLine /> : null}
 
-      {isPast ? null : <DayBriefing view={briefing} />}
-
-      {ready && pantry.data && log.data && now ? (
-        <>
-          {isPast ? (
-            <p className={styles.pastBanner}>
-              Stai guardando {relativeDay(viewDate, today)}. Qui puoi segnare un pasto saltato o non registrato e aggiungere una bevanda dimenticata.
-            </p>
-          ) : null}
-
-          {!isPast && entries.length === 0 && log.data.length === 0 ? <FirstStepToday /> : null}
-
-          <TodayDiary now={now} date={viewDate} pantry={pantry.data} log={log.data} plan={todayPlan} />
-
-          {isPast ? null : (
+      {pantry.data && log.data && diary.data && now ? (
+        isPast ? (
+          <TodayDiary now={now} today={today} date={viewDate} diary={diary.data} pantry={pantry.data} log={log.data} plan={todayPlan} waterOpen={false} onWaterOpenChange={setWaterOpen} />
+        ) : (
           <>
-          {entries.length === 0 ? null : (
-          <section className={ui.section}>
-            <SectionHeader label="Da mangiare prima" actionLabel="Tutta la dispensa" actionHref="/app/dispensa" />
-              <ul className={`${styles.list} ${ui.group}`}>
-                {eatFirst.map((group) => {
-                  const entry = group.entries[0];
-                  const breakdown = breakdownText(group);
-                  return (
-                    <li key={group.key} className={ui.stateRow} data-state={expiryTagView(entry)?.level}>
-                      <PantryRow
-                        name={groupName(group)}
-                        detail={
-                          breakdown ? (
-                            <>
-                              {LOCATION_LABELS[entry.lot.location]} · {breakdown}
-                            </>
-                          ) : (
-                            entryDetail(entry, today)
-                          )
-                        }
-                        level={levelPercent(entry.lot)}
-                        levelLabel={`Rimasto circa il ${Math.round(levelPercent(entry.lot))} per cento`}
-                        expiry={entryExpiry(entry)}
-                      />
-                      <SaveExpiringRow entry={entry} />
-                    </li>
-                  );
-                })}
-              </ul>
-            <div className={ui.row}>
-              <Link href="/app/ricette/idee" className={ui.textLink}>
-                Idee di ricette con ciò che hai
-              </Link>
-            </div>
-          </section>
-          )}
+            {firstTime ? <FirstStepToday /> : null}
 
-          <TodayNutrition now={now} />
+            <Now now={now} today={today} diary={diary.data} pantry={pantry.data} onShowWater={firstTime ? undefined : showWater} />
 
-          <PinnedViews />
-
-          <PromptCard title="Chiedi" description="Domande sui tuoi dati, con la risposta e da dove viene" href="/app/assistente" />
-
-          {rows.length === 0 ? null : (
-          <section className={ui.section}>
-            <SectionHeader label="Registro di oggi" />
-              <ul className={`${styles.list} ${ui.group}`}>
-                {rows.map((row) => (
-                  <li key={row.id}>
-                    <div className={styles.entry}>
-                    <LedgerRow
-                      time={row.time}
-                      description={row.description}
-                      value={row.estimated ? <Value certainty="estimated">{row.value}</Value> : row.value}
+            {firstTime ? null : (
+              <>
+                <DayBriefing
+                  view={briefing}
+                  shoppingCount={todayPlan.shoppingCount}
+                  missedCount={missed.length}
+                  onShowWater={showWater}
+                  missed={
+                    <MissedPlanned
+                      id={MISSED_ID}
+                      missed={missed}
+                      weekStart={todayPlan.weekStart}
+                      weekEntries={todayPlan.weekEntries}
+                      nextWeekStart={todayPlan.nextWeekStart}
+                      nextWeekEntries={todayPlan.nextWeekEntries}
+                      kinds={todayPlan.kinds}
+                      catalog={todayPlan.catalog}
+                      diary={diary.data}
+                      now={now}
+                      timeZone={timeZone}
+                      today={today}
                     />
-                    <button
-                      type="button"
-                      className={styles.open}
-                      aria-label={`Annullare? ${row.time} ${row.description}`}
-                      aria-expanded={openId === row.id}
-                      aria-controls={`undo-${row.id}`}
-                      onClick={() => {
-                        setUndoError(null);
-                        setOpenId(openId === row.id ? null : row.id);
-                      }}
-                    />
-                    </div>
-                    {openId === row.id ? (
-                      <div className={styles.undoPanel} id={`undo-${row.id}`} role="group" aria-label="Annulla questo evento">
-                        {row.canUndo ? (
-                          <>
-                            <p className={ui.paragraph}>
-                              Vuoi annullare «{row.description}»? Resta nel registro come annullato e la dispensa torna com&apos;era
-                              prima.
-                            </p>
-                            <div className={ui.row}>
-                              <Button onClick={() => void undoEvent(row.ids, row.description)} disabled={busy}>
-                                Sì, annulla questo evento
-                              </Button>
-                              <Button variant="outline" onClick={() => setOpenId(null)} disabled={busy}>
-                                No, lascia com&apos;è
-                              </Button>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <p className={ui.paragraph}>{row.undoBlocked}</p>
-                            <div className={ui.row}>
-                              <Button variant="outline" onClick={() => setOpenId(null)}>
-                                Chiudi
-                              </Button>
-                            </div>
-                          </>
-                        )}
-                        {undoError ? (
-                          <p className={ui.error} role="alert">
-                            {undoError}
-                          </p>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-          </section>
-          )}
+                  }
+                />
+
+                <TodayDiary
+                  now={now}
+                  today={today}
+                  date={viewDate}
+                  diary={diary.data}
+                  pantry={pantry.data}
+                  log={log.data}
+                  plan={todayPlan}
+                  waterOpen={waterOpen}
+                  onWaterOpenChange={setWaterOpen}
+                />
+
+                <div className={styles.rows}>
+                  <Expiring entries={entries} today={today} />
+                  <TodayNutrition now={now} />
+                </div>
+
+                <PinnedViews />
+
+                <PromptCard title="Chiedi" description="Domande sui tuoi dati, con la risposta e da dove viene" href="/app/assistente" />
+              </>
+            )}
           </>
-          )}
-        </>
+        )
       ) : null}
     </div>
   );

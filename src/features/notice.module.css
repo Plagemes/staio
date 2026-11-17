@@ -5,7 +5,7 @@
   z-index: 10;
   left: 0;
   right: 0;
-  bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px) + var(--space-4));
+  bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px) + var(--space-4) + var(--action-bar-height, 0px));
   display: flex;
   justify-content: center;
   padding-inline: var(--gutter);

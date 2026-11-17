@@ -25,6 +25,48 @@
   color: var(--color-ink);
 }
 
+/* Frecce per andare ai giorni prima */
+.dayNav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.dayArrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  border: none;
+  background: none;
+  color: var(--color-graphite);
+  font: inherit;
+  font-size: var(--text-title-sm);
+  cursor: pointer;
+}
+
+.dayArrow:hover:not(:disabled) {
+  color: var(--color-ink);
+}
+
+.dayArrow:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.dayToday {
+  min-height: var(--tap-min);
+  padding: 0 var(--space-3);
+  border: none;
+  background: none;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--text-body-sm);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .list {
   display: flex;
   flex-direction: column;
@@ -33,89 +75,71 @@
   list-style: none;
 }
 
-.entry {
-  position: relative;
-}
-
-/* Il pulsante copre la riga: toccarla apre la richiesta di conferma, sotto la riga */
-.open {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
-}
-
-.open:hover {
-  background: color-mix(in srgb, var(--color-ink) 4%, transparent);
-}
-
-.undoPanel {
+/* Righe richiuse in fila: «Acqua» e «Dispensa» in coda al diario, «In scadenza» e «Nutrienti» sotto */
+.rows {
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
-  padding: var(--space-7);
-  margin-bottom: var(--space-4);
-  border: var(--rule-width) solid var(--color-control-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-}
-
-.actions {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.actions > a {
-  min-height: 56px;
-  font-size: var(--text-body);
-}
-
-.actionRow {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
-}
-
-.proposal {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-6);
-  padding: var(--space-6) var(--space-7);
-  border: var(--rule-width) solid var(--color-control-border);
-  border-radius: var(--radius-md);
-}
-
-.proposalText {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
   min-width: 0;
 }
 
-.proposalTitle {
-  font-family: var(--font-display);
-  font-size: var(--text-title-sm);
-  line-height: 1.1;
+/* In coda al diario: staccate dall'elenco dei momenti quanto due cose diverse della stessa sezione */
+.tail {
+  margin-top: var(--gap-group);
 }
 
-.quiet {
+/* La riga «Acqua» si raggiunge anche da fuori: quando la si porta in vista non resta attaccata al bordo */
+.anchor {
+  min-width: 0;
+  scroll-margin-block: var(--space-12);
+}
+
+/* La riga di stato del giorno, sotto il titolo del diario */
+.status {
   margin: 0;
-  padding: var(--space-7) 0;
+  padding-block: var(--space-4) var(--space-5);
   font-size: var(--text-body-sm);
-  color: var(--color-graphite);
+  line-height: 1.45;
 }
 
-.meal {
+/* Un momento del giorno: titolo, un comando in vista, e sotto ciò che contiene */
+.moment {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding-block: var(--space-6);
+  padding-block: var(--space-5);
   border-bottom: var(--rule-width) solid var(--color-rule);
+}
+
+/* Un pasto registrato è una riga richiusa dentro il suo momento: il filetto è quello del momento */
+.moment details {
+  border-bottom: none;
+}
+
+.momentHead {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2) var(--space-6);
+}
+
+.momentText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.momentChoices {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+}
+
+.momentChoices > a,
+.momentChoices > button {
+  min-height: var(--tap-min);
 }
 
 .mealHead {
@@ -152,143 +176,103 @@
   color: var(--color-graphite);
 }
 
-.primaryRow {
+/* Un consumo senza pasto, dentro il momento della sua ora */
+.loose {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Le bevande di un momento: ogni riga è un pulsante, i suoi comandi compaiono sotto */
+.drinks {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.drink {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.drinkRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--text-body-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.drinkRow:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.inline {
   display: flex;
   gap: var(--space-4);
 }
 
-.primaryRow > a {
+.inline > input {
   flex: 1;
-  min-height: 56px;
-  font-size: var(--text-body);
+  min-width: 0;
 }
 
-.primaryRow > a:not(:first-child) {
-  flex: none;
-}
-
-/* Righe dei momenti del giorno senza pasto: compatte, con le azioni in fila */
-.moment {
+/* Un pasto del piano non fatto, nell'elenco che si apre da «Da guardare oggi» */
+.meal {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding-block: var(--space-5);
+  padding-block: var(--space-6);
   border-bottom: var(--rule-width) solid var(--color-rule);
 }
 
-.momentChoices {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3) var(--space-4);
+/* Un movimento della dispensa: il pulsante copre la riga, toccarla mostra sotto «Togli» o perché non si può */
+.entry {
+  position: relative;
 }
 
-.momentChoices > a,
-.momentChoices > button {
-  min-height: var(--tap-min);
-}
-
-.momentHead {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-2) var(--space-6);
-}
-
-.notDone {
-  margin: 0;
-  font-size: var(--text-caption);
-  color: var(--color-graphite);
-}
-
-/* Scelte rapide delle bevande: una riga richiudibile, chiusa di partenza */
-.drinksBox {
-  border: var(--rule-width) solid var(--color-control-border);
-  border-radius: var(--radius-md);
-}
-
-.drinksSummary {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: var(--space-6);
-  min-height: var(--tap-min);
-  padding: var(--space-4) var(--space-7);
-  font-size: var(--text-body);
-  font-weight: 500;
+.entryTap {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
   cursor: pointer;
-  list-style: none;
 }
 
-.drinksSummary::-webkit-details-marker {
-  display: none;
+.entryTap:hover {
+  background: color-mix(in srgb, var(--color-ink) 4%, transparent);
 }
 
-.drinksCount {
-  font-size: var(--text-caption);
-  font-weight: 400;
-  color: var(--color-graphite);
+.entryTap:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
 }
 
-.drinksBody {
+.entryMore {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
-  padding: 0 var(--space-7) var(--space-7);
-}
-
-/* Frecce per andare ai giorni prima */
-.dayNav {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.dayArrow {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--tap-min);
-  height: var(--tap-min);
-  border: none;
-  background: none;
-  color: var(--color-graphite);
-  font: inherit;
-  font-size: var(--text-title-sm);
-  cursor: pointer;
-}
-
-.dayArrow:hover:not(:disabled) {
-  color: var(--color-ink);
-}
-
-.dayArrow:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-
-.pastBanner {
-  margin: 0;
-  font-size: var(--text-body-sm);
-  color: var(--color-graphite);
-}
-
-.dayToday {
-  min-height: var(--tap-min);
-  padding: 0 var(--space-3);
-  border: none;
-  background: none;
-  color: var(--color-ink);
-  font: inherit;
-  font-size: var(--text-body-sm);
-  text-decoration: underline;
-  cursor: pointer;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding-block: var(--space-2) var(--space-4);
 }
 
 /* ------------------------------------------------------------------------------------------------
-   Vivo: il marchio su una riga, sotto la data grande; momenti in schede con una striscia del colore dello stato.
-   Negli altri temi .dayLabel e .momentList non hanno resa.
+   Vivo: il marchio su una riga, sotto la data grande; momenti in schede con una striscia del colore dello stato;
+   righe richiuse in fila a distanza di schede uguali. Negli altri temi .dayLabel e .momentList non hanno resa.
    ------------------------------------------------------------------------------------------------ */
 
 :global([data-palette="vivo"]) .topbar {
@@ -330,23 +314,17 @@
   color: var(--color-accent);
 }
 
-:global([data-palette="vivo"]) .open:hover {
+:global([data-palette="vivo"]) .rows {
+  gap: var(--gap-item);
+}
+
+:global([data-palette="vivo"]) .entryTap:hover {
   background: color-mix(in srgb, var(--color-accent) 6%, transparent);
-}
-
-:global([data-palette="vivo"]) .undoPanel {
-  border-color: transparent;
-  border-radius: var(--radius-md);
-  background: var(--color-fill);
-}
-
-:global([data-palette="vivo"]) .proposalTitle {
-  font-weight: var(--weight-display);
 }
 
 /* Momenti del giorno: una scheda per momento. Lo stato è scritto nel titolo; la striscia lo ripete a colpo d'occhio. */
 :global([data-palette="vivo"]) .momentList {
-  gap: var(--space-5);
+  gap: var(--gap-item);
 }
 
 :global([data-palette="vivo"]) .moment {
@@ -375,30 +353,18 @@
   font-weight: 600;
 }
 
-:global([data-palette="vivo"]) .moment .meal {
-  padding-block: 0;
-  border-bottom: none;
+/* Mai una scheda dentro una scheda: il pasto richiuso sta nella scheda del suo momento, senza fondo né ombra propri */
+:global([data-palette="vivo"]) .momentList .moment details {
+  overflow: visible;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
 }
 
-:global([data-palette="vivo"]) .drinksBox {
-  border-color: transparent;
-  border-radius: var(--radius-card);
-  background: var(--tone-tint);
-  box-shadow: var(--card-shadow);
+:global([data-palette="vivo"]) .momentList .moment details > summary {
+  padding: 0;
 }
 
-:global([data-palette="vivo"]) .drinksSummary {
-  font-weight: 600;
-}
-
-:global([data-palette="vivo"]) .drinksCount {
-  color: var(--tone);
-  font-weight: 500;
-}
-
-:global([data-palette="vivo"]) .pastBanner {
-  padding: var(--space-7) var(--space-8);
-  border-radius: var(--radius-card);
-  background: var(--state-estimate-tint);
-  color: var(--color-ink);
+:global([data-palette="vivo"]) .momentList .moment details > div {
+  padding: 0 0 var(--space-2);
 }
