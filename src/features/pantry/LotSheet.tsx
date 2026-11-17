@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { DeclareEvent, PurchaseEvent } from "@/core/ledger";
 import { formatQuantity } from "@/core/units";
@@ -170,6 +171,12 @@ export function LotSheet({ entry, creation, now, onClose }: LotSheetProps) {
         <section className={styles.nutrients} aria-label="Nutrienti">
           <LotNutrients lotId={lot.lotId} productRef={lot.productRef} barcode={lot.barcode} />
         </section>
+
+        {lot.barcode ? (
+          <Link href={`/app/qualita/prodotto?codice=${encodeURIComponent(lot.barcode)}`} className={ui.textLink}>
+            Qualità
+          </Link>
+        ) : null}
 
         {lot.remaining > 0 ? (
           <LotActions entry={entry} creation={creation} now={now} busy={busy} perform={perform} error={error} />

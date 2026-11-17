@@ -158,12 +158,12 @@ export const fruttaRecipes: readonly Recipe[] = [
     details: { stem: { length: 0.04, thickness: 0.02, bend: 0 } },
   },
   {
-    id: "fr-anguria-fetta", name: "Anguria a fetta", category: "frutta", archetype: "wedge", heightCm: 5,
-    params: { radius: 2.6, angleDeg: 62, bulge: 0.12, rind: true },
+    id: "fr-anguria-fetta", name: "Anguria a fetta", category: "frutta", archetype: "slice", heightCm: 10,
+    params: { arcDeg: 180, thickness: 0.22, rindWidth: 0.07, seeds: 14 },
   },
   {
-    id: "fr-melone-fetta", name: "Melone a fetta", category: "frutta", archetype: "wedge", heightCm: 4,
-    params: { radius: 3.2, angleDeg: 28, bulge: 0.08, rind: true },
+    id: "fr-melone-fetta", name: "Melone a fetta", category: "frutta", archetype: "slice", heightCm: 7,
+    params: { arcDeg: 150, thickness: 0.2, rindWidth: 0.08 },
   },
   {
     id: "fr-fico", name: "Fico", category: "frutta", archetype: "lathe", heightCm: 5.5,

@@ -4,7 +4,19 @@
  * salvo dove indicato. L'altezza reale in cm serve solo come metadato.
  */
 
-export const ARCHETYPES = ["lathe", "box", "bag", "elongated", "leaf", "cluster", "wedge"] as const;
+export const ARCHETYPES = [
+  "lathe",
+  "box",
+  "bag",
+  "elongated",
+  "leaf",
+  "cluster",
+  "wedge",
+  "florets",
+  "slice",
+  "fish",
+  "composite",
+] as const;
 export type Archetype = (typeof ARCHETYPES)[number];
 
 export const ARCHETYPE_LABELS: Record<Archetype, string> = {
@@ -15,6 +27,10 @@ export const ARCHETYPE_LABELS: Record<Archetype, string> = {
   leaf: "Foglie",
   cluster: "Grappolo",
   wedge: "Spicchio",
+  florets: "Cimette",
+  slice: "Fetta a mezzaluna",
+  fish: "Pesce",
+  composite: "Composto",
 };
 
 export const CATEGORIES = [
@@ -66,13 +82,27 @@ export const LIMITS = {
   heightCm: [0.3, 250],
   variation: [0, 1],
   tiltDeg: [-90, 90],
-  density: [0.4, 2.5],
+  density: [0.2, 2.5],
   lathe: { points: [3, 40], radius: [0, 4], y: [-4, 4], maxAspect: 3, segments: [12, 96] },
   box: { side: [0.05, 20], maxRatio: 30, bevel: [0, 0.5] },
   bag: { side: [0.05, 20], maxRatio: 30, pinch: [0.02, 0.3], wrinkle: [0, 1] },
   elongated: { points: [2, 12], radius: [0, 0.5], bend: [-1, 1], ratio: [0.4, 1.6], wobble: [0, 0.3] },
   leaf: { count: [3, 48], width: [0.15, 1.2], spread: [0, 1], curl: [-1, 1], frill: [0, 1], stalk: [0, 2] },
-  cluster: { count: [3, 60], elementRadius: [0.03, 0.4], elongation: [0.7, 1.6], spread: [0.1, 1], stalk: [0, 0.6] },
+  cluster: {
+    /** Con layout "mound". Gli altri layout arrivano a countOther. */
+    count: [3, 400],
+    countOther: [3, 60],
+    elementRadius: [0.01, 0.4],
+    /** Raggio minimo degli elementi fuori da "mound". */
+    elementRadiusOther: [0.03, 0.4],
+    elongation: [0.7, 1.6],
+    spread: [0.1, 1],
+    stalk: [0, 0.6],
+  },
+  florets: { count: [6, 60], dome: [0, 1], bump: [0, 1], stalk: [0.1, 1], trunk: [0.06, 0.3], floretSize: [0.6, 1.6], wrap: [0, 8], wrapLength: [0.4, 1.4] },
+  slice: { arcDeg: [60, 200], thickness: [0.05, 1.5], rindWidth: [0.02, 0.2], seeds: [0, 40], seedSize: [0.02, 0.08] },
+  fish: { bodyHeight: [0.15, 0.5], thickness: [0.06, 0.3], tail: [0.1, 0.4], dorsal: [0, 1], pectoral: [0, 1], snout: [0.3, 1] },
+  composite: { parts: [1, 48], position: [-30, 30], rotationDeg: [-360, 360], scale: [0.02, 30] },
   wedge: { radius: [0.3, 6], angleDeg: [10, 180], bulge: [0, 0.25] },
   stem: { length: [0.02, 0.5], thickness: [0.005, 0.08], bend: [-1, 1] },
   leafDetail: { count: [1, 5], length: [0.1, 0.8], width: [0.15, 0.8] },
@@ -187,8 +217,8 @@ export interface LeafParams {
 }
 
 export interface ClusterParams {
-  /** hanging: grappolo appeso. heap: mucchietto. truss: rametto con frutti alternati. */
-  layout: "hanging" | "heap" | "truss";
+  /** hanging: grappolo appeso. heap: mucchietto. truss: rametto con frutti alternati. mound: mucchio fitto a cupola (fino a 400 elementi). */
+  layout: "hanging" | "heap" | "truss" | "mound";
   count: number;
   /** Raggio di un elemento, relativo all'altezza del grappolo. */
   elementRadius: number;
@@ -208,6 +238,79 @@ export interface WedgeParams {
   bulge?: number;
   /** true: il bordo curvo è una parte a sé (crosta). Predefinito true. */
   rind?: boolean;
+}
+
+export interface FloretsParams {
+  /** Numero di cimette sulla cupola. La loro grandezza si ricava da questo numero e dalla larghezza della testa. */
+  count: number;
+  /** 0 testa piatta, 1 mezza sfera. Predefinito 0.6. */
+  dome?: number;
+  /** Rugosità della superficie di ogni cimetta. Predefinito 0.5. */
+  bump?: number;
+  /** Lunghezza del gambo / larghezza della testa. Predefinito 0.5. */
+  stalk?: number;
+  /** Raggio del gambo / larghezza della testa. Predefinito 0.12. */
+  trunk?: number;
+  /** Moltiplicatore della grandezza delle cimette. Predefinito 1. */
+  floretSize?: number;
+  /** Foglie che avvolgono la testa (cavolfiore). Predefinito 0. */
+  wrap?: number;
+  /** Lunghezza delle foglie / larghezza della testa. Predefinito 0.9. */
+  wrapLength?: number;
+}
+
+export interface SliceParams {
+  /** Parte di cerchio che resta, in gradi: 180 = mezzaluna con il taglio piano in alto. Predefinito 180. */
+  arcDeg?: number;
+  /** Spessore della fetta / raggio. Predefinito 0.25. */
+  thickness?: number;
+  /** Il bordo curvo è una parte a sé (buccia), con una linea sul bordo della polpa. Predefinito true. */
+  rind?: boolean;
+  /** Larghezza della buccia / raggio. Predefinito 0.06. */
+  rindWidth?: number;
+  /** Semini sulla faccia (anguria). Predefinito 0. */
+  seeds?: number;
+  /** Raggio dei semini / raggio della fetta. Predefinito 0.04. */
+  seedSize?: number;
+}
+
+export interface FishParams {
+  /** Altezza del corpo / lunghezza. Predefinito 0.28. */
+  bodyHeight?: number;
+  /** Spessore del corpo / lunghezza. Predefinito 0.14. */
+  thickness?: number;
+  /** Lunghezza della coda (pinna) / lunghezza totale. Predefinito 0.22. */
+  tail?: number;
+  /** Altezza della pinna dorsale, da 0 (assente) a 1. Predefinito 0.6. */
+  dorsal?: number;
+  /** Pinne laterali, da 0 (assenti) a 1. Predefinito 0.5. */
+  pectoral?: number;
+  /** Quanto è affusolato il muso, da 0.3 (tozzo) a 1 (appuntito). Predefinito 0.6. */
+  snout?: number;
+}
+
+/** Ricetta di un figlio di un composto: come una ricetta, ma senza identità propria. */
+type ShapeOf<R> = R extends unknown ? Omit<R, "id" | "name" | "category" | "heightCm"> : never;
+
+export type CompositeChild = ShapeOf<PlainRecipe>;
+
+export interface CompositePart {
+  /** Forma del figlio: qualunque archetipo tranne un altro composto. */
+  recipe: CompositeChild;
+  /** Dove va il centro della base del figlio, nelle unità del composto. Predefinito [0, 0, 0]. */
+  position?: Vec3;
+  /** Rotazione attorno al centro della base, in gradi, ordine XYZ. Predefinito [0, 0, 0]. */
+  rotationDeg?: Vec3;
+  /** Scala uniforme del figlio (le sue misure di riferimento valgono 1). Predefinito 1. */
+  scale?: number;
+  /** Disegna questo figlio nel colore segnale. */
+  signal?: boolean;
+  /** Seme del figlio; predefinito: la sua posizione nell'elenco. */
+  seed?: string;
+}
+
+export interface CompositeParams {
+  parts: readonly CompositePart[];
 }
 
 export interface RecipeBase {
@@ -254,14 +357,36 @@ export interface WedgeRecipe extends RecipeBase {
   params: WedgeParams;
 }
 
-export type Recipe =
+export interface FloretsRecipe extends RecipeBase {
+  archetype: "florets";
+  params: FloretsParams;
+}
+export interface SliceRecipe extends RecipeBase {
+  archetype: "slice";
+  params: SliceParams;
+}
+export interface FishRecipe extends RecipeBase {
+  archetype: "fish";
+  params: FishParams;
+}
+export interface CompositeRecipe extends RecipeBase {
+  archetype: "composite";
+  params: CompositeParams;
+}
+
+export type PlainRecipe =
   | LatheRecipe
   | BoxRecipe
   | BagRecipe
   | ElongatedRecipe
   | LeafRecipe
   | ClusterRecipe
-  | WedgeRecipe;
+  | WedgeRecipe
+  | FloretsRecipe
+  | SliceRecipe
+  | FishRecipe;
+
+export type Recipe = PlainRecipe | CompositeRecipe;
 
 /** Dettagli ammessi per ciascun archetipo. */
 export const ALLOWED_DETAILS: Record<Archetype, readonly (keyof RecipeDetails)[]> = {
@@ -272,6 +397,10 @@ export const ALLOWED_DETAILS: Record<Archetype, readonly (keyof RecipeDetails)[]
   leaf: [],
   cluster: [],
   wedge: [],
+  florets: [],
+  slice: [],
+  fish: [],
+  composite: [],
 };
 
 export type ValidationResult = { ok: true; recipe: Recipe } | { ok: false; errors: string[] };
@@ -463,13 +592,58 @@ function checkParams(c: Checker, archetype: Archetype, raw: unknown) {
       break;
     case "cluster":
       c.keys(p, ["layout", "count", "elementRadius", "elongation", "spread", "stalk"], "params");
-      c.oneOf(p.layout, "params.layout", ["hanging", "heap", "truss"] as const);
-      c.num(p.count, "params.count", L.cluster.count, { int: true });
-      c.num(p.elementRadius, "params.elementRadius", L.cluster.elementRadius);
+      {
+        const layout = c.oneOf(p.layout, "params.layout", ["hanging", "heap", "truss", "mound"] as const);
+        const mound = layout === "mound";
+        c.num(p.count, "params.count", mound ? L.cluster.count : L.cluster.countOther, { int: true });
+        c.num(p.elementRadius, "params.elementRadius", mound ? L.cluster.elementRadius : L.cluster.elementRadiusOther);
+      }
       c.optNum(p, "elongation", "params", L.cluster.elongation);
       c.optNum(p, "spread", "params", L.cluster.spread);
       c.optNum(p, "stalk", "params", L.cluster.stalk);
       break;
+    case "florets":
+      c.keys(p, ["count", "dome", "bump", "stalk", "trunk", "floretSize", "wrap", "wrapLength"], "params");
+      c.num(p.count, "params.count", L.florets.count, { int: true });
+      c.optNum(p, "dome", "params", L.florets.dome);
+      c.optNum(p, "bump", "params", L.florets.bump);
+      c.optNum(p, "stalk", "params", L.florets.stalk);
+      c.optNum(p, "trunk", "params", L.florets.trunk);
+      c.optNum(p, "floretSize", "params", L.florets.floretSize);
+      c.optNum(p, "wrap", "params", L.florets.wrap, { int: true });
+      c.optNum(p, "wrapLength", "params", L.florets.wrapLength);
+      break;
+    case "slice":
+      c.keys(p, ["arcDeg", "thickness", "rind", "rindWidth", "seeds", "seedSize"], "params");
+      c.optNum(p, "arcDeg", "params", L.slice.arcDeg);
+      c.optNum(p, "thickness", "params", L.slice.thickness);
+      c.optBool(p, "rind", "params");
+      c.optNum(p, "rindWidth", "params", L.slice.rindWidth);
+      c.optNum(p, "seeds", "params", L.slice.seeds, { int: true });
+      c.optNum(p, "seedSize", "params", L.slice.seedSize);
+      break;
+    case "fish":
+      c.keys(p, ["bodyHeight", "thickness", "tail", "dorsal", "pectoral", "snout"], "params");
+      c.optNum(p, "bodyHeight", "params", L.fish.bodyHeight);
+      c.optNum(p, "thickness", "params", L.fish.thickness);
+      c.optNum(p, "tail", "params", L.fish.tail);
+      c.optNum(p, "dorsal", "params", L.fish.dorsal);
+      c.optNum(p, "pectoral", "params", L.fish.pectoral);
+      c.optNum(p, "snout", "params", L.fish.snout);
+      break;
+    case "composite": {
+      c.keys(p, ["parts"], "params");
+      if (!Array.isArray(p.parts)) {
+        c.add("params.parts", `deve essere un elenco di figli (trovato ${describe(p.parts)})`);
+        break;
+      }
+      const [minParts, maxParts] = L.composite.parts;
+      if (p.parts.length < minParts || p.parts.length > maxParts) {
+        c.add("params.parts", `servono da ${minParts} a ${maxParts} figli (trovati ${p.parts.length})`);
+      }
+      p.parts.forEach((raw, i) => checkCompositePart(c, raw, `params.parts[${i}]`));
+      break;
+    }
     case "wedge":
       c.keys(p, ["radius", "angleDeg", "bulge", "rind"], "params");
       c.num(p.radius, "params.radius", L.wedge.radius);
@@ -478,6 +652,31 @@ function checkParams(c: Checker, archetype: Archetype, raw: unknown) {
       c.optBool(p, "rind", "params");
       break;
   }
+}
+
+function checkCompositePart(c: Checker, raw: unknown, path: string) {
+  const part = c.obj(raw, path);
+  if (!part) return;
+  const L = LIMITS.composite;
+  c.keys(part, ["recipe", "position", "rotationDeg", "scale", "signal", "seed"], path);
+  c.optNum(part, "scale", path, L.scale);
+  c.optBool(part, "signal", path);
+  if (part.seed !== undefined && typeof part.seed !== "string") c.add(`${path}.seed`, `deve essere un testo (trovato ${describe(part.seed)})`);
+  for (const [key, range] of [["position", L.position], ["rotationDeg", L.rotationDeg]] as const) {
+    const v = part[key];
+    if (v === undefined) continue;
+    if (!Array.isArray(v) || v.length !== 3) c.add(`${path}.${key}`, `deve essere una terna [x, y, z] (trovato ${describe(v)})`);
+    else v.forEach((n, i) => c.num(n, `${path}.${key}[${i}]`, range));
+  }
+  const child = c.obj(part.recipe, `${path}.recipe`);
+  if (!child) return;
+  if (child.archetype === "composite") {
+    c.add(`${path}.recipe.archetype`, "un composto non può contenerne un altro");
+    return;
+  }
+  // il figlio non ha identità propria: se ne presta una finta, poi gli errori si riportano col percorso giusto
+  const result = validateRecipe({ id: "figlio", name: "Figlio", category: "altro", heightCm: 1, ...child });
+  if (!result.ok) for (const e of result.errors) c.errors.push(`${path}.recipe.${e}`);
 }
 
 function checkDetails(c: Checker, archetype: Archetype, raw: unknown) {

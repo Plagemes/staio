@@ -53,6 +53,9 @@ export function Health() {
             <DrinksCard />
           </section>
           <PromptCard title="Nutrizione" description="Medie e confronto con i valori di riferimento, giorno per giorno" href="/app/salute/nutrizione" />
+          <PromptCard title="Analisi" description="Che cosa emerge dai dati che hai scritto" href="/app/salute/analisi" />
+          <PromptCard title="Esperimenti" description="Prova un cambiamento e guarda che cosa succede" href="/app/salute/esperimenti" />
+          <PromptCard title="Rapporto" description="Un riepilogo del periodo, da leggere o condividere" href="/app/salute/rapporto" />
           <Link href="/app/pasto" className={ui.textLink}>
             Registra un pasto
           </Link>

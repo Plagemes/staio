@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { APP_NAME } from "@/config";
 import { ServiceWorkerRegister } from "@/pwa";
+import { ThemeSync } from "@/features/settings/ThemeSync";
 import { AppShell } from "@/features/shell/AppShell";
 
 export const metadata: Metadata = {
@@ -13,6 +14,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <>
       <ServiceWorkerRegister />
+      <ThemeSync />
       <AppShell>{children}</AppShell>
     </>
   );

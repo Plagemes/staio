@@ -10,9 +10,12 @@ import { buildElongated } from "./archetypes/elongated";
 import { buildLeaf } from "./archetypes/leaf";
 import { buildLathe } from "./archetypes/lathe";
 import { buildWedge } from "./archetypes/wedge";
+import { buildFish } from "./archetypes/fish";
+import { buildFlorets } from "./archetypes/florets";
+import { buildSlice } from "./archetypes/slice";
 import type { BuildContext, PartRole, RawPart } from "./archetypes/types";
 import { smoothByPosition } from "./geometry";
-import { parseRecipe, type Recipe } from "./recipe";
+import { parseRecipe, type CompositeRecipe, type PlainRecipe, type Recipe } from "./recipe";
 import { createRng } from "./rng";
 
 export type { PartRole } from "./archetypes/types";
@@ -39,6 +42,8 @@ export interface ModelPart {
   /** Angolo oltre cui disegnare gli spigoli, in gradi; null = nessuno. */
   edgeAngle: number | null;
   doubleSided: boolean;
+  /** Secondo tratteggio incrociato nelle zone scure (false per i figli di un composto che lo escludono). */
+  cross: boolean;
   /** Disegnare nel colore segnale. */
   signal: boolean;
   transform: PartTransform;
@@ -51,7 +56,7 @@ export interface Model {
   bounds: { min: [number, number, number]; max: [number, number, number] };
   /** Dimensioni della scatola di contenimento. size[1] vale 1. */
   size: [number, number, number];
-  /** Dimensione di riferimento a schermo: max(altezza, larghezza, profondità). */
+  /** Dimensione di riferimento a schermo: la più grande fra altezza, larghezza e profondità. */
   refSize: number;
 }
 
@@ -127,8 +132,14 @@ function estimateUvExtent(g: BufferGeometry, scale: number): [number, number] {
   return sumA > 0 ? [sumU / sumA, sumV / sumA] : [1, 1];
 }
 
-function runArchetype(recipe: Recipe, ctx: BuildContext): RawPart[] {
+function runArchetype(recipe: PlainRecipe, ctx: BuildContext): RawPart[] {
   switch (recipe.archetype) {
+    case "florets":
+      return buildFlorets(recipe.params, ctx);
+    case "slice":
+      return buildSlice(recipe.params, ctx);
+    case "fish":
+      return buildFish(recipe.params, ctx);
     case "lathe":
       return buildLathe(recipe.params, ctx);
     case "box":
@@ -160,29 +171,80 @@ function tiltJitterDeg(recipe: Recipe): number {
   }
 }
 
+/** Appoggia un figlio a terra e al centro, poi lo colloca secondo posizione, rotazione e scala del composto. */
+function placeChild(raw: RawPart[], part: CompositeRecipe["params"]["parts"][number], index: number): RawPart[] {
+  const { min, max } = boundsOf(raw.map((r) => ({ geometry: r.geometry, matrix: r.matrix })));
+  const [px, py, pz] = part.position ?? [0, 0, 0];
+  const [rx, ry, rz] = part.rotationDeg ?? [0, 0, 0];
+  const scale = part.scale ?? 1;
+  const place = new Matrix4()
+    .makeTranslation(px, py, pz)
+    .multiply(new Matrix4().makeRotationFromEuler(new Euler(deg(rx), deg(ry), deg(rz), "XYZ")))
+    .multiply(new Matrix4().makeScale(scale, scale, scale))
+    .multiply(new Matrix4().makeTranslation(-(min.x + max.x) / 2, -min.y, -(min.z + max.z) / 2));
+  const density = part.recipe.hatch?.density ?? 1;
+  const noCross = part.recipe.hatch?.cross === false;
+  return raw.map((r) => ({
+    ...r,
+    name: `${index}:${r.name}`,
+    matrix: place.clone().multiply(r.matrix),
+    signal: part.signal === true || r.signal,
+    densityMul: (r.densityMul ?? 1) * density,
+    cross: noCross ? false : r.cross,
+  }));
+}
+
+/**
+ * Parti grezze di una ricetta, con la posa già applicata. Il seme e la sequenza casuale restano quelli di sempre
+ * per le ricette semplici: i modelli esistenti non cambiano.
+ */
+function rawPartsOf(recipe: Recipe, seedKey: string, variationScale = 1): RawPart[] {
+  const rng = createRng(seedKey);
+  const variation = (recipe.variation ?? 1) * variationScale;
+  const tilt = deg((recipe.pose?.tiltDeg ?? 0) + rng.signed() * tiltJitterDeg(recipe) * variation);
+  let raw: RawPart[];
+  if (recipe.archetype === "composite") {
+    raw = [];
+    recipe.params.parts.forEach((part, i) => {
+      const child = { id: `${recipe.id}.${i}`, name: recipe.name, category: recipe.category, heightCm: recipe.heightCm, ...part.recipe } as PlainRecipe;
+      const parts = rawPartsOf(child, `${seedKey}#${part.seed ?? i}`, variation);
+      raw.push(...placeChild(parts, part, i));
+    });
+  } else {
+    raw = runArchetype(recipe, { rng, variation, details: recipe.details ?? {} });
+  }
+  const tiltM = new Matrix4().makeRotationZ(tilt);
+  return raw.map((part) => ({ ...part, matrix: tiltM.clone().multiply(part.matrix) }));
+}
+
+export interface BuildOptions {
+  /**
+   * true (predefinito): altezza 1, base su y = 0, centrato su x e z.
+   * false: si tengono le coordinate del composto così come sono scritte (per mobili e scene a misura).
+   */
+  normalize?: boolean;
+}
+
 /**
  * Costruisce il modello. Funzione pura: stesso seme, stesse posizioni dei vertici.
  * La geometria appartiene al chiamante, che deve liberarla con `dispose()`.
  */
-export function buildModel(input: Recipe, seed: string | number = input.id): Model {
+export function buildModel(input: Recipe, seed: string | number = input.id, options: BuildOptions = {}): Model {
   const recipe = parseRecipe(input);
   const seedText = String(seed);
-  const rng = createRng(`${recipe.id}|${seedText}`);
-  const variation = recipe.variation ?? 1;
-  const tilt = deg((recipe.pose?.tiltDeg ?? 0) + rng.signed() * tiltJitterDeg(recipe) * variation);
-  const raw = runArchetype(recipe, { rng, variation, details: recipe.details ?? {} });
-
-  const tiltM = new Matrix4().makeRotationZ(tilt);
-  const placed = raw.map((part) => ({ part, matrix: tiltM.clone().multiply(part.matrix) }));
+  const placed = rawPartsOf(recipe, `${recipe.id}|${seedText}`).map((part) => ({ part, matrix: part.matrix }));
   const { min, max } = boundsOf(placed.map(({ part, matrix }) => ({ geometry: part.geometry, matrix })));
+  const normalize = options.normalize !== false;
   const height = max.y - min.y;
-  const s = 1 / height;
-  const norm = new Matrix4()
-    .makeTranslation(-((min.x + max.x) / 2) * s, -min.y * s, -((min.z + max.z) / 2) * s)
-    .multiply(new Matrix4().makeScale(s, s, s));
+  const s = normalize ? 1 / height : 1;
+  const norm = normalize
+    ? new Matrix4()
+        .makeTranslation(-((min.x + max.x) / 2) * s, -min.y * s, -((min.z + max.z) / 2) * s)
+        .multiply(new Matrix4().makeScale(s, s, s))
+    : new Matrix4();
 
-  const size: [number, number, number] = [(max.x - min.x) * s, 1, (max.z - min.z) * s];
-  const refSize = Math.max(1, size[0], size[2]);
+  const size: [number, number, number] = [(max.x - min.x) * s, height * s, (max.z - min.z) * s];
+  const refSize = Math.max(size[0], size[1], size[2]);
   const density = recipe.hatch?.density ?? 1;
 
   const pos = new Vector3();
@@ -215,6 +277,7 @@ export function buildModel(input: Recipe, seed: string | number = input.id): Mod
       outline: part.outline * refSize,
       edgeAngle: part.edgeAngle ?? null,
       doubleSided: part.doubleSided === true,
+      cross: part.cross !== false,
       signal: part.signal === true,
       transform,
     };

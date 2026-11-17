@@ -1,0 +1,233 @@
+/* Letture con l'intelligenza artificiale: frase, piatto, idee di ricette. Solo variabili di tema. */
+
+.pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+}
+
+/* Il pulsante vero è la casella di scelta del file, nascosta ma raggiungibile da tastiera */
+.file {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding-inline: 20px;
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  color: var(--color-ink);
+  font-size: var(--text-body-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.file input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.file:focus-within {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.previewBox {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+.preview {
+  max-width: 100%;
+  max-height: 260px;
+  object-fit: contain;
+  border: var(--rule-width) solid var(--color-rule);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.phrase {
+  width: 100%;
+  min-height: 96px;
+  padding: var(--space-6) var(--space-7);
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--text-body);
+  resize: vertical;
+}
+
+.phrase:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.notes {
+  font-size: var(--text-body-sm);
+}
+
+.notes summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  cursor: pointer;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-7) 0;
+  border-bottom: var(--rule-width) solid var(--color-rule);
+}
+
+.rowOff {
+  opacity: 0.7;
+}
+
+.rowHead {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-7);
+  min-height: var(--tap-min);
+  cursor: pointer;
+}
+
+.rowHead input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.rowText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.rowName {
+  font-size: var(--text-body);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.rowMeta {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-left: calc(22px + var(--space-7));
+}
+
+.fieldPair {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-4);
+}
+
+.estimate {
+  margin: 0;
+  font-family: var(--font-data);
+  font-size: var(--text-caption);
+  color: var(--color-ochre);
+}
+
+.question {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--color-ochre);
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-8);
+  border: var(--rule-width) solid var(--color-rule);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.cardTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-title-sm);
+  font-weight: 400;
+  letter-spacing: var(--tracking-title);
+}
+
+.cardMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-7);
+  margin: 0;
+  font-family: var(--font-data);
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: 1.2em;
+  font-size: var(--text-body-sm);
+}
+
+.have {
+  color: var(--color-accent);
+}
+
+.lack {
+  color: var(--color-signal);
+}
+
+.check {
+  color: var(--color-ochre);
+}
+
+.limits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+}
+
+.summary {
+  margin: 0;
+  padding-left: 1.2em;
+  font-size: var(--text-body-sm);
+}

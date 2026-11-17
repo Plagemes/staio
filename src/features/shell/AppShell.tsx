@@ -21,6 +21,7 @@ function areaOf(pathname: string): NavArea | "capture" | undefined {
     pathname === "/app" ||
     pathname === "/app/" ||
     pathname.startsWith("/app/impostazioni") ||
+    pathname.startsWith("/app/assistente") ||
     pathname.startsWith("/app/pasto") ||
     pathname.startsWith("/app/pasti-abituali")
   )
@@ -30,6 +31,7 @@ function areaOf(pathname: string): NavArea | "capture" | undefined {
   if (
     pathname.startsWith("/app/piano") ||
     pathname.startsWith("/app/spesa") ||
+    pathname.startsWith("/app/qualita") ||
     pathname.startsWith("/app/ricette") ||
     pathname.startsWith("/app/preparazioni")
   )

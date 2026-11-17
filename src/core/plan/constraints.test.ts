@@ -95,7 +95,9 @@ describe("checkConstraints", () => {
       food("2026-03-09", "dinner", "Riso", 80),
     ]);
     const r = checkConstraints(structure, week, { allergensOf });
-    expect(r.ok).toBe(true);
+    // seconda revisione: anche senza dati, il nome basta a dire che il farro contiene glutine
+    expect(r.ok).toBe(false);
+    expect(r.violations.map((v) => [v.term, v.item.name, v.evidence?.origin])).toEqual([["glutine", "Farro", "name"]]);
     expect(r.verified).toBe(false);
     expect(r.unverified).toEqual([
       { code: "unknown_allergens", date: "2026-03-09", meal: "lunch", item: { name: "Farro" } },
@@ -113,6 +115,83 @@ describe("checkConstraints", () => {
     expect(r.violations.map((v) => v.item.name)).toEqual(["Uova"]);
     expect(r.unverified).toEqual([
       { code: "unresolved_ref", date: "2026-03-10", meal: "dinner", via: { kind: "recipe", id: "misteriosa" } },
+    ]);
+  });
+
+  it("allergeni: un ingrediente generico («dado», «crema») è segnalato come incerto, mai come compatibile", () => {
+    const { structure, week } = setup({ allergens: ["sedano", "Arachide"] }, [
+      food("2026-03-09", "lunch", "Dado vegetale", 10),
+      food("2026-03-09", "dinner", "Crema", 30, "g", "crema-di-arachidi"),
+      food("2026-03-10", "dinner", "Riso", 80),
+    ]);
+    const r = checkConstraints(structure, week, { allergensOf: () => [] });
+    expect(r.violations.map((v) => [v.term, v.item.name])).toEqual([["Arachide", "Crema"]]);
+    expect(r.ok).toBe(false);
+    expect(r.verified).toBe(false);
+    expect(r.unverified).toEqual([
+      {
+        code: "uncertain_allergens",
+        date: "2026-03-09",
+        meal: "lunch",
+        item: { name: "Dado vegetale" },
+        terms: ["sedano", "Arachide"],
+        evidence: [
+          { origin: "name", text: "Dado vegetale", term: "dado", reason: "generic" },
+          { origin: "name", text: "Dado vegetale", term: "dado", reason: "generic" },
+        ],
+      },
+      // contiene arachidi (dall'identificativo), ma resta incerta per il sedano
+      {
+        code: "uncertain_allergens",
+        date: "2026-03-09",
+        meal: "dinner",
+        item: { name: "Crema", foodId: "crema-di-arachidi" },
+        terms: ["sedano"],
+        evidence: [{ origin: "name", text: "Crema", term: "crema", reason: "generic" }],
+      },
+    ]);
+  });
+
+  it("allergeni: l'alimento di dispensa collegato conta, e il risultato dice da dove viene il sospetto", () => {
+    const { structure, week } = setup({ allergens: ["latte", "glutine"] }, [
+      food("2026-03-09", "lunch", "Pomodori", 100),
+      food("2026-03-09", "dinner", "Riso", 80),
+      food("2026-03-10", "lunch", "Zucchine", 200),
+    ]);
+    const links: Record<string, { names?: string[]; productName?: string; allergens?: string[] }> = {
+      // collegato a un alimento dal nome non riconosciuto: l'ingrediente diventa incerto
+      Pomodori: { names: ["Sughetto della nonna"] },
+      // collegato a un prodotto che lo contiene
+      Riso: { names: ["Riso"], productName: "Risotto ai formaggi Chef Express" },
+      // l'etichetta dichiara il glutine
+      Zucchine: { names: ["Zucchine grigliate"], allergens: ["en:gluten"] },
+    };
+    const r = checkConstraints(structure, week, { allergensOf: () => [], linkOf: (i) => links[i.name] });
+    expect(r.violations.map((v) => [v.term, v.item.name, v.evidence?.origin, v.evidence?.text])).toEqual([
+      ["latte", "Riso", "product", "Risotto ai formaggi Chef Express"],
+      ["glutine", "Zucchine", "label", "en:gluten"],
+    ]);
+    expect(r.unverified).toEqual([
+      {
+        code: "uncertain_allergens",
+        date: "2026-03-09",
+        meal: "lunch",
+        item: { name: "Pomodori" },
+        terms: ["latte", "glutine"],
+        evidence: [
+          { origin: "linked", text: "Sughetto della nonna", term: "sughetto, nonna", reason: "unrecognized" },
+          { origin: "linked", text: "Sughetto della nonna", term: "sughetto, nonna", reason: "unrecognized" },
+        ],
+      },
+      // il riso è incerto per il glutine per via del nome del prodotto, che non è fatto solo di alimenti semplici
+      {
+        code: "uncertain_allergens",
+        date: "2026-03-09",
+        meal: "dinner",
+        item: { name: "Riso" },
+        terms: ["glutine"],
+        evidence: [{ origin: "product", text: "Risotto ai formaggi Chef Express", term: "risotto, formaggi, chef, express", reason: "unrecognized" }],
+      },
     ]);
   });
 

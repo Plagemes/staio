@@ -1,0 +1,249 @@
+/* Viste generate e pagina dell'assistente. Solo variabili di tema. */
+
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-9);
+  min-width: 0;
+  padding: var(--space-8) 0;
+  border-top: var(--rule-width) solid var(--color-rule-strong);
+}
+
+.viewTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-title);
+  line-height: 1.1;
+  letter-spacing: var(--tracking-title);
+  overflow-wrap: anywhere;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.caption {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: 1.4;
+  color: var(--color-graphite);
+}
+
+.aiLabel {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: 1.4;
+  color: var(--color-graphite);
+  overflow-wrap: anywhere;
+}
+
+.basis {
+  margin: 0;
+  font-family: var(--font-data);
+  font-size: var(--text-caption);
+  line-height: 1.4;
+  color: var(--color-graphite);
+}
+
+.note {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: 1.45;
+  color: var(--color-graphite);
+}
+
+.insufficient {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+}
+
+.insufficientTag {
+  font-family: var(--font-data);
+  font-size: var(--text-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--color-ochre);
+}
+
+.text {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2) var(--space-6);
+  padding: var(--space-5) 0;
+  border-bottom: var(--rule-width) solid var(--color-rule);
+}
+
+.rowName {
+  font-size: var(--text-body-sm);
+  overflow-wrap: anywhere;
+}
+
+.rowValue {
+  font-family: var(--font-data);
+  font-size: var(--text-data);
+  text-align: right;
+}
+
+.rowDetail {
+  grid-column: 1 / -1;
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+}
+
+.rowBar {
+  grid-column: 1 / -1;
+}
+
+.chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.chartLine {
+  fill: none;
+  stroke: var(--color-ink);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.chartDot {
+  fill: var(--color-ink);
+}
+
+.chartAxis {
+  stroke: var(--color-rule);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.chartLabels {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  font-family: var(--font-data);
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+}
+
+.actionRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-5);
+}
+
+.status {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--color-accent);
+}
+
+/* Pagina */
+
+.privacy {
+  margin: 0;
+  padding: var(--space-6) var(--space-7);
+  border: var(--rule-width) solid var(--color-rule);
+  border-radius: var(--radius-md);
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+}
+
+.askForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.example {
+  min-height: var(--tap-min);
+  padding: 0 var(--space-6);
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--text-body-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.example:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.problems {
+  margin: 0;
+  padding-left: var(--space-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: var(--text-body-sm);
+  line-height: 1.4;
+}
+
+.answer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.pinnedItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.pinnedTools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.renameInput {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.today {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}

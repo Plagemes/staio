@@ -8,6 +8,8 @@ export interface ModelObjectOptions {
   signal?: boolean;
   /** Secondo tratteggio incrociato nelle zone scure. Predefinito true. */
   cross?: boolean;
+  /** 0..1: tratteggio più leggero, per mobili e superfici piatte. Predefinito 0. */
+  soft?: number;
 }
 
 export interface ModelObject {
@@ -29,7 +31,7 @@ export function createModelObject(model: Model, shared: SharedUniforms, opts: Mo
     holder.scale.setScalar(part.transform.scale);
     const signal = opts.signal === true || part.signal;
 
-    const body = createEngravingMaterial(shared, { strokeScale: part.strokeScale, signal, doubleSided: part.doubleSided, cross: opts.cross });
+    const body = createEngravingMaterial(shared, { strokeScale: part.strokeScale, signal, doubleSided: part.doubleSided, cross: opts.cross !== false && part.cross, soft: opts.soft });
     materials.push(body);
     holder.add(new Mesh(part.geometry, body));
 

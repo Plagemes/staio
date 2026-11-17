@@ -103,10 +103,8 @@ export const carnePesceRecipes: readonly Recipe[] = [
     hatch: { density: 1.3 },
   },
   {
-    id: "cp-pesce-intero-orata", name: "Pesce intero, orata", category: "pesce", archetype: "elongated", heightCm: 8,
-    pose: { tiltDeg: 85 },
-    params: { radii: [[0, 0.05], [0.06, 0.14], [0.25, 0.22], [0.5, 0.2], [0.8, 0.1], [0.92, 0.04], [1, 0.02]], ratio: 0.45, wobble: 0.02 },
-    details: { leaf: { count: 2, length: 0.2, width: 0.6 } },
+    id: "cp-pesce-intero-orata", name: "Pesce intero, orata", category: "pesce", archetype: "fish", heightCm: 9,
+    params: { bodyHeight: 0.34, thickness: 0.14, tail: 0.22, dorsal: 0.7, snout: 0.55 },
   },
   {
     id: "cp-gamberi-vaschetta", name: "Gamberi in vaschetta", category: "pesce", archetype: "cluster", heightCm: 4,

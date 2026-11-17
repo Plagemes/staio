@@ -18,6 +18,7 @@ export const OFF_FIELDS = [
   "nutriscore_grade",
   "allergens_tags",
   "additives_tags",
+  "additives_n",
   "image_front_small_url",
   "image_front_url",
 ] as const;
@@ -49,6 +50,20 @@ function tags(v: unknown): string[] {
     if (t) out.add(stripLang(t).toLowerCase());
   }
   return [...out];
+}
+
+/**
+ * Elenco degli additivi. Un elenco vuoto vale "nessun additivo" solo se Open Food Facts ha analizzato gli
+ * ingredienti: `additives_n` presente (anche 0), oppure `additives_tags` come elenco insieme a un testo degli
+ * ingredienti non vuoto (quest'ultimo non si richiede all'API: un test della cattura vieta i campi degli ingredienti). Altrimenti il dato manca e `additives` resta assente.
+ */
+function additivesFrom(p: Json): string[] | undefined {
+  const list = tags(p.additives_tags).map((a) => a.toUpperCase());
+  if (list.length > 0) return list;
+  const n = amount(p.additives_n);
+  if (n === 0) return [];
+  if (n !== undefined) return undefined;
+  return Array.isArray(p.additives_tags) && text(p.ingredients_text) !== undefined ? [] : undefined;
 }
 
 function round(n: number, digits: number): number {
@@ -146,7 +161,7 @@ export function productFromOpenFoodFacts(json: unknown, options: FromOffOptions 
   const categories = tags(p.categories_tags);
   const packaging = tags(p.packaging_tags);
   const allergens = tags(p.allergens_tags);
-  const additives = tags(p.additives_tags).map((a) => a.toUpperCase());
+  const additives = additivesFrom(p);
   const nutrients = nutrientsFrom(p, quantity?.unit);
 
   const product: Product = {
@@ -167,7 +182,7 @@ export function productFromOpenFoodFacts(json: unknown, options: FromOffOptions 
   const nutriScore = nutriScoreFrom(p.nutriscore_grade);
   if (nutriScore) product.nutriScore = nutriScore;
   if (allergens.length > 0) product.allergens = allergens;
-  if (additives.length > 0) product.additives = additives;
+  if (additives) product.additives = additives;
   const imageUrl = imageFrom(p);
   if (imageUrl) product.imageUrl = imageUrl;
   return product;

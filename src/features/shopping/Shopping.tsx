@@ -203,6 +203,12 @@ function ShoppingView({ data, undo }: { data: ShoppingData; undo: Undo }) {
         <Link href="/app/spesa/scorte" className={ui.textLink}>
           Scorte minime
         </Link>
+        <Link href="/app/qualita/scaffale" className={ui.textLink}>
+          Confronta sullo scaffale
+        </Link>
+        <Link href="/app/qualita" className={ui.textLink}>
+          Qualità di ciò che mangi
+        </Link>
         <Link href="/app/piano" className={ui.textLink}>
           Torna al piano
         </Link>

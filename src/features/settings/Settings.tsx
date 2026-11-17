@@ -132,6 +132,16 @@ export function Settings() {
       </section>
 
       <section className={ui.section}>
+        <SectionHeader label="Aspetto" />
+        <div className={styles.block}>
+          <p className={ui.paragraph}>Il tema dei colori e la scelta tra chiaro e scuro. Valgono per questo dispositivo.</p>
+          <Link href="/app/impostazioni/aspetto" className={ui.textLink}>
+            Aspetto
+          </Link>
+        </div>
+      </section>
+
+      <section className={ui.section}>
         <SectionHeader label="Profilo" />
         <div className={styles.block}>
           <p className={ui.paragraph}>Sesso ed età servono a scegliere i valori di riferimento per la nutrizione. Restano sul telefono.</p>

@@ -19,6 +19,8 @@ import ui from "../ui.module.css";
 import { useNow } from "../useNow";
 import { useRecord } from "../useRecord";
 import { makeContextFor, makeLookup } from "./facts";
+import { FlagText, SafetyPanel } from "./SafetyPanel";
+import { useRecipeSafety } from "./useRecipeSafety";
 
 interface FreeRow {
   id: number;
@@ -69,6 +71,7 @@ function Form({ recipe, servings, entries, now }: { recipe: Recipe; servings: nu
   const foods = useFoods();
   const overrides = useFoodOverrides();
   const { recordWith, busy } = useRecord();
+  const safety = useRecipeSafety(recipe);
 
   // Calcolata una volta, alla prima apertura: le correzioni dell'utente non vengono mai riscritte.
   const [start] = useState(() => {
@@ -140,6 +143,8 @@ function Form({ recipe, servings, entries, now }: { recipe: Recipe; servings: nu
         «{recipe.title}» per {servings === 1 ? "1 porzione" : `${servings} porzioni`}, mangiate adesso. Ho proposto dalla dispensa ciò che serve, prima ciò che scade: controlla le quantità.
       </p>
 
+      <SafetyPanel state={safety} />
+
       <form className={ui.form} onSubmit={onSubmit} noValidate>
         <fieldset className={ui.field}>
           <legend className={ui.fieldLabel}>Che pasto è</legend>
@@ -189,6 +194,7 @@ function Form({ recipe, servings, entries, now }: { recipe: Recipe; servings: nu
                     onChange={(e) => setFree((rows) => rows.map((r) => (r.id === row.id ? { ...r, use: e.target.checked } : r)))}
                   />
                   <span className={ui.switchText}>{row.name}</span>
+                  {safety.status === "ready" ? <FlagText flag={safety.flags.get(recipe.ingredients.findIndex((x) => x.name === row.name))} /> : null}
                 </label>
                 {row.use ? (
                   <input

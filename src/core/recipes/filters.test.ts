@@ -75,23 +75,49 @@ describe("filterRecipes", () => {
       r("Torta", {}, ["Farina", "Burro", "Uova"]),
       r("Insalata", {}, ["Lattuga", "Pomodori"]),
       r("Cena", {}, ["Salsiccia", "Zuppa di Ceci"]),
+      r("Pranzo", {}, ["Petto di pollo", "Ceci lessati", "Olio extravergine d'oliva", "Sale"]),
     ];
     const res = filterRecipes(list, { allergens: ["lattosio", "glutine"] });
-    expect(res.kept.map((x) => x.title)).toEqual(["Insalata", "Cena"]);
+    expect(res.kept.map((x) => x.title)).toEqual(["Insalata", "Pranzo"]);
+    // seconda revisione: un salume e un nome non riconosciuto («zuppa») non sono mai compatibili
+    expect(res.excluded.find((x) => x.recipe.title === "Cena")?.reasons).toEqual([
+      { code: "allergen_uncertain", allergen: "latte", ingredients: ["Salsiccia", "Zuppa di Ceci"] },
+      { code: "allergen_uncertain", allergen: "glutine", ingredients: ["Salsiccia", "Zuppa di Ceci"] },
+    ]);
     expect(res.excluded[0]?.reasons).toEqual([
       { code: "allergen", allergen: "latte", ingredients: ["Burro"] },
-      { code: "allergen", allergen: "glutine", ingredients: ["Farina"] },
+      // «torta» nel titolo: glutine e uova di norma (seconda revisione)
+      { code: "allergen", allergen: "glutine", ingredients: ["Farina"], inTitle: true },
     ]);
     const ext = filterRecipes(list, {
       allergens: ["soia"],
       allergensOf: (i) => (i.name === "Salsiccia" ? ["soia"] : undefined),
     });
-    expect(ext.kept.map((x) => x.title)).toEqual(["Torta", "Insalata"]);
+    expect(ext.kept.map((x) => x.title)).toEqual(["Torta", "Insalata", "Pranzo"]);
   });
 
   it("un allergene sconosciuto si cerca come parola", () => {
     const res = filterRecipes([r("Kiwi", {}, ["Kiwi maturi"]), r("Mela", {}, ["Mele"])], { allergens: ["kiwi"] });
     expect(res.kept.map((x) => x.title)).toEqual(["Mela"]);
+  });
+
+  it("un ingrediente generico è incerto: la ricetta non è mai tra le compatibili, e il motivo lo dice", () => {
+    const res = filterRecipes([r("Brodo", {}, ["Dado", "Carote"]), r("Insalata", {}, ["Lattuga"])], { allergens: ["sedano"] });
+    expect(res.kept.map((x) => x.title)).toEqual(["Insalata"]);
+    expect(res.excluded[0]?.reasons).toEqual([{ code: "allergen_uncertain", allergen: "sedano", ingredients: ["Dado"] }]);
+  });
+
+  it("guarda anche note, passi, titolo, alimento collegato ed etichetta", () => {
+    const withNote: Filterable = { title: "Riso", ingredients: [{ name: "Riso", note: "mantecato col burro" }] };
+    expect(exclusionReasons(withNote, { allergens: ["latte"] })).toEqual([{ code: "allergen", allergen: "latte", ingredients: ["Riso"] }]);
+    const inSteps: Filterable = { title: "Riso", ingredients: [{ name: "Riso" }], steps: [{ text: "Imburrate lo stampo." }] };
+    expect(exclusionReasons(inSteps, { allergens: ["latte"] })).toEqual([{ code: "allergen", allergen: "latte", ingredients: [], steps: ["Imburrate lo stampo."] }]);
+    const linked: Filterable = { ingredients: [{ name: "Crema" }] };
+    expect(
+      exclusionReasons(linked, { allergens: ["arachidi"], linkOf: () => ({ names: ["Crema di arachidi"] }) }).map((x) => x.code),
+    ).toEqual(["allergen"]);
+    expect(exclusionReasons(linked, { allergens: ["arachidi"], linkOf: () => ({ allergens: ["en:peanuts"] }) }).map((x) => x.code)).toEqual(["allergen"]);
+    expect(exclusionReasons(linked, { allergens: ["arachidi"] }).map((x) => x.code)).toEqual(["allergen_uncertain"]);
   });
 
   it("combina i criteri e conserva l'ordine", () => {

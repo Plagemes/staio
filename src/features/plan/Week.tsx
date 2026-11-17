@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useId, useMemo, useState } from "react";
+import { ALLERGEN_CHECK_NOTICE } from "@/core/allergens";
 import type { MealKind } from "@/core/diary";
 import {
-  checkConstraints,
   checkPlanWeek,
   dayTypeOf,
   getWeek,
@@ -12,7 +12,6 @@ import {
   type PlannedEntry,
   type PlannedItem,
 } from "@/core/plan";
-import { allergensOfIngredient } from "@/core/recipes";
 import { Button, Label, Tabs } from "@/design";
 import { readQuantity } from "../capture";
 import { MEAL_KIND_LABELS, MEAL_KIND_ORDER } from "../meals";
@@ -38,6 +37,7 @@ import { Sheet } from "./Sheet";
 import { parseAmount } from "./targets";
 import { usePlanData, type PlanData } from "./usePlanData";
 import { useWriter } from "./useWriter";
+import { checkWeekConstraints } from "./safety";
 import { constraintLines, dayCheckView, daySummaryText } from "./verify";
 import styles from "./plan.module.css";
 
@@ -94,10 +94,12 @@ function WeekView({ data, weeks, week, weekId, setWeekId, sheet, setSheet }: Vie
 
   const check = useMemo(() => (data.nutrientsOf ? checkPlanWeek(plan, week.start, data.nutrientsOf) : undefined), [plan, week.start, data.nutrientsOf]);
   const constraints = useMemo(
-    () => checkConstraints(plan.structure, state, { expand: data.expand, allergensOf: (item) => allergensOfIngredient({ name: item.name }) }),
-    [plan.structure, state, data.expand],
+    () => checkWeekConstraints(plan.structure, state, { expandForChecks: data.expandForChecks, linkOf: data.linkOf }),
+    [plan.structure, state, data.expandForChecks, data.linkOf],
   );
-  const violations = constraintLines(constraints, nameOfRef).filter((l) => l.kind === "violation");
+  const constraintItems = constraintLines(constraints, nameOfRef);
+  const violations = constraintItems.filter((l) => l.kind === "violation");
+  const unverified = constraintItems.filter((l) => l.kind === "unverified");
 
   async function save(next: readonly PlannedEntry[], message: string, weekStart = week.start): Promise<string | null> {
     const failure = await write((ctx) => buildWeek(weekStart, next, ctx, message));
@@ -143,6 +145,19 @@ function WeekView({ data, weeks, week, weekId, setWeekId, sheet, setSheet }: Vie
           </ul>
         </div>
       ) : null}
+      {unverified.length > 0 ? (
+        <div className={styles.alert}>
+          <strong>Non ho potuto controllare tutto</strong>
+          <ul className={styles.alertList}>
+            {unverified.map((v, i) => (
+              <li key={i}>
+                {dayMonth(v.date)}: {v.text}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {violations.length + unverified.length > 0 ? <p className={ui.hint}>{ALLERGEN_CHECK_NOTICE}</p> : null}
       {error ? (
         <p className={ui.error} role="alert">
           {error}

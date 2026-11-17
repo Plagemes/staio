@@ -1,4 +1,4 @@
-import { Matrix4, Vector3 } from "three";
+import { Euler, Matrix4, Vector3 } from "three";
 import type { ClusterParams } from "../recipe";
 import { MeshBuilder, ellipsoidProfile, latheMesh, tubeAlong } from "../geometry";
 import type { BuildContext, RawPart } from "./types";
@@ -25,7 +25,43 @@ function relax(pos: Vector3[], rad: number[], elong: number) {
   }
 }
 
+/** Mucchio fitto a cupola: elementi su due gusci sferici, orientati a caso, con la base a y = 0. */
+function buildMound(p: ClusterParams, ctx: BuildContext): RawPart[] {
+  const { rng, variation: v } = ctx;
+  const n = p.count;
+  const r0 = p.elementRadius;
+  const elong = p.elongation ?? 1;
+  const radius = (p.spread ?? 0.5) * 0.5 * (1 + rng.signed() * 0.05 * v);
+  const h = radius * 0.5;
+  const sphere = (radius * radius + h * h) / (2 * h);
+  const cosMax = (sphere - h) / sphere;
+  const heavy = n > 60;
+  const base = latheMesh(ellipsoidProfile(1, elong, heavy ? 6 : 12), { segments: heavy ? 8 : 16, creaseDeg: 80 });
+  const elements = new MeshBuilder();
+  const outer = Math.round(n * 0.7);
+  const turn = rng.range(0, Math.PI * 2);
+  for (let i = 0; i < n; i++) {
+    const shell = i < outer;
+    const k = shell ? i : i - outer;
+    const count = shell ? outer : n - outer;
+    const u = (k + 0.5) / count;
+    const theta = Math.acos(1 - u * (1 - cosMax));
+    const phi = turn + k * GOLDEN + (shell ? 0 : 1) + rng.signed() * 0.25 * v;
+    const r = r0 * (1 + rng.signed() * 0.12 * v);
+    const rs = sphere - (shell ? r * 0.35 : r * 1.7);
+    const m = new Matrix4()
+      .makeTranslation(rs * Math.sin(theta) * Math.cos(phi), h - sphere + rs * Math.cos(theta), rs * Math.sin(theta) * Math.sin(phi))
+      .multiply(new Matrix4().makeRotationFromEuler(new Euler(rng.range(0, Math.PI * 2), rng.range(0, Math.PI * 2), rng.range(0, Math.PI * 2))))
+      .multiply(new Matrix4().makeScale(r, r, r))
+      .multiply(new Matrix4().makeTranslation(0, -elong, 0));
+    elements.append(base, m);
+  }
+  base.dispose();
+  return [{ name: "grains", role: "body", geometry: elements.toGeometry(), matrix: new Matrix4(), outline: 0.004 }];
+}
+
 export function buildCluster(p: ClusterParams, ctx: BuildContext): RawPart[] {
+  if (p.layout === "mound") return buildMound(p, ctx);
   const { rng, variation: v } = ctx;
   const n = p.count;
   const r0 = p.elementRadius;

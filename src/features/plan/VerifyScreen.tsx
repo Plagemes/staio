@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { compareWeek, checkConstraints, checkPlanWeek, getWeek, type LotRef } from "@/core/plan";
-import { allergensOfIngredient } from "@/core/recipes";
+import { compareWeek, checkPlanWeek, getWeek, type LotRef } from "@/core/plan";
+import { ALLERGEN_CHECK_NOTICE } from "@/core/allergens";
 import { Label, SectionHeader, Tabs } from "@/design";
 import { NUTRITION_DISCLAIMER_SHORT, CERTAINTY_LABELS } from "../nutrition/labels";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { WEEK_LABELS, dayHeading, weekChoices, weekRangeText, type WeekId } from "./dates";
 import { itemName } from "./describe";
+import { checkWeekConstraints } from "./safety";
 import { usePlanData } from "./usePlanData";
 import { adherenceView, constraintLines, dayCheckView, daySummaryText, type LineTone } from "./verify";
 import styles from "./plan.module.css";
@@ -29,9 +30,9 @@ export function Verify() {
   const constraints = useMemo(
     () =>
       plan && week
-        ? checkConstraints(plan.structure, getWeek(plan, week.start), { expand: data.expand, allergensOf: (item) => allergensOfIngredient({ name: item.name }) })
+        ? checkWeekConstraints(plan.structure, getWeek(plan, week.start), { expandForChecks: data.expandForChecks, linkOf: data.linkOf })
         : undefined,
-    [plan, week, data.expand],
+    [plan, week, data.expandForChecks, data.linkOf],
   );
   const adherence = useMemo(() => {
     if (!plan || !week || !data.diary || !data.log || !data.pantry || weekId === "next") return undefined;
@@ -78,7 +79,7 @@ export function Verify() {
             {!plan.structure || (plan.structure.excludedFoods.length === 0 && plan.structure.allergens.length === 0) ? (
               <p className={ui.paragraph}>Non hai indicato alimenti esclusi né allergeni: non c&apos;è niente da controllare.</p>
             ) : lines.length === 0 ? (
-              <p className={ui.paragraph}>Nessun alimento escluso né allergene riconosciuto dal nome nelle voci di questa settimana. Il controllo non vede ingredienti composti né tracce: leggi sempre le etichette.</p>
+              <p className={ui.paragraph}>Nessuna corrispondenza trovata nelle voci di questa settimana. Non vuol dire che sia tutto sicuro.</p>
             ) : (
               <ul className={styles.rows}>
                 {lines.map((l, i) => (
@@ -88,6 +89,7 @@ export function Verify() {
                 ))}
               </ul>
             )}
+            {plan.structure && (plan.structure.excludedFoods.length > 0 || plan.structure.allergens.length > 0) ? <p className={ui.hint}>{ALLERGEN_CHECK_NOTICE}</p> : null}
           </section>
 
           <section className={ui.section} aria-label="Obiettivi">

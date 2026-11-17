@@ -16,7 +16,8 @@ import { barcodesOfLots, buildResolverWithInfo } from "../nutrition/resolver";
 import { dayOf } from "../format";
 import { useNow } from "../useNow";
 import type { Catalog } from "./describe";
-import { makeExpand } from "./expand";
+import { makeLinkOf, pantryFoods, type LinkOf } from "../recipes/allergenLinks";
+import { makeExpand, makeExpandForChecks } from "./expand";
 import { makeNutrientsOf } from "./nutrients";
 
 export interface PlanData {
@@ -34,6 +35,10 @@ export interface PlanData {
   log: AnyEvent[] | undefined;
   catalog: Catalog;
   expand: ExpandRef;
+  /** Come `expand`, ma con tutti gli ingredienti: per allergeni ed esclusioni. */
+  expandForChecks: ExpandRef;
+  /** Alimenti di dispensa e prodotti che un ingrediente potrebbe essere. Vuoto finché i prodotti non sono letti. */
+  linkOf: LinkOf;
   foods: readonly FoodComposition[] | undefined;
   resolver: CompositionResolver | undefined;
   /** Disponibile quando la tabella degli alimenti è caricata. */
@@ -59,6 +64,7 @@ export function usePlanData(): PlanData {
   const preps = prepsState.data?.preps ?? NO_PREPS;
   const catalog = useMemo<Catalog>(() => ({ recipes, preps }), [recipes, preps]);
   const expand = useMemo(() => makeExpand(catalog), [catalog]);
+  const expandForChecks = useMemo(() => makeExpandForChecks(catalog), [catalog]);
   const lots = useMemo(() => (pantry.data ? activeLots(pantry.data) : []), [pantry.data]);
 
   const built = useMemo(
@@ -74,6 +80,7 @@ export function usePlanData(): PlanData {
         : undefined,
     [foods, products, pantry.data, overrides, preps],
   );
+  const linkOf = useMemo(() => makeLinkOf(pantryFoods(lots, products)), [lots, products]);
   const resolver = built?.resolve;
   const nutrientsOf = useMemo(() => {
     if (!built || !pantry.data) return undefined;
@@ -83,7 +90,8 @@ export function usePlanData(): PlanData {
 
   const error = Boolean(plan.error || recipesState.error || prepsState.error || pantry.error || diary.error || log.error);
   return {
-    ready: Boolean(now && plan.data && recipesState.data && prepsState.data && pantry.data && diary.data && log.data),
+    // senza i prodotti il controllo degli allergeni non avrebbe le etichette: si aspetta
+    ready: Boolean(products && now && plan.data && recipesState.data && prepsState.data && pantry.data && diary.data && log.data),
     error,
     now,
     today: now ? dayOf(now) : "",
@@ -97,6 +105,8 @@ export function usePlanData(): PlanData {
     log: log.data,
     catalog,
     expand,
+    expandForChecks,
+    linkOf,
     foods,
     resolver,
     nutrientsOf,

@@ -43,7 +43,7 @@ export {
   filterRecipes,
   totalMinutes,
 } from "./filters";
-export type { ExclusionReason, FilterCriteria, FilterResult, Filterable } from "./filters";
+export type { ExclusionReason, FilterCriteria, FilterResult, Filterable, IngredientLink } from "./filters";
 export { cleanLine, parseIngredientLine } from "./ingredient";
 export type { ParsedIngredient } from "./ingredient";
 export { parseDurationText, parseIsoDuration, stepDurationFromText } from "./duration";

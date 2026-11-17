@@ -1,3 +1,4 @@
+import { ALLERGEN_KEYS, ALLERGEN_TABLES, allergensInText, assessRecipe, type ItemSubject } from "../allergens";
 import { nameTokens } from "../nutrition";
 import { bestMatches, type FoodRef } from "./match";
 import type { RecipeIngredient, RecipeStep, RecipeTimes } from "./types";
@@ -23,125 +24,40 @@ export function totalMinutes(recipe: Pick<Filterable, "times" | "steps">): numbe
 }
 
 /**
- * I 14 allergeni da dichiarare nell'Unione europea, con radici di parole italiane e inglesi.
- * È una prima difesa sul nome dell'ingrediente: non sa nulla di ciò che non è scritto
- * (ingredienti composti, tracce). Chi ha un'allergia grave deve sempre leggere le etichette.
+ * I 14 allergeni dell'allegato II del Reg. (UE) 1169/2011, ciascuno con le voci delle tabelle del motore unico
+ * (`../allergens`). Le chiavi sono quelle che le schermate mostrano e salvano. Chi ha un'allergia grave legge sempre
+ * le etichette: il controllo non vede le tracce.
  */
-export const ALLERGEN_STEMS: Readonly<Record<string, readonly string[]>> = {
-  glutine: [
-    "farin", "grano", "frument", "pasta", "pane", "pangrattat", "semol", "orzo", "farro", "segale",
-    "avena", "kamut", "couscous", "seitan", "biscott", "cracker", "grissin", "fette biscottate",
-    "gnocch", "lasagn", "spaghett", "penne", "tagliatell", "maccheron", "fusill", "rigaton",
-    "wheat", "flour", "bread", "barley", "rye", "pasta", "breadcrumb", "malto",
-  ],
-  latte: [
-    "latte", "burro", "formaggi", "panna", "yogurt", "parmigian", "grana", "mozzarell", "ricott",
-    "mascarpon", "pecorin", "gorgonzol", "besciamell", "provol", "fontina", "stracchin", "caciott",
-    "philadelphia", "latticin", "milk", "butter", "cheese", "cream", "whey", "siero di latte",
-    "caseina", "kefir",
-  ],
-  uova: ["uov", "albume", "tuorl", "maionese", "egg$", "eggs$", "meringh", "zabaione"],
-  pesce: [
-    "pesce", "salmone", "tonno", "merluzz", "baccalà", "baccala", "stoccafisso", "acciug",
-    "alici", "sardin", "sgombro", "trota", "branzino", "orata", "spigola", "dentice", "sogliola",
-    "halibut", "fish", "anchov", "tuna", "cod$", "colatura",
-  ],
-  crostacei: ["gambero", "gamberi", "gamberett", "scamp", "aragost", "granchi", "astice", "mazzancoll", "shrimp", "prawn", "crab", "lobster", "crostace"],
-  molluschi: ["cozz", "vongol", "calamar", "polpo", "seppi", "totan", "ostric", "capesant", "lumach", "mollusch", "squid", "octopus", "oyster", "clam", "mussel"],
-  arachidi: ["arachid", "noccioline", "peanut"],
-  "frutta a guscio": [
-    "noci", "noce$", "mandorl", "nocciol", "pistacch", "anacard", "pinoli", "pecan",
-    "macadamia", "castagn", "frutta secca", "gianduia", "nutella", "marzapane", "almond", "hazelnut",
-    "walnut", "cashew", "pistachio",
-  ],
-  soia: ["soia", "soy", "tofu", "tempeh", "edamame", "miso"],
-  sedano: ["sedano", "celery"],
-  senape: ["senape", "mustard"],
-  sesamo: ["sesamo", "sesame", "tahin", "tahini"],
-  lupini: ["lupin"],
-  solfiti: ["solfit", "vino", "aceto", "uvetta", "uva passa", "sulphite", "sulfite", "wine"],
-};
+export const ALLERGEN_STEMS: Readonly<Record<string, readonly string[]>> = Object.fromEntries(
+  ALLERGEN_TABLES.map((t) => [t.key, t.terms]),
+);
 
-const ALLERGEN_ALIASES: Readonly<Record<string, string>> = {
-  glutine: "glutine",
-  gluten: "glutine",
-  celiachia: "glutine",
-  latte: "latte",
-  lattosio: "latte",
-  latticini: "latte",
-  milk: "latte",
-  dairy: "latte",
-  uova: "uova",
-  uovo: "uova",
-  eggs: "uova",
-  egg: "uova",
-  pesce: "pesce",
-  fish: "pesce",
-  crostacei: "crostacei",
-  shellfish: "crostacei",
-  molluschi: "molluschi",
-  arachidi: "arachidi",
-  peanuts: "arachidi",
-  "frutta a guscio": "frutta a guscio",
-  "frutta secca": "frutta a guscio",
-  noci: "frutta a guscio",
-  nuts: "frutta a guscio",
-  "tree nuts": "frutta a guscio",
-  soia: "soia",
-  soy: "soia",
-  sedano: "sedano",
-  celery: "sedano",
-  senape: "senape",
-  mustard: "senape",
-  sesamo: "sesamo",
-  sesame: "sesamo",
-  lupini: "lupini",
-  solfiti: "solfiti",
-  sulphites: "solfiti",
-  sulfites: "solfiti",
-};
-
-const fold = (s: string): string =>
-  s
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase();
-
-const words = (s: string): string[] => fold(s).split(/[^a-z0-9]+/).filter((w) => w !== "");
-
-/** Il nome dell'ingrediente contiene una radice dell'allergene (con `$` finale: la parola intera). */
-function nameHasStem(name: string, stems: readonly string[]): boolean {
-  const ws = words(name);
-  const joined = ` ${ws.join(" ")} `;
-  return stems.some((st) => {
-    const stem = fold(st);
-    if (stem.endsWith("$")) return ws.includes(stem.slice(0, -1));
-    if (stem.includes(" ")) return joined.includes(` ${stem}`);
-    return ws.some((w) => w.startsWith(stem));
-  });
-}
-
-function canonicalAllergen(a: string): string | undefined {
-  return ALLERGEN_ALIASES[fold(a).trim()];
-}
-
-/** Allergeni (come chiavi di `ALLERGEN_STEMS`) che un ingrediente sembra contenere, dal suo nome. */
-export function allergensOfIngredient(ingredient: Pick<RecipeIngredient, "name">): string[] {
-  const out: string[] = [];
-  for (const [key, stems] of Object.entries(ALLERGEN_STEMS)) {
-    // "noce moscata" è una spezia, non frutta a guscio.
-    const name = key === "frutta a guscio" ? ingredient.name.replace(/noce\s+moscata/gi, " ") : ingredient.name;
-    if (nameHasStem(name, stems)) out.push(key);
+/** Allergeni (come chiavi di `ALLERGEN_STEMS`) che un ingrediente contiene di sicuro, da nome, nota e alimento collegato. */
+export function allergensOfIngredient(
+  ingredient: Pick<RecipeIngredient, "name"> & Partial<Pick<RecipeIngredient, "note" | "foodId">>,
+): string[] {
+  const found = new Set<string>();
+  for (const text of [ingredient.name, ingredient.note, ingredient.foodId]) {
+    if (text) for (const key of allergensInText(text)) found.add(key);
   }
-  return out;
+  return ALLERGEN_KEYS.filter((k) => found.has(k));
 }
 
 export type ExclusionReason =
   | { code: "too_long"; minutes: number; maxMinutes: number }
   | { code: "time_unknown" }
   | { code: "missing_equipment"; equipment: string[] }
-  | { code: "excluded_food"; ingredients: string[] }
-  | { code: "allergen"; allergen: string; ingredients: string[] };
+  | { code: "excluded_food"; ingredients: string[]; steps?: string[]; inTitle?: true }
+  | { code: "allergen"; allergen: string; ingredients: string[]; steps?: string[]; inTitle?: true }
+  /** Ingrediente generico o composto («crema», «dado»): non si sa se contiene l'allergene. Mai compatibile. */
+  | { code: "allergen_uncertain"; allergen: string; ingredients: string[] };
+
+/** Ciò che si sa di un ingrediente oltre al nome: alimenti di dispensa collegati, prodotto, allergeni in etichetta. */
+export interface IngredientLink {
+  names?: readonly string[];
+  productName?: string;
+  allergens?: readonly string[];
+}
 
 export interface FilterCriteria {
   /** Tempo disponibile in minuti. */
@@ -156,6 +72,8 @@ export interface FilterCriteria {
   allergens?: readonly string[];
   /** Allergeni noti per ingrediente (per esempio da una tabella per `foodId`), in aggiunta al nome. */
   allergensOf?: (ingredient: RecipeIngredient) => readonly string[] | undefined;
+  /** Alimento di dispensa o prodotto collegato all'ingrediente: il controllo guarda anche i loro nomi ed etichette. */
+  linkOf?: (ingredient: RecipeIngredient) => IngredientLink | undefined;
 }
 
 export interface FilterResult<T> {
@@ -174,6 +92,21 @@ function equipmentSatisfied(required: string, owned: readonly string[]): boolean
     return true;
   });
 }
+
+function subjectOf(ing: RecipeIngredient, criteria: FilterCriteria): ItemSubject {
+  const link = criteria.linkOf?.(ing);
+  const labels = [...(criteria.allergensOf?.(ing) ?? []), ...(link?.allergens ?? [])];
+  return {
+    name: ing.name,
+    ...(ing.note ? { note: ing.note } : {}),
+    ...(ing.foodId ? { foodId: ing.foodId } : {}),
+    ...(link?.names && link.names.length > 0 ? { linkedNames: link.names } : {}),
+    ...(link?.productName ? { productName: link.productName } : {}),
+    ...(labels.length > 0 ? { labelAllergens: labels } : {}),
+  };
+}
+
+const unique = (xs: readonly string[]): string[] => [...new Set(xs)];
 
 /** Motivi per cui una ricetta non passa i criteri (lista vuota se passa). */
 export function exclusionReasons(recipe: Filterable, criteria: FilterCriteria): ExclusionReason[] {
@@ -195,9 +128,26 @@ export function exclusionReasons(recipe: Filterable, criteria: FilterCriteria): 
     if (missing.length > 0) reasons.push({ code: "missing_equipment", equipment: missing });
   }
 
-  if (criteria.excludedFoods && criteria.excludedFoods.length > 0) {
+  const excludedFoods = criteria.excludedFoods ?? [];
+  const allergens = (criteria.allergens ?? []).filter((a) => a.trim() !== "");
+  if (excludedFoods.length === 0 && allergens.length === 0) return reasons;
+
+  const assessment = assessRecipe(
+    {
+      ...(recipe.title !== undefined ? { title: recipe.title } : {}),
+      ingredients: recipe.ingredients.map((ing) => subjectOf(ing, criteria)),
+      steps: (recipe.steps ?? []).map((s) => s.text),
+    },
+    {
+      allergens,
+      excludedFoods: excludedFoods.flatMap((f) => (typeof f === "string" ? [f] : f.name ? [f.name] : [])),
+    },
+  );
+
+  if (excludedFoods.length > 0) {
     const hit = new Set<string>();
-    for (const f of criteria.excludedFoods) {
+    // per identificativo e per somiglianza di nome, come prima del motore unico
+    for (const f of excludedFoods) {
       const ref: FoodRef = typeof f === "string" ? { name: f } : f;
       for (const ing of recipe.ingredients) {
         const m = bestMatches(ref, [ing], (x) => ({
@@ -207,34 +157,43 @@ export function exclusionReasons(recipe: Filterable, criteria: FilterCriteria): 
         if (m.length > 0) hit.add(ing.name);
       }
     }
-    if (hit.size > 0) reasons.push({ code: "excluded_food", ingredients: [...hit] });
+    for (const e of assessment.exclusions) for (const i of e.ingredients) hit.add(i.name);
+    const steps = unique(assessment.exclusions.flatMap((e) => e.steps.map((s) => s.text)));
+    const inTitle = assessment.exclusions.some((e) => e.title !== undefined);
+    if (hit.size > 0 || steps.length > 0 || inTitle) {
+      const ingredients = recipe.ingredients.map((i) => i.name).filter((n) => hit.has(n));
+      reasons.push({
+        code: "excluded_food",
+        ingredients: unique(ingredients),
+        ...(steps.length > 0 ? { steps } : {}),
+        ...(inTitle ? { inTitle: true as const } : {}),
+      });
+    }
   }
 
-  if (criteria.allergens && criteria.allergens.length > 0) {
-    const byAllergen = new Map<string, Set<string>>();
-    for (const requested of criteria.allergens) {
-      const key = canonicalAllergen(requested);
-      for (const ing of recipe.ingredients) {
-        const declared = (criteria.allergensOf?.(ing) ?? []).map((a) => canonicalAllergen(a) ?? fold(a).trim());
-        const own = key ? allergensOfIngredient(ing) : [];
-        const label = key ?? fold(requested).trim();
-        // Allergene sconosciuto: si cerca la parola così com'è.
-        const literal = !key && label !== "" && nameHasStem(ing.name, [label]);
-        if ((key && (own.includes(key) || declared.includes(key))) || declared.includes(label) || literal) {
-          const set = byAllergen.get(label) ?? new Set<string>();
-          set.add(ing.name);
-          byAllergen.set(label, set);
-        }
-      }
+  for (const a of assessment.allergens) {
+    const ingredients = unique(a.ingredients.map((i) => i.name));
+    if (a.verdict === "uncertain") {
+      reasons.push({ code: "allergen_uncertain", allergen: a.allergen, ingredients });
+      continue;
     }
-    for (const [allergen, ings] of byAllergen) {
-      reasons.push({ code: "allergen", allergen, ingredients: [...ings] });
-    }
+    const steps = unique(a.steps.map((s) => s.text));
+    reasons.push({
+      code: "allergen",
+      allergen: a.allergen,
+      ingredients,
+      ...(steps.length > 0 ? { steps } : {}),
+      ...(a.title ? { inTitle: true as const } : {}),
+    });
   }
   return reasons;
 }
 
-/** Separa le ricette che passano i criteri da quelle escluse, con i motivi. L'ordine è conservato. */
+/**
+ * Separa le ricette che passano i criteri da quelle escluse, con i motivi. L'ordine è conservato. Una ricetta con un
+ * ingrediente di cui non si sa se contiene un allergene dichiarato è esclusa con il motivo `allergen_uncertain`: non è
+ * mai mostrata come compatibile.
+ */
 export function filterRecipes<T extends Filterable>(
   recipes: readonly T[],
   criteria: FilterCriteria,

@@ -1,4 +1,10 @@
-﻿import type { Recipe } from "../recipe";
+﻿import type { CompositeChild, Recipe } from "../recipe";
+
+/** Uovo in piedi, per le confezioni: altezza 1, largo circa 0.8. */
+const EGG: CompositeChild = {
+  archetype: "lathe",
+  params: { profile: [[0, 0], [0.22, 0.03], [0.36, 0.2], [0.4, 0.5], [0.33, 0.78], [0.18, 0.95], [0, 1]] },
+};
 
 /** Latticini, formaggi e uova (id con prefisso lt-). */
 export const latticiniRecipes: readonly Recipe[] = [
@@ -117,9 +123,18 @@ export const latticiniRecipes: readonly Recipe[] = [
     details: { cap: { kind: "lid", height: 0.06, radius: 1.2, signal: true }, label: { from: 0.2, to: 0.8 } },
   },
   {
-    id: "lt-uova-confezione-6", name: "Uova, confezione da 6", category: "uova", archetype: "box", heightCm: 7,
-    params: { size: [15, 7, 10], bevel: 0.1 },
-    details: { label: { from: 0.3, to: 0.8 } },
+    id: "lt-uova-confezione-6", name: "Uova, confezione da 6", category: "uova", archetype: "composite", heightCm: 8.5, variation: 0.4,
+    params: {
+      parts: [
+        { recipe: { archetype: "box", params: { size: [3, 1, 2], bevel: 0.1 } } },
+        { recipe: EGG, position: [-1.0, 0.7, -0.5] },
+        { recipe: EGG, position: [0.0, 0.7, -0.5] },
+        { recipe: EGG, position: [1.0, 0.7, -0.5] },
+        { recipe: EGG, position: [-1.0, 0.7, 0.5] },
+        { recipe: EGG, position: [0.0, 0.7, 0.5] },
+        { recipe: EGG, position: [1.0, 0.7, 0.5] },
+      ],
+    },
   },
   {
     id: "lt-uovo-singolo-tondo", name: "Uovo singolo", category: "uova", archetype: "lathe", heightCm: 4.5,
@@ -127,9 +142,22 @@ export const latticiniRecipes: readonly Recipe[] = [
     params: { profile: [[0, 0], [0.34, 0.05], [0.55, 0.3], [0.6, 0.65], [0.52, 1], [0.3, 1.28], [0, 1.38]] },
   },
   {
-    id: "lt-uova-confezione-10", name: "Uova, confezione da 10", category: "uova", archetype: "box", heightCm: 7,
-    params: { size: [17.9, 5, 7.2], bevel: 0.08 },
-    details: { label: { from: 0.2, to: 0.7, signal: true } },
+    id: "lt-uova-confezione-10", name: "Uova, confezione da 10", category: "uova", archetype: "composite", heightCm: 8.5, variation: 0.4,
+    params: {
+      parts: [
+        { recipe: { archetype: "box", params: { size: [5, 1, 2], bevel: 0.1 } } },
+        { recipe: EGG, position: [-2.0, 0.7, -0.5] },
+        { recipe: EGG, position: [-1.0, 0.7, -0.5] },
+        { recipe: EGG, position: [0.0, 0.7, -0.5] },
+        { recipe: EGG, position: [1.0, 0.7, -0.5] },
+        { recipe: EGG, position: [2.0, 0.7, -0.5] },
+        { recipe: EGG, position: [-2.0, 0.7, 0.5] },
+        { recipe: EGG, position: [-1.0, 0.7, 0.5] },
+        { recipe: EGG, position: [0.0, 0.7, 0.5] },
+        { recipe: EGG, position: [1.0, 0.7, 0.5] },
+        { recipe: EGG, position: [2.0, 0.7, 0.5] },
+      ],
+    },
   },
   {
     id: "lt-kefir-bottiglia", name: "Kefir in bottiglia", category: "latticini", archetype: "lathe", heightCm: 22,

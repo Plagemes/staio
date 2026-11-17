@@ -22,9 +22,10 @@ function toHex(css: string): string | null {
   return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
 }
 
-function resolve(el: Element, name: string, fallback: string): string {
+/** Prima la variabile della pagina (--ink), poi quella dei token dell'app (--color-ink), poi il ripiego. */
+function resolve(el: Element, name: string, appName: string, fallback: string): string {
   const probe = document.createElement("span");
-  probe.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;color:var(${name}, ${fallback})`;
+  probe.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;color:var(${name}, var(${appName}, ${fallback}))`;
   el.appendChild(probe);
   const computed = getComputedStyle(probe).color;
   probe.remove();
@@ -34,16 +35,16 @@ function resolve(el: Element, name: string, fallback: string): string {
 /** Legge `--ink`, `--paper`, `--signal` come li vede `el`, con valori di ripiego. */
 export function readThemeColors(el: Element): InkColors {
   return {
-    ink: resolve(el, "--ink", FALLBACK_COLORS.ink),
-    paper: resolve(el, "--paper", FALLBACK_COLORS.paper),
-    signal: resolve(el, "--signal", FALLBACK_COLORS.signal),
+    ink: resolve(el, "--ink", "--color-ink", FALLBACK_COLORS.ink),
+    paper: resolve(el, "--paper", "--color-paper", FALLBACK_COLORS.paper),
+    signal: resolve(el, "--signal", "--color-signal", FALLBACK_COLORS.signal),
   };
 }
 
 /** Chiama `onChange` quando cambia il tema (attributo data-theme, classe, preferenza di sistema). */
 export function watchTheme(onChange: () => void): () => void {
   const observer = new MutationObserver(onChange);
-  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "class", "style"] });
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-palette", "class", "style"] });
   const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
   mq?.addEventListener?.("change", onChange);
   return () => {

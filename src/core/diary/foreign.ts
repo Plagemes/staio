@@ -9,6 +9,7 @@ export const OTHER_FAMILY_EVENT_TYPES = [
   "dayType",
   "prep",
   "recipe",
+  "experiment",
 ] as const;
 
 /** Il tipo dichiarato è di una delle altre famiglie note (non della dispensa né del diario). */

@@ -161,6 +161,15 @@ export function Meal() {
         <Label>{MEAL_KIND_LABELS[effectiveKind]}</Label>
       </div>
 
+      <div className={ui.row}>
+        <Button href="/app/pasto/frase" variant="outline">
+          Scrivi o detta
+        </Button>
+        <Button href="/app/pasto/foto" variant="outline">
+          Foto del piatto
+        </Button>
+      </div>
+
       <form className={ui.form} onSubmit={onSubmit} noValidate>
         <fieldset className={ui.field}>
           <legend className={ui.fieldLabel}>Che pasto è</legend>

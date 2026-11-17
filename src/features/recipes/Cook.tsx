@@ -10,6 +10,8 @@ import { Button, Label } from "@/design";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { formatMinutes } from "./common";
+import { FlagText, SafetyPanel } from "./SafetyPanel";
+import { useRecipeSafety } from "./useRecipeSafety";
 import {
   finishedSteps,
   formatClock,
@@ -60,6 +62,9 @@ function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
   const [state, setState] = useState<CookState>(() => startCook(recipe.steps.length));
   const [nowMs, setNowMs] = useState(0);
   const [wake, setWake] = useState<Wake>("idle");
+  const safety = useRecipeSafety(recipe);
+  // con allergeni o esclusioni dichiarati si parte solo dopo aver visto l'esito
+  const [seen, setSeen] = useState(false);
 
   const ingredients = useMemo(() => {
     const r = scaleRecipe(recipe, servings);
@@ -122,6 +127,37 @@ function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
     );
   }
 
+  if (safety.status !== "none" && !seen) {
+    const flags = safety.status === "ready" ? safety.flags : undefined;
+    const needsAck = safety.status === "ready" && safety.safety.verdict !== "clear";
+    return (
+      <div className={ui.screen}>
+        <h1 className={ui.title}>Prima di iniziare</h1>
+        <p className={ui.lead}>«{recipe.title}»: guarda l&apos;esito del controllo degli allergeni.</p>
+        <SafetyPanel state={safety} />
+        {flags ? (
+          <ul className={styles.cookIngredients} aria-label="Ingredienti">
+            {ingredients.map((ing, i) => (
+              <li key={i} className={styles.cookIngredient}>
+                <span className={styles.cookQty}>{ing.quantity ? formatQuantity(ing.quantity) : "q.b."}</span>
+                <span>{ing.name}</span>
+                <FlagText flag={flags.get(i)} />
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        <div className={ui.row}>
+          <Button disabled={safety.status !== "ready"} onClick={() => setSeen(true)}>
+            {needsAck ? "Ho letto, inizia lo stesso" : "Inizia"}
+          </Button>
+          <Link href={`/app/ricette/vedi?id=${encodeURIComponent(recipe.recipeId)}`} className={ui.textLink}>
+            Torna alla ricetta
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const step = recipe.steps[state.index];
   const timer = state.timers[state.index];
   const hint = ingredientsForStep(step, ingredients);
@@ -157,6 +193,12 @@ function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
         </div>
       ) : null}
 
+      {safety.status === "ready" && safety.safety.verdict !== "clear" ? (
+        <p className={safety.safety.verdict === "contains" ? styles.flagContains : styles.flagUncertain} role="note">
+          {safety.safety.verdict === "contains" ? "Questa ricetta contiene qualcosa che hai dichiarato." : "In questa ricetta c'è almeno un ingrediente non verificabile."} Il dettaglio è nella scheda della ricetta.
+        </p>
+      ) : null}
+
       <p className={styles.cookText}>{step.text}</p>
 
       {hint.length > 0 ? (
@@ -167,6 +209,7 @@ function Steps({ recipe, servings }: { recipe: Recipe; servings: number }) {
               <li key={i} className={styles.cookIngredient}>
                 <span className={styles.cookQty}>{ing.quantity ? formatQuantity(ing.quantity) : "q.b."}</span>
                 <span>{ing.name}</span>
+                {safety.status === "ready" ? <FlagText flag={safety.flags.get(i)} /> : null}
               </li>
             );
           })}

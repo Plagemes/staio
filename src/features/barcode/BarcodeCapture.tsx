@@ -6,6 +6,7 @@ import { Button, Label } from "@/design";
 import { FOOD_CATEGORY_LABELS } from "../labels";
 import { ProductNutrients } from "../nutrition/Per100";
 import ui from "../ui.module.css";
+import { qualityHref } from "../quality/links";
 import { Scanner } from "./Scanner";
 import { captureHref, captureHrefForCode } from "./links";
 import { lookupProduct, type LookupOutcome } from "./lookup";
@@ -207,6 +208,9 @@ function ProductCard({ product, from, onAgain }: { product: Product; from: "memo
         <Button href={captureHref(product)}>Aggiungi alla dispensa</Button>
         <Button variant="outline" onClick={onAgain}>
           Leggi un altro codice
+        </Button>
+        <Button variant="text" href={qualityHref(product.barcode)}>
+          Qualità
         </Button>
       </div>
     </article>

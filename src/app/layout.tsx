@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, Instrument_Sans, Instrument_Serif } from "next/font/google";
 import { APP_NAME, APP_TAGLINE } from "@/config";
+import { buildThemeScript } from "@/design/themeScript";
 import "@/design/tokens.css";
+import "@/design/themes.css";
 import "./globals.css";
 
 const instrumentSerif = Instrument_Serif({
@@ -36,7 +38,7 @@ export const metadata: Metadata = {
   },
 };
 
-// I colori della carta nei due temi: la meta tag non legge le variabili CSS.
+// I colori della carta del tema predefinito: la meta tag non legge le variabili CSS. Al cambio di tema li riscrive lo script (design/applyTheme).
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
@@ -52,7 +54,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="it"
       className={`${instrumentSerif.variable} ${instrumentSans.variable} ${plexMono.variable}`}
+      suppressHydrationWarning
     >
+      <head>
+        {/* Applica il tema scelto prima del primo disegno: gli attributi data-* sulla radice li scrive lo script, non React. */}
+        <script dangerouslySetInnerHTML={{ __html: buildThemeScript() }} />
+      </head>
       <body>{children}</body>
     </html>
   );

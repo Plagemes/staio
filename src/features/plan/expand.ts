@@ -60,3 +60,21 @@ export function expandRef(src: ExpandSources, ref: ItemRef, servings: number): E
 export function makeExpand(src: ExpandSources): ExpandRef {
   return (ref, servings) => expandRef(src, ref, servings)?.ingredients;
 }
+
+/**
+ * Tutti gli ingredienti, anche quelli senza quantità («q.b.») o con unità non contabili: per i nutrienti si saltano, per
+ * allergeni ed esclusioni no, perché «dado q.b.» può contenere glutine quanto «100 g di dado». La quantità è un segnaposto.
+ */
+export function makeExpandForChecks(src: ExpandSources): ExpandRef {
+  return (ref, servings) => {
+    const counted = expandRef(src, ref, servings);
+    if (!counted) return undefined;
+    if (ref.kind !== "recipe" || counted.skipped.length === 0) return counted.ingredients;
+    const recipe = src.recipes.find((r) => r.recipeId === ref.id);
+    const named = new Set(counted.ingredients.map((i) => i.name));
+    const left = (recipe?.ingredients ?? [])
+      .filter((i) => counted.skipped.includes(i.name) && !named.has(i.name))
+      .map((i) => ({ name: i.name, ...(i.foodId ? { foodId: i.foodId } : {}), quantity: { value: 0, unit: "g" as const } }));
+    return [...counted.ingredients, ...left];
+  };
+}

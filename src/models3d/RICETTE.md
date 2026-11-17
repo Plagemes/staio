@@ -15,11 +15,11 @@ Una ricetta è un oggetto TypeScript (o JSON) di poche righe: tipo `Recipe` in `
 | `id` | minuscole, cifre, trattini; max 48; unico: `pera-abate` |
 | `name` | italiano, max 60 caratteri |
 | `category` | `frutta verdura erbe latticini formaggi uova carne pesce pane pasta-riso dispensa conserve bevande surgelati dolci condimenti altro` |
-| `archetype` | `lathe box bag elongated leaf cluster wedge` |
+| `archetype` | `lathe box bag elongated leaf cluster wedge florets slice fish composite` |
 | `heightCm` | 0.3–250. Altezza reale dell'oggetto nella posa del modello (coricato = spessore, non lunghezza) |
 | `params` | dipende dall'archetipo, vedi sotto |
 | `details` | opzionale: `stem`, `leaf`, `cap`, `label` (ammessi solo dove indicato) |
-| `hatch` | opzionale: `density` 0.4–2.5 (default 1; più basso per vetro e superfici chiare), `cross` (default true; false = niente secondo tratteggio) |
+| `hatch` | opzionale: `density` 0.2–2.5 (default 1; più basso per vetro, superfici chiare e piatte), `cross` (default true; false = niente secondo tratteggio) |
 | `pose` | opzionale: `tiltDeg` −90…90, inclinazione attorno a z. 90 = coricato. Il modello viene poi appoggiato su y = 0 |
 | `variation` | opzionale 0–1 (default 1): intensità delle differenze fra semi. 0 per oggetti che devono essere identici |
 
@@ -99,7 +99,7 @@ Quasi sempre serve `pose.tiltDeg` (60–85) perché l'oggetto stia disteso. `ste
 
 ## cluster: grappolo di elementi (uva, pomodorini, olive)
 
-`params`: `layout` (`hanging` = grappolo appeso con gambo, `heap` = mucchietto sul piano, `truss` = rametto con frutti alternati), `count` 3–60, `elementRadius` 0.03–0.4 (relativo all'altezza del grappolo), `elongation` 0.7–1.6 (altezza/larghezza dell'elemento, default 1), `spread` 0.1–1 (larghezza del grappolo, default 0.5), `stalk` 0–0.6 (gambo in cima, default 0.2). Gli elementi si respingono finché si toccano: con `count` alto e `elementRadius` basso il grappolo si allunga. Nessun dettaglio ammesso.
+`params`: `layout` (`hanging` = grappolo appeso con gambo, `heap` = mucchietto sul piano, `truss` = rametto con frutti alternati, `mound` = mucchio fitto a cupola di chicchi), `count` 3–60 (con `mound` fino a 400), `elementRadius` 0.03–0.4 (con `mound` da 0.01; relativo all'altezza del grappolo), `elongation` 0.7–1.6 (altezza/larghezza dell'elemento, default 1), `spread` 0.1–1 (larghezza del grappolo, default 0.5), `stalk` 0–0.6 (gambo in cima, default 0.2). Gli elementi si respingono finché si toccano: con `count` alto e `elementRadius` basso il grappolo si allunga. Con `mound` `spread` è il diametro del mucchio (altezza = metà del raggio) e gli elementi restano su due gusci della cupola, orientati a caso: usare elementi piccoli (0.02–0.04) e `count` alto, oltre 60 la geometria si alleggerisce da sola. Nessun dettaglio ammesso.
 
 ```ts
 { id: "grappolo-uva", name: "Grappolo d'uva", category: "frutta", archetype: "cluster", heightCm: 14,
@@ -115,9 +115,63 @@ Settore di cilindro alto 1 con l'apice a un lato. `params`: `radius` 0.3–6 (re
   params: { radius: 2.2, angleDeg: 38, bulge: 0.06, rind: true } }
 ```
 
+## florets: cimette su un gambo (broccolo, cavolfiore)
+
+Testa a cupola fatta di cimette bernoccolute, ciascuna col suo ramo, su un gambo. La larghezza della testa vale 1; la grandezza delle cimette si ricava da `count` e dalla cupola.
+`params`: `count` 6–60 (cimette), `dome` 0–1 (0 testa piatta, 1 mezza sfera, default 0.6), `bump` 0–1 (rugosità di ogni cimetta, default 0.5), `stalk` 0.1–1 (gambo / larghezza della testa, default 0.5), `trunk` 0.06–0.3 (raggio del gambo, default 0.12), `floretSize` 0.6–1.6 (moltiplicatore, default 1), `wrap` 0–8 intero (foglie che avvolgono la testa, default 0), `wrapLength` 0.4–1.4 (default 0.9). Nessun dettaglio ammesso.
+Broccolo: `count` 30–40, `bump` 0.7, `dome` 0.7, `stalk` 0.45. Cavolfiore: `count` 14–20, `bump` 0.4, `dome` 0.85, `stalk` 0.15, `wrap` 4–6.
+
+```ts
+{ id: "vd-broccolo", name: "Broccolo", category: "verdura", archetype: "florets", heightCm: 14,
+  params: { count: 34, dome: 0.7, bump: 0.7, stalk: 0.45 } }
+```
+
+## slice: fetta a mezzaluna (anguria, melone)
+
+Fetta in piedi, vista di faccia: il cerchio ha raggio 1, il bordo curvo tocca terra e il taglio piano sta in alto. Con la buccia a parte (parte più fitta) e una linea fra buccia e polpa su entrambe le facce.
+`params`: `arcDeg` 60–200 (parte di cerchio, default 180 = mezzaluna), `thickness` 0.05–1.5 (spessore / raggio, default 0.25), `rind` (default true), `rindWidth` 0.02–0.2 (default 0.06), `seeds` 0–40 intero (semini sulle facce, default 0), `seedSize` 0.02–0.08 (default 0.04). Nessun dettaglio ammesso. Per una fetta distesa o uno spicchio con l'apice a terra usare `wedge`.
+
+```ts
+{ id: "fr-anguria-fetta", name: "Anguria a fetta", category: "frutta", archetype: "slice", heightCm: 12,
+  params: { arcDeg: 180, thickness: 0.22, rindWidth: 0.07, seeds: 14 } }
+```
+
+## fish: pesce intero
+
+Sagoma di pesce di fianco, in piedi sul ventre, con muso, corpo, coda biforcuta, pinna dorsale, pinne laterali, occhi, branchia e linea laterale. Lunghezza = 1 lungo x (il modello è molto più lungo che alto: `heightCm` è l'altezza del corpo con la pinna dorsale).
+`params`: `bodyHeight` 0.15–0.5 (altezza del corpo / lunghezza, default 0.28), `thickness` 0.06–0.3 (default 0.14), `tail` 0.1–0.4 (lunghezza della coda / totale, default 0.22), `dorsal` 0–1 (pinna dorsale, 0 = assente, default 0.6), `pectoral` 0–1 (pinne laterali, default 0.5), `snout` 0.3–1 (muso, da tozzo ad appuntito, default 0.6). Nessun dettaglio ammesso.
+Orata: `bodyHeight` 0.34, `thickness` 0.14, `snout` 0.55. Branzino o trota: `bodyHeight` 0.22, `snout` 0.8. Sgombro: `bodyHeight` 0.2, `tail` 0.28, `dorsal` 0.8.
+
+```ts
+{ id: "cp-pesce-intero-orata", name: "Pesce intero, orata", category: "pesce", archetype: "fish", heightCm: 8,
+  params: { bodyHeight: 0.34, thickness: 0.14, tail: 0.22, dorsal: 0.7, snout: 0.55 } }
+```
+
+## composite: più ricette in una
+
+Un composto mette insieme figli di qualunque archetipo (non un altro composto), ognuno con posizione, rotazione e scala. Serve quando una forma sola non basta: un vasetto di basilico (vaso + foglie), una confezione di uova (scatola + uova), lo staio (recipiente + mucchio di chicchi). Non ammette `details`.
+`params.parts`: da 1 a 48 figli. Ogni figlio ha:
+- `recipe`: una ricetta senza `id`, `name`, `category`, `heightCm` (cioè `archetype`, `params`, e se serve `details`, `hatch`, `pose`, `variation`);
+- `position` `[x, y, z]` (−30…30): dove va il centro della base del figlio (default `[0, 0, 0]`);
+- `rotationDeg` `[x, y, z]` (−360…360, ordine XYZ): rotazione attorno al centro della base (default 0);
+- `scale` 0.02–30: scala uniforme (default 1);
+- `signal`: disegna il figlio nel colore segnale;
+- `seed`: seme del figlio (default: la sua posizione nell'elenco).
+
+Le unità sono quelle di riferimento dei figli: ogni figlio, a scala 1, ha altezza 1 (lathe, box, bag, wedge, slice), lunghezza 1 (elongated) o larghezza 1 (florets, fish). Il figlio viene prima appoggiato a terra e centrato, poi posto. `hatch.density` e `hatch.cross` del figlio valgono per la sua parte; `variation` del composto moltiplica quella dei figli. L'altezza complessiva è normalizzata a 1 come per ogni ricetta, quindi `heightCm` è quella dell'insieme.
+
+```ts
+{ id: "er-basilico-vaso", name: "Basilico in vaso", category: "erbe", archetype: "composite", heightCm: 30,
+  params: { parts: [
+    { recipe: { archetype: "lathe", params: { smooth: false, profile: [[0, 0], [0.3, 0], [0.42, 1], [0, 1]] } } },
+    { recipe: { archetype: "leaf", params: { layout: "bunch", count: 12, width: 0.5, spread: 0.6, stalk: 0.8 } }, position: [0, 0.95, 0], scale: 1.6 },
+  ] } }
+```
+
 ## Consigli
 
 - Partire da un'ricetta di `catalog/seed.ts` dello stesso archetipo e cambiare i numeri.
 - Il tratteggio si orienta sulle coordinate UV: forme tonde e lisce rendono meglio con pochi punti ben scelti; troppi punti ravvicinati in un profilo `smooth` creano ondulazioni.
 - Provare la ricetta in `/modelli` (aggiungendola al registro) con più semi: `ModelViewer` accetta `seed`.
 - Non servono nomi di app, né testo diverso dall'italiano nei nomi.
+- Superfici piatte e grandi (ripiani, sportelli, pannelli): `hatch: { density: 0.3, cross: false }` dà un tratteggio più rado e pulito.

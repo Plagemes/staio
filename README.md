@@ -28,9 +28,17 @@ Il progetto è in costruzione. Questa tabella dice cosa c'è davvero.
 | Nutrienti e confronto con i riferimenti | Prima versione, con revisione indipendente |
 | Uso senza rete | Scritto, da provare sui telefoni |
 | Modelli 3D a incisione, 283 alimenti | Fatto, forme da rifinire |
-| Foto del piatto e del frigo, voce | Da fare |
-| Piani, meal prep, lista della spesa | Da fare |
-| Ricettario e abbinamenti di gusto | Da fare |
+| Piano settimanale, lista della spesa, meal prep | Prima versione, con revisione indipendente |
+| Ricettario con importazione da indirizzo o testo | Prima versione, con revisione indipendente |
+| Frigo e dispensa da foto, con la chiave AI dell'utente | Scritto, da provare con una chiave vera |
+| Pasto da una frase o dalla foto del piatto, idee di ricette con ciò che c'è in casa | Scritto, da provare con una chiave vera |
+| Controllo di allergeni ed esclusioni sulle ricette | Prima versione, con revisione indipendente |
+| Analisi: dispendio stimato, proiezione del peso, orari, associazioni, esperimenti | Prima versione, con revisione indipendente |
+| Qualità dei prodotti per dimensioni, alternative, modalità scaffale | Prima versione, con revisione indipendente |
+| Assistente: domande a parole, viste da fissare in Oggi | Scritto, da provare con una chiave vera |
+| Temi: Registro, Bottega, Ardesia, Netto | Fatto |
+| Frigo, freezer e credenza in 3D dai dati della dispensa | Prima versione |
+| Ricette da video, abbinamenti di gusto | Da fare |
 | Sincronizzazione tra dispositivi | Da fare |
 
 ## Com'è
@@ -71,7 +79,7 @@ Una scadenza stimata dalla categoria non si presenta come una data stampata. Un 
   <img src="docs/schermate/modelli.jpg" alt="Il catalogo dei modelli: albicocca, anacardo, ananas disegnati a tratto" width="64%">
 </p>
 
-I modelli 3D non sono file: sono ricette di pochi numeri che il telefono trasforma in geometria, anche senza rete. Sette forme di base (solido di rotazione, scatola, sacchetto, forma allungata, foglia, grappolo, fetta) coprono 283 alimenti. Il volume è reso a incisione: tratti a inchiostro che seguono la forma, più fitti dove c'è ombra.
+I modelli 3D non sono file: sono ricette di pochi numeri che il telefono trasforma in geometria, anche senza rete. Dieci forme di base (solido di rotazione, scatola, sacchetto, forma allungata, foglia, grappolo, spicchio, cimette, fetta a mezzaluna, pesce) e i modelli composti coprono 283 alimenti. Il volume è reso a incisione: tratti a inchiostro che seguono la forma, più fitti dove c'è ombra.
 
 Per un prodotto senza ricetta l'app sceglie una forma adatta alla confezione e alla quantità.
 
@@ -82,6 +90,12 @@ Per un prodotto senza ricetta l'app sceglie una forma adatta alla confezione e a
 | `src/core/ledger` | Registro a eventi, unione tra dispositivi, dispensa calcolata |
 | `src/core/expiry` | Scadenze e tabella delle durate per categoria |
 | `src/core/units` | Unità, conversioni, lettura di quantità scritte a parole |
+| `src/core/diary`, `nutrition` | Diario, nutrienti e confronto con i riferimenti |
+| `src/core/plan`, `prep`, `recipes`, `shopping` | Piano, preparazioni, ricettario, lista della spesa |
+| `src/core/allergens` | Controllo di allergeni ed esclusioni, con esito incerto esplicito |
+| `src/core/analysis` | Stime e associazioni con la loro incertezza, esperimenti |
+| `src/core/quality` | Qualità dei prodotti per dimensioni, ogni soglia con la fonte |
+| `src/core/views` | Viste dichiarative: l'AI sceglie cosa mostrare, i numeri li calcola l'app |
 | `src/data` | Archivio sul dispositivo (IndexedDB), copia e ripristino |
 | `src/design` | Tema e componenti dell'interfaccia |
 | `src/models3d` | Generatore dei modelli, materiale a incisione, catalogo |
@@ -124,5 +138,9 @@ Staio non dà pareri medici: confronta ciò che mangi con valori di riferimento.
 I valori nutrizionali degli alimenti generici vengono da USDA FoodData Central (pubblico dominio) e descrivono prodotti statunitensi: sono stime, e per pane, pasta e cereali i nutrienti alterati dall'arricchimento non sono riportati. I valori di riferimento sono quelli dell'EFSA per adulti. I dati dei prodotti confezionati vengono da Open Food Facts.
 
 Le durate degli alimenti senza data in etichetta sono stime prudenti. Non sostituiscono l'etichetta né il giudizio di chi apre il frigo.
+
+Il controllo di allergeni ed esclusioni aiuta ma non sostituisce la lettura dell'etichetta: non rileva tracce né contaminazioni, e gli elenchi di alimenti e derivati non sono esaustivi. Ciò che non si può verificare è segnalato come incerto, mai come compatibile.
+
+Le analisi mostrano andamenti e associazioni osservate con la loro incertezza: non dicono perché qualcosa accade. Le soglie "a semaforo" dell'indice di qualità vengono dallo schema volontario britannico per l'etichettatura frontale; ogni soglia usata ha la sua fonte in `src/core/quality/data/FONTI.md`.
 
 Il codice è pubblico per essere letto. Non ha ancora una licenza, quindi per ora non è riutilizzabile.

@@ -3,7 +3,9 @@ import type { Lot } from "@/core/ledger";
 import {
   ALLERGEN_STEMS,
   compareWithPantry,
-  filterRecipes,
+  exclusionReasons,
+  type ExclusionReason,
+  type IngredientLink,
   rankByExpiring,
   stockFromLots,
   totalMinutes,
@@ -19,6 +21,7 @@ import {
 import { formatQuantity } from "@/core/units";
 import { evaluateLots, isExpiring } from "../lots";
 import { fold } from "./common";
+import { safetyKind } from "./safety";
 
 /** Dispensa vista dal ricettario: giacenze e alimenti che stanno scadendo. */
 export interface PantryView {
@@ -136,6 +139,8 @@ export interface ListFilters {
   allergens: readonly string[];
   /** Alimenti da escludere, scritti a mano. */
   excludedFoods: readonly string[];
+  /** Alimenti di dispensa e prodotti che l'ingrediente potrebbe essere: il controllo legge anche i loro nomi ed etichette. */
+  linkOf?: (ingredient: { name: string; foodId?: string }) => IngredientLink | undefined;
 }
 
 export const NO_FILTERS: ListFilters = { query: "", tags: [], allergens: [], excludedFoods: [] };
@@ -162,25 +167,71 @@ function matchesQuery(recipe: Recipe, query: string): boolean {
   return q.split(" ").every((word) => haystack.includes(word));
 }
 
-/** Applica ricerca ed esclusioni. `hidden` conta le ricette tolte dai filtri (non dalla ricerca). */
-export function applyFilters(rows: readonly RecipeRow[], f: ListFilters): { rows: RecipeRow[]; hidden: number } {
+export interface HiddenRecipe {
+  row: RecipeRow;
+  reasons: ExclusionReason[];
+}
+
+export interface FilterOutcome {
+  rows: RecipeRow[];
+  /** Ricette tolte dai filtri (non dalla ricerca): somma dei tre gruppi che seguono. */
+  hidden: number;
+  /** Nascoste perché contengono un allergene o un alimento escluso. */
+  hiddenContains: HiddenRecipe[];
+  /** Nascoste perché non verificabili (ingredienti generici o composti): mai presentate come compatibili. */
+  hiddenUncertain: HiddenRecipe[];
+  /** Nascoste dagli altri filtri (tempo, attrezzatura). */
+  hiddenOther: number;
+}
+
+/** Applica ricerca ed esclusioni. Le ricette tolte dai filtri si contano per motivo, non dalla ricerca. */
+export function applyFilters(rows: readonly RecipeRow[], f: ListFilters): FilterOutcome {
   const searched = rows.filter((r) => matchesQuery(r.recipe, f.query));
   const tagged =
     f.tags.length === 0
       ? searched
       : searched.filter((r) => f.tags.every((t) => r.recipe.tags.some((x) => fold(x) === fold(t))));
-  const { kept } = filterRecipes(
-    tagged.map((r) => r.recipe),
-    {
+  const criteria = {
     ...(f.maxMinutes !== undefined ? { maxMinutes: f.maxMinutes, unknownTime: "include" as const } : {}),
     ...(f.ownedEquipment !== undefined ? { ownedEquipment: f.ownedEquipment } : {}),
     ...(f.excludedFoods.length > 0 ? { excludedFoods: f.excludedFoods } : {}),
     ...(f.allergens.length > 0 ? { allergens: f.allergens } : {}),
-    },
-  );
-  const keptSet = new Set(kept.map((r) => r.recipeId));
-  const out = tagged.filter((r) => keptSet.has(r.recipe.recipeId));
-  return { rows: out, hidden: tagged.length - out.length };
+    ...(f.linkOf ? { linkOf: f.linkOf } : {}),
+  };
+  const out: RecipeRow[] = [];
+  const hiddenContains: HiddenRecipe[] = [];
+  const hiddenUncertain: HiddenRecipe[] = [];
+  let hiddenOther = 0;
+  for (const row of tagged) {
+    const reasons = exclusionReasons(row.recipe, criteria);
+    const kind = safetyKind(reasons);
+    if (kind === "none") out.push(row);
+    else if (kind === "contains") hiddenContains.push({ row, reasons });
+    else if (kind === "uncertain") hiddenUncertain.push({ row, reasons });
+    else hiddenOther++;
+  }
+  return {
+    rows: out,
+    hidden: tagged.length - out.length,
+    hiddenContains,
+    hiddenUncertain,
+    hiddenOther,
+  };
+}
+
+/** «3 nascoste: 1 con un allergene o un alimento escluso, 2 non verificabili». */
+export function hiddenText(o: Pick<FilterOutcome, "hidden" | "hiddenContains" | "hiddenUncertain" | "hiddenOther">): string {
+  if (o.hidden === 0) return "";
+  const parts: string[] = [];
+  if (o.hiddenContains.length > 0) {
+    parts.push(`${o.hiddenContains.length} con un allergene o un alimento escluso`);
+  }
+  if (o.hiddenUncertain.length > 0) {
+    const n = o.hiddenUncertain.length;
+    parts.push(`${n} ${n === 1 ? "non verificabile" : "non verificabili"}`);
+  }
+  if (o.hiddenOther > 0) parts.push(`${o.hiddenOther} dagli altri filtri`);
+  return `${o.hidden} ${o.hidden === 1 ? "nascosta" : "nascoste"}: ${parts.join(", ")}`;
 }
 
 function uniqueSorted(values: readonly string[]): string[] {

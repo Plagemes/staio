@@ -169,7 +169,9 @@ export function Capture() {
               Leggi lo scontrino
             </Button>
           </div>
-          <p className={ui.hint}>La foto del piatto e la voce arriveranno dopo. Per ora il resto si scrive a mano.</p>
+          <Link href="/app/pasto" className={ui.textLink}>
+            Hai mangiato? Registra un pasto, anche a voce o con una foto
+          </Link>
           <Link href="/app/cattura/veloce" className={ui.textLink}>
             Ho già in casa: aggiunta rapida di più alimenti
           </Link>

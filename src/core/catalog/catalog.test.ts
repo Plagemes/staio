@@ -278,3 +278,27 @@ describe("expiryCategoryFor", () => {
     for (const c of samples) expect(SHELF_LIFE[expiryCategoryFor(cats(c))]).toBeDefined();
   });
 });
+
+describe("productFromOpenFoodFacts: additivi", () => {
+  const base = { code: "8076800195057", product_name: "Spaghetti n. 5", categories_tags: ["en:pastas"] };
+  const read = (product: Record<string, unknown>) => productFromOpenFoodFacts({ code: base.code, status: 1, product: { ...base, ...product } }, { fetchedAt: NOW });
+
+  it("ingredienti analizzati e nessun additivo: elenco vuoto conservato", () => {
+    expect(read({ additives_n: 0, additives_tags: [], ingredients_text: "Semola di grano duro" })?.additives).toEqual([]);
+    expect(read({ additives_n: 0 })?.additives).toEqual([]);
+    expect(read({ additives_tags: [], ingredients_text: "Semola di grano duro, acqua" })?.additives).toEqual([]);
+  });
+
+  it("additivi presenti: i codici in maiuscolo", () => {
+    expect(read({ additives_n: 2, additives_tags: ["en:e330", "en:e412"], ingredients_text: "acqua, E330, E412" })?.additives).toEqual(["E330", "E412"]);
+  });
+
+  it("senza i campi di analisi il dato manca e additives resta assente", () => {
+    expect(read({ additives_tags: [] })).not.toHaveProperty("additives");
+    expect(read({ additives_tags: [], ingredients_text: "   " })).not.toHaveProperty("additives");
+    expect(read({ ingredients_text: "Semola di grano duro" })).not.toHaveProperty("additives");
+    expect(read({})).not.toHaveProperty("additives");
+    // conteggio positivo senza etichette: incoerente, non si afferma nulla
+    expect(read({ additives_n: 3, additives_tags: [] })).not.toHaveProperty("additives");
+  });
+});

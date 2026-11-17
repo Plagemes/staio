@@ -5,6 +5,7 @@ import { useId, useMemo, useState } from "react";
 import { MEAL_KINDS, type MealKind } from "@/core/diary";
 import { resolveReferences } from "@/core/nutrition";
 import { dayTypeOf, type PlanState } from "@/core/plan";
+import { ALLERGEN_CHECK_NOTICE } from "@/core/allergens";
 import { ALLERGEN_STEMS } from "@/core/recipes";
 import { usePlan } from "@/data";
 import { Button, Label, SectionHeader } from "@/design";
@@ -323,7 +324,7 @@ function StructureSection({ plan }: { plan: PlanState }) {
               </label>
             ))}
           </div>
-          <p className={ui.hint}>Il controllo legge i nomi degli ingredienti: non vede ingredienti composti né tracce. Non è una garanzia, leggi sempre le etichette.</p>
+          <p className={ui.hint}>{ALLERGEN_CHECK_NOTICE}</p>
         </fieldset>
 
         {message ? (

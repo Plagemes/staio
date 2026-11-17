@@ -1,0 +1,84 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.stage {
+  position: relative;
+  width: 100%;
+  max-height: 78dvh;
+  overflow: hidden;
+}
+
+.host {
+  position: absolute;
+  inset: 0;
+}
+
+.notice {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--color-graphite, var(--mute, #5b6168));
+}
+
+.list,
+.srOnly:focus-within {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--color-rule, var(--rule, #dedcd5));
+}
+
+.list li,
+.srOnly:focus-within li {
+  border-bottom: 1px solid var(--color-rule, var(--rule, #dedcd5));
+}
+
+.list button,
+.srOnly button {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 0;
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  color: var(--color-ink, var(--ink, #14171a));
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.list button[aria-pressed="true"],
+.srOnly button[aria-pressed="true"] {
+  font-weight: 600;
+}
+
+.list button:focus-visible,
+.srOnly button:focus-visible {
+  outline: 2px solid var(--color-focus, var(--accent, #1e4634));
+  outline-offset: -2px;
+}
+
+/* Nascosto alla vista ma letto dallo screen reader; appena un pulsante riceve il fuoco l'elenco compare in chiaro */
+.srOnly:not(:focus-within) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  list-style: none;
+}

@@ -32,11 +32,11 @@ export const fruttaSeccaRecipes: readonly Recipe[] = [
   },
   {
     id: "fs-pinolo", name: "Pinoli", category: "frutta", archetype: "cluster", heightCm: 2,
-    params: { layout: "heap", count: 16, elementRadius: 0.11, elongation: 1.4, spread: 0.5 },
+    params: { layout: "mound", count: 200, elementRadius: 0.03, elongation: 1.6, spread: 0.9 },
   },
   {
     id: "fs-uvetta", name: "Uvetta", category: "frutta", archetype: "cluster", heightCm: 3,
-    params: { layout: "heap", count: 30, elementRadius: 0.07, elongation: 0.8, spread: 0.6 },
+    params: { layout: "mound", count: 160, elementRadius: 0.035, elongation: 0.8, spread: 0.9 },
   },
   {
     id: "fs-dattero-secco", name: "Dattero secco", category: "frutta", archetype: "elongated", heightCm: 2, pose: { tiltDeg: 80 },

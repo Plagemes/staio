@@ -3,11 +3,19 @@ import { DIARY_EVENT_TYPES } from "../diary";
 import { PLAN_EVENT_TYPES } from "../plan";
 import { PREP_EVENT_TYPES } from "../prep";
 import { RECIPE_EVENT_TYPES } from "../recipes";
+import { EXPERIMENT_EVENT_TYPES } from "../analysis";
 
 /** Tipo condiviso da tutte le famiglie: annulla un evento di qualunque famiglia. */
 export const SHARED_EVENT_TYPES = ["void"] as const;
 
-export const EVENT_FAMILY_NAMES = ["pantry", "diary", "plan", "prep", "recipes"] as const;
+export const EVENT_FAMILY_NAMES = [
+  "pantry",
+  "diary",
+  "plan",
+  "prep",
+  "recipes",
+  "experiments",
+] as const;
 export type EventFamily = (typeof EVENT_FAMILY_NAMES)[number];
 
 export interface EventFamilyInfo {
@@ -26,6 +34,7 @@ export const EVENT_FAMILIES: readonly EventFamilyInfo[] = [
   { family: "plan", types: PLAN_EVENT_TYPES },
   { family: "prep", types: PREP_EVENT_TYPES },
   { family: "recipes", types: RECIPE_EVENT_TYPES },
+  { family: "experiments", types: EXPERIMENT_EVENT_TYPES },
 ];
 
 /** Tutti i tipi noti: quelli delle famiglie più `void`. */

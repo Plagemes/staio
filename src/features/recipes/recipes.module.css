@@ -574,3 +574,37 @@
   flex-direction: column;
   gap: var(--space-3);
 }
+
+/* Esito del controllo di allergeni ed esclusioni nella scheda */
+
+.safetyContains,
+.safetyUncertain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-7);
+  border: var(--rule-width) solid var(--color-signal);
+  border-radius: var(--radius-md);
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+}
+
+.safetyUncertain {
+  border-color: var(--color-control-border);
+}
+
+.safetyLine {
+  margin: 0;
+}
+
+.flagContains {
+  margin-left: var(--space-3);
+  color: var(--color-signal);
+  font-weight: 600;
+}
+
+.flagUncertain {
+  margin-left: var(--space-3);
+  color: var(--color-graphite);
+  font-weight: 600;
+}

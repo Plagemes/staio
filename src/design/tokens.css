@@ -1,23 +1,9 @@
-/* Tema "Registro premium". Unico posto in cui compaiono colori e caratteri letterali. */
+/* Tema predefinito "Registro premium" e variabili comuni a tutti i temi. Con themes.css è l'unico posto in cui compaiono colori e caratteri letterali.
+   Il tema è scelto dall'attributo data-palette sulla radice (assente = Registro); chiaro/scuro da data-theme (assente = come il dispositivo).
+   I selettori dei colori non sono legati a :root: un campione con gli stessi attributi (l'anteprima in Aspetto) prende le stesse variabili. */
 
 :root {
   color-scheme: light;
-
-  /* Colori */
-  --color-paper: #f6f5f1;
-  --color-surface: #fbfaf7;
-  --color-ink: #14171a;
-  --color-graphite: #5b6168;
-  --color-rule: #dedcd5;
-  --color-rule-strong: #14171a;
-  --color-control-border: #14171a;
-  --color-accent: #1e4634;
-  --color-signal: #a8321c;
-  --color-ochre: #8a5a00;
-  --color-on-ink: #f6f5f1;
-  --color-bar-track: #dedcd5;
-  --color-bar-fill: #14171a;
-  --color-focus: #1e4634;
 
   /* Famiglie di caratteri: le variabili --font-instrument-* e --font-ibm-plex-mono arrivano da next/font in layout.tsx */
   --font-display: var(--font-instrument-serif), "Iowan Old Style", Georgia, serif;
@@ -69,8 +55,28 @@
   --rule-width: 1px;
 }
 
+/* Registro: chiaro (anche senza attributi) */
+:root,
+[data-palette="registro"] {
+  --color-paper: #f6f5f1;
+  --color-surface: #fbfaf7;
+  --color-ink: #14171a;
+  --color-graphite: #5b6168;
+  --color-rule: #dedcd5;
+  --color-rule-strong: #14171a;
+  --color-control-border: #14171a;
+  --color-accent: #1e4634;
+  --color-signal: #a8321c;
+  --color-ochre: #8a5a00;
+  --color-on-ink: #f6f5f1;
+  --color-bar-track: #dedcd5;
+  --color-bar-fill: #14171a;
+  --color-focus: #1e4634;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root:not([data-palette]):not([data-theme="light"]),
+  [data-palette="registro"]:not([data-theme="light"]) {
     color-scheme: dark;
 
     --color-paper: #101214;
@@ -90,7 +96,9 @@
   }
 }
 
-:root[data-theme="dark"] {
+/* Registro: scuro scelto a mano */
+:root[data-theme="dark"]:not([data-palette]),
+[data-palette="registro"][data-theme="dark"] {
   color-scheme: dark;
 
   --color-paper: #101214;

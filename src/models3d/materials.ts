@@ -66,16 +66,21 @@ void main(){
 
 const ENGRAVE_FRAG = /* glsl */ `
 uniform vec3 uInk; uniform vec3 uPaper; uniform vec3 uLight;
-uniform float uDensity; uniform float uCross; uniform vec2 uScale;
+uniform float uDensity; uniform float uCross; uniform float uSoft; uniform vec2 uScale;
 varying vec3 vN; varying vec3 vV; varying vec2 vUv;
 ${HATCH}
 void main(){
   vec3 n = normalize(vN);
   if (!gl_FrontFacing) n = -n;
   float lum = clamp(dot(n, uLight) * 0.6 + 0.45, 0.0, 1.0);
-  float fres = 1.0 - clamp(dot(n, normalize(vV)), 0.0, 1.0);
-  float tone = clamp(1.0 - lum + pow(fres, 3.0) * 0.35, 0.0, 1.0);
-  float w1 = smoothstep(0.12, 0.85, tone) * 0.78;
+  float facing = clamp(dot(n, normalize(vV)), 0.0, 1.0);
+  float fres = 1.0 - facing;
+  // il bordo scuro del contorno non serve sulle superfici piatte: a luce radente darebbe fasce nere
+  float tone = clamp(1.0 - lum + pow(fres, 3.0) * 0.35 * (1.0 - uSoft), 0.0, 1.0);
+  // superfici piatte e grandi: tratti sottili e radi, che svaniscono a luce radente invece di fondersi in fasce
+  tone *= mix(1.0, 0.6, uSoft);
+  float w1 = smoothstep(0.12, 0.85, tone) * mix(0.78, 0.15, uSoft);
+  w1 *= mix(1.0, smoothstep(0.1, 0.5, facing), uSoft);
   float w2 = smoothstep(0.5, 1.0, tone) * 0.6 * uCross;
   float a = hatch(vUv.y * uScale.y * uDensity, w1);
   float b = hatch((vUv.x * uScale.x + vUv.y * uScale.y * 0.35) * uDensity, w2);
@@ -91,6 +96,8 @@ export interface EngravingOptions {
   doubleSided?: boolean;
   /** Secondo tratteggio incrociato nelle zone scure. Predefinito true. */
   cross?: boolean;
+  /** 0..1: alleggerisce il tratteggio, per le superfici piatte e grandi (mobili). Predefinito 0. */
+  soft?: number;
 }
 
 export function createEngravingMaterial(shared: SharedUniforms, opts: EngravingOptions): ShaderMaterial {
@@ -101,6 +108,7 @@ export function createEngravingMaterial(shared: SharedUniforms, opts: EngravingO
       uLight: shared.uLight,
       uDensity: shared.uDensity,
       uCross: { value: opts.cross === false ? 0 : 1 },
+      uSoft: { value: opts.soft ?? 0 },
       uScale: { value: new Vector2(opts.strokeScale[0], opts.strokeScale[1]) },
     },
     vertexShader: ENGRAVE_VERT,

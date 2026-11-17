@@ -43,6 +43,19 @@ const PRECACHE_PAGES = [
   "/app/preparazioni/nuova",
   "/app/dispensa/foto",
   "/app/salute",
+  "/app/assistente",
+  "/app/pasto/frase",
+  "/app/pasto/foto",
+  "/app/ricette/idee",
+  "/app/dispensa/frigo",
+  "/app/salute/analisi",
+  "/app/salute/esperimenti",
+  "/app/salute/rapporto",
+  "/app/qualita",
+  "/app/qualita/prodotto",
+  "/app/qualita/scaffale",
+  "/app/qualita/prodotti",
+  "/app/impostazioni/aspetto",
 ];
 const NAVIGATION_TIMEOUT_MS = 4000;
 const RSC_MAX_ENTRIES = 80;

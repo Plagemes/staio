@@ -1,0 +1,183 @@
+/* Temi in più oltre a Registro (tokens.css). Stessa disciplina: una carta, un inchiostro, un accento, un segnale; cambiano tinta e temperatura.
+   Per ogni tema: blocco chiaro, blocco scuro per «come il dispositivo» (media query) e blocco scuro scelto a mano. Gli ultimi due devono restare uguali.
+   I rapporti di contrasto sono verificati da contrast.test.ts, che legge questo file. */
+
+/* Bottega */
+[data-palette="bottega"] {
+  color-scheme: light;
+
+  --color-paper: #f5efe4;
+  --color-surface: #fbf7ee;
+  --color-ink: #1f1a15;
+  --color-graphite: #5e554b;
+  --color-rule: #e0d6c4;
+  --color-rule-strong: #1f1a15;
+  --color-control-border: #1f1a15;
+  --color-accent: #8f4318;
+  --color-signal: #a0213a;
+  --color-ochre: #765000;
+  --color-on-ink: #f5efe4;
+  --color-bar-track: #e0d6c4;
+  --color-bar-fill: #1f1a15;
+  --color-focus: #8f4318;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-palette="bottega"]:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --color-paper: #17120e;
+    --color-surface: #1f1912;
+    --color-ink: #efe6d8;
+    --color-graphite: #afa597;
+    --color-rule: #332a20;
+    --color-rule-strong: #efe6d8;
+    --color-control-border: #4a4034;
+    --color-accent: #e08a5a;
+    --color-signal: #f08c98;
+    --color-ochre: #d9a74a;
+    --color-on-ink: #17120e;
+    --color-bar-track: #332a20;
+    --color-bar-fill: #efe6d8;
+    --color-focus: #e08a5a;
+  }
+}
+
+[data-palette="bottega"][data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-paper: #17120e;
+  --color-surface: #1f1912;
+  --color-ink: #efe6d8;
+  --color-graphite: #afa597;
+  --color-rule: #332a20;
+  --color-rule-strong: #efe6d8;
+  --color-control-border: #4a4034;
+  --color-accent: #e08a5a;
+  --color-signal: #f08c98;
+  --color-ochre: #d9a74a;
+  --color-on-ink: #17120e;
+  --color-bar-track: #332a20;
+  --color-bar-fill: #efe6d8;
+  --color-focus: #e08a5a;
+}
+
+/* Ardesia */
+[data-palette="ardesia"] {
+  color-scheme: light;
+
+  --color-paper: #f1f3f5;
+  --color-surface: #f8f9fa;
+  --color-ink: #13181f;
+  --color-graphite: #55606c;
+  --color-rule: #d5dae0;
+  --color-rule-strong: #13181f;
+  --color-control-border: #13181f;
+  --color-accent: #1b2f5c;
+  --color-signal: #b3301e;
+  --color-ochre: #7d5500;
+  --color-on-ink: #f1f3f5;
+  --color-bar-track: #d5dae0;
+  --color-bar-fill: #13181f;
+  --color-focus: #1b2f5c;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-palette="ardesia"]:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --color-paper: #0f1318;
+    --color-surface: #161b22;
+    --color-ink: #e6eaf0;
+    --color-graphite: #9aa5b1;
+    --color-rule: #262e38;
+    --color-rule-strong: #e6eaf0;
+    --color-control-border: #3a424c;
+    --color-accent: #8faee8;
+    --color-signal: #f08a74;
+    --color-ochre: #d9a84e;
+    --color-on-ink: #0f1318;
+    --color-bar-track: #262e38;
+    --color-bar-fill: #e6eaf0;
+    --color-focus: #8faee8;
+  }
+}
+
+[data-palette="ardesia"][data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-paper: #0f1318;
+  --color-surface: #161b22;
+  --color-ink: #e6eaf0;
+  --color-graphite: #9aa5b1;
+  --color-rule: #262e38;
+  --color-rule-strong: #e6eaf0;
+  --color-control-border: #3a424c;
+  --color-accent: #8faee8;
+  --color-signal: #f08a74;
+  --color-ochre: #d9a84e;
+  --color-on-ink: #0f1318;
+  --color-bar-track: #262e38;
+  --color-bar-fill: #e6eaf0;
+  --color-focus: #8faee8;
+}
+
+/* Netto */
+[data-palette="netto"] {
+  color-scheme: light;
+
+  --color-paper: #ffffff;
+  --color-surface: #f5f5f5;
+  --color-ink: #000000;
+  --color-graphite: #404040;
+  --color-rule: #8a8a8a;
+  --color-rule-strong: #000000;
+  --color-control-border: #000000;
+  --color-accent: #000000;
+  --color-signal: #b00000;
+  --color-ochre: #6b4700;
+  --color-on-ink: #ffffff;
+  --color-bar-track: #8a8a8a;
+  --color-bar-fill: #000000;
+  --color-focus: #000000;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-palette="netto"]:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --color-paper: #000000;
+    --color-surface: #0d0d0d;
+    --color-ink: #ffffff;
+    --color-graphite: #d0d0d0;
+    --color-rule: #6e6e6e;
+    --color-rule-strong: #ffffff;
+    --color-control-border: #ffffff;
+    --color-accent: #ffffff;
+    --color-signal: #ff8a80;
+    --color-ochre: #ffc857;
+    --color-on-ink: #000000;
+    --color-bar-track: #6e6e6e;
+    --color-bar-fill: #ffffff;
+    --color-focus: #ffffff;
+  }
+}
+
+[data-palette="netto"][data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-paper: #000000;
+  --color-surface: #0d0d0d;
+  --color-ink: #ffffff;
+  --color-graphite: #d0d0d0;
+  --color-rule: #6e6e6e;
+  --color-rule-strong: #ffffff;
+  --color-control-border: #ffffff;
+  --color-accent: #ffffff;
+  --color-signal: #ff8a80;
+  --color-ochre: #ffc857;
+  --color-on-ink: #000000;
+  --color-bar-track: #6e6e6e;
+  --color-bar-fill: #ffffff;
+  --color-focus: #ffffff;
+}

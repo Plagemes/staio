@@ -94,12 +94,13 @@ export const erbeRecipes: readonly Recipe[] = [
     id: "er-basilico-vaso",
     name: "Basilico in vaso",
     category: "erbe",
-    archetype: "lathe",
+    archetype: "composite",
     heightCm: 22,
-    params: { smooth: false, profile: [[0, 0], [0.7, 0], [0.74, 0.04], [0.92, 0.96], [1, 1], [1, 1.04]] },
-    details: {
-      stem: { length: 0.3, thickness: 0.04, bend: 0.2 },
-      leaf: { count: 5, length: 0.8, width: 0.6 },
+    params: {
+      parts: [
+        { recipe: { archetype: "lathe", params: { smooth: false, profile: [[0, 0], [0.3, 0], [0.32, 0.04], [0.42, 0.96], [0.46, 1], [0.46, 1.05], [0.4, 1.05]] } } },
+        { recipe: { archetype: "leaf", params: { layout: "bunch", count: 14, width: 0.6, spread: 0.65, curl: 0.2, frill: 0.1, stalk: 0.6 } }, position: [0, 0.95, 0], scale: 1.5 },
+      ],
     },
   },
 ];

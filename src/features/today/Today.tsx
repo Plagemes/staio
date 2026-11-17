@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { activeLots } from "@/core/ledger";
 import { appendEvents, getDeviceId, useEventLog, usePantry } from "@/data";
-import { Button, LedgerRow, Label, PantryRow, SectionHeader, Value, Wordmark } from "@/design";
+import { Button, LedgerRow, Label, PantryRow, PromptCard, SectionHeader, Value, Wordmark } from "@/design";
+import { PinnedViews } from "@/features/assistant";
 import { buildUndo } from "../actions";
 import { TodayNutrition } from "../nutrition/TodayNutrition";
 import { TodayDiary } from "./TodayDiary";
@@ -179,6 +180,10 @@ export function Today() {
               </ul>
             )}
           </section>
+
+          <PinnedViews />
+
+          <PromptCard title="Chiedi" description="Domande sui tuoi dati, con la risposta e da dove viene" href="/app/assistente" />
         </>
       ) : null}
     </div>

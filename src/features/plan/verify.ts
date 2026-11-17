@@ -1,6 +1,6 @@
 // Dai risultati della verifica del piano ai testi per le schermate. Assunzioni contro obiettivi scelti
 // dall'utente: nessun parere, il dato mancante è sempre dichiarato, "non determinabile" quando non basta.
-import type { AdherenceWeek, ConstraintsResult, DayCheck, EntryResult, NutrientCheck, PlannedItem, TargetRange } from "@/core/plan";
+import type { AdherenceWeek, ConstraintsResult, DayCheck, EntryResult, NutrientCheck, PlannedItem, TargetRange, UnverifiedItem } from "@/core/plan";
 import { formatNutrient, nutrientLabel } from "../nutrition/labels";
 import { missingPercentText } from "../nutrition/prepare";
 
@@ -122,24 +122,89 @@ export interface ConstraintLine {
   text: string;
 }
 
+const joinTerms = (terms: readonly string[]): string =>
+  terms.length <= 1 ? (terms[0] ?? "un allergene") : `${terms.slice(0, -1).join(", ")} e ${terms[terms.length - 1]}`;
+
+type Evidence = NonNullable<UnverifiedItem["evidence"]>[number];
+
+const inPantry = (e: Evidence | undefined): string => (e && (e.origin === "linked" || e.origin === "product") ? ` (in dispensa: «${e.text}»)` : "");
+
+/** Il motivo vero del dubbio per un ingrediente, con l'origine. */
+function clauseOf(ingredient: string, e: Evidence | undefined): string {
+  const what = `«${ingredient}»${inPantry(e)}`;
+  switch (e?.reason) {
+    case "generic":
+      return `${what} è un ingrediente generico o composto`;
+    case "gluten_free_claim":
+      return `${what} è dichiarato senza glutine, ma va verificato in etichetta`;
+    case "typo":
+      return `${what}: forse intendevi «${e.term}»?`;
+    case "unrecognized":
+    default:
+      return `non so cosa contiene ${what}`;
+  }
+}
+
+/** Il dubbio detto per esteso: il piatto, l'ingrediente, il motivo vero e che cosa non si sa. */
+function unverifiedText(u: UnverifiedItem, nameOfRef: (via: { kind: "recipe" | "prep"; id: string }) => string): string {
+  const dish = u.via ? nameOfRef(u.via) : undefined;
+  const ingredient = u.item?.name ?? "una voce";
+  if (u.code === "uncertain_allergens") {
+    const terms = u.terms ?? [];
+    // un motivo solo per ingrediente: se è lo stesso per tutti gli allergeni, una frase; altrimenti una per motivo
+    const byClause = new Map<string, string[]>();
+    terms.forEach((t, i) => {
+      const c = clauseOf(ingredient, u.evidence?.[i]);
+      byClause.set(c, [...(byClause.get(c) ?? []), t]);
+    });
+    if (byClause.size === 0) byClause.set(clauseOf(ingredient, undefined), []);
+    const parts = [...byClause].map(([c, ts]) => `${c}: potrebbe contenere ${joinTerms(ts)}`);
+    return `${dish ? `${dish}: ` : ""}${parts.join("; ")}. Controlla l'etichetta.`;
+  }
+  if (u.code === "unknown_allergens") {
+    return `Non so se «${ingredient}»${dish ? ` in ${dish}` : ""} contiene un allergene che hai indicato: non ho dati su questo alimento.`;
+  }
+  return dish ? `Non so quali ingredienti ha ${dish}: non l'ho potuto controllare.` : `${ingredient}: non l'ho potuto controllare.`;
+}
+
 export function constraintLines(result: ConstraintsResult, nameOfRef: (via: { kind: "recipe" | "prep"; id: string }) => string): ConstraintLine[] {
   const out: ConstraintLine[] = [];
   for (const v of result.violations) {
     const via = v.via ? ` (da ${nameOfRef(v.via)})` : "";
+    const e = v.evidence;
+    const why =
+      v.code === "allergen" && e ? (e.origin === "label" ? " Lo dice l'etichetta del prodotto in dispensa." : inPantry(e) !== "" ? ` Viene dalla dispensa: «${e.text}».` : e.reason === "typo" ? ` Forse intendevi «${e.term}»?` : "") : "";
     out.push({
       kind: "violation",
       date: v.date,
       text:
         v.code === "excluded_food"
           ? `${v.item.name}${via} è tra gli alimenti che hai escluso («${v.term}»).`
-          : `${v.item.name}${via} sembra contenere ${v.term}, che hai indicato come allergene.`,
+          : `${v.item.name}${via} sembra contenere ${v.term}, che hai indicato come allergene.${why}`,
     });
   }
+  // più ingredienti incerti nello stesso piatto dello stesso pasto: oltre tre, una riga sola con l'elenco
+  const doubtful = new Map<string, UnverifiedItem[]>();
   for (const u of result.unverified) {
+    if (u.code !== "uncertain_allergens" || !u.via) {
+      out.push({ kind: "unverified", date: u.date, text: unverifiedText(u, nameOfRef) });
+      continue;
+    }
+    const key = `${u.date}|${u.meal}|${u.via.kind}:${u.via.id}`;
+    doubtful.set(key, [...(doubtful.get(key) ?? []), u]);
+  }
+  for (const group of doubtful.values()) {
+    const first = group[0] as UnverifiedItem;
+    if (group.length <= 3) {
+      for (const u of group) out.push({ kind: "unverified", date: u.date, text: unverifiedText(u, nameOfRef) });
+      continue;
+    }
+    const names = group.slice(0, 4).map((u) => `«${u.item?.name ?? "una voce"}»`).join(", ");
+    const terms = [...new Set(group.flatMap((u) => u.terms ?? []))];
     out.push({
       kind: "unverified",
-      date: u.date,
-      text: u.via ? `Non so quali ingredienti ha ${nameOfRef(u.via)}: non l'ho potuto controllare.` : `${u.item?.name ?? "Una voce"}: non l'ho potuto controllare.`,
+      date: first.date,
+      text: `${nameOfRef(first.via as NonNullable<UnverifiedItem["via"]>)}: non so cosa contengono ${names}${group.length > 4 ? ` e altri ${group.length - 4}` : ""} (nomi non riconosciuti o ingredienti generici): potrebbero contenere ${joinTerms(terms)}. Controlla le etichette.`,
     });
   }
   return out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.kind === b.kind ? 0 : a.kind === "violation" ? -1 : 1));

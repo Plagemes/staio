@@ -2,14 +2,17 @@
 
 import Link from "next/link";
 import { useId, useMemo, useState } from "react";
+import { ALLERGEN_CHECK_NOTICE } from "@/core/allergens";
 import { activeLots } from "@/core/ledger";
 import type { Recipe } from "@/core/recipes";
-import { usePantry, useRecipes } from "@/data";
+import { usePantry, usePlan, useRecipes } from "@/data";
 import { Button, Label } from "@/design";
+import { useProducts } from "../nutrition/useNutrition";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
 import { useRecord } from "../useRecord";
+import { makeLinkOf, pantryFoods } from "./allergenLinks";
 import { formatMinutes, formatServings, splitList } from "./common";
 import {
   ALLERGEN_NAMES,
@@ -21,14 +24,17 @@ import {
   countsText,
   expiringText,
   filtersActive,
+  hiddenText,
   missingText,
   pantryView,
   sortRows,
+  type HiddenRecipe,
   type ListFilters,
   type SortKey,
 } from "./list";
 import { rateRecipe } from "./model";
 import { useRecipePrefs, type RecipePrefs } from "./prefs";
+import { reasonLines, unionDeclared } from "./safety";
 import styles from "./recipes.module.css";
 
 const SORTS: SortKey[] = ["title", "pantry", "expiring"];
@@ -37,6 +43,8 @@ const TIME_OPTIONS = [20, 30, 45, 60];
 export function Recipes() {
   const recipes = useRecipes();
   const pantry = usePantry();
+  const plan = usePlan();
+  const products = useProducts();
   const now = useNow();
   const { prefs, ready, save } = useRecipePrefs();
   const [query, setQuery] = useState("");
@@ -51,24 +59,35 @@ export function Recipes() {
   );
   const rows = useMemo(() => (recipes.data && view ? buildRows(recipes.data.recipes, view) : []), [recipes.data, view]);
 
+  // gli allergeni e le esclusioni dichiarati nel ricettario e nel piano contano insieme
+  const planAllergens = plan.data?.structure?.allergens;
+  const planExcluded = plan.data?.structure?.excludedFoods;
+  const allergens = useMemo(() => unionDeclared(prefs.allergens, planAllergens ?? []), [prefs.allergens, planAllergens]);
+  const excludedFoods = useMemo(() => unionDeclared(prefs.excludedFoods, planExcluded ?? []), [prefs.excludedFoods, planExcluded]);
+  const linkOf = useMemo(
+    () => makeLinkOf(pantryFoods(pantry.data ? activeLots(pantry.data) : [], products)),
+    [pantry.data, products],
+  );
+
   const filters: ListFilters = {
     query,
     tags,
     ...(maxMinutes !== undefined ? { maxMinutes } : {}),
     ...(prefs.limitToEquipment ? { ownedEquipment: prefs.ownedEquipment } : {}),
-    allergens: prefs.allergens,
-    excludedFoods: prefs.excludedFoods,
+    allergens,
+    excludedFoods,
+    linkOf,
   };
   const filtered = useMemo(
     () => applyFilters(rows, filters),
     // `filters` si ricostruisce a ogni disegno: contano i suoi ingredienti
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows, query, tags, maxMinutes, prefs.limitToEquipment, prefs.ownedEquipment, prefs.allergens, prefs.excludedFoods],
+    [rows, query, tags, maxMinutes, prefs.limitToEquipment, prefs.ownedEquipment, allergens, excludedFoods, linkOf],
   );
   const shown = useMemo(() => sortRows(filtered.rows, sort), [filtered.rows, sort]);
 
-  if (recipes.error || pantry.error) return <StorageError />;
-  if (!recipes.data || !pantry.data || !view || !ready) {
+  if (recipes.error || pantry.error || plan.error) return <StorageError />;
+  if (!recipes.data || !pantry.data || !plan.data || !products || !view || !ready) {
     return (
       <div className={ui.screen}>
         <h1 className={ui.title}>Ricettario</h1>
@@ -79,6 +98,8 @@ export function Recipes() {
 
   const all = recipes.data.recipes;
   const active = filtersActive(filters);
+  const declared = allergens.length > 0 || excludedFoods.length > 0;
+  const hiddenSummary = hiddenText(filtered);
 
   return (
     <div className={ui.screen}>
@@ -91,6 +112,9 @@ export function Recipes() {
         <Button href="/app/ricette/nuova">Scrivi una ricetta</Button>
         <Button href="/app/ricette/importa" variant="outline">
           Importa
+        </Button>
+        <Button href="/app/ricette/idee" variant="outline">
+          Idee con ciò che hai
         </Button>
       </div>
 
@@ -145,6 +169,11 @@ export function Recipes() {
               onMaxMinutes={setMaxMinutes}
               prefs={prefs}
               onPrefs={save}
+              fromPlan={{
+                allergens: allergens.filter((a) => !prefs.allergens.includes(a)),
+                excludedFoods: excludedFoods.filter((a) => !prefs.excludedFoods.includes(a)),
+              }}
+              showNotice={!declared}
             />
           </details>
 
@@ -152,17 +181,20 @@ export function Recipes() {
             <div className={ui.empty}>
               <h2 className={ui.emptyTitle}>Nessuna ricetta corrisponde</h2>
               <p className={ui.emptyText}>
-                {filtered.hidden > 0
-                  ? `${filtered.hidden === 1 ? "Una ricetta è nascosta" : `${filtered.hidden} ricette sono nascoste`} dai filtri.`
-                  : "Prova con un'altra parola."}
+                {filtered.hidden > 0 ? `${hiddenSummary}.` : "Prova con un'altra parola."}
               </p>
             </div>
           ) : (
             <>
               <p className={ui.hint} role="status">
                 {shown.length === 1 ? "1 ricetta" : `${shown.length} ricette`}
-                {filtered.hidden > 0 ? ` · ${filtered.hidden} nascoste dai filtri` : ""}
+                {filtered.hidden > 0 ? ` · ${hiddenSummary}` : ""}
               </p>
+              {declared ? (
+                <p className={ui.hint}>
+                  Quelle mostrate non hanno dato nessuna corrispondenza nei nomi: non vuol dire che siano sicure.
+                </p>
+              ) : null}
               <ul className={styles.list}>
                 {shown.map((row) => {
                   const missing = missingText(row);
@@ -189,6 +221,15 @@ export function Recipes() {
         </>
       )}
 
+      {declared && filtered.hiddenContains.length + filtered.hiddenUncertain.length > 0 ? (
+        <HiddenBySafety
+          contains={filtered.hiddenContains}
+          uncertain={filtered.hiddenUncertain}
+          criteria={{ allergens, excludedFoods, linkOf }}
+        />
+      ) : null}
+      {declared ? <p className={ui.hint}>{ALLERGEN_CHECK_NOTICE}</p> : null}
+
       {recipes.data.archived.length > 0 ? <Archived recipes={recipes.data.archived} /> : null}
 
       <Link href="/app/preparazioni" className={ui.textLink}>
@@ -206,9 +247,13 @@ interface FiltersProps {
   onMaxMinutes: (m: number | undefined) => void;
   prefs: RecipePrefs;
   onPrefs: (p: RecipePrefs) => Promise<void>;
+  /** Ciò che il piano dichiara in più del ricettario: conta lo stesso. */
+  fromPlan: { allergens: string[]; excludedFoods: string[] };
+  /** Il testo fisso compare una volta per schermata: qui solo se altrove non c'è. */
+  showNotice: boolean;
 }
 
-function Filters({ recipes, tags, onTags, maxMinutes, onMaxMinutes, prefs, onPrefs }: FiltersProps) {
+function Filters({ recipes, tags, onTags, maxMinutes, onMaxMinutes, prefs, onPrefs, fromPlan, showNotice }: FiltersProps) {
   const ids = useId();
   const tagNames = useMemo(() => allTags(recipes), [recipes]);
   const equipment = useMemo(() => allEquipment(recipes), [recipes]);
@@ -308,10 +353,16 @@ function Filters({ recipes, tags, onTags, maxMinutes, onMaxMinutes, prefs, onPre
           placeholder="coriandolo, olive"
           autoComplete="off"
         />
+        {fromPlan.allergens.length + fromPlan.excludedFoods.length > 0 ? (
+          <p className={ui.hint}>
+            Dal piano conto anche: {[...fromPlan.allergens, ...fromPlan.excludedFoods].join(", ")}.
+          </p>
+        ) : null}
         <p className={ui.hint}>
-          Il filtro legge solo i nomi degli ingredienti: non vede ingredienti composti né tracce. Con un&apos;allergia, controlla sempre
-          le etichette.
+          Le ricette con ingredienti generici (crema, salsa, ripieno) di cui non si può dire se contengono un allergene restano
+          nascoste e le trovi a parte, come «non verificabili».
         </p>
+        {showNotice ? <p className={ui.hint}>{ALLERGEN_CHECK_NOTICE}</p> : null}
       </fieldset>
     </div>
   );
@@ -344,6 +395,56 @@ function Archived({ recipes }: { recipes: readonly Recipe[] }) {
           </li>
         ))}
       </ul>
+    </details>
+  );
+}
+
+function HiddenBySafety({
+  contains,
+  uncertain,
+  criteria,
+}: {
+  contains: readonly HiddenRecipe[];
+  uncertain: readonly HiddenRecipe[];
+  criteria: { allergens: string[]; excludedFoods: string[]; linkOf: ListFilters["linkOf"] };
+}) {
+  const safetyCriteria = { allergens: criteria.allergens, excludedFoods: criteria.excludedFoods, ...(criteria.linkOf ? { linkOf: criteria.linkOf } : {}) };
+  const group = (title: string, items: readonly HiddenRecipe[], pick: "contains" | "uncertain", tail?: string) =>
+    items.length === 0 ? null : (
+      <div className={ui.field}>
+        <h3 className={ui.fieldLabel}>{title}</h3>
+        <ul className={styles.list}>
+          {items.map(({ row, reasons }) => {
+            const lines = reasonLines(reasons, row.recipe, safetyCriteria)[pick];
+            return (
+              <li key={row.recipe.recipeId} className={styles.card}>
+                <Link className={styles.cardTitle} href={`/app/ricette/vedi?id=${encodeURIComponent(row.recipe.recipeId)}`}>
+                  {row.recipe.title}
+                </Link>
+                {lines.map((l, i) => (
+                  <span key={i} className={pick === "contains" ? styles.noteStrong : styles.note}>
+                    {l}
+                  </span>
+                ))}
+                {tail ? <span className={styles.note}>{tail}</span> : null}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    );
+  return (
+    <details className={styles.filters}>
+      <summary>Ricette nascoste per allergeni ed esclusioni ({contains.length + uncertain.length})</summary>
+      <div className={styles.filterBody}>
+        {group(
+          `Non verificabili (${uncertain.length})`,
+          uncertain,
+          "uncertain",
+          "Non la presento come compatibile: controlla l'etichetta o chiedi com'è fatto l'ingrediente prima di cucinarla.",
+        )}
+        {group(`Con un allergene o un alimento escluso (${contains.length})`, contains, "contains")}
+      </div>
     </details>
   );
 }

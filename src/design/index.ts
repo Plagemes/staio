@@ -13,3 +13,30 @@ export { SectionHeader } from "./components/SectionHeader";
 export { Tabs, type TabItem } from "./components/Tabs";
 export { Value, type Certainty } from "./components/Value";
 export { Wordmark } from "./components/Wordmark";
+export { contrastRatio, relativeLuminance } from "./contrast";
+export {
+  APPEARANCE_STORAGE_KEY,
+  SYSTEM_DARK_QUERY,
+  applyTheme,
+  readStoredChoice,
+  systemPrefersDark,
+  writeStoredChoice,
+} from "./applyTheme";
+export { buildThemeScript } from "./themeScript";
+export {
+  DEFAULT_MODE,
+  DEFAULT_THEME,
+  MODES,
+  MODE_SETTING_KEY,
+  THEMES,
+  THEME_SETTING_KEY,
+  isThemeId,
+  isThemeMode,
+  normalizeChoice,
+  resolveMode,
+  themeColorOf,
+  type ThemeChoice,
+  type ThemeId,
+  type ThemeInfo,
+  type ThemeMode,
+} from "./themes";

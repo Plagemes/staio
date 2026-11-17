@@ -17,6 +17,8 @@ export interface RawPart {
   /** Angolo (gradi) oltre cui si disegnano gli spigoli; assente = nessuno. */
   edgeAngle?: number;
   doubleSided?: boolean;
+  /** false: niente secondo tratteggio incrociato su questa parte. Predefinito true. */
+  cross?: boolean;
   signal?: boolean;
   /** Moltiplicatore della densità del tratto per questa parte. */
   densityMul?: number;

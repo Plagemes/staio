@@ -3,22 +3,26 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { ALLERGEN_CHECK_NOTICE } from "@/core/allergens";
 import { activeLots } from "@/core/ledger";
 import { compareWithPantry, scaleRecipe, stockFromLots, totalMinutes, type Recipe } from "@/core/recipes";
 import { formatQuantity } from "@/core/units";
 import { buildPriceBook } from "@/core/shopping";
-import { usePantry, useRecipes } from "@/data";
+import { usePantry, usePlan, useRecipes } from "@/data";
 import { Button, Label, Value } from "@/design";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
 import { NUTRITION_DISCLAIMER_SHORT } from "../nutrition/labels";
-import { useFoodOverrides, useFoods } from "../nutrition/useNutrition";
+import { useFoodOverrides, useFoods, useProducts } from "../nutrition/useNutrition";
 import { useNotice } from "../notice";
 import ui from "../ui.module.css";
 import { useRecord } from "../useRecord";
+import { makeLinkOf, pantryFoods } from "./allergenLinks";
 import { formatMinutes, formatServings, safeSourceUrl } from "./common";
 import { computeFacts, costText, coverageText, makeContextFor, makeLookup, nutrientLines } from "./facts";
 import { availabilityLabel, pendingConfirmations, shortfallsWith, type Answers } from "./list";
 import { rateRecipe, retireRecipe } from "./model";
+import { useRecipePrefs } from "./prefs";
+import { clearText, hasDeclared, recipeSafety, unionDeclared } from "./safety";
 import styles from "./recipes.module.css";
 import { addToShoppingListWithUndo, proposalFromShortfalls } from "./shopping";
 
@@ -58,6 +62,9 @@ export function RecipeView() {
 
 function Detail({ recipe }: { recipe: Recipe }) {
   const pantry = usePantry();
+  const plan = usePlan();
+  const products = useProducts();
+  const { prefs, ready: prefsReady } = useRecipePrefs();
   const foods = useFoods();
   const overrides = useFoodOverrides();
   const router = useRouter();
@@ -88,6 +95,19 @@ function Detail({ recipe }: { recipe: Recipe }) {
     return cmp.ok ? cmp.value : undefined;
   }, [recipe, lots, servings, lookup]);
   const facts = useMemo(() => computeFacts(recipe, { lookup, book }), [recipe, lookup, book]);
+
+  const declared = useMemo(
+    () => ({
+      allergens: unionDeclared(prefs.allergens, plan.data?.structure?.allergens ?? []),
+      excludedFoods: unionDeclared(prefs.excludedFoods, plan.data?.structure?.excludedFoods ?? []),
+    }),
+    [prefs.allergens, prefs.excludedFoods, plan.data],
+  );
+  const safety = useMemo(() => {
+    if (!prefsReady || !plan.data || !hasDeclared(declared) || !pantry.data || !products) return undefined;
+    const linkOf = makeLinkOf(pantryFoods(lots, products));
+    return recipeSafety(recipe, { ...declared, linkOf });
+  }, [declared, recipe, pantry.data, plan.data, prefsReady, products, lots]);
 
   const minutes = totalMinutes(recipe);
   const source = safeSourceUrl(recipe.origin?.url);
@@ -163,6 +183,43 @@ function Detail({ recipe }: { recipe: Recipe }) {
           Modifica
         </Button>
       </div>
+
+      {hasDeclared(declared) ? (
+        <section className={ui.section} aria-labelledby={`${ids}-safe`}>
+          <h2 id={`${ids}-safe`} className={ui.fieldLabel}>
+            Allergeni ed esclusioni
+          </h2>
+          {!safety || !prefsReady ? (
+            <p className={ui.hint}>Controllo gli ingredienti…</p>
+          ) : (
+            <>
+              {safety.contains.length > 0 ? (
+                <div role="alert" className={styles.safetyContains}>
+                  <strong>Contiene qualcosa che hai dichiarato</strong>
+                  {safety.contains.map((l, i) => (
+                    <p key={i} className={styles.safetyLine}>
+                      {l}
+                    </p>
+                  ))}
+                </div>
+              ) : null}
+              {safety.uncertain.length > 0 ? (
+                <div className={styles.safetyUncertain}>
+                  <strong>Non verificabile</strong>
+                  {safety.uncertain.map((l, i) => (
+                    <p key={i} className={styles.safetyLine}>
+                      {l}
+                    </p>
+                  ))}
+                  <p className={styles.safetyLine}>Controlla l&apos;etichetta o chiedi com&apos;è fatto l&apos;ingrediente prima di cucinarla.</p>
+                </div>
+              ) : null}
+              {safety.verdict === "clear" ? <p className={ui.paragraph}>{clearText(declared)}</p> : null}
+            </>
+          )}
+          <p className={ui.hint}>{ALLERGEN_CHECK_NOTICE}</p>
+        </section>
+      ) : null}
 
       <section className={ui.section} aria-labelledby={`${ids}-ing`}>
         <div className={ui.head}>

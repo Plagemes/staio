@@ -23,7 +23,7 @@ const pasta = recipeOf("pasta", {
   servings: 2,
   ingredients: [
     { name: "Spaghetti", quantity: { value: 200, unit: "g" } },
-    { name: "Pomodori pelati", quantity: { value: 400, unit: "g" } },
+    { name: "Pomodori", quantity: { value: 400, unit: "g" } },
     { name: "Basilico", quantity: { value: 10, unit: "g" } },
   ],
   steps: [{ text: "Cuoci.", durationMinutes: 10 }],
@@ -54,7 +54,7 @@ const dolce = recipeOf("dolce", {
 function view() {
   const { lots } = lotsOf([
     { id: "sp", name: "Spaghetti", value: 500 },
-    { id: "po", name: "Pomodori pelati", value: 400 },
+    { id: "po", name: "Pomodori", value: 400 },
     { id: "zu", name: "Zucchine", value: 400, expiry: "2026-11-17", location: "frigo" },
     { id: "uo", name: "Uova", value: 6, unit: "pz", location: "frigo" },
   ]);
@@ -115,7 +115,7 @@ describe("applyFilters", () => {
 
   it("cerca in titolo, ingredienti ed etichette senza badare ad accenti e maiuscole", () => {
     expect(ids(applyFilters(all(), { ...NO_FILTERS, query: "ZUCCHINE" }))).toEqual(["fritt"]);
-    expect(ids(applyFilters(all(), { ...NO_FILTERS, query: "pelati pasta" }))).toEqual(["pasta"]);
+    expect(ids(applyFilters(all(), { ...NO_FILTERS, query: "pomodori pasta" }))).toEqual(["pasta"]);
     expect(ids(applyFilters(all(), { ...NO_FILTERS, query: "veloce" }))).toEqual(["pasta"]);
   });
 
