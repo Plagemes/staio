@@ -16,8 +16,10 @@ import {
   type LotChanges,
   type PurchaseEvent,
   type Quantity,
+  type Unit,
   type VoidEvent,
 } from "@/core/ledger";
+import type { AnyEvent } from "@/core/events";
 import { formatQuantity, normalize, parseQuantity } from "@/core/units";
 import { cleanName } from "./capture";
 import { parsePriceCents } from "./format";
@@ -36,33 +38,43 @@ export type ActionResult =
   | { ok: false; error: string };
 
 /** Quanto: tutto il rimasto, metà (una stima), o una quantità scritta a mano. */
-export type AmountChoice = { kind: "all" } | { kind: "half" } | { kind: "text"; text: string };
+export type AmountChoice = { kind: "all" } | { kind: "half" } | { kind: "quarter" } | { kind: "text"; text: string };
 
 type AmountResult = { ok: true; quantity: Quantity; certainty: Certainty } | { ok: false; error: string };
 
 const EPSILON = 1e-9;
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-/** Legge una quantità nell'unità del lotto: un numero senza unità vale come l'unità del lotto. */
-export function parseAmountForLot(text: string, lot: Pick<Lot, "unit" | "remaining">): AmountResult {
+type InUnit = { ok: true; quantity: Quantity } | { ok: false; error: string };
+
+/** Legge una quantità nell'unità del lotto: un numero senza unità vale come l'unità del lotto. Positiva, senza altri limiti. */
+export function parseQuantityInUnit(text: string, unit: Unit): InUnit {
   const trimmed = text.trim();
   if (trimmed === "") return { ok: false, error: "Scrivi quanto, per esempio 200 g." };
   let quantity: Quantity;
   if (/^[\d.,/\s]+$/.test(trimmed)) {
     const parsed = parseQuantity(`${trimmed} pz`);
     if (!parsed.ok) return { ok: false, error: "Non capisco la quantità." };
-    quantity = { value: parsed.value.quantity.value, unit: lot.unit };
+    quantity = { value: parsed.value.quantity.value, unit };
   } else {
     const parsed = parseQuantity(trimmed);
     if (!parsed.ok) return { ok: false, error: "Non capisco la quantità. Prova con «200 g» o «2 pz»." };
     const base = normalize(parsed.value.quantity);
     if (!base.ok) return { ok: false, error: "Questa unità non si può contare: scrivi grammi, litri o pezzi." };
-    if (base.value.unit !== lot.unit) {
-      return { ok: false, error: `Questo alimento si conta in ${UNIT_NAMES[lot.unit]}: scrivi la quantità in quell'unità.` };
+    if (base.value.unit !== unit) {
+      return { ok: false, error: `Questo alimento si conta in ${UNIT_NAMES[unit]}: scrivi la quantità in quell'unità.` };
     }
-    quantity = { value: base.value.value, unit: lot.unit };
+    quantity = { value: base.value.value, unit };
   }
   if (!(quantity.value > 0)) return { ok: false, error: "La quantità deve essere maggiore di zero." };
+  return { ok: true, quantity };
+}
+
+/** Come `parseQuantityInUnit`, ma non oltre quanto resta. */
+export function parseAmountForLot(text: string, lot: Pick<Lot, "unit" | "remaining">): AmountResult {
+  const read = parseQuantityInUnit(text, lot.unit);
+  if (!read.ok) return read;
+  let quantity = read.quantity;
   if (quantity.value - lot.remaining > EPSILON) {
     return { ok: false, error: `Ne restano solo ${formatQuantity({ value: lot.remaining, unit: lot.unit })}.` };
   }
@@ -79,6 +91,12 @@ export function resolveAmount(lot: Lot, choice: AmountChoice): AmountResult {
       return {
         ok: true,
         quantity: { value: round2(lot.remaining / 2) || lot.remaining, unit: lot.unit },
+        certainty: "estimated",
+      };
+    case "quarter":
+      return {
+        ok: true,
+        quantity: { value: round2(lot.remaining / 4) || lot.remaining, unit: lot.unit },
         certainty: "estimated",
       };
     case "text":
@@ -234,14 +252,14 @@ export function buildEdit(
 }
 
 /** Un evento `void` per ognuno degli eventi dati: annulla l'azione appena fatta senza cancellare niente. */
-export function buildUndo(events: readonly LedgerEvent[], ctx: ActionContext): VoidEvent[] {
+export function buildUndo(events: readonly AnyEvent[], ctx: ActionContext): VoidEvent[] {
   const idGenerator = ctx.idGenerator ?? generateId;
   return events.map((e) => voidEvent(e, { idGenerator, now: () => ctx.now, deviceId: ctx.deviceId }));
 }
 
 /** L'evento di creazione ancora valido di un lotto (quello non annullato). */
 export function findCreationEvent(
-  events: readonly LedgerEvent[],
+  events: readonly AnyEvent[],
   lotId: string,
   voidedEventIds: readonly string[],
 ): PurchaseEvent | DeclareEvent | undefined {

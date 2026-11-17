@@ -2,20 +2,20 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { appendEvents, getDeviceId } from "@/data";
-import type { LedgerEvent } from "@/core/ledger";
+import type { AnyEvent } from "@/core/events";
 import { buildUndo } from "./actions";
 import styles from "./notice.module.css";
 
 interface NoticeInput {
   message: string;
   /** Eventi appena scritti: «Annulla» li annulla con un `void` ciascuno. */
-  undo?: readonly LedgerEvent[];
+  undo?: readonly AnyEvent[];
 }
 
 interface NoticeState {
   id: number;
   message: string;
-  undo?: readonly LedgerEvent[];
+  undo?: readonly AnyEvent[];
   busy: boolean;
 }
 

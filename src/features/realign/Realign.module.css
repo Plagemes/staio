@@ -1,0 +1,83 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+  padding: var(--space-9) 0;
+  border-top: var(--rule-width) solid var(--color-rule-strong);
+  border-bottom: var(--rule-width) solid var(--color-rule);
+}
+
+.name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-heading);
+  line-height: 1;
+  letter-spacing: var(--tracking-title);
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--color-graphite);
+}
+
+.quantity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.quantityText {
+  font-size: var(--text-title-sm);
+  font-family: var(--font-data);
+}
+
+.answers {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* Bersagli grandi: si risponde con il pollice, una voce dopo l'altra */
+.answers > button {
+  width: 100%;
+  min-height: 64px;
+  font-size: var(--text-body);
+}
+
+.fractions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.fractions > button {
+  flex-direction: column;
+  gap: var(--space-1);
+  min-height: 64px;
+  padding-inline: var(--space-3);
+}
+
+.fractionHint {
+  font-family: var(--font-data);
+  font-size: var(--text-caption);
+  font-weight: 400;
+}
+
+.inline {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.inline > input {
+  flex: 1;
+  min-width: 0;
+}
+
+.secondary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}

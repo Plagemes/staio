@@ -2,8 +2,11 @@
 
 import { useEffect, useState } from "react";
 import type { Observable } from "dexie";
-import type { LedgerEvent, PantryState } from "@/core/ledger";
+import type { AnyEvent } from "@/core/events";
+import type { DiaryState } from "@/core/diary";
+import type { PantryState } from "@/core/ledger";
 import { liveEvents } from "./eventStore";
+import { liveDiary } from "./diary";
 import { livePantry } from "./pantry";
 
 export interface LiveValue<T> {
@@ -32,6 +35,10 @@ export function usePantry(): LiveValue<PantryState> {
   return useObservable(livePantry);
 }
 
-export function useEventLog(): LiveValue<LedgerEvent[]> {
+export function useEventLog(): LiveValue<AnyEvent[]> {
   return useObservable(liveEvents);
+}
+
+export function useDiary(): LiveValue<DiaryState> {
+  return useObservable(liveDiary);
 }

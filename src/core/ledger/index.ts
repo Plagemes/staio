@@ -2,7 +2,7 @@ export * from "./types";
 export { createIdGenerator, generateId } from "./ids";
 export type { IdGenerator, IdGeneratorOptions } from "./ids";
 export { isCalendarDate, isIsoInstant } from "./time";
-export { validateEvent } from "./validate";
+export { validateEnvelope, validateEvent } from "./validate";
 export type { ValidateOptions, ValidationError, ValidationErrorCode } from "./validate";
 export {
   canonicalStringify,
@@ -11,7 +11,7 @@ export {
   mergeEvents,
   sortEvents,
 } from "./merge";
-export type { MergeConflict, MergeResult } from "./merge";
+export type { EventLike, MergeConflict, MergeOptions, MergeResult } from "./merge";
 export { correct, correctLot, voidEvent } from "./correct";
 export type {
   CorrectLotOptions,

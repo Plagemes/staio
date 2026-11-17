@@ -1,13 +1,11 @@
 import { liveQuery, type Observable } from "dexie";
+import { canonicalStringify, sortEvents, type ValidationError } from "@/core/ledger";
 import {
-  canonicalStringify,
-  mergeEvents,
-  sortEvents,
-  validateEvent,
-  type LedgerEvent,
-  type MergeConflict,
-  type ValidationError,
-} from "@/core/ledger";
+  mergeAllEvents,
+  validateAnyEvent,
+  type AllMergeConflict,
+  type AnyEvent,
+} from "@/core/events";
 import { getDb, type LedgerDb, type StoredEvent } from "./db";
 
 export interface RejectedEvent {
@@ -26,14 +24,14 @@ export interface AppendResult {
 export interface ImportResult {
   /** Eventi con un id mai visto prima. */
   added: number;
-  conflicts: MergeConflict[];
+  conflicts: AllMergeConflict[];
   rejected: RejectedEvent[];
 }
 
-function strip(row: StoredEvent): LedgerEvent {
+function strip(row: StoredEvent): AnyEvent {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { seq, ...event } = row;
-  return event as LedgerEvent;
+  return event as AnyEvent;
 }
 
 async function lastSeq(db: LedgerDb): Promise<number> {
@@ -42,15 +40,15 @@ async function lastSeq(db: LedgerDb): Promise<number> {
 }
 
 function splitValid(events: readonly unknown[]): {
-  valid: LedgerEvent[];
+  valid: AnyEvent[];
   rejected: RejectedEvent[];
 } {
-  const valid: LedgerEvent[] = [];
+  const valid: AnyEvent[] = [];
   const rejected: RejectedEvent[] = [];
   events.forEach((event, index) => {
-    const errors = validateEvent(event);
+    const errors = validateAnyEvent(event);
     if (errors.length > 0) rejected.push({ index, errors });
-    else valid.push(event as LedgerEvent);
+    else valid.push(event as AnyEvent);
   });
   return { valid, rejected };
 }
@@ -60,12 +58,12 @@ function splitValid(events: readonly unknown[]): {
  * (gli altri vengono comunque scritti); un id già presente è ignorato.
  */
 export async function appendEvents(
-  events: readonly LedgerEvent[],
+  events: readonly AnyEvent[],
 ): Promise<AppendResult> {
   const { valid, rejected } = splitValid(events);
   const db = getDb();
   return db.transaction("rw", db.events, async () => {
-    const unique = new Map<string, LedgerEvent>();
+    const unique = new Map<string, AnyEvent>();
     for (const e of valid) if (!unique.has(e.id)) unique.set(e.id, e);
     const ids = [...unique.keys()];
     const existing = await db.events.bulkGet(ids);
@@ -85,12 +83,12 @@ export async function appendEvents(
 }
 
 /** Tutti gli eventi in ordine canonico (at, recordedAt, id). */
-export async function getAllEvents(): Promise<LedgerEvent[]> {
+export async function getAllEvents(): Promise<AnyEvent[]> {
   return sortEvents((await getDb().events.toArray()).map(strip));
 }
 
 export interface EventsAfter {
-  events: LedgerEvent[];
+  events: AnyEvent[];
   /** Sequenza massima dell'archivio: il cursore da usare alla prossima chiamata. */
   seq: number;
 }
@@ -113,7 +111,7 @@ export async function getEventsAfter(seq: number): Promise<EventsAfter> {
  * scelta dal libro mastro, così i dispositivi convergono; il conflitto è riportato.
  */
 export async function importEvents(
-  events: readonly LedgerEvent[],
+  events: readonly AnyEvent[],
 ): Promise<ImportResult> {
   const { valid, rejected } = splitValid(events);
   const db = getDb();
@@ -122,7 +120,7 @@ export async function importEvents(
     const stored = await db.events.bulkGet(incomingIds);
     const existing = stored.filter((e): e is StoredEvent => e !== undefined).map(strip);
     const existingById = new Map(existing.map((e) => [e.id, e]));
-    const merged = mergeEvents(existing, valid);
+    const merged = mergeAllEvents(existing, valid);
     const toWrite = merged.events.filter((e) => {
       const old = existingById.get(e.id);
       return old === undefined || canonicalStringify(old) !== canonicalStringify(e);
@@ -140,6 +138,6 @@ export async function importEvents(
 }
 
 /** Osservabile degli eventi: emette di nuovo a ogni modifica della tabella. */
-export function liveEvents(): Observable<LedgerEvent[]> {
+export function liveEvents(): Observable<AnyEvent[]> {
   return liveQuery(() => getAllEvents());
 }

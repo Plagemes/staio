@@ -1,4 +1,4 @@
-import type { LedgerEvent } from "@/core/ledger";
+import type { AnyEvent } from "@/core/events";
 import { getDb } from "./db";
 import { getDeviceId } from "./deviceId";
 import { getAllEvents, importEvents, type ImportResult } from "./eventStore";
@@ -11,7 +11,7 @@ export interface Backup {
   version: number;
   exportedAt: string;
   deviceId: string;
-  events: LedgerEvent[];
+  events: AnyEvent[];
 }
 
 export type ImportBackupResult =
@@ -49,13 +49,18 @@ export async function importBackup(json: unknown): Promise<ImportBackupResult> {
   }
   if (b.version > BACKUP_VERSION) return { ok: false, error: "unsupported_version" };
   if (!Array.isArray(b.events)) return { ok: false, error: "invalid_events" };
-  return { ok: true, ...(await importEvents(b.events as LedgerEvent[])) };
+  return { ok: true, ...(await importEvents(b.events as AnyEvent[])) };
 }
 
 /** Cancella tutti i dati locali, identità del dispositivo compresa. */
 export async function wipeAll(): Promise<void> {
   const db = getDb();
-  await db.transaction("rw", db.events, db.settings, db.syncMeta, async () => {
-    await Promise.all([db.events.clear(), db.settings.clear(), db.syncMeta.clear()]);
+  await db.transaction("rw", [db.events, db.settings, db.syncMeta, db.products], async () => {
+    await Promise.all([
+      db.events.clear(),
+      db.settings.clear(),
+      db.syncMeta.clear(),
+      db.products.clear(),
+    ]);
   });
 }

@@ -6,10 +6,12 @@ interface EmptyStateProps {
   text: string;
   actionLabel?: string;
   actionHref?: string;
+  secondaryLabel?: string;
+  secondaryHref?: string;
 }
 
 /** Schermata vuota: dice che cosa comparirà e porta alla cattura. Nessun dato di esempio. */
-export function EmptyState({ title, text, actionLabel = "Aggiungi un alimento", actionHref = "/app/cattura" }: EmptyStateProps) {
+export function EmptyState({ title, text, actionLabel = "Aggiungi un alimento", actionHref = "/app/cattura", secondaryLabel, secondaryHref }: EmptyStateProps) {
   return (
     <div className={styles.empty}>
       <h3 className={styles.emptyTitle}>{title}</h3>
@@ -17,6 +19,11 @@ export function EmptyState({ title, text, actionLabel = "Aggiungi un alimento", 
       <Button href={actionHref} variant="outline">
         {actionLabel}
       </Button>
+      {secondaryLabel && secondaryHref ? (
+        <Button href={secondaryHref} variant="text">
+          {secondaryLabel}
+        </Button>
+      ) : null}
     </div>
   );
 }

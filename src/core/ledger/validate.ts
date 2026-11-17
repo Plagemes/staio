@@ -50,6 +50,58 @@ function oneOf<T extends string>(list: readonly T[], v: unknown): v is T {
   return typeof v === "string" && (list as readonly string[]).includes(v);
 }
 
+/** Campi comuni a ogni evento, senza `type` (id, at, recordedAt, deviceId, schemaVersion, certainty, source, note, replaces). */
+function envelopeErrors(event: Rec): ValidationError[] {
+  const errors: ValidationError[] = [];
+  const add = (path: string, code: ValidationErrorCode): void => {
+    errors.push({ path, code });
+  };
+  const requireString = (key: string) => {
+    const v = event[key];
+    if (v === undefined) add(key, "required");
+    else if (!isNonEmptyString(v)) add(key, "invalid_type");
+  };
+  // Una stringa vuota in un campo facoltativo vale come campo assente.
+  const optionalString = (key: string) => {
+    if (event[key] !== undefined && typeof event[key] !== "string") add(key, "invalid_type");
+  };
+  const requireEnum = (key: string, list: readonly string[]) => {
+    const v = event[key];
+    if (v === undefined) add(key, "required");
+    else if (!oneOf(list, v)) add(key, "invalid_value");
+  };
+  const checkInstant = (key: string) => {
+    const v = event[key];
+    if (v === undefined) add(key, "required");
+    else if (!isIsoInstant(v)) add(key, "invalid_instant");
+  };
+
+  requireString("id");
+  checkInstant("at");
+  checkInstant("recordedAt");
+  requireString("deviceId");
+  if (event.schemaVersion === undefined) add("schemaVersion", "required");
+  else if (event.schemaVersion !== SCHEMA_VERSION) add("schemaVersion", "invalid_value");
+  requireEnum("certainty", CERTAINTIES);
+  requireEnum("source", SOURCES);
+  optionalString("note");
+  optionalString("replaces");
+  return errors;
+}
+
+/**
+ * Valida solo la "busta" comune di un evento, qualunque sia il suo tipo: id, at, recordedAt,
+ * deviceId, schemaVersion, certainty, source, note, replaces e `type` (stringa non vuota, senza
+ * controllare che sia un tipo noto). Pensata per i moduli che definiscono altri tipi di evento.
+ */
+export function validateEnvelope(event: unknown): ValidationError[] {
+  if (!isRecord(event)) return [{ path: "", code: "not_an_object" }];
+  const errors = envelopeErrors(event);
+  if (event.type === undefined) errors.push({ path: "type", code: "required" });
+  else if (!isNonEmptyString(event.type)) errors.push({ path: "type", code: "invalid_type" });
+  return errors;
+}
+
 /**
  * Restituisce gli errori dell'evento (lista vuota se valido). Non lancia mai.
  * I campi in più sono ignorati, per restare compatibili con versioni future.
@@ -85,11 +137,6 @@ export function validateEvent(
     if (v === undefined) add(path, "required");
     else if (!oneOf(list, v)) add(path, "invalid_value");
   };
-  const checkInstant = (key: string) => {
-    const v = event[key];
-    if (v === undefined) add(key, "required");
-    else if (!isIsoInstant(v)) add(key, "invalid_instant");
-  };
   const checkExpiry = (v: unknown, path: string) => {
     if (!isRecord(v)) return add(path, "invalid_type");
     if (v.date === undefined) add(`${path}.date`, "required");
@@ -124,16 +171,7 @@ export function validateEvent(
     }
   };
 
-  requireString(event, "id");
-  checkInstant("at");
-  checkInstant("recordedAt");
-  requireString(event, "deviceId");
-  if (event.schemaVersion === undefined) add("schemaVersion", "required");
-  else if (event.schemaVersion !== SCHEMA_VERSION) add("schemaVersion", "invalid_value");
-  requireEnum(event, "certainty", CERTAINTIES);
-  requireEnum(event, "source", SOURCES);
-  optionalString(event, "note");
-  optionalString(event, "replaces");
+  errors.push(...envelopeErrors(event));
 
   const type = event.type;
   if (type === undefined) {

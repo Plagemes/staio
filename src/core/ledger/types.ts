@@ -46,6 +46,22 @@ export const EVENT_TYPES = [
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
+/**
+ * Tipi di evento della dispensa, compreso `void`. Lo stesso registro può contenere anche eventi
+ * di altri moduli (diario): la dispensa li ignora.
+ */
+export const PANTRY_EVENT_TYPES = EVENT_TYPES;
+
+export function isPantryEvent(e: unknown): boolean {
+  try {
+    if (typeof e !== "object" || e === null) return false;
+    const type = (e as { type?: unknown }).type;
+    return typeof type === "string" && (PANTRY_EVENT_TYPES as readonly string[]).includes(type);
+  } catch {
+    return false;
+  }
+}
+
 export const SCHEMA_VERSION = 1 as const;
 
 /** Quantità in unità base (g, ml, pz). Le conversioni sono compito del chiamante. */

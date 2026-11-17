@@ -16,6 +16,12 @@ const PRECACHE_PAGES = [
   "/app",
   "/app/dispensa",
   "/app/cattura",
+  "/app/cattura/veloce",
+  "/app/cattura/codice",
+  "/app/dispensa/riallinea",
+  "/app/impostazioni",
+  "/app/pasto",
+  "/app/pasti-abituali",
   "/app/piano",
   "/app/salute",
 ];

@@ -16,7 +16,14 @@ const HREFS = {
 } as const;
 
 function areaOf(pathname: string): NavArea | "capture" | undefined {
-  if (pathname === "/app" || pathname === "/app/" || pathname.startsWith("/app/impostazioni")) return "today";
+  if (
+    pathname === "/app" ||
+    pathname === "/app/" ||
+    pathname.startsWith("/app/impostazioni") ||
+    pathname.startsWith("/app/pasto") ||
+    pathname.startsWith("/app/pasti-abituali")
+  )
+    return "today";
   if (pathname.startsWith("/app/dispensa")) return "pantry";
   if (pathname.startsWith("/app/cattura")) return "capture";
   if (pathname.startsWith("/app/piano")) return "plan";

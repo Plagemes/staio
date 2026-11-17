@@ -6,6 +6,7 @@ import {
 } from "./merge";
 import { instantMs } from "./time";
 import {
+  isPantryEvent,
   worseCertainty,
   type Certainty,
   type DiscardReason,
@@ -258,6 +259,21 @@ function safeKey(e: unknown): string {
   }
 }
 
+/**
+ * Per un evento con `type` stringa non della dispensa: il suo id (o "" se manca). `undefined` se
+ * l'evento va trattato come della dispensa (anche se malformato, es. senza `type`).
+ */
+function foreignEvent(item: unknown): string | undefined {
+  try {
+    if (typeof item !== "object" || item === null) return undefined;
+    const { type, id } = item as { type?: unknown; id?: unknown };
+    if (typeof type !== "string" || isPantryEvent(item)) return undefined;
+    return typeof id === "string" ? id : "";
+  } catch {
+    return undefined;
+  }
+}
+
 function unidentifiableAnomaly(item: unknown): Anomaly {
   let errors = safeValidate(item);
   if (errors.length === 0) errors = [{ path: "", code: "unserializable" }];
@@ -282,7 +298,7 @@ function unidentifiableAnomaly(item: unknown): Anomaly {
  * come avvenuto alla creazione, con un avviso `event_before_lot`.
  */
 export function derivePantry(
-  events: Iterable<LedgerEvent>,
+  events: Iterable<unknown>,
   options: DerivePantryOptions = {},
 ): PantryState {
   let asOfMs = Number.POSITIVE_INFINITY;
@@ -294,7 +310,17 @@ export function derivePantry(
   }
 
   const anomalies: Anomaly[] = [];
-  const { byId, conflicts, unidentifiable } = groupById(events);
+
+  // Gli eventi di altri moduli (diario, ecc.) convivono nel registro: si ignorano in silenzio,
+  // senza validarli. Si ricordano solo i loro id, perché un `void` può puntarli.
+  const pantryEvents: LedgerEvent[] = [];
+  const foreignIds = new Set<string>();
+  for (const item of events) {
+    const foreign = foreignEvent(item);
+    if (foreign === undefined) pantryEvents.push(item as LedgerEvent);
+    else if (foreign !== "") foreignIds.add(foreign);
+  }
+  const { byId, conflicts, unidentifiable } = groupById(pantryEvents);
 
   const junk = new Map<string, unknown>();
   for (const item of unidentifiable) junk.set(safeKey(item), item);
@@ -341,7 +367,7 @@ export function derivePantry(
     included = valid.filter((e) => (e.type === "void" ? !followsLate(e) : !late.has(e.id)));
   }
 
-  const voided = resolveVoids(included, new Set(byId.keys()), anomalies);
+  const voided = resolveVoids(included, new Set([...byId.keys(), ...foreignIds]), anomalies);
   const live = included.filter((e) => e.type !== "void" && !voided.has(e.id));
 
   // Legami `replaces` tra creazioni (anche annullate: la sostituita lo è quasi sempre).

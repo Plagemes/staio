@@ -239,3 +239,32 @@ describe("findCreationEvent", () => {
     expect(findCreationEvent(events, "altro", [])).toBeUndefined();
   });
 });
+
+describe("annullare una riga del registro", () => {
+  it("l'ingresso con altri movimenti non si annulla, gli altri sì", () => {
+    const { events, lot } = setup();
+    const eat = buildConsume(lot, { kind: "text", text: "250 ml" }, ctx());
+    if (!eat.ok) throw new Error(eat.error);
+    const all = [...events, ...eat.events];
+    const [entry, eaten] = buildJournal(all, derivePantry(all), "2026-11-16");
+    expect(entry.canUndo).toBe(false);
+    expect(entry.undoBlocked).toMatch(/altri movimenti/);
+    expect(eaten.canUndo).toBe(true);
+
+    // tolto il consumo, l'ingresso torna annullabile
+    const after = [...all, ...buildUndo(eat.events, ctx("2026-11-16T12:40:00.000Z"))];
+    const rows = buildJournal(after, derivePantry(after), "2026-11-16");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].canUndo).toBe(true);
+  });
+
+  it("annullare l'annullamento riporta l'evento nel registro", () => {
+    const { events, lot } = setup();
+    const eat = buildConsume(lot, { kind: "all" }, ctx());
+    if (!eat.ok) throw new Error(eat.error);
+    const voids = buildUndo(eat.events, ctx("2026-11-16T12:40:00.000Z"));
+    const redo = buildUndo(voids, ctx("2026-11-16T12:41:00.000Z"));
+    const all = [...events, ...eat.events, ...voids, ...redo];
+    expect(buildJournal(all, derivePantry(all), "2026-11-16").map((r) => r.description)).toContain("Mangiato · Latte intero");
+  });
+});

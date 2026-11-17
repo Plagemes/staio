@@ -1,0 +1,110 @@
+/* Scheda del prodotto: solo variabili di tema. */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-9);
+  min-width: 0;
+}
+
+.top {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-8);
+}
+
+.image {
+  flex: none;
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  border: var(--rule-width) solid var(--color-rule);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--text-title);
+  line-height: 1.1;
+  letter-spacing: var(--tracking-title);
+  overflow-wrap: anywhere;
+}
+
+.brand {
+  margin: 0;
+  font-size: var(--text-body);
+  color: var(--color-graphite);
+}
+
+.code {
+  margin: 0;
+  font-family: var(--font-data);
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  border-top: var(--rule-width) solid var(--color-rule);
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-6) 0;
+  border-bottom: var(--rule-width) solid var(--color-rule);
+}
+
+.fact dt,
+.fact dd {
+  margin: 0;
+}
+
+.fact dd {
+  font-size: var(--text-body);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.note {
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+}
+
+.nutrients {
+  display: flex;
+  flex-direction: column;
+  margin: var(--space-4) 0 0;
+}
+
+.nutrient {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding: var(--space-4) 0;
+  border-bottom: var(--rule-width) solid var(--color-rule);
+  font-size: var(--text-body-sm);
+}
+
+.nutrient dt,
+.nutrient dd {
+  margin: 0;
+}
+
+.nutrient dd {
+  font-family: var(--font-data);
+  font-size: var(--text-data);
+}

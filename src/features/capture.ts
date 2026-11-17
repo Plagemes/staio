@@ -29,6 +29,9 @@ export interface CaptureInput {
   priceText: string;
   /** "Ce l'avevo già in casa": scrive `declare` invece di `purchase`. */
   alreadyHave: boolean;
+  /** Codice a barre da cui arrivano i dati: la fonte diventa `barcode` e la quantità vale come letta in etichetta. */
+  barcode?: string;
+  brand?: string;
 }
 
 export type CaptureField = "name" | "quantity" | "category" | "expiryDate" | "price" | "form";
@@ -79,6 +82,11 @@ export function cleanName(text: string): string {
   return s === "" ? s : s[0].toUpperCase() + s.slice(1);
 }
 
+function barcodeNote(input: CaptureInput): string {
+  const brand = input.brand?.trim();
+  return `Codice a barre ${input.barcode}${brand ? ` · ${brand}` : ""}`;
+}
+
 export function buildCaptureEvents(input: CaptureInput, ctx: CaptureContext): CaptureResult {
   const errors: FieldErrors = {};
 
@@ -113,6 +121,7 @@ export function buildCaptureEvents(input: CaptureInput, ctx: CaptureContext): Ca
 
   if (Object.keys(errors).length > 0 || !reading.ok) return { ok: false, errors };
 
+  const fromBarcode = input.barcode !== undefined && input.barcode !== "";
   const idGenerator = ctx.idGenerator ?? generateId;
   const lotId = idGenerator();
   // Un acquisto con la quantità letta in etichetta; ciò che c'era già in casa è, per sua natura, approssimato.
@@ -122,7 +131,8 @@ export function buildCaptureEvents(input: CaptureInput, ctx: CaptureContext): Ca
     recordedAt: ctx.now,
     deviceId: ctx.deviceId,
     schemaVersion: SCHEMA_VERSION,
-    source: "manual" as const,
+    source: fromBarcode ? ("barcode" as const) : ("manual" as const),
+    ...(fromBarcode ? { note: barcodeNote(input) } : {}),
     lotId,
     productRef: name,
     category: input.category,
@@ -131,7 +141,7 @@ export function buildCaptureEvents(input: CaptureInput, ctx: CaptureContext): Ca
     ...(expiry ? { expiry } : {}),
   };
   const event: PurchaseEvent | DeclareEvent = input.alreadyHave
-    ? { ...base, type: "declare", certainty: "estimated" }
+    ? { ...base, type: "declare", certainty: fromBarcode ? "label" : "estimated" }
     : { ...base, type: "purchase", certainty: "label", ...(priceCents !== undefined ? { priceCents } : {}) };
 
   if (validateEvent(event).length > 0) {

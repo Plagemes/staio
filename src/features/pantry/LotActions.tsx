@@ -60,6 +60,9 @@ export function LotActions({ entry, creation, now, busy, perform, error }: LotAc
       {mode === "menu" ? (
         <div className={styles.menu}>
           <Button onClick={() => setMode("eat")}>Mangiato</Button>
+          <Button variant="outline" href={`/app/pasto?lotto=${encodeURIComponent(lot.lotId)}`}>
+            Mangiato in un pasto
+          </Button>
           <Button variant="outline" onClick={() => setMode("discard")}>
             Buttato
           </Button>

@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useDeferredValue, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import type { Location } from "@/core/ledger";
 import { formatQuantity } from "@/core/units";
@@ -7,6 +9,7 @@ import { appendEvents, getDeviceId } from "@/data";
 import { Button, Label } from "@/design";
 import { searchRecipes } from "@/models3d/catalog";
 import { buildCaptureEvents, readQuantity, type CaptureField, type CaptureInput, type FieldErrors } from "../capture";
+import { readCaptureParams } from "../captureParams";
 import { dayOf } from "../format";
 import {
   EXPIRY_KIND_LABELS,
@@ -35,12 +38,17 @@ export function Capture() {
   const notice = useNotice();
   const now = useNow();
   const ids = useId();
+  const search = useSearchParams();
+  // dati arrivati dal codice a barre: letti una sola volta, poi il modulo è dell'utente
+  const [prefill] = useState(() => readCaptureParams((key) => search.get(key)));
+  const [barcode, setBarcode] = useState(prefill.barcode);
+  const [brand, setBrand] = useState(prefill.brand);
 
-  const [name, setName] = useState("");
-  const [quantityText, setQuantityText] = useState("");
+  const [name, setName] = useState(prefill.name ?? "");
+  const [quantityText, setQuantityText] = useState(prefill.quantityText ?? "");
   const [location, setLocation] = useState<Location>("frigo");
-  const [category, setCategory] = useState("");
-  const [categoryTouched, setCategoryTouched] = useState(false);
+  const [category, setCategory] = useState(() => prefill.category ?? (prefill.name ? categoryFor(prefill.name) : ""));
+  const [categoryTouched, setCategoryTouched] = useState(prefill.category !== undefined);
   const [expiryKind, setExpiryKind] = useState<ChosenExpiryKind | "none">("none");
   const [expiryDate, setExpiryDate] = useState("");
   const [priceText, setPriceText] = useState("");
@@ -91,7 +99,7 @@ export function Capture() {
     if (saving) return;
     setSaving(true);
     try {
-      const input: CaptureInput = { name, quantityText, location, category, expiryKind, expiryDate, priceText, alreadyHave };
+      const input: CaptureInput = { name, quantityText, location, category, expiryKind, expiryDate, priceText, alreadyHave, barcode, brand };
       const result = buildCaptureEvents(input, { now: new Date().toISOString(), deviceId: await getDeviceId() });
       if (!result.ok) {
         setErrors(result.errors);
@@ -110,6 +118,8 @@ export function Capture() {
       setQuantityText("");
       setCategory("");
       setCategoryTouched(false);
+      setBarcode(undefined);
+      setBrand(undefined);
       setExpiryDate("");
       setExpiryKind("none");
       setPriceText("");
@@ -129,12 +139,37 @@ export function Capture() {
     <div className={ui.screen}>
       <div className={ui.head}>
         <h1 className={ui.title}>Cattura</h1>
-        <Label>A mano</Label>
+        <Label>{barcode ? "Da codice a barre" : "A mano"}</Label>
       </div>
 
-      <p className={ui.callout}>
-        Scontrino, codice a barre, foto e voce arriveranno dopo. Per ora si scrive a mano.
-      </p>
+      {barcode ? (
+        <div className={ui.callout} role="status">
+          <p className={ui.paragraph}>
+            Dati letti dal codice a barre {barcode}
+            {brand ? ` (${brand})` : ""}. Controllali e completa il resto: verranno salvati come letti in etichetta.
+          </p>
+          <button
+            type="button"
+            className={styles.unlink}
+            onClick={() => {
+              setBarcode(undefined);
+              setBrand(undefined);
+            }}
+          >
+            Non è questo prodotto: scollega
+          </button>
+        </div>
+      ) : (
+        <div className={styles.entry}>
+          <Button href="/app/cattura/codice" variant="outline">
+            Leggi il codice a barre
+          </Button>
+          <p className={ui.hint}>Scontrino, foto e voce arriveranno dopo. Per ora il resto si scrive a mano.</p>
+          <Link href="/app/cattura/veloce" className={ui.textLink}>
+            Ho già in casa: aggiunta rapida di più alimenti
+          </Link>
+        </div>
+      )}
 
       <form className={ui.form} onSubmit={onSubmit} noValidate>
         <div className={ui.field}>

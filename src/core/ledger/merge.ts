@@ -89,8 +89,15 @@ const msKey = (v: unknown): number => {
 const cmpNum = (a: number, b: number): number => (a < b ? -1 : a > b ? 1 : 0);
 const cmpStr = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
+/** Il minimo che serve per unire e ordinare: vale per gli eventi della dispensa e per altri registri. */
+export interface EventLike {
+  id: string;
+  at: string;
+  recordedAt: string;
+}
+
 /** Ordine canonico degli eventi: (at, recordedAt, id). */
-export function compareEvents(a: LedgerEvent, b: LedgerEvent): number {
+export function compareEvents(a: EventLike, b: EventLike): number {
   return (
     cmpNum(msKey(a.at), msKey(b.at)) ||
     cmpNum(msKey(a.recordedAt), msKey(b.recordedAt)) ||
@@ -98,22 +105,22 @@ export function compareEvents(a: LedgerEvent, b: LedgerEvent): number {
   );
 }
 
-export function sortEvents(events: Iterable<LedgerEvent>): LedgerEvent[] {
+export function sortEvents<T extends EventLike>(events: Iterable<T>): T[] {
   return [...events].sort(compareEvents);
 }
 
-export interface MergeConflict {
+export interface MergeConflict<T extends EventLike = LedgerEvent> {
   id: string;
   /** Versione scelta. */
-  kept: LedgerEvent;
+  kept: T;
   /** Altre versioni con lo stesso id e contenuto diverso, in ordine deterministico. */
-  discarded: LedgerEvent[];
+  discarded: T[];
 }
 
-export interface MergeResult {
+export interface MergeResult<T extends EventLike = LedgerEvent> {
   /** Eventi unici per id, in ordine canonico. */
-  events: LedgerEvent[];
-  conflicts: MergeConflict[];
+  events: T[];
+  conflicts: MergeConflict<T>[];
   /**
    * Voci scartate perché non unibili per id: non-oggetti, senza id, o con valori davvero non
    * serializzabili (BigInt, funzioni, cicli, istanze di classe). Senza duplicati, in ordine
@@ -122,9 +129,18 @@ export interface MergeResult {
   rejected: unknown[];
 }
 
-function isValid(e: LedgerEvent): boolean {
+export interface MergeOptions {
+  /**
+   * Decide se una versione è valida ai fini dell'ordine tra versioni con lo stesso `id`
+   * (la valida batte la non valida). Deve essere deterministica e dipendere solo dal contenuto.
+   * Default: `validateEvent` degli eventi della dispensa. Se lancia, la versione conta come non valida.
+   */
+  validate?: (e: unknown) => boolean;
+}
+
+function isValid(e: unknown, validate?: (e: unknown) => boolean): boolean {
   try {
-    return validateEvent(e).length === 0;
+    return validate ? Boolean(validate(e)) : validateEvent(e).length === 0;
   } catch {
     return false;
   }
@@ -136,14 +152,14 @@ function isValid(e: LedgerEvent): boolean {
  * canonico maggiore. È il massimo di un ordine totale, quindi l'unione resta idempotente,
  * commutativa e associativa.
  */
-interface Version {
-  event: LedgerEvent;
+interface Version<T> {
+  event: T;
   key: string;
   valid: boolean;
   recordedMs: number;
 }
 
-function compareVersions(a: Version, b: Version): number {
+function compareVersions<T>(a: Version<T>, b: Version<T>): number {
   return (
     cmpNum(a.valid ? 1 : 0, b.valid ? 1 : 0) ||
     cmpNum(a.recordedMs, b.recordedMs) ||
@@ -151,9 +167,9 @@ function compareVersions(a: Version, b: Version): number {
   );
 }
 
-export interface GroupedEvents {
-  byId: Map<string, LedgerEvent>;
-  conflicts: MergeConflict[];
+export interface GroupedEvents<T extends EventLike = LedgerEvent> {
+  byId: Map<string, T>;
+  conflicts: MergeConflict<T>[];
   /**
    * Voci senza id stringa utilizzabile, non-oggetto o non serializzabili (es. con un BigInt):
    * non si possono unire per id.
@@ -161,8 +177,11 @@ export interface GroupedEvents {
   unidentifiable: unknown[];
 }
 
-export function groupById(events: Iterable<LedgerEvent>): GroupedEvents {
-  const versions = new Map<string, Map<string, LedgerEvent>>();
+export function groupById<T extends EventLike = LedgerEvent>(
+  events: Iterable<T>,
+  validate?: (e: unknown) => boolean,
+): GroupedEvents<T> {
+  const versions = new Map<string, Map<string, T>>();
   const unidentifiable: unknown[] = [];
   for (const e of events) {
     let id: string | undefined;
@@ -185,19 +204,19 @@ export function groupById(events: Iterable<LedgerEvent>): GroupedEvents {
     if (!forId) versions.set(id, (forId = new Map()));
     forId.set(key, e);
   }
-  const byId = new Map<string, LedgerEvent>();
-  const conflicts: MergeConflict[] = [];
+  const byId = new Map<string, T>();
+  const conflicts: MergeConflict<T>[] = [];
   for (const id of [...versions.keys()].sort(cmpStr)) {
     const forId = versions.get(id)!;
-    let kept: LedgerEvent;
-    let discarded: LedgerEvent[] = [];
+    let kept: T;
+    let discarded: T[] = [];
     if (forId.size === 1) {
       kept = [...forId.values()][0];
     } else {
-      const all: Version[] = [...forId].map(([key, event]) => ({
+      const all: Version<T>[] = [...forId].map(([key, event]) => ({
         event,
         key,
-        valid: isValid(event),
+        valid: isValid(event, validate),
         recordedMs: msKey(event.recordedAt),
       }));
       all.sort(compareVersions);
@@ -219,10 +238,19 @@ export function groupById(events: Iterable<LedgerEvent>): GroupedEvents {
  */
 export function mergeEventLists(
   lists: Iterable<readonly LedgerEvent[]>,
-): MergeResult {
-  const all: LedgerEvent[] = [];
+  options?: MergeOptions,
+): MergeResult;
+export function mergeEventLists<T extends EventLike>(
+  lists: Iterable<readonly T[]>,
+  options?: MergeOptions,
+): MergeResult<T>;
+export function mergeEventLists<T extends EventLike>(
+  lists: Iterable<readonly T[]>,
+  options: MergeOptions = {},
+): MergeResult<T> {
+  const all: T[] = [];
   for (const list of lists) for (const e of list) all.push(e);
-  const { byId, conflicts, unidentifiable } = groupById(all);
+  const { byId, conflicts, unidentifiable } = groupById(all, options.validate);
   const rejected = new Map<string, unknown>();
   for (const item of unidentifiable) rejected.set(canonicalStringify(item), item);
   return {
@@ -233,13 +261,24 @@ export function mergeEventLists(
 }
 
 /**
- * Unione per `id`: idempotente, commutativa e associativa quanto a `events`.
- * `conflicts` riguarda solo gli input di questa chiamata (un conflitto già risolto
- * in un'unione precedente non riappare).
+ * Unione per `id`: idempotente, commutativa e associativa quanto a `events`, per qualunque
+ * `options.validate` deterministico. `conflicts` riguarda solo gli input di questa chiamata
+ * (un conflitto già risolto in un'unione precedente non riappare).
  */
 export function mergeEvents(
   a: readonly LedgerEvent[],
   b: readonly LedgerEvent[],
-): MergeResult {
-  return mergeEventLists([a, b]);
+  options?: MergeOptions,
+): MergeResult;
+export function mergeEvents<T extends EventLike>(
+  a: readonly T[],
+  b: readonly T[],
+  options?: MergeOptions,
+): MergeResult<T>;
+export function mergeEvents<T extends EventLike>(
+  a: readonly T[],
+  b: readonly T[],
+  options: MergeOptions = {},
+): MergeResult<T> {
+  return mergeEventLists([a, b], options);
 }

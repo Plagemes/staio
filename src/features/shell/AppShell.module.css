@@ -1,4 +1,5 @@
 .shell {
+  --notice-room: 72px;
   display: flex;
   flex-direction: column;
   max-width: var(--column-max);
@@ -20,7 +21,8 @@
 .main {
   flex: 1;
   min-width: 0;
-  padding: var(--space-12) var(--gutter) var(--space-11);
+  /* in fondo resta lo spazio dell'avviso fisso: l'ultimo pulsante di una pagina non gli finisce mai sotto */
+  padding: var(--space-12) var(--gutter) calc(var(--space-11) + var(--notice-room));
 }
 
 .nav {

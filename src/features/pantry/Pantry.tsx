@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { activeLots, estimatedPantryValue, type Location } from "@/core/ledger";
 import { useEventLog, usePantry } from "@/data";
@@ -9,6 +10,7 @@ import { dayOf, formatPrice } from "../format";
 import { LOCATION_LABELS } from "../labels";
 import { evaluateLots, isExpiring, levelPercent } from "../lots";
 import { entryDetail, entryExpiry } from "./rows";
+import { orderForRealign } from "../realign";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
@@ -33,6 +35,10 @@ export function Pantry() {
 
   const entries = useMemo(
     () => (pantry.data && now ? evaluateLots(activeLots(pantry.data), now) : []),
+    [pantry.data, now],
+  );
+  const toConfirm = useMemo(
+    () => (pantry.data && now ? orderForRealign(activeLots(pantry.data), now).length : 0),
     [pantry.data, now],
   );
   const value = useMemo(() => (pantry.data ? estimatedPantryValue(pantry.data) : undefined), [pantry.data]);
@@ -65,6 +71,8 @@ export function Pantry() {
         <EmptyState
           title="La dispensa è vuota"
           text="Qui comparirà ciò che aggiungi: quanto ne resta, dove sta e quando scade. Il resto lo ricostruisce il registro."
+          secondaryLabel="Ho già in casa: aggiunta rapida"
+          secondaryHref="/app/cattura/veloce"
         />
       ) : (
         <>
@@ -115,6 +123,19 @@ export function Pantry() {
               )}
             </div>
           </div>
+          {toConfirm > 0 ? (
+            <div className={styles.realign}>
+              <div className={styles.realignText}>
+                <span className={styles.realignTitle}>
+                  {toConfirm === 1 ? "1 quantità da controllare" : `${toConfirm} quantità da controllare`}
+                </span>
+                <span className={styles.realignHint}>Sono stime o non le guardi da una settimana. Basta un minuto.</span>
+              </div>
+              <Link href="/app/dispensa/riallinea" className={styles.realignLink}>
+                Riallinea
+              </Link>
+            </div>
+          ) : null}
         </>
       )}
 

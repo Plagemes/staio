@@ -93,6 +93,16 @@ export function Settings() {
       </section>
 
       <section className={ui.section}>
+        <SectionHeader label="Pasti abituali" />
+        <div className={styles.block}>
+          <p className={ui.paragraph}>I pasti che ripeti e che Staio ti propone all&apos;ora giusta. Qui li rinomini o li ritiri.</p>
+          <Link href="/app/pasti-abituali" className={ui.textLink}>
+            Gestisci i pasti abituali
+          </Link>
+        </div>
+      </section>
+
+      <section className={ui.section}>
         <SectionHeader label="Copia di sicurezza" />
         <div className={styles.block}>
           <p className={ui.paragraph}>

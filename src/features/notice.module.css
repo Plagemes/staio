@@ -1,3 +1,5 @@
+/* Sempre nello stesso punto, sopra la barra in basso, fuori dal flusso: non sposta mai niente.
+   Lo spazio sotto il contenuto (vedi AppShell) lascia i pulsanti principali liberi in fondo alla pagina. */
 .dock {
   position: fixed;
   z-index: 10;
@@ -47,6 +49,9 @@
 }
 
 .undo {
+  /* Per mezzo secondo non risponde al tocco: un doppio tocco sul pulsante appena premuto non può annullare il salvataggio */
+  pointer-events: none;
+  animation: arm 0s linear 0.6s forwards;
   padding-inline: var(--space-6);
   font-size: var(--text-body-sm);
   font-weight: 600;
@@ -59,4 +64,10 @@
 
 .notice :focus-visible {
   outline-color: var(--color-on-ink);
+}
+
+@keyframes arm {
+  to {
+    pointer-events: auto;
+  }
 }

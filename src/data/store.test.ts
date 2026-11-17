@@ -2,12 +2,20 @@ import "fake-indexeddb/auto";
 import Dexie from "dexie";
 import { beforeEach, describe, expect, it } from "vitest";
 import { derivePantry, type LedgerEvent } from "@/core/ledger";
+import { deriveDiary } from "@/core/diary";
+import type { AnyEvent } from "@/core/events";
+import { meal, sampleDiaryEvents, water } from "@/core/diary/test-helpers";
 import { consume, purchase, q } from "@/core/ledger/test-helpers";
-import { DB_NAME, SCHEMA_V1, closeDb } from "./db";
+import { DB_NAME, SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, closeDb } from "./db";
 import {
   appendEvents,
   exportBackup,
+  deleteProductRecord,
   getAllEvents,
+  getDiary,
+  getProductRecord,
+  listProductRecords,
+  putProductRecord,
   getDeviceId,
   getEventsAfter,
   getPantry,
@@ -183,5 +191,114 @@ describe("migrazioni", () => {
     const after = await getEventsAfter(0);
     expect(after.events.map((x) => x.id)).toEqual(["old2", "old"]);
     expect(after.seq).toBe(2);
+  });
+});
+
+describe("prodotti", () => {
+  const rec = { barcode: "800", fetchedAt: "2026-02-01T10:00:00.000Z", data: { name: "Pasta" } };
+
+  it("scrive, legge, sovrascrive, elenca e cancella", async () => {
+    expect(await getProductRecord("800")).toBeUndefined();
+    await putProductRecord(rec);
+    expect(await getProductRecord("800")).toEqual(rec);
+    const next = { ...rec, fetchedAt: "2026-03-01T10:00:00.000Z", data: [1] };
+    await putProductRecord(next);
+    expect(await getProductRecord("800")).toEqual(next);
+    expect(await listProductRecords()).toEqual([next]);
+    await deleteProductRecord("800");
+    expect(await getProductRecord("800")).toBeUndefined();
+  });
+
+  it("non entrano nella copia di sicurezza e wipeAll li cancella", async () => {
+    await putProductRecord(rec);
+    expect(JSON.stringify(await exportBackup())).not.toContain("Pasta");
+    await wipeAll();
+    expect(await listProductRecords()).toEqual([]);
+  });
+
+  it("la migrazione dalla v2 alla v3 conserva eventi e sequenze", async () => {
+    closeDb();
+    await Dexie.delete(DB_NAME);
+    const v2 = new Dexie(DB_NAME);
+    v2.version(1).stores(SCHEMA_V1);
+    v2.version(2).stores(SCHEMA_V2);
+    const e = { ...buy("x", "2025-06-01T10:00:00.000Z"), seq: 7 };
+    await v2.table("events").add(e);
+    v2.close();
+
+    const after = await getEventsAfter(0);
+    expect(after.events.map((x) => x.id)).toEqual(["x"]);
+    expect(after.seq).toBe(7);
+    expect(await listProductRecords()).toEqual([]);
+  });
+});
+
+describe("diario", () => {
+  const diary = sampleDiaryEvents();
+
+  it("scrive eventi di diario e rifiuta i tipi sconosciuti", async () => {
+    const unknown = { ...diary[0], type: "sconosciuto", id: "zz" } as unknown as AnyEvent;
+    const res = await appendEvents([...diary, unknown]);
+    expect(res.added).toBe(diary.length);
+    expect(res.rejected).toHaveLength(1);
+    expect(res.rejected[0].index).toBe(diary.length);
+    expect((await importEvents([unknown])).rejected).toHaveLength(1);
+    expect(await getAllEvents()).toHaveLength(diary.length);
+  });
+
+  it("deriva lo stato del diario", async () => {
+    await appendEvents(diary);
+    expect(await getDiary()).toEqual(deriveDiary(diary));
+    expect((await getDiary()).days.length).toBeGreaterThan(0);
+  });
+
+  it("un registro misto dà dispensa e diario corretti, e sopravvive al backup", async () => {
+    const mixed: AnyEvent[] = [
+      buy("pur1", "2026-03-09T10:00:00.000Z", "l1"),
+      consume("con1", "2026-03-10T08:00:00.000Z", {
+        lotId: "l1",
+        quantity: q(100),
+        mealId: "meal-1",
+      }),
+      ...diary,
+    ];
+    await appendEvents(mixed);
+    const pantry = await getPantry();
+    const state = await getDiary();
+    expect(pantry).toEqual(derivePantry(mixed));
+    expect(state).toEqual(deriveDiary(mixed));
+
+    const text = JSON.stringify(await exportBackup());
+    await wipeAll();
+    const res = await importBackup(text);
+    expect(res).toMatchObject({ ok: true, added: mixed.length });
+    expect(await getPantry()).toEqual(pantry);
+    expect(await getDiary()).toEqual(state);
+  });
+
+  it("unisce con conflitto su un evento di diario", async () => {
+    const a = water("w9", "2026-03-10T09:00:00.000Z", { ml: 200 });
+    const b = { ...a, recordedAt: "2026-03-11T09:00:00.000Z", ml: 300 };
+    await appendEvents([a]);
+    const res = await importEvents([b as AnyEvent]);
+    expect(res.conflicts).toHaveLength(1);
+    expect(res.conflicts[0].id).toBe("w9");
+    expect(await getAllEvents()).toEqual([b]);
+  });
+
+  it("la migrazione dalla v3 alla v4 conserva eventi e sequenze", async () => {
+    closeDb();
+    await Dexie.delete(DB_NAME);
+    const v3 = new Dexie(DB_NAME);
+    v3.version(1).stores(SCHEMA_V1);
+    v3.version(2).stores(SCHEMA_V2);
+    v3.version(3).stores(SCHEMA_V3);
+    const m = meal("m9", "2026-03-10T08:00:00.000Z", { mealId: "meal-9", kind: "lunch" });
+    await v3.table("events").add({ ...m, seq: 4 });
+    v3.close();
+
+    const after = await getEventsAfter(0);
+    expect(after.events).toEqual([m]);
+    expect(after.seq).toBe(4);
   });
 });

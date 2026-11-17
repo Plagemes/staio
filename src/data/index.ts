@@ -1,4 +1,11 @@
-export { DB_NAME, SCHEMA_V1, SCHEMA_V2 } from "./db";
+export { DB_NAME, SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4 } from "./db";
+export type { ProductRecord } from "./db";
+export {
+  deleteProductRecord,
+  getProductRecord,
+  listProductRecords,
+  putProductRecord,
+} from "./products";
 export { getDeviceId } from "./deviceId";
 export {
   appendEvents,
@@ -8,6 +15,7 @@ export {
   liveEvents,
 } from "./eventStore";
 export type { AppendResult, EventsAfter, ImportResult, RejectedEvent } from "./eventStore";
+export { getDiary, liveDiary } from "./diary";
 export { getPantry, livePantry } from "./pantry";
 export {
   BACKUP_FORMAT,
@@ -17,5 +25,5 @@ export {
   wipeAll,
 } from "./backup";
 export type { Backup, ImportBackupResult } from "./backup";
-export { useEventLog, usePantry } from "./hooks";
+export { useDiary, useEventLog, usePantry } from "./hooks";
 export type { LiveValue } from "./hooks";
