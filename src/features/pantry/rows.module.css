@@ -3,3 +3,12 @@
   font-size: var(--text-caption);
   color: var(--color-graphite);
 }
+
+/* Vivo: anche «senza data» è una pastiglia, neutra */
+:global([data-palette="vivo"]) .noDate {
+  display: inline-flex;
+  padding: var(--chip-pad-y) var(--chip-pad-x);
+  border-radius: var(--chip-radius);
+  background: var(--color-fill);
+  white-space: nowrap;
+}

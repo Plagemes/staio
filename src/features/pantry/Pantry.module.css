@@ -181,3 +181,54 @@
 .barSpace {
   height: 120px;
 }
+
+/* ------------------------------------------------------------------------------------------------
+   Vivo: elenco in una scheda sotto i segmenti; «Vedi in 3D», «Controlla con una foto» e «Riallinea» sono riquadri
+   colorati (colore dell'area o dello stato), con l'azione in una pastiglia bianca (nera in scuro).
+   ------------------------------------------------------------------------------------------------ */
+
+:global([data-palette="vivo"]) .list {
+  margin-top: var(--space-6);
+}
+
+:global([data-palette="vivo"]) .open:hover {
+  background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+}
+
+:global([data-palette="vivo"]) .realignTitle {
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+:global([data-palette="vivo"]) .realignLink {
+  justify-content: center;
+  padding-inline: var(--space-8);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--tone, var(--color-accent));
+  transition: transform var(--motion-fast) ease;
+}
+
+:global([data-palette="vivo"]) .realignLink:hover {
+  text-decoration: none;
+}
+
+:global([data-palette="vivo"]) .realignLink:active {
+  transform: var(--press-transform);
+}
+
+:global([data-palette="vivo"]) .tool:hover {
+  text-decoration: none;
+  opacity: var(--press-opacity);
+}
+
+:global([data-palette="vivo"]) .picked {
+  background: var(--area-current-tint);
+}
+
+:global([data-palette="vivo"]) .bar {
+  border-top-color: transparent;
+  background: var(--nav-fill);
+  backdrop-filter: var(--nav-backdrop);
+  -webkit-backdrop-filter: var(--nav-backdrop);
+}

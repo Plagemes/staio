@@ -57,3 +57,25 @@
   font-size: var(--text-body-sm);
   color: var(--color-graphite);
 }
+
+/* Vivo: i modelli sono a colori; la scena sta su una scheda chiara (scura in scuro) invece che sul grigio di fondo.
+   .scene non ha resa negli altri temi. */
+:global([data-palette="vivo"]) .scene {
+  padding: var(--space-4);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .card {
+  padding: var(--space-7) var(--space-8);
+  border-color: transparent;
+  border-radius: var(--radius-card);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .back {
+  color: var(--color-accent);
+  font-weight: 600;
+  text-decoration: none;
+}

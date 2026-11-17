@@ -8,13 +8,17 @@ type FigureProps = {
   /** Parte secondaria accanto al valore, per esempio "/ 130 g". */
   suffix?: string;
   tone?: "default" | "signal";
+  /** Nel tema Vivo colora la cifra con il colore del nutriente; negli altri temi non cambia nulla. */
+  nutrient?: FigureNutrient;
   className?: string;
   children: ReactNode;
 };
 
-export function Figure({ label, suffix, tone = "default", className, children }: FigureProps) {
+export type FigureNutrient = "protein" | "carbs" | "fat" | "fiber" | "water";
+
+export function Figure({ label, suffix, tone = "default", nutrient, className, children }: FigureProps) {
   return (
-    <div className={cx(styles.figure, className)}>
+    <div className={cx(styles.figure, className)} data-nutrient={nutrient}>
       <Label>{label}</Label>
       <div className={cx(styles.value, tone === "signal" && styles.signal)}>
         {children}

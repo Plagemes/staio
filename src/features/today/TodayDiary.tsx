@@ -201,7 +201,7 @@ export function TodayDiary({ now, date, pantry, log }: Props) {
       ) : null}
 
       {proposals.slice(0, 2).map((habit) => (
-        <div key={habit.habitId} className={styles.proposal}>
+        <div key={habit.habitId} className={`${styles.proposal} ${ui.tile} ${ui.tone}`} data-tone="today">
           <div className={styles.proposalText}>
             <Label>Proposta per ora</Label>
             <span className={styles.proposalTitle}>{habit.title}</span>
@@ -232,7 +232,7 @@ export function TodayDiary({ now, date, pantry, log }: Props) {
       {plan.planned.length > 0 && !pastDay ? (
         <section className={ui.section}>
           <SectionHeader label="Pianificato per oggi" actionLabel="Settimana" actionHref="/app/piano/settimana" />
-          <ul className={styles.list}>
+          <ul className={`${styles.list} ${ui.group}`}>
             {plan.planned.map((p, i) => (
               <li key={`${p.meal}-${i}`} className={styles.meal}>
                 <div className={styles.mealHead}>
@@ -256,7 +256,7 @@ export function TodayDiary({ now, date, pantry, log }: Props) {
         </section>
       ) : null}
 
-      <details className={styles.drinksBox}>
+      <details className={`${styles.drinksBox} ${ui.tone}`} data-tone="water">
         <summary className={styles.drinksSummary}>
           <span>Bevande</span>
           <span className={styles.drinksCount}>{drinkLine === "" ? "scelte rapide" : drinkLine}</span>

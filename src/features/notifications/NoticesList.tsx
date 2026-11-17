@@ -24,7 +24,7 @@ export function NoticesList({ facts, limit, emptyText, label = "Avvisi di oggi" 
     <>
       <ul className={styles.list} aria-label={label}>
         {shown.map((f) => (
-          <li key={f.key} className={cx(styles.item, f.level === "urgent" && styles.urgent)}>
+          <li key={f.key} className={cx(styles.item, f.level === "urgent" && styles.urgent)} data-level={f.level}>
             <Link href={safeAppPath(f.url)} className={styles.link}>
               <span className={styles.heading}>
                 {f.heading}

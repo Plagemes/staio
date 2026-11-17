@@ -286,7 +286,7 @@
 .experimentTitle {
   margin: 0;
   font-family: var(--font-display);
-  font-weight: 400;
+  font-weight: var(--weight-display);
   font-size: var(--text-title-sm);
   line-height: 1.1;
 }
@@ -339,7 +339,7 @@
   flex: 1;
   text-align: center;
   font-family: var(--font-display);
-  font-weight: 400;
+  font-weight: var(--weight-display);
   font-size: var(--text-title-sm);
   line-height: 1.1;
 }
@@ -383,4 +383,10 @@
   flex: 1;
   min-width: 0;
   width: auto;
+}
+
+/* Vivo: titoli e numeri in grassetto come nelle altre schermate */
+:global([data-palette="vivo"]) .bigNumber,
+:global([data-palette="vivo"]) .insufficientTitle {
+  font-weight: var(--weight-display);
 }

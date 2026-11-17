@@ -15,7 +15,7 @@ import { useNotice } from "../notice";
 import { dayOf, formatDayLabel, relativeDay } from "../format";
 import { LOCATION_LABELS } from "../labels";
 import { buildJournal } from "../journal";
-import { evaluateLots, levelPercent } from "../lots";
+import { evaluateLots, expiryTagView, levelPercent } from "../lots";
 import { breakdownText, groupEntries, groupName } from "../pantry/groups";
 import { entryDetail, entryExpiry } from "../pantry/rows";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
@@ -88,7 +88,7 @@ export function Today() {
               >
                 ‹
               </button>
-              <Label>{formatDayLabel(new Date(`${viewDate}T12:00:00Z`))}</Label>
+              <Label className={styles.dayLabel}>{formatDayLabel(new Date(`${viewDate}T12:00:00Z`))}</Label>
               <button type="button" className={styles.dayArrow} aria-label="Giorno dopo" disabled={!isPast} onClick={() => setDaysBack(daysBack - 1)}>
                 ›
               </button>
@@ -137,12 +137,12 @@ export function Today() {
                 secondaryHref="/app/cattura/veloce"
               />
             ) : (
-              <ul className={styles.list}>
+              <ul className={`${styles.list} ${ui.group}`}>
                 {eatFirst.map((group) => {
                   const entry = group.entries[0];
                   const breakdown = breakdownText(group);
                   return (
-                    <li key={group.key}>
+                    <li key={group.key} className={ui.stateRow} data-state={expiryTagView(entry)?.level}>
                       <PantryRow
                         name={groupName(group)}
                         detail={
@@ -174,7 +174,7 @@ export function Today() {
                 actionLabel="Aggiungi il primo alimento"
               />
             ) : (
-              <ul className={styles.list}>
+              <ul className={`${styles.list} ${ui.group}`}>
                 {rows.map((row) => (
                   <li key={row.id}>
                     <div className={styles.entry}>

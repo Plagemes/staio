@@ -5,7 +5,7 @@ import type { Product } from "@/core/catalog";
 import { DEFAULT_STATE_PREFERENCE, compositionFromProduct, type NutrientAmounts, type NutrientKey } from "@/core/nutrition";
 import { Label, Value } from "@/design";
 import ui from "../ui.module.css";
-import { FOOD_SOURCE_NAME, NUTRIENT_INFO, formatNutrient } from "./labels";
+import { FOOD_SOURCE_NAME, NUTRIENT_COLOR, NUTRIENT_INFO, formatNutrient } from "./labels";
 import styles from "./nutrition.module.css";
 import { buildResolver } from "./resolver";
 import { useFoodOverrides, useFoods, useProducts } from "./useNutrition";
@@ -29,7 +29,7 @@ export function Per100Table({ per100, basis, source, estimated }: TableProps) {
       <Label>Per 100 {basis}</Label>
       <dl className={styles.per100}>
         {present.map((k) => (
-          <div key={k}>
+          <div key={k} data-nutrient={NUTRIENT_COLOR[k]}>
             <dt>{NUTRIENT_INFO[k].label}</dt>
             <dd>
               <Value certainty={estimated ? "estimated" : "label"}>{formatNutrient(k, per100[k] as number)}</Value>

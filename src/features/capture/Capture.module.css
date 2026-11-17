@@ -69,3 +69,23 @@
 .dateInput::-webkit-datetime-edit-text {
   color: var(--color-graphite);
 }
+
+/* Vivo: suggerimenti in pastiglie piene, il collegamento senza sottolineatura come gli altri pulsanti di testo */
+:global([data-palette="vivo"]) .suggestion {
+  border-color: transparent;
+  border-radius: 999px;
+  background: var(--color-fill);
+  font-weight: 500;
+}
+
+:global([data-palette="vivo"]) .suggestion:hover {
+  background: var(--area-current-tint);
+}
+
+:global([data-palette="vivo"]) .unlink {
+  text-decoration: none;
+}
+
+:global([data-palette="vivo"]) .entryButtons > * {
+  min-height: 56px;
+}

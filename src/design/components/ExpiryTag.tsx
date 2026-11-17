@@ -13,7 +13,7 @@ type ExpiryTagProps = {
 
 export function ExpiryTag({ level, children, estimated = false }: ExpiryTagProps) {
   return (
-    <span className={cx(styles.tag, styles[level])}>
+    <span className={cx(styles.tag, styles[level])} data-estimated={estimated ? "" : undefined}>
       {level !== "calm" ? <span className={styles.marker} aria-hidden="true" /> : null}
       <span className={estimated ? styles.estimated : undefined}>
         {estimated ? "~" : ""}

@@ -387,3 +387,35 @@ describe("scelte manomesse", () => {
     }
   });
 });
+
+/**
+ * Coppie testo/fondo e controllo/fondo aggiunte con le schermate in Vivo. Le altre (colore su carta, superficie e
+ * fondo tinto; testo e testo secondario sui fondi tinti e neutri; testo sopra il colore pieno) sono già sopra.
+ */
+describe("Vivo: coppie delle schermate", () => {
+  const TINTS = SEMANTIC.map((v) => `${v}-tint`);
+  for (const mode of MODES) {
+    describe(mode, () => {
+      const p = resolved("vivo", mode);
+      const c = (fg: string, bg: string) => contrastRatio(p[fg], p[bg]);
+      it("campi e interruttore spento dentro una scheda tinta: bordo dei controlli su ogni fondo tinto >= 3", () => {
+        for (const t of TINTS) expect(c("--color-control-border", t)).toBeGreaterThanOrEqual(3);
+      });
+      it("avviso a comparsa (testo sull'inchiostro) >= 4,5", () => {
+        expect(c("--color-on-ink", "--color-ink")).toBeGreaterThanOrEqual(4.5);
+      });
+      it("interruttore acceso, anelli, strisce di stato e barre: colore pieno su superficie e carta >= 3", () => {
+        for (const v of SEMANTIC) {
+          expect(c(v, "--color-surface")).toBeGreaterThanOrEqual(3);
+          expect(c(v, "--color-paper")).toBeGreaterThanOrEqual(3);
+        }
+      });
+      it("pulsante pieno dentro una scheda tinta (testo sopra il colore della scheda) e pulsante chiaro (colore su superficie) >= 4,5", () => {
+        for (const v of SEMANTIC) {
+          expect(c("--color-on-fill", v)).toBeGreaterThanOrEqual(4.5);
+          expect(c(v, "--color-surface")).toBeGreaterThanOrEqual(4.5);
+        }
+      });
+    });
+  }
+});

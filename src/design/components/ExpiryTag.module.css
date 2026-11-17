@@ -40,10 +40,16 @@
 
 .calm {
   --tag-color: var(--state-ok);
-  --tag-tint: transparent;
+  --tag-tint: var(--state-ok-tint);
   font-weight: 400;
 }
 
 .estimated {
   border-bottom: 1px dotted currentColor;
+}
+
+/* Vivo: una data stimata resta distinta anche nella pastiglia (bordo tratteggiato, oltre a tilde e puntini) */
+:global([data-palette="vivo"]) .tag[data-estimated] {
+  outline: 1px dashed currentColor;
+  outline-offset: -1px;
 }

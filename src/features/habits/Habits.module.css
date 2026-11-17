@@ -26,3 +26,8 @@
   font-size: var(--text-title-sm);
   line-height: 1.1;
 }
+
+/* Vivo: titoli e numeri in grassetto come nelle altre schermate */
+:global([data-palette="vivo"]) .title {
+  font-weight: var(--weight-display);
+}

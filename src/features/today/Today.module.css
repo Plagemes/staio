@@ -285,3 +285,120 @@
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* ------------------------------------------------------------------------------------------------
+   Vivo: il marchio su una riga, sotto la data grande; momenti in schede con una striscia del colore dello stato.
+   Negli altri temi .dayLabel e .momentList non hanno resa.
+   ------------------------------------------------------------------------------------------------ */
+
+:global([data-palette="vivo"]) .topbar {
+  flex-wrap: wrap;
+  row-gap: var(--space-4);
+}
+
+:global([data-palette="vivo"]) .topRight {
+  flex: 1 1 100%;
+  justify-content: space-between;
+}
+
+:global([data-palette="vivo"]) .dayNav {
+  flex-wrap: wrap;
+  margin-left: calc(var(--space-4) * -1);
+}
+
+:global([data-palette="vivo"]) .dayLabel {
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  font-weight: var(--weight-display);
+  letter-spacing: var(--tracking-title);
+  text-transform: none;
+  line-height: 1.15;
+  color: var(--color-ink);
+}
+
+:global([data-palette="vivo"]) .dayArrow {
+  color: var(--color-accent);
+}
+
+:global([data-palette="vivo"]) .dayToday {
+  color: var(--color-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+:global([data-palette="vivo"]) .settings {
+  color: var(--color-accent);
+}
+
+:global([data-palette="vivo"]) .open:hover {
+  background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+}
+
+:global([data-palette="vivo"]) .undoPanel {
+  border-color: transparent;
+  border-radius: var(--radius-md);
+  background: var(--color-fill);
+}
+
+:global([data-palette="vivo"]) .proposalTitle {
+  font-weight: var(--weight-display);
+}
+
+/* Momenti del giorno: una scheda per momento. Lo stato è scritto nel titolo; la striscia lo ripete a colpo d'occhio. */
+:global([data-palette="vivo"]) .momentList {
+  gap: var(--space-5);
+}
+
+:global([data-palette="vivo"]) .moment {
+  --moment-color: var(--area-today);
+  gap: var(--space-4);
+  padding: var(--space-7) var(--space-8);
+  border-bottom: none;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: inset 6px 0 0 var(--moment-color), var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .moment[data-status="recorded"] {
+  --moment-color: var(--state-ok);
+}
+
+:global([data-palette="vivo"]) .moment[data-status="skipped"] {
+  --moment-color: var(--color-rule-strong);
+}
+
+:global([data-palette="vivo"]) .moment[data-status="untracked"] {
+  --moment-color: var(--state-estimate);
+}
+
+:global([data-palette="vivo"]) .moment .mealTitle {
+  font-weight: 600;
+}
+
+:global([data-palette="vivo"]) .moment .meal {
+  padding-block: 0;
+  border-bottom: none;
+}
+
+:global([data-palette="vivo"]) .drinksBox {
+  border-color: transparent;
+  border-radius: var(--radius-card);
+  background: var(--tone-tint);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .drinksSummary {
+  font-weight: 600;
+}
+
+:global([data-palette="vivo"]) .drinksCount {
+  color: var(--tone);
+  font-weight: 500;
+}
+
+:global([data-palette="vivo"]) .pastBanner {
+  padding: var(--space-7) var(--space-8);
+  border-radius: var(--radius-card);
+  background: var(--state-estimate-tint);
+  color: var(--color-ink);
+}

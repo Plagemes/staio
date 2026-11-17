@@ -39,3 +39,20 @@
   outline: 2px solid var(--color-focus);
   outline-offset: 2px;
 }
+
+/* Vivo: ogni voce è una scheda sotto il suo titolo di sezione; il pulsante del file è pieno come gli altri secondari */
+:global([data-palette="vivo"]) .block {
+  margin-top: var(--space-4);
+  padding: var(--space-7) var(--space-8) var(--space-4);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .file {
+  border-color: transparent;
+  border-radius: var(--radius-button);
+  background: var(--button-quiet-fill);
+  color: var(--button-quiet-text);
+  font-weight: 600;
+}

@@ -71,3 +71,19 @@
     pointer-events: auto;
   }
 }
+
+/* Vivo: avviso a comparsa pieno, con angoli e ombra delle schede; «Annulla» in grassetto senza sottolineatura */
+:global([data-palette="vivo"]) .notice {
+  padding-block: var(--space-5);
+  border-radius: var(--radius-card);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+
+:global([data-palette="vivo"]) .message {
+  font-weight: 500;
+}
+
+:global([data-palette="vivo"]) .undo {
+  text-decoration: none;
+  font-weight: 700;
+}

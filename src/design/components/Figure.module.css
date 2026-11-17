@@ -36,3 +36,32 @@
   font-weight: 400;
   color: var(--color-graphite);
 }
+
+/* Vivo: cifra e segno nel colore del nutriente (il nome resta scritto sopra) */
+:global([data-palette="vivo"]) .figure[data-nutrient] {
+  box-shadow: inset 0 4px 0 var(--figure-nutrient);
+}
+
+:global([data-palette="vivo"]) .figure[data-nutrient] > .value {
+  color: var(--figure-nutrient);
+}
+
+:global([data-palette="vivo"]) .figure[data-nutrient="protein"] {
+  --figure-nutrient: var(--nutrient-protein);
+}
+
+:global([data-palette="vivo"]) .figure[data-nutrient="carbs"] {
+  --figure-nutrient: var(--nutrient-carbs);
+}
+
+:global([data-palette="vivo"]) .figure[data-nutrient="fat"] {
+  --figure-nutrient: var(--nutrient-fat);
+}
+
+:global([data-palette="vivo"]) .figure[data-nutrient="fiber"] {
+  --figure-nutrient: var(--nutrient-fiber);
+}
+
+:global([data-palette="vivo"]) .figure[data-nutrient="water"] {
+  --figure-nutrient: var(--water);
+}

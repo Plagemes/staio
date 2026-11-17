@@ -18,7 +18,7 @@
 .name {
   margin: 0;
   font-family: var(--font-display);
-  font-weight: 400;
+  font-weight: var(--weight-display);
   font-size: var(--text-title);
   line-height: 1.1;
   overflow-wrap: anywhere;
@@ -430,4 +430,9 @@
   border: var(--rule-width) solid var(--color-rule-strong);
   border-radius: var(--radius-sm);
   font-size: var(--text-caption);
+}
+
+/* Vivo: titoli e numeri in grassetto come nelle altre schermate */
+:global([data-palette="vivo"]) .metricTotal {
+  font-weight: var(--weight-display);
 }

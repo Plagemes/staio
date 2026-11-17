@@ -275,7 +275,7 @@ export function AddToPantry({
   const err = (field: keyof FieldErrors) => errors[field];
 
   return (
-    <div className={styles.add}>
+    <div className={`${styles.add} ${ui.fields}`}>
       {missing.filter((f) => f !== "category").length > 0 ? (
         <p className={ui.hint}>
           {missing.filter((f) => f !== "category").length === 1

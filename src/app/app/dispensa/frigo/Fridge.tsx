@@ -106,6 +106,7 @@ export function Fridge() {
             onSelect={onSelect}
             onLayout={onLayout}
             aspect={furnitureSpec(furnitureForLocation(place)).aspect}
+            className={styles.scene}
             label={`${placeLabel} con ${inPlace.length === 1 ? "1 alimento" : `${inPlace.length} alimenti`}`}
           />
           <div className={styles.status} role="status">

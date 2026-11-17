@@ -3,7 +3,7 @@
 import { useId, useState, type FormEvent } from "react";
 import { createWater, dayFluids, getDay } from "@/core/diary";
 import { useDiary } from "@/data";
-import { Button, Label, ProgressLine, Value } from "@/design";
+import { Button, Label, ProgressLine, ProgressRing, Value } from "@/design";
 import { dayOf } from "../format";
 import {
   DEFAULT_WATER_GOAL_ML,
@@ -74,13 +74,14 @@ export function WaterCard() {
   }
 
   return (
-    <div className={styles.card}>
+    <div className={`${styles.card} ${ui.tile} ${ui.tone}`} data-tone="water">
       <Label>Acqua di oggi</Label>
       <div className={styles.big}>
         <span className={styles.bigNumber}>
           <Value certainty={ml > 0 ? "estimated" : "measured"}>{formatMl(ml)}</Value>
         </span>
         <span className={styles.of}>di {formatMl(total)}</span>
+        <ProgressRing value={ml} max={total} tone="water" className={styles.ring} />
       </div>
       {fluids.otherMl > 0 || fluids.alcoholicMl > 0 ? (
         <p className={styles.fluids}>
@@ -89,7 +90,7 @@ export function WaterCard() {
           {fluids.alcoholicMl > 0 ? ` · bevande alcoliche ${formatMl(fluids.alcoholicMl)}` : ""}. L&apos;obiettivo conta solo l&apos;acqua.
         </p>
       ) : null}
-      <ProgressLine value={Math.min(ml, total)} max={total} label={`Acqua di oggi: ${formatMl(ml)} su ${formatMl(total)}`} />
+      <ProgressLine value={Math.min(ml, total)} max={total} tone="water" label={`Acqua di oggi: ${formatMl(ml)} su ${formatMl(total)}`} />
 
       <div className={styles.buttons}>
         {WATER_PRESETS.map((p) => (

@@ -35,7 +35,7 @@
 .title {
   margin: 0;
   font-family: var(--font-display);
-  font-weight: 400;
+  font-weight: var(--weight-display);
   font-size: var(--text-title);
   line-height: 1.05;
   letter-spacing: var(--tracking-title);

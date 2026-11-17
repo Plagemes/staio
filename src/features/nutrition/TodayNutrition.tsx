@@ -5,7 +5,7 @@ import { Figure, FigureGrid, Label, ProgressLine, SectionHeader, Value } from "@
 import { dayOf } from "../format";
 import ui from "../ui.module.css";
 import { NutritionDisclaimer } from "./Disclaimer";
-import { CERTAINTY_LABELS, certaintyExplanation } from "./labels";
+import { CERTAINTY_LABELS, NUTRIENT_COLOR, certaintyExplanation } from "./labels";
 import { dayNutritionView, prepNotes, type NutrientCell } from "./prepare";
 import styles from "./nutrition.module.css";
 import { useIntake } from "./useNutrition";
@@ -42,7 +42,7 @@ export function TodayNutrition({ now }: { now: string }) {
         </p>
       ) : (
         <div className={styles.dayBlock}>
-          <div className={styles.energyRow}>
+          <div className={`${styles.energyRow} ${ui.tile}`}>
             <Label>Energia</Label>
             {view.energy ? (
               <div className={styles.energyNumber}>
@@ -63,7 +63,7 @@ export function TodayNutrition({ now }: { now: string }) {
           {view.macros.length > 0 ? (
             <FigureGrid>
               {view.macros.slice(0, 3).map((m) => (
-                <Figure key={m.key} label={m.label}>
+                <Figure key={m.key} label={m.label} nutrient={NUTRIENT_COLOR[m.key]}>
                   <CellValue cell={m} />
                 </Figure>
               ))}

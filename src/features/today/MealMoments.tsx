@@ -88,7 +88,7 @@ export function MealMoments({ date, now, timeZone, day, habits, meals, renderMea
   return (
     <section className={ui.section} aria-label="Momenti del giorno">
       <SectionHeader label={pastDay ? "Pasti del giorno" : "Momenti di oggi"} />
-      <ul className={styles.list}>
+      <ul className={`${styles.list} ${styles.momentList}`}>
         {rows.map(({ moment, kindMeals, kindDrinks, offer, legacy }) => {
           const { kind, status } = moment;
           const declared = status === "skipped" || status === "untracked";
@@ -97,7 +97,7 @@ export function MealMoments({ date, now, timeZone, day, habits, meals, renderMea
           const name = MEAL_KIND_LABELS[kind].toLowerCase();
           const removeId = moment.declarationEventId ?? legacy[0]?.eventId;
           return (
-            <li key={kind} className={styles.moment}>
+            <li key={kind} className={styles.moment} data-status={status}>
               {!recorded ? (
                 <div className={styles.momentHead}>
                   <span className={styles.mealTitle}>{momentTitle(kind, status, kindDrinks.map((d) => d.name))}</span>

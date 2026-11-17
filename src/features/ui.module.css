@@ -17,7 +17,7 @@
 .title {
   margin: 0;
   font-family: var(--font-display);
-  font-weight: 400;
+  font-weight: var(--weight-display);
   font-size: var(--text-heading);
   line-height: 1;
   letter-spacing: var(--tracking-title);
@@ -65,7 +65,7 @@
 .emptyTitle {
   margin: 0;
   font-family: var(--font-display);
-  font-weight: 400;
+  font-weight: var(--weight-display);
   font-size: var(--text-title-sm);
   line-height: 1.1;
 }
@@ -292,4 +292,255 @@ select.input {
   gap: var(--space-4);
   margin: 0;
   padding-left: var(--space-9);
+}
+
+/* ------------------------------------------------------------------------------------------------
+   Vivo. Tutto ciò che segue vale solo sotto [data-palette="vivo"]: negli altri temi queste regole non esistono
+   e le classi .group, .tile e .tone non hanno resa. Misure comuni a tutte le schermate:
+   schede --radius-card con margini interni --space-7 / --space-8; controlli --radius-md; separatori --color-rule.
+   ------------------------------------------------------------------------------------------------ */
+
+/* Elenco raggruppato: le righe tengono i loro separatori, l'ultimo resta fuori dalla scheda */
+:global([data-palette="vivo"]) .group {
+  padding-inline: var(--space-8);
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .group > :last-child {
+  margin-bottom: calc(var(--rule-width) * -1);
+}
+
+/* Scheda piena; con .tone e data-tone prende il fondo tinto e il colore di quel significato */
+:global([data-palette="vivo"]) .tile {
+  padding: var(--space-7) var(--space-8);
+  border-color: transparent;
+  border-radius: var(--radius-card);
+  background: var(--tone-tint, var(--color-surface));
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .tone[data-tone="today"] {
+  --tone: var(--area-today);
+  --tone-tint: var(--area-today-tint);
+}
+
+:global([data-palette="vivo"]) .tone[data-tone="pantry"] {
+  --tone: var(--area-pantry);
+  --tone-tint: var(--area-pantry-tint);
+}
+
+:global([data-palette="vivo"]) .tone[data-tone="capture"] {
+  --tone: var(--area-capture);
+  --tone-tint: var(--area-capture-tint);
+}
+
+:global([data-palette="vivo"]) .tone[data-tone="plan"] {
+  --tone: var(--area-plan);
+  --tone-tint: var(--area-plan-tint);
+}
+
+:global([data-palette="vivo"]) .tone[data-tone="health"] {
+  --tone: var(--area-health);
+  --tone-tint: var(--area-health-tint);
+}
+
+:global([data-palette="vivo"]) .tone[data-tone="water"] {
+  --tone: var(--water);
+  --tone-tint: var(--water-tint);
+}
+
+:global([data-palette="vivo"]) .tone[data-tone="ok"] {
+  --tone: var(--state-ok);
+  --tone-tint: var(--state-ok-tint);
+}
+
+:global([data-palette="vivo"]) .tone[data-tone="near"] {
+  --tone: var(--state-near);
+  --tone-tint: var(--state-near-tint);
+}
+
+:global([data-palette="vivo"]) .tone[data-tone="expired"] {
+  --tone: var(--state-expired);
+  --tone-tint: var(--state-expired-tint);
+}
+
+:global([data-palette="vivo"]) .tone[data-tone="estimate"] {
+  --tone: var(--state-estimate);
+  --tone-tint: var(--state-estimate-tint);
+}
+
+/* Dentro una scheda tinta i collegamenti e i pulsanti prendono il colore della scheda */
+:global([data-palette="vivo"]) .tone[data-tone] {
+  --color-accent: var(--tone);
+  --color-focus: var(--tone);
+  --button-fill: var(--tone);
+  --button-quiet-fill: var(--color-surface);
+  --button-quiet-text: var(--tone);
+}
+
+/* Riga di un elenco raggruppato con lo stato di scadenza (data-state): una striscia sul bordo della scheda, oltre
+   all'etichetta colorata che dice lo stato a parole */
+:global([data-palette="vivo"]) .stateRow {
+  position: relative;
+  --row-state: transparent;
+}
+
+:global([data-palette="vivo"]) .stateRow::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--space-8) * -1);
+  width: 4px;
+  background: var(--row-state);
+}
+
+:global([data-palette="vivo"]) .stateRow[data-state="urgent"] {
+  --row-state: var(--state-expired);
+}
+
+:global([data-palette="vivo"]) .stateRow[data-state="near"] {
+  --row-state: var(--state-near);
+}
+
+:global([data-palette="vivo"]) .stateRow[data-state="calm"] {
+  --row-state: var(--state-ok);
+}
+
+/* Pezzi comuni */
+
+:global([data-palette="vivo"]) .empty {
+  padding: var(--space-8);
+  border-bottom: none;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .callout {
+  padding: var(--space-7) var(--space-8);
+  border-color: transparent;
+  border-radius: var(--radius-card);
+  background: var(--area-current-tint);
+}
+
+:global([data-palette="vivo"]) .calloutStrong {
+  background: var(--state-expired-tint);
+}
+
+/* I campi del modulo principale di una schermata (o di un contenitore .fields) stanno in schede; non quelli di un
+   modulo già dentro una scheda */
+:global([data-palette="vivo"]) .screen > .form > .field,
+:global([data-palette="vivo"]) .fields > .field {
+  padding: var(--space-7) var(--space-8);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+/* La legenda di un fieldset si disegna sul bordo: qui la si riporta dentro la scheda, come le etichette */
+:global([data-palette="vivo"]) .screen > .form > .field > legend,
+:global([data-palette="vivo"]) .fields > .field > legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+}
+
+:global([data-palette="vivo"]) .input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--area-current-tint);
+}
+
+:global([data-palette="vivo"]) .fieldLabel {
+  font-weight: 600;
+}
+
+/* Scelte a pulsante: segmenti pieni su una guida grigia; la scelta fatta nel colore dell'area, anche in grassetto */
+:global([data-palette="vivo"]) .choices {
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-md);
+  background: var(--color-fill);
+}
+
+:global([data-palette="vivo"]) .choice {
+  flex: 1 1 auto;
+}
+
+:global([data-palette="vivo"]) .choice span {
+  width: 100%;
+  padding-inline: var(--space-6);
+  border-color: transparent;
+  border-radius: calc(var(--radius-md) - 2px);
+  background: transparent;
+  transition: background-color var(--motion-fast) ease;
+}
+
+:global([data-palette="vivo"]) .choice input:checked + span {
+  border-color: transparent;
+  background: var(--button-fill);
+  color: var(--button-text);
+}
+
+:global([data-palette="vivo"]) .choice input:active + span {
+  transform: var(--press-transform);
+}
+
+:global([data-palette="vivo"]) .danger {
+  border-color: transparent;
+  background: var(--state-expired-tint);
+  color: var(--state-expired);
+}
+
+:global([data-palette="vivo"]) .dangerSolid {
+  background: var(--state-expired);
+  color: var(--color-on-fill);
+}
+
+/* Interruttore pieno, come nelle impostazioni del telefono. Spento ha il bordo dei controlli (visibile >= 3:1);
+   acceso il colore dell'area. Resta una casella vera con ruolo switch: cambia solo il disegno. */
+:global([data-palette="vivo"]) .switch input {
+  position: relative;
+  width: 51px;
+  height: 31px;
+  border-radius: 999px;
+  background: var(--color-fill);
+  box-shadow: inset 0 0 0 1px var(--color-control-border);
+  appearance: none;
+  cursor: pointer;
+  transition: background-color var(--motion-fast) ease;
+}
+
+:global([data-palette="vivo"]) .switch input::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 27px;
+  height: 27px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.25);
+  transition: transform var(--motion-fast) ease;
+}
+
+:global([data-palette="vivo"]) .switch input:checked {
+  background: var(--button-fill);
+  box-shadow: none;
+}
+
+:global([data-palette="vivo"]) .switch input:checked::before {
+  transform: translateX(20px);
+}
+
+:global([data-palette="vivo"]) .switch input:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+:global([data-palette="vivo"]) .switch input:disabled {
+  opacity: 0.45;
 }

@@ -418,6 +418,7 @@
 @media (prefers-reduced-motion: reduce) {
   [data-palette="vivo"] {
     --press-transform: none;
+    --motion-fast: 0ms;
   }
 }
 

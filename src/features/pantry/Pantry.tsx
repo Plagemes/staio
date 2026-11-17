@@ -9,7 +9,7 @@ import { buildRemoveMany, type RemoveManyKind } from "../actions";
 import { dayOf, formatPrice } from "../format";
 import { LOCATION_LABELS } from "../labels";
 import { useNotice } from "../notice";
-import { evaluateLots, isExpiring, levelPercent } from "../lots";
+import { evaluateLots, expiryTagView, isExpiring, levelPercent } from "../lots";
 import { piecesText } from "../pieces";
 import { breakdownText, groupEntries, groupName } from "./groups";
 import { entryDetail, entryExpiry } from "./rows";
@@ -179,7 +179,7 @@ export function Pantry() {
                   text="Quando aggiungi o sposti qui un alimento, lo trovi in questo elenco."
                 />
               ) : (
-                <ul className={styles.list}>
+                <ul className={`${styles.list} ${ui.group}`}>
                   {groups.map((group) => {
                     const entry = group.entries[0];
                     const lotIds = group.entries.map((e) => e.lot.lotId);
@@ -204,7 +204,7 @@ export function Pantry() {
                       />
                     );
                     return (
-                      <li key={group.key} className={selecting ? styles.itemPick : styles.item}>
+                      <li key={group.key} className={`${selecting ? styles.itemPick : styles.item} ${ui.stateRow}`} data-state={expiryTagView(entry)?.level}>
                         {selecting ? (
                           <>
                             <span className={styles.checkCell}>
@@ -239,7 +239,7 @@ export function Pantry() {
               )}
             </div>
           </div>
-          <div className={styles.photoRow}>
+          <div className={`${styles.photoRow} ${ui.tile} ${ui.tone}`} data-tone="pantry">
             <span className={styles.realignText}>
               <span className={styles.realignTitle}>Vedi in 3D</span>
               <span className={styles.realignHint}>Il frigo come lo trovi aprendolo, con i modelli degli alimenti.</span>
@@ -248,7 +248,7 @@ export function Pantry() {
               Apri
             </Link>
           </div>
-          <div className={styles.photoRow}>
+          <div className={`${styles.photoRow} ${ui.tile} ${ui.tone}`} data-tone="capture">
             <span className={styles.realignText}>
               <span className={styles.realignTitle}>Controlla con una foto</span>
               <span className={styles.realignHint}>Fotografa uno scaffale e confronta con la dispensa.</span>
@@ -258,7 +258,7 @@ export function Pantry() {
             </Link>
           </div>
           {toConfirm > 0 ? (
-            <div className={styles.realign}>
+            <div className={`${styles.realign} ${ui.tile} ${ui.tone}`} data-tone="near">
               <div className={styles.realignText}>
                 <span className={styles.realignTitle}>
                   {toConfirm === 1 ? "1 quantità da controllare" : `${toConfirm} quantità da controllare`}

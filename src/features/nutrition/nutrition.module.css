@@ -329,3 +329,47 @@
   border-radius: var(--radius-md);
   font-size: var(--text-body-sm);
 }
+
+/* Vivo: il numero dell'energia in grassetto dentro la sua scheda; i macronutrienti hanno il colore del nutriente */
+:global([data-palette="vivo"]) .bigNumber {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-display);
+  line-height: 1;
+}
+
+:global([data-palette="vivo"]) .dayBlock {
+  padding-top: 0;
+}
+
+/* Valori per 100 g in una scheda; la cifra dei macronutrienti nel colore del nutriente (il nome resta scritto) */
+:global([data-palette="vivo"]) .per100 {
+  padding: var(--space-5) var(--space-8);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .per100 [data-nutrient="protein"] dd {
+  color: var(--nutrient-protein);
+}
+
+:global([data-palette="vivo"]) .per100 [data-nutrient="carbs"] dd {
+  color: var(--nutrient-carbs);
+}
+
+:global([data-palette="vivo"]) .per100 [data-nutrient="fat"] dd {
+  color: var(--nutrient-fat);
+}
+
+:global([data-palette="vivo"]) .per100 [data-nutrient="fiber"] dd {
+  color: var(--nutrient-fiber);
+}
+
+:global([data-palette="vivo"]) .per100 [data-nutrient] dd {
+  font-weight: 600;
+}
+
+/* Il numero grande resta nel carattere dei titoli anche quando è un valore (stima, misura) */
+:global([data-palette="vivo"]) .bigNumber * {
+  font-family: inherit;
+}

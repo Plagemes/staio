@@ -33,7 +33,7 @@
 .name {
   margin: 0;
   font-family: var(--font-display);
-  font-weight: 400;
+  font-weight: var(--weight-display);
   font-size: var(--text-title);
   line-height: 1.1;
   letter-spacing: var(--tracking-title);
@@ -181,4 +181,53 @@
 
 .dateInput::-webkit-datetime-edit-text {
   color: var(--color-graphite);
+}
+
+/* ------------------------------------------------------------------------------------------------
+   Vivo: intestazione del prodotto in una scheda, i dati in un elenco raggruppato, scorciatoie in pastiglie piene,
+   «Altri dati» in una scheda. Stesse misure delle altre schermate (--radius-card, --space-7 / --space-8).
+   ------------------------------------------------------------------------------------------------ */
+
+:global([data-palette="vivo"]) .top {
+  padding: var(--space-7) var(--space-8);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .image {
+  border-color: transparent;
+  background: var(--color-fill);
+}
+
+:global([data-palette="vivo"]) .facts {
+  padding-inline: var(--space-8);
+  overflow: hidden;
+  border-top: none;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .fact:last-child {
+  border-bottom: none;
+}
+
+:global([data-palette="vivo"]) .shortcut {
+  border-color: transparent;
+  border-radius: 999px;
+  background: var(--color-fill);
+  font-weight: 500;
+}
+
+:global([data-palette="vivo"]) .more {
+  padding: var(--space-4) var(--space-8) var(--space-7);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .more summary {
+  font-weight: 600;
+  color: var(--color-accent);
 }

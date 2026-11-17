@@ -1,0 +1,58 @@
+.ring {
+  display: none;
+}
+
+:global([data-palette="vivo"]) .ring {
+  display: block;
+  flex: none;
+  width: 56px;
+  height: 56px;
+}
+
+.track,
+.fill {
+  fill: none;
+  stroke-width: 8;
+}
+
+.track {
+  stroke: var(--color-fill);
+}
+
+.fill {
+  stroke: var(--ring-color, var(--color-accent));
+  stroke-linecap: round;
+  transition: stroke-dasharray var(--motion-fast) ease;
+}
+
+:global([data-palette="vivo"]) .ring[data-tone="water"] {
+  --ring-color: var(--water);
+}
+
+:global([data-palette="vivo"]) .ring[data-tone="protein"] {
+  --ring-color: var(--nutrient-protein);
+}
+
+:global([data-palette="vivo"]) .ring[data-tone="carbs"] {
+  --ring-color: var(--nutrient-carbs);
+}
+
+:global([data-palette="vivo"]) .ring[data-tone="fat"] {
+  --ring-color: var(--nutrient-fat);
+}
+
+:global([data-palette="vivo"]) .ring[data-tone="fiber"] {
+  --ring-color: var(--nutrient-fiber);
+}
+
+:global([data-palette="vivo"]) .ring[data-tone="ok"] {
+  --ring-color: var(--state-ok);
+}
+
+:global([data-palette="vivo"]) .ring[data-tone="near"] {
+  --ring-color: var(--state-near);
+}
+
+:global([data-palette="vivo"]) .ring[data-tone="expired"] {
+  --ring-color: var(--state-expired);
+}

@@ -39,7 +39,7 @@
 .dayTitle {
   margin: 0;
   font-family: var(--font-display);
-  font-weight: 400;
+  font-weight: var(--weight-display);
   font-size: var(--text-title-sm);
   line-height: 1.1;
 }
@@ -283,4 +283,48 @@
   margin: 0;
   font-size: var(--text-body-sm);
   line-height: 1.45;
+}
+
+/* ------------------------------------------------------------------------------------------------
+   Vivo: un giorno per scheda; avvisi su fondo tinto «scaduto»; esito delle verifiche nei colori degli stati
+   (il testo dice sempre l'esito); elenchi di scelta in una scheda.
+   ------------------------------------------------------------------------------------------------ */
+
+:global([data-palette="vivo"]) .days {
+  gap: var(--space-5);
+}
+
+:global([data-palette="vivo"]) .day {
+  padding: var(--space-7) var(--space-8);
+  border-bottom: none;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .alert {
+  padding: var(--space-7) var(--space-8);
+  border-color: transparent;
+  border-radius: var(--radius-card);
+  background: var(--state-expired-tint);
+  box-shadow: inset 6px 0 0 var(--state-expired);
+}
+
+:global([data-palette="vivo"]) .toneOk {
+  color: var(--state-ok);
+}
+
+:global([data-palette="vivo"]) .toneAttention {
+  color: var(--state-expired);
+}
+
+:global([data-palette="vivo"]) .pickList {
+  padding-inline: var(--space-8);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .pick:first-child {
+  border-top: none;
 }

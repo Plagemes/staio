@@ -52,3 +52,49 @@
 .more {
   padding-top: var(--space-2);
 }
+
+/* Vivo: ogni avviso è una scheda tinta col colore del suo stato (informazione: il blu di Oggi), con la striscia come
+   i momenti di Oggi */
+:global([data-palette="vivo"]) .list {
+  gap: var(--space-4);
+}
+
+:global([data-palette="vivo"]) .item {
+  --notice-color: var(--area-today);
+  --notice-tint: var(--area-today-tint);
+  overflow: hidden;
+  border-bottom: none;
+  border-radius: var(--radius-card);
+  background: var(--notice-tint);
+  box-shadow: inset 6px 0 0 var(--notice-color), var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .item[data-level="urgent"] {
+  --notice-color: var(--state-expired);
+  --notice-tint: var(--state-expired-tint);
+}
+
+:global([data-palette="vivo"]) .item[data-level="soon"] {
+  --notice-color: var(--state-near);
+  --notice-tint: var(--state-near-tint);
+}
+
+:global([data-palette="vivo"]) .link {
+  padding: var(--space-7) var(--space-8);
+}
+
+:global([data-palette="vivo"]) .link:focus-visible {
+  outline-offset: -3px;
+}
+
+:global([data-palette="vivo"]) .item[data-level="soon"] .heading {
+  color: var(--state-near);
+}
+
+:global([data-palette="vivo"]) .urgent .heading {
+  color: var(--state-expired);
+}
+
+:global([data-palette="vivo"]) .text {
+  font-weight: 500;
+}

@@ -209,3 +209,68 @@
   font-size: var(--text-caption);
   color: var(--color-graphite);
 }
+
+/* ------------------------------------------------------------------------------------------------
+   Vivo: ogni riquadro di Salute è una scheda; numeri grandi in grassetto nel colore della scheda (acqua), anello
+   accanto al numero, pulsanti pieni. .ring non ha resa negli altri temi (l'anello lì non si mostra).
+   ------------------------------------------------------------------------------------------------ */
+
+:global([data-palette="vivo"]) .card:not([data-tone]) {
+  padding: var(--space-7) var(--space-8);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .big {
+  align-items: center;
+  column-gap: var(--space-4);
+}
+
+:global([data-palette="vivo"]) .bigNumber {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-display);
+  line-height: 1;
+  color: var(--tone, var(--color-ink));
+}
+
+:global([data-palette="vivo"]) .ring {
+  margin-left: auto;
+}
+
+:global([data-palette="vivo"]) .chip,
+:global([data-palette="vivo"]) .score {
+  border-color: transparent;
+  border-radius: var(--radius-md);
+  background: var(--color-fill);
+  transition: background-color var(--motion-fast) ease;
+}
+
+/* Su una scheda tinta i pulsanti sono bianchi (neri in scuro), come le pastiglie di Salute */
+:global([data-palette="vivo"]) [data-tone] .chip {
+  background: var(--color-surface);
+}
+
+:global([data-palette="vivo"]) .chip:active:not(:disabled),
+:global([data-palette="vivo"]) .score:active:not(:disabled) {
+  transform: var(--press-transform);
+}
+
+:global([data-palette="vivo"]) .chip {
+  font-weight: 600;
+}
+
+:global([data-palette="vivo"]) .chipHint {
+  color: var(--tone, var(--color-graphite));
+  font-weight: 500;
+}
+
+:global([data-palette="vivo"]) .avgLine,
+:global([data-palette="vivo"]) .lastDot {
+  stroke: var(--area-health);
+}
+
+/* Il numero grande resta nel carattere dei titoli anche quando è un valore (stima, misura) */
+:global([data-palette="vivo"]) .bigNumber * {
+  font-family: inherit;
+}

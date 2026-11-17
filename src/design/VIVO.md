@@ -69,23 +69,52 @@ che dipende dall'area va aggiunto alla regola `[data-palette="vivo"] [data-area]
 
 Tutte le variabili valgono anche su un contenitore con `data-palette` / `data-theme`: più anteprime di temi diversi convivono nella stessa pagina (`ThemePreview`).
 
-## Seconda tappa: schermate da ritoccare (in ordine di resa)
+## Seconda tappa: le schermate
 
-1. **`features/ui.module.css`** (comune a tutte): `.title` e `.emptyTitle` con `font-weight: var(--weight-display)`; `.callout` e `.empty`
-   come scheda (`--card-fill`, `--radius-card`, senza filetto); `.input` con fondo `--color-fill` e bordo solo al focus; `.choice` scelta
-   piena con `--button-fill` / `--button-text` invece dell'inchiostro; `.dangerSolid` con `--color-on-fill`. Da solo cambia metà dell'app.
-2. **Oggi** (`features/today`): anelli di avanzamento per energia e macronutrienti nei colori `--nutrient-*`, acqua `--water`,
-   riepilogo in una scheda `--area-today-tint`; scadenze vicine come schede con etichetta di stato.
-3. **Salute** (`features/health`, `features/nutrition`): una scheda a colori per nutriente (fondo `-tint`, cifra grande nel colore,
-   barra piena), confronto con il riferimento come barra a due toni; titoli di sezione grandi.
-4. **Dispensa** (`features/pantry`): righe raggruppate in schede con separatori interni (elenco raggruppato), barra di livello piena,
-   foglio del lotto con titolo grande e azioni come pulsanti pieni.
-5. **Cattura** (`features/capture`, `ai-capture`, `barcode`): pulsanti grandi nel colore Cattura, mirino e conferma con colore d'area,
-   valori letti dall'etichetta con i colori dei nutrienti.
-6. **Piano, spesa, ricette, preparazioni** (`features/plan`, `recipes`, `prep`, `quality`): giorni come selettore a segmenti,
-   pasti in schede `--area-plan-tint`, macro per pasto con `--nutrient-*`, elementi della spesa spuntati con conferma breve.
-7. **Analisi** (`features/analysis`): grafici con `--nutrient-*` e `--state-*` al posto dell'inchiostro, legenda sempre scritta.
-8. **Avvisi** (`features/notice.module.css`): avviso fisso su `--color-raised` con ombra, invece della striscia d'inchiostro.
+Regola: ogni cambiamento sta in regole `:global([data-palette="vivo"]) .classe` dentro i moduli delle schermate, oppure in
+markup neutro (attributi `data-*`, classi senza regole fuori da Vivo, `ProgressRing` che negli altri temi è `display: none`).
+I `font-weight: 400` scritti accanto a `--font-display` sono diventati `var(--weight-display)` (400 nel tema di base).
+`src/features/vivoScope.test.ts` controlla che classi e attributi aggiunti per Vivo abbiano regole solo sotto Vivo.
 
-Cosa non si ottiene senza toccare le schermate: titoli pieni (il peso 400 è scritto nei moduli), elenchi raggruppati in schede,
-campi pieni, scelte piene a colori (oggi sono nere: usano `--color-ink` come fondo), anelli e schede a colori dei nutrienti.
+### Misure comuni (le stesse in tutte le schermate)
+
+| Pezzo | Resa |
+|---|---|
+| Scheda | `--radius-card` (18 px), margini `--space-7` / `--space-8`, fondo `--color-surface`, `--card-shadow` |
+| Elenco raggruppato | `ui.group`: scheda con `padding-inline: --space-8`; le righe tengono il loro separatore, l'ultimo resta fuori |
+| Scheda colorata | `ui.tile` + `ui.tone` con `data-tone="today|pantry|capture|plan|health|water|ok|near|expired|estimate"`: fondo `-tint`, accento e pulsanti nel colore |
+| Stato di una riga o scheda | striscia a sinistra (4 px nelle righe, 6 px nelle schede) nel colore dello stato; lo stato resta scritto |
+| Scelte (`ui.choices`) | segmenti su guida `--color-fill`; scelta fatta `--button-fill` / `--button-text`, in grassetto |
+| Campi | i campi di `.screen > .form` e di `ui.fields` sono schede; legenda dentro la scheda; focus con anello `--area-current-tint` |
+| Pulsanti secondari pieni | `--color-fill` su carta o superficie, `--color-surface` dentro una scheda tinta |
+| Interruttore | `ui.switch`: 51×31, spento con bordo dei controlli, acceso `--button-fill` |
+
+### Fatto
+
+- **Oggi**: data grande in grassetto sotto il marchio (`.dayLabel`), frecce e impostazioni nel colore dell'area; avvisi come
+  schede tinte per livello (`data-level`: urgente `--state-expired`, presto `--state-near`, informazione `--area-today`);
+  momenti del giorno come schede con striscia per stato (`data-status`: registrato `--state-ok`, non tracciato
+  `--state-estimate`, saltato grigio, da fare `--area-today`); proposta abituale come scheda tinta di Oggi; «Da mangiare
+  prima» e «Registro di oggi» raggruppati, con la striscia dello stato di scadenza (`data-state`); bevande e acqua in schede
+  `--water`, con anello (`ProgressRing`) accanto al numero e barra `tone="water"`; energia in una scheda, macronutrienti con
+  il colore del nutriente (`Figure nutrient`).
+- **Dispensa**: elenco raggruppato sotto i segmenti con striscia di scadenza; «senza data» come pastiglia neutra; stima con
+  bordo tratteggiato nella pastiglia; «Vedi in 3D» (Dispensa), «Controlla con una foto» (Cattura) e «Riallinea» (in
+  scadenza) come riquadri colorati con l'azione in pastiglia; foglio del lotto con modello 3D su riquadro chiaro e dati in
+  scheda; scena del frigo su una scheda `--color-surface` (`.scene`).
+- **Cattura e scheda del codice a barre**: campi in schede, scelte a segmenti, contatori pieni, suggerimenti e scorciatoie a
+  pastiglia, intestazione del prodotto e dati in schede, valori per 100 g con il colore dei nutrienti.
+- **Salute, Piano, Ricette, Impostazioni**: titoli in grassetto, riquadri di Salute come schede, giorni del piano come schede,
+  avvisi del piano tinti «scaduto», esiti nei colori degli stati, elenchi delle ricette e ingredienti raggruppati, passi
+  numerati in un tondo colorato, voci delle impostazioni come schede.
+- **Comuni**: `.empty`, `.callout`, `.danger`, avviso a comparsa con angoli e ombra delle schede.
+
+### Resta
+
+- Icone colorate nelle voci di menu: le Impostazioni non hanno icone, quindi non ne ho aggiunte (sarebbe markup nuovo).
+- Anelli per energia e macronutrienti: non c'è un obiettivo con cui confrontarli (scelta del prodotto), quindi solo cifre
+  colorate. Quando esisteranno gli obiettivi del Piano su Oggi, `ProgressRing` / `ProgressLine` hanno già i toni dei nutrienti.
+- Non ancora ritoccate: Analisi (grafici con `--nutrient-*` e `--state-*`), spesa, preparazioni, qualità, assistente,
+  cattura con IA e scontrino (ereditano titoli, campi, scelte e avvisi comuni), pagina `/modelli`.
+- Schermate con moduli dentro una sezione (per esempio la ricerca del Ricettario) non hanno i campi in scheda: la regola vale
+  per `.screen > .form` e `ui.fields`.

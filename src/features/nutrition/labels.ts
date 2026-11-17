@@ -1,6 +1,7 @@
 // Nomi italiani, unità e frasi fisse della nutrizione. Nessuna dipendenza da React né dai dati degli alimenti.
 import type { Certainty } from "@/core/ledger";
 import type { FoodState, NutrientKey, ReferenceKind } from "@/core/nutrition";
+import type { FigureNutrient } from "@/design";
 
 export interface NutrientInfo {
   label: string;
@@ -8,6 +9,16 @@ export interface NutrientInfo {
   /** Cifre decimali mostrate. */
   digits: number;
 }
+
+/** Colore del nutriente nel tema Vivo; zuccheri e grassi saturi prendono quello della loro famiglia. */
+export const NUTRIENT_COLOR: Partial<Record<NutrientKey, FigureNutrient>> = {
+  proteinG: "protein",
+  carbsG: "carbs",
+  sugarsG: "carbs",
+  fatG: "fat",
+  saturatedFatG: "fat",
+  fiberG: "fiber",
+};
 
 export const NUTRIENT_INFO: Record<NutrientKey, NutrientInfo> = {
   energyKcal: { label: "Energia", unit: "kcal", digits: 0 },

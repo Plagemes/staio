@@ -343,7 +343,7 @@
 .sheetTitle {
   margin: 0;
   font-family: var(--font-display);
-  font-weight: 400;
+  font-weight: var(--weight-display);
   font-size: var(--text-title);
   line-height: 1.1;
 }
@@ -625,4 +625,95 @@
   margin-left: var(--space-3);
   color: var(--color-ochre);
   font-weight: 600;
+}
+
+/* Vivo: titoli e numeri in grassetto come nelle altre schermate */
+:global([data-palette="vivo"]) .cardTitle {
+  font-weight: var(--weight-display);
+}
+
+/* ------------------------------------------------------------------------------------------------
+   Vivo: elenchi in schede raggruppate, filtri in una scheda richiudibile, scelte a pastiglia piena, passi numerati
+   in un tondo del colore dell'area, disponibilità degli ingredienti nei colori degli stati (il testo la dice).
+   ------------------------------------------------------------------------------------------------ */
+
+:global([data-palette="vivo"]) .list,
+:global([data-palette="vivo"]) .ingredients {
+  padding-inline: var(--space-8);
+  overflow: hidden;
+  border-top: none;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .list > :last-child > .card,
+:global([data-palette="vivo"]) .list > .card:last-child,
+:global([data-palette="vivo"]) .ingredients > :last-child {
+  border-bottom: none;
+}
+
+:global([data-palette="vivo"]) .filters .list {
+  padding-inline: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+:global([data-palette="vivo"]) .filters {
+  padding-inline: var(--space-8);
+  border-block: none;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .filters > summary {
+  color: var(--color-accent);
+}
+
+:global([data-palette="vivo"]) .card:hover .cardTitle {
+  text-decoration: none;
+}
+
+:global([data-palette="vivo"]) .card:active {
+  opacity: var(--press-opacity);
+}
+
+:global([data-palette="vivo"]) .chip span {
+  border-color: transparent;
+  border-radius: 999px;
+  background: var(--color-fill);
+}
+
+:global([data-palette="vivo"]) .chip input:checked + span {
+  border-color: transparent;
+  background: var(--button-fill);
+  color: var(--button-text);
+  font-weight: 600;
+}
+
+:global([data-palette="vivo"]) .statusOk {
+  color: var(--state-ok);
+}
+
+:global([data-palette="vivo"]) .statusMissing {
+  color: var(--state-expired);
+}
+
+:global([data-palette="vivo"]) .stepsItem {
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: var(--space-6);
+}
+
+:global([data-palette="vivo"]) .stepsItem::before {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding-top: 0;
+  border-radius: 999px;
+  background: var(--color-accent);
+  color: var(--color-on-fill);
 }
