@@ -28,7 +28,15 @@ export interface MealItem {
   /** Quantità in unità base (g, ml, pz). */
   quantity: Quantity;
   certainty: Certainty;
+  /**
+   * Alimento della tabella nutrizionale scelto dall'utente (es. "pasta-semola-secca").
+   * Il diario non conosce la tabella: lo conserva e basta. Minuscolo, cifre e trattini,
+   * al massimo `FOOD_ID_MAX_LENGTH` caratteri; una stringa vuota vale come assente.
+   */
+  foodId?: string;
 }
+
+export const FOOD_ID_MAX_LENGTH = 80;
 
 /**
  * Un pasto. Le voci prese dalla dispensa non stanno qui: sono eventi `consume`

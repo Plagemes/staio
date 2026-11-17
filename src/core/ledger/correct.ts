@@ -68,7 +68,7 @@ export function voidEvent(
  * Correzione = annulla l'evento sbagliato e ne aggiunge uno nuovo.
  * Per correggere un acquisto mantenere lo stesso `lotId` nel nuovo evento:
  * quello vecchio è annullato, quindi il lotto resta uno solo.
- * Quando si corregge una creazione, i campi descrittivi (scadenza, productRef, categoria, prezzo, negozio)
+ * Quando si corregge una creazione, i campi descrittivi (scadenza, productRef, categoria, codice a barre, prezzo, negozio)
  * sono copiati dall'evento corretto e quelli passati nella sostituzione sono ignorati: si
  * modificano solo con `updateLot` (vedi `correctLot`).
  * Lancia solo se il nuovo evento riusa l'id del vecchio (errore di chi chiama).
@@ -104,6 +104,9 @@ export function correct(
     if (target.category !== undefined && target.category.trim() !== "") {
       rec.category = target.category;
     } else delete rec.category;
+    if (target.barcode !== undefined && target.barcode.trim() !== "") {
+      rec.barcode = target.barcode;
+    } else delete rec.barcode;
     if (target.expiry) rec.expiry = { date: target.expiry.date, kind: target.expiry.kind };
     else delete rec.expiry;
     const price = target.type === "purchase" ? target.priceCents : undefined;
@@ -135,6 +138,8 @@ export interface LotChanges {
   productRef?: string;
   /** `null` cancella; stringa vuota = assente. */
   category?: string | null;
+  /** `null` cancella; stringa vuota = assente. */
+  barcode?: string | null;
   priceCents?: number | null;
   store?: string | null;
 }
@@ -145,7 +150,7 @@ export interface CorrectLotOptions extends EventFactoryOptions {
    * attuali sono omesse. Senza, tutte quelle indicate producono un `updateLot`: confrontarle con
    * l'acquisto originale sarebbe sbagliato, perché un `updateLot` precedente può averle cambiate.
    */
-  lot?: Pick<Lot, "productRef" | "category" | "expiry" | "priceCents" | "store">;
+  lot?: Pick<Lot, "productRef" | "category" | "barcode" | "expiry" | "priceCents" | "store">;
 }
 
 const same = (a: unknown, b: unknown) => canonicalStringify(a) === canonicalStringify(b);
@@ -154,7 +159,7 @@ const blank = (v: string | undefined | null) => (v === undefined || v === null |
 /**
  * Eventi giusti per modificare un lotto a partire dal suo acquisto (o dichiarazione):
  * - cambiano quantità, luogo, `at` (o ricevuta, nota, certezza, fonte): coppia void + nuova creazione;
- * - cambiano scadenza, productRef, categoria, prezzo o negozio: un `updateLot` con `recordedAt` successivo;
+ * - cambiano scadenza, productRef, categoria, codice a barre, prezzo o negozio: un `updateLot` con `recordedAt` successivo;
  * - solo campi descrittivi: solo l'`updateLot`; nessuna modifica: lista vuota.
  */
 export function correctLot(
@@ -203,6 +208,13 @@ export function correctLot(
     !(lot && blank(changes.category) === blank(lot.category))
   ) {
     patch.category = changes.category;
+  }
+  if (
+    changes.barcode !== undefined &&
+    (changes.barcode === null || changes.barcode.trim() !== "") &&
+    !(lot && blank(changes.barcode) === blank(lot.barcode))
+  ) {
+    patch.barcode = changes.barcode;
   }
   if (changes.expiry !== undefined && !(lot && same(changes.expiry ?? undefined, lot.expiry))) {
     patch.expiry = changes.expiry;

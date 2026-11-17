@@ -7,6 +7,10 @@ import { liveQuery } from "dexie";
 import { useEffect, useState } from "react";
 import { getDb } from "@/data/db";
 
+export async function getSetting(key: string): Promise<unknown> {
+  return (await getDb().settings.get(key))?.value;
+}
+
 export async function setSetting(key: string, value: unknown): Promise<void> {
   await getDb().settings.put({ key, value });
 }

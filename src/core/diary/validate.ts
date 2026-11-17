@@ -8,6 +8,7 @@ import {
 import {
   DIARY_EVENT_TYPES,
   DIARY_LIMITS,
+  FOOD_ID_MAX_LENGTH,
   MEAL_KINDS,
   SYMPTOM_KINDS,
   type DiaryEvent,
@@ -25,6 +26,8 @@ const isNonEmptyString = (v: unknown): v is string =>
 function oneOf<T extends string>(list: readonly T[], v: unknown): v is T {
   return typeof v === "string" && (list as readonly string[]).includes(v);
 }
+
+const FOOD_ID_RE = /^[a-z0-9-]+$/;
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -113,6 +116,14 @@ export function validateDiaryEvent(event: unknown): ValidationError[] {
       if (!isRecord(item)) return add(base, "invalid_type");
       requireString(item, "name", `${base}.name`);
       requireEnum(item, "certainty", CERTAINTIES, `${base}.certainty`);
+      const foodId = item.foodId;
+      if (foodId !== undefined) {
+        // Stringa vuota: vale come campo assente.
+        if (typeof foodId !== "string") add(`${base}.foodId`, "invalid_type");
+        else if (foodId !== "" && (foodId.length > FOOD_ID_MAX_LENGTH || !FOOD_ID_RE.test(foodId))) {
+          add(`${base}.foodId`, "invalid_value");
+        }
+      }
       const q = item.quantity;
       if (q === undefined) return add(`${base}.quantity`, "required");
       if (!isRecord(q)) return add(`${base}.quantity`, "invalid_type");

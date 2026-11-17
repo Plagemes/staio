@@ -1,0 +1,13 @@
+{
+  "group": "oli-e-grassi",
+  "file": "oils-fats",
+  "items": [
+    { "id":"olio-d-oliva","name":"Olio d'oliva","aliases":["olio","olio extravergine","olio extra vergine d'oliva","olio evo","olio di oliva","evo"],"fdc":171413,"liquid":true,"approx":"voce 'Oil, olive, salad or cooking' valida anche per l'extravergine (la voce FDC per l'extravergine non riporta i macronutrienti)" },
+    { "id":"olio-di-semi-di-girasole","name":"Olio di semi di girasole","aliases":["olio di girasole","olio di semi","olio"],"fdc":171025,"liquid":true,"approx":"linoleico circa 65%" },
+    { "id":"olio-di-mais","name":"Olio di mais","aliases":["olio di semi di mais","olio"],"fdc":171029,"liquid":true },
+    { "id":"olio-di-colza","name":"Olio di colza (canola)","aliases":["olio di canola","olio di semi di colza","olio"],"fdc":172336,"liquid":true },
+    { "id":"olio-di-cocco","name":"Olio di cocco","aliases":["olio di noce di cocco","burro di cocco","olio"],"fdc":171412,"liquid":true },
+    { "id":"strutto","name":"Strutto","aliases":["sugna","grasso di maiale","lardo fuso"],"fdc":171401 },
+    { "id":"margarina","name":"Margarina vegetale 80% di grassi","aliases":["margarina"],"fdc":171435,"approx":"margarina statunitense in stick con sale e vitamina D","strip":["vitaminDUg","vitaminAUg"] }
+  ]
+}

@@ -20,8 +20,11 @@ import {
 } from "../meals";
 import { useNotice } from "../notice";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
+import { FoodChoice } from "../nutrition/FoodChoice";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
+import { createFoodSearch, resolveFreeItems } from "../nutrition/candidates";
+import { loadFoods, useFoods } from "../nutrition/useNutrition";
 import { formatQuantity } from "@/core/units";
 import styles from "./Meal.module.css";
 
@@ -32,6 +35,8 @@ interface Selection {
 }
 interface FreeRow extends FreeItemInput {
   id: number;
+  /** «Nessuno di questi»: nessun alimento della tabella scelto. */
+  none?: boolean;
 }
 
 const AMOUNT_LABELS: Record<Amount, string> = { all: "Tutto", half: "Metà", quarter: "Un quarto", text: "Scrivo io" };
@@ -55,6 +60,8 @@ export function Meal() {
   });
   const [filter, setFilter] = useState("");
   const [free, setFree] = useState<FreeRow[]>([]);
+  const foods = useFoods();
+  const foodSearch = useMemo(() => (foods ? createFoodSearch(foods) : undefined), [foods]);
   const [nextId, setNextId] = useState(1);
   const [saveHabit, setSaveHabit] = useState(false);
   const [habitTitle, setHabitTitle] = useState<string | null>(null);
@@ -96,8 +103,11 @@ export function Meal() {
     setErrors(null);
   }
 
-  function patchFree(id: number, change: Partial<FreeItemInput>) {
-    setFree((rows) => rows.map((r) => (r.id === id ? { ...r, ...change } : r)));
+  function patchFree(id: number, change: Partial<FreeRow>) {
+    // cambiare il nome cambia anche la domanda: la scelta fatta per quello vecchio non vale
+    setFree((rows) =>
+      rows.map((r) => (r.id === id ? { ...r, ...(change.name !== undefined ? { foodId: undefined, none: false } : {}), ...change } : r)),
+    );
     setErrors(null);
   }
 
@@ -109,11 +119,17 @@ export function Meal() {
       const picks = entries
         .filter((e) => selected[e.lot.lotId] !== undefined)
         .map((e) => ({ lot: e.lot, choice: toChoice(selected[e.lot.lotId]) }));
+      // le voci con alimenti in più stati non si aggiungono finché non si sceglie: il nome scritto non cambia
+      const resolvedFree = resolveFreeItems(free, foodSearch ?? createFoodSearch(await loadFoods()));
+      if (Object.keys(resolvedFree.errors).length > 0) {
+        setErrors({ picks: {}, free: resolvedFree.errors });
+        return;
+      }
       const result = buildMealEvents(
         {
           kind: effectiveKind,
           picks,
-          freeItems: free,
+          freeItems: resolvedFree.items,
           saveHabitAs: saveHabit ? effectiveHabitTitle : undefined,
         },
         { now: new Date().toISOString(), deviceId: await getDeviceId() },
@@ -267,6 +283,17 @@ export function Meal() {
                   aria-label={`Quantità della voce ${index + 1}`}
                 />
               </div>
+              {foodSearch ? (
+                <FoodChoice
+                  name={row.name}
+                  search={foodSearch}
+                  foodId={row.foodId}
+                  none={row.none === true}
+                  onPick={(id) => patchFree(row.id, { foodId: id, none: false })}
+                  onNone={() => patchFree(row.id, { foodId: undefined, none: true })}
+                  onClear={() => patchFree(row.id, { foodId: undefined, none: false })}
+                />
+              ) : null}
               <Button variant="text" onClick={() => setFree((rows) => rows.filter((r) => r.id !== row.id))}>
                 Togli
               </Button>

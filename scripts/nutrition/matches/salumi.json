@@ -1,0 +1,16 @@
+{
+  "group": "salumi",
+  "file": "cured-meats",
+  "items": [
+    { "id":"salame-italiano","name":"Salame stagionato di maiale","aliases":["salame","salame milano","salame felino","salame ungherese","salame piccante","salumi","affettati"],"fdc":174603,"approx":"voce 'Salami, Italian, pork' della banca dati statunitense","nameNote":"dato USA, tipo italiano" },
+    { "id":"mortadella","name":"Mortadella (bologna di maiale)","aliases":["mortadella","bologna","salumi","affettati"],"fdc":173856,"approx":"voce 'Bologna, pork', non e' la mortadella DOP Bologna","nameNote":"dato USA, tipo bologna" },
+    { "id":"prosciutto-cotto","name":"Prosciutto cotto (prosciutto affettato, 11% di grassi)","aliases":["prosciutto cotto","cotto","prosciutto di praga","prosciutto","salumi","affettati"],"fdc":173864,"approx":"voce 'Ham, sliced, regular (approx. 11% fat)'","nameNote":"dato USA" },
+    { "id":"prosciutto-di-tacchino","name":"Prosciutto di tacchino","aliases":["tacchino affettato","fesa di tacchino affettata","petto di tacchino affettato","prosciutto","salumi","affettati"],"fdc":168092 },
+    { "id":"pancetta-affumicata-cruda","name":"Pancetta affumicata (bacon), cruda","aliases":["bacon","pancetta affumicata","salumi"],"fdc":168277,"approx":"bacon statunitense affumicato; non e' pancetta stesa ne' guanciale italiani" },
+    { "id":"bresaola","name":"Manzo essiccato (tipo bresaola)","aliases":["bresaola","carne secca","carne salada","manzo stagionato","salumi","affettati"],"fdc":170604,"approx":"voce 'Beef, cured, dried' (carne di manzo salata ed essiccata); non e' la bresaola della Valtellina" },
+    { "id":"salsiccia-fresca","name":"Salsiccia italiana di maiale, cruda","aliases":["salsiccia","luganega","salsiccia fresca","salamella","salsicce","salumi"],"fdc":171631,"approx":"Italian sausage mild, versione statunitense","nameNote":"dato USA, tipo italiano" },
+    { "id":"wurstel-di-maiale","name":"Wurstel di maiale","aliases":["wurstel","wuerstel","frankfurter","hot dog","salumi"],"fdc":172964 },
+    { "id":"pate-di-fegato","name":"Patè di fegato","aliases":["pate","patè","paté di fegato","pate di fegato","salumi"],"fdc":172930 },
+    { "id":"prosciutto-cotto-magro","name":"Prosciutto cotto magro (prosciutto affettato, 4% di grassi)","aliases":["prosciutto cotto magro","prosciutto cotto light","prosciutto sgrassato","prosciutto","salumi","affettati"],"fdc":173863,"approx":"voce 'Ham, sliced, pre-packaged, deli meat (96% fat free, water added)'","nameNote":"dato USA" }
+  ]
+}

@@ -8,6 +8,7 @@ import {
   buildUndo,
   findCreationEvent,
   formFromLot,
+  needsSameProductAnswer,
   parseAmountForLot,
   type ActionContext,
   type EditForm,
@@ -266,5 +267,51 @@ describe("annullare una riga del registro", () => {
     const redo = buildUndo(voids, ctx("2026-11-16T12:41:00.000Z"));
     const all = [...events, ...eat.events, ...voids, ...redo];
     expect(buildJournal(all, derivePantry(all), "2026-11-16").map((r) => r.description)).toContain("Mangiato · Latte intero");
+  });
+});
+
+describe("modifica del nome di un lotto con codice a barre", () => {
+  const withCode = () => setup({ barcode: "8001234567890" });
+  const form = (lot: Lot, over: Partial<EditForm>): EditForm => ({ ...formFromLot(lot), ...over });
+
+  it("il nome uguale non fa domande", () => {
+    const { lot } = withCode();
+    expect(lot.barcode).toBe("8001234567890");
+    expect(needsSameProductAnswer(lot, form(lot, {}))).toBe(false);
+    expect(needsSameProductAnswer(lot, form(lot, { name: "  latte   intero " }))).toBe(false);
+  });
+
+  it("un altro nome senza risposta è un errore accanto alla domanda", () => {
+    const { lot, creation } = withCode();
+    const r = buildEdit(creation, lot, form(lot, { name: "Latte di soia" }), ctx());
+    expect(r.ok).toBe(false);
+    if (r.ok || !("fields" in r)) throw new Error("attesi errori per campo");
+    expect(r.fields.sameProduct).toMatch(/stesso prodotto/);
+  });
+
+  it("«sì, è lo stesso» cambia il nome e tiene il codice", () => {
+    const { events, lot, creation } = withCode();
+    const r = buildEdit(creation, lot, form(lot, { name: "Latte intero fresco", sameProduct: "yes" }), ctx());
+    if (!r.ok) throw new Error(r.error);
+    const after = derivePantry([...events, ...r.events]).lots[0];
+    expect(after.productRef).toBe("Latte intero fresco");
+    expect(after.barcode).toBe("8001234567890");
+  });
+
+  it("«no, è un altro» toglie il codice con correctLot", () => {
+    const { events, lot, creation } = withCode();
+    const r = buildEdit(creation, lot, form(lot, { name: "Latte di soia", sameProduct: "no" }), ctx());
+    if (!r.ok) throw new Error(r.error);
+    expect(r.events).toHaveLength(1);
+    expect(r.events[0]).toMatchObject({ type: "updateLot", patch: { productRef: "Latte di soia", barcode: null } });
+    const after = derivePantry([...events, ...r.events]).lots[0];
+    expect(after.productRef).toBe("Latte di soia");
+    expect(after.barcode).toBeUndefined();
+  });
+
+  it("senza codice il cambio di nome non fa domande", () => {
+    const { lot, creation } = setup();
+    expect(needsSameProductAnswer(lot, form(lot, { name: "Altro" }))).toBe(false);
+    expect(buildEdit(creation, lot, form(lot, { name: "Altro" }), ctx()).ok).toBe(true);
   });
 });

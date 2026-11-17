@@ -12,6 +12,7 @@ import {
   buildOpen,
   canEditPrice,
   formFromLot,
+  needsSameProductAnswer,
   type ActionContext,
   type AmountChoice,
   type EditErrors,
@@ -290,6 +291,30 @@ function EditFormView({
         />
         {field("name")}
       </div>
+
+      {needsSameProductAnswer(lot, form) ? (
+        <fieldset className={ui.field}>
+          <legend className={ui.fieldLabel}>È ancora lo stesso prodotto?</legend>
+          <p className={ui.hint}>
+            Questo alimento è legato a un codice a barre. Se ora è un altro prodotto, tolgo il codice: così non prende i valori
+            nutrizionali del vecchio.
+          </p>
+          <div className={ui.choices}>
+            {(
+              [
+                ["yes", "Sì, è lo stesso"],
+                ["no", "No, è un altro"],
+              ] as const
+            ).map(([value, label]) => (
+              <label key={value} className={ui.choice}>
+                <input type="radio" name={`${ids}-same`} value={value} checked={form.sameProduct === value} onChange={() => set("sameProduct", value)} />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+          {field("sameProduct")}
+        </fieldset>
+      ) : null}
 
       <div className={ui.field}>
         <label className={ui.fieldLabel} htmlFor={`${ids}-category`}>

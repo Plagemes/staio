@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { expiryCategoryMatch, quantityText, type Product } from "@/core/catalog";
 import { Button, Label } from "@/design";
 import { FOOD_CATEGORY_LABELS } from "../labels";
+import { ProductNutrients } from "../nutrition/Per100";
 import ui from "../ui.module.css";
 import { Scanner } from "./Scanner";
 import { captureHref, captureHrefForCode } from "./links";
 import { lookupProduct, type LookupOutcome } from "./lookup";
-import { LOOKUP_FAILURE_MESSAGES, NOVA_LABELS, NUTRIENT_ROWS, allergenLabel, formatNumber } from "./messages";
+import { LOOKUP_FAILURE_MESSAGES, NOVA_LABELS, allergenLabel } from "./messages";
 import type { LookupFailure } from "./offClient";
 import styles from "./BarcodeCapture.module.css";
 
@@ -106,8 +107,6 @@ function ProductCard({ product, from, onAgain }: { product: Product; from: "memo
   const [imageFailed, setImageFailed] = useState(false);
   const quantity = product.quantity?.text ?? quantityText(product.quantity);
   const match = expiryCategoryMatch(product);
-  const nutrients = product.nutrients;
-  const rows = nutrients ? NUTRIENT_ROWS.filter(([key]) => nutrients[key] !== undefined) : [];
 
   return (
     <article className={styles.card} aria-label="Scheda del prodotto">
@@ -192,21 +191,9 @@ function ProductCard({ product, from, onAgain }: { product: Product; from: "memo
         ) : null}
       </dl>
 
-      {nutrients && rows.length > 0 ? (
-        <section aria-label="Valori nutrizionali">
-          <Label as="h3">Valori per {nutrients.per === "100ml" ? "100 ml" : "100 g"}, da etichetta</Label>
-          <dl className={styles.nutrients}>
-            {rows.map(([key, label, unit]) => (
-              <div key={key} className={styles.nutrient}>
-                <dt>{label}</dt>
-                <dd>
-                  {formatNumber(nutrients[key] as number)} {unit}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-      ) : null}
+      <section aria-label="Valori nutrizionali">
+        <ProductNutrients product={product} />
+      </section>
 
       <p className={ui.hint}>
         {from === "memory"

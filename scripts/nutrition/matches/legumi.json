@@ -1,0 +1,32 @@
+{
+  "group": "legumi",
+  "file": "legumes",
+  "items": [
+    { "id":"lenticchie-secche","name":"Lenticchie, secche","aliases":["lenticchie","lenticchia","legumi","lenticchie secche"],"fdc":172420,"state":"dried","variantOf":"lenticchie" },
+    { "id":"lenticchie-lessate","name":"Lenticchie, cotte","aliases":["lenticchie","lenticchia","legumi","lenticchie cotte"],"fdc":172421,"variantOf":"lenticchie" },
+    { "id":"ceci-secchi","name":"Ceci, secchi","aliases":["ceci","cece","legumi","ceci secchi"],"fdc":173756,"state":"dried","variantOf":"ceci" },
+    { "id":"ceci-lessati","name":"Ceci, cotti","aliases":["ceci","cece","legumi","ceci cotti"],"fdc":173757,"variantOf":"ceci" },
+    { "id":"ceci-in-scatola","name":"Ceci in scatola, sgocciolati","aliases":["ceci in lattina","ceci in barattolo","ceci precotti","legumi"],"fdc":173800 },
+    { "id":"fagioli-cannellini-secchi","name":"Fagioli bianchi, secchi","aliases":["fagioli cannellini","cannellini","fagioli bianchi","fagioli","legumi","fagioli cannellini secchi","cannellini secchi"],"fdc":175202,"approx":"fagioli bianchi (white beans) per i cannellini","state":"dried","variantOf":"fagioli-cannellini" },
+    { "id":"fagioli-cannellini-lessati","name":"Fagioli bianchi, cotti","aliases":["fagioli cannellini","cannellini","fagioli bianchi","fagioli","legumi","cannellini cotti","fagioli cannellini lessati"],"fdc":175203,"approx":"fagioli bianchi (white beans) per i cannellini","variantOf":"fagioli-cannellini" },
+    { "id":"fagioli-cannellini-in-scatola","name":"Fagioli bianchi in scatola","aliases":["cannellini in scatola","fagioli cannellini in scatola","fagioli","legumi"],"fdc":175204,"approx":"fagioli bianchi (white beans) per i cannellini" },
+    { "id":"fagioli-borlotti-lessati","name":"Fagioli borlotti, cotti","aliases":["borlotti","fagioli borlotti cotti","fagioli","legumi"],"fdc":173736,"approx":"cranberry (roman) beans, corrispondono ai borlotti" },
+    { "id":"fagioli-borlotti-in-scatola","name":"Fagioli borlotti in scatola","aliases":["borlotti in scatola","fagioli","legumi"],"fdc":173737,"approx":"cranberry (roman) beans in scatola" },
+    { "id":"fagioli-rossi-secchi","name":"Fagioli rossi, secchi","aliases":["fagioli rossi","kidney","fagioli kidney","fagioli","legumi","fagioli rossi secchi","kidney secchi"],"fdc":175193,"state":"dried","variantOf":"fagioli-rossi" },
+    { "id":"fagioli-rossi-lessati","name":"Fagioli rossi, cotti","aliases":["fagioli rossi","kidney","fagioli kidney","fagioli","legumi"],"fdc":173740,"variantOf":"fagioli-rossi" },
+    { "id":"piselli-secchi-spaccati","name":"Piselli secchi spaccati, secchi","aliases":["piselli spezzati","legumi","piselli secchi spaccati","piselli secchi"],"fdc":172428,"state":"dried","variantOf":"piselli-secchi" },
+    { "id":"piselli-secchi-lessati","name":"Piselli secchi spaccati, cotti","aliases":["piselli spezzati","legumi"],"fdc":172429,"variantOf":"piselli-secchi" },
+    { "id":"piselli-surgelati","name":"Piselli surgelati, crudi","aliases":["piselli congelati","piselli surgelati"],"fdc":170016 },
+    { "id":"fave-secche","name":"Fave, secche","aliases":["fave","fava","legumi","fave secche"],"fdc":175205,"state":"dried","variantOf":"fave" },
+    { "id":"fave-lessate","name":"Fave secche, cotte","aliases":["fave","fava","legumi"],"fdc":173753,"variantOf":"fave" },
+    { "id":"soia-secca","name":"Soia, semi secchi","aliases":["soia","semi di soia","legumi","semi di soia secchi"],"fdc":174270,"state":"dried","variantOf":"soia" },
+    { "id":"soia-lessata","name":"Soia, cotta","aliases":["soia","semi di soia","legumi"],"fdc":174271,"variantOf":"soia" },
+    { "id":"edamame-surgelati","name":"Edamame surgelati","aliases":["edamame","fagioli di soia verdi"],"fdc":168410 },
+    { "id":"lupini-lessati","name":"Lupini, cotti","aliases":["lupini","lupini ammollati","legumi","lupini cotti"],"fdc":172424,"variantOf":"lupini" },
+    { "id":"lupini-secchi","name":"Lupini, secchi","aliases":["lupini","lupini ammollati","legumi","lupini secchi"],"fdc":172423,"state":"dried","variantOf":"lupini" },
+    { "id":"tofu-crudo","name":"Tofu","aliases":["tofu","tofu naturale"],"fdc":172476,"approx":"tofu 'regular' coagulato con solfato di calcio" },
+    { "id":"tempeh","name":"Tempeh","aliases":["tempe"],"fdc":174272 },
+    { "id":"hummus","name":"Hummus di ceci, confezionato","aliases":["hummus","humus","crema di ceci"],"fdc":174289 },
+    { "id":"minestrone-in-scatola","name":"Minestrone in scatola, pronto (dato USA)","aliases":["minestrone","minestra di verdure","zuppa di verdure"],"fdc":171550,"strip":["ironMg","thiaminMg","riboflavinMg","niacinMg","folateUg","vitaminB12Ug"],"approx":"minestrone statunitense in scatola, con pasta (farina arricchita: nutrienti aggiunti tolti)" }
+  ]
+}

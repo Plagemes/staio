@@ -26,7 +26,7 @@ export function readCaptureParams(get: (key: string) => string | null | undefine
   const category = clean(get("categoria"), 40);
   if (category && isFoodCategory(category)) params.category = category;
   const barcode = clean(get("barcode"), 20);
-  if (barcode && /^\d{6,14}$/.test(barcode)) params.barcode = barcode;
+  if (barcode && /^\d{8,14}$/.test(barcode)) params.barcode = barcode;
   const brand = clean(get("marca"), 60);
   if (brand) params.brand = brand;
   return params;

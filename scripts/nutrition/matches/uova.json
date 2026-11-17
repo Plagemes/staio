@@ -1,0 +1,11 @@
+{
+  "group": "uova",
+  "file": "eggs",
+  "items": [
+    { "id":"uovo-intero-crudo","name":"Uovo di gallina, intero crudo","aliases":["uovo","uova","uovo di gallina","uova sode"],"fdc":171287,"unit":"large","approx":"peso del pezzo riferito alla parte edibile (senza guscio)","variantOf":"uovo-intero" },
+    { "id":"uovo-tuorlo-crudo","name":"Tuorlo d'uovo, crudo","aliases":["tuorlo","rosso d'uovo","rosso","uova"],"fdc":172184,"unit":"large" },
+    { "id":"uovo-albume-crudo","name":"Albume d'uovo, crudo","aliases":["albume","chiara d'uovo","bianco d'uovo","uova"],"fdc":172183,"unit":"large" },
+    { "id":"uovo-sodo","name":"Uovo sodo","aliases":["uovo","uova","uovo di gallina","uova sode","uovo bollito"],"fdc":173424,"unit":"large","variantOf":"uovo-intero" },
+    { "id":"uovo-di-quaglia","name":"Uovo di quaglia, crudo","aliases":["uova di quaglia"],"fdc":172191,"unit":"egg" }
+  ]
+}

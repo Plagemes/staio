@@ -161,10 +161,15 @@ export function Capture() {
         </div>
       ) : (
         <div className={styles.entry}>
-          <Button href="/app/cattura/codice" variant="outline">
-            Leggi il codice a barre
-          </Button>
-          <p className={ui.hint}>Scontrino, foto e voce arriveranno dopo. Per ora il resto si scrive a mano.</p>
+          <div className={styles.entryButtons}>
+            <Button href="/app/cattura/codice" variant="outline">
+              Leggi il codice a barre
+            </Button>
+            <Button href="/app/cattura/scontrino" variant="outline">
+              Leggi lo scontrino
+            </Button>
+          </div>
+          <p className={ui.hint}>La foto del piatto e la voce arriveranno dopo. Per ora il resto si scrive a mano.</p>
           <Link href="/app/cattura/veloce" className={ui.textLink}>
             Ho già in casa: aggiunta rapida di più alimenti
           </Link>

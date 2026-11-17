@@ -1,0 +1,26 @@
+{
+  "group": "bevande",
+  "file": "beverages",
+  "items": [
+    { "id":"acqua","name":"Acqua potabile","aliases":["acqua","acqua del rubinetto","acqua minerale","acqua frizzante","acqua naturale"],"fdc":173647,"liquid":true,"approx":"acqua di rubinetto statunitense; i minerali delle acque minerali italiane variano molto" },
+    { "id":"caffe-espresso","name":"Caffe' espresso","aliases":["caffe","espresso","caffe' al bar","tazzina di caffe"],"fdc":171891,"liquid":true },
+    { "id":"te-nero","name":"Te' nero, infuso","aliases":["te","te nero","te in bustina"],"fdc":173227,"liquid":true },
+    { "id":"te-verde","name":"Te' verde, infuso","aliases":["te verde","matcha infuso"],"fdc":171917,"liquid":true },
+    { "id":"camomilla","name":"Camomilla, infuso","aliases":["camomilla"],"fdc":174156,"liquid":true },
+    { "id":"succo-d-arancia-spremuta","name":"Spremuta d'arancia","aliases":["spremuta","succo d'arancia fresco","succo d'arancia","succo","succo di frutta"],"fdc":169098,"liquid":true },
+    { "id":"succo-d-arancia-confezionato","name":"Succo d'arancia in bottiglia, senza zuccheri aggiunti","aliases":["succo di arancia","succo di frutta all'arancia","succo","succo di frutta"],"fdc":169099,"liquid":true },
+    { "id":"succo-di-mela","name":"Succo di mela, senza zuccheri aggiunti","aliases":["succo di mela","succo di frutta alla mela","succo","succo di frutta"],"fdc":173933,"liquid":true },
+    { "id":"succo-d-uva","name":"Succo d'uva, senza zuccheri aggiunti","aliases":["succo d'uva","succo di frutta all'uva","succo","succo di frutta"],"fdc":173042,"liquid":true },
+    { "id":"succo-di-limone","name":"Succo di limone, spremuto","aliases":["limone spremuto","succo di limone","succo","succo di frutta"],"fdc":167747,"liquid":true },
+    { "id":"cola","name":"Bibita gassata alla cola","aliases":["cola","bibita cola"],"fdc":174852,"liquid":true },
+    { "id":"latte-di-soia","name":"Bevanda di soia, naturale non arricchita","aliases":["latte di soia","bevanda alla soia","soy milk","latte"],"fdc":172446,"liquid":true },
+    { "id":"latte-di-riso","name":"Bevanda di riso, non zuccherata","aliases":["latte di riso","bevanda di riso","latte"],"fdc":171942,"liquid":true,"strip":["calciumMg","vitaminB12Ug","vitaminDUg","vitaminAUg","vitaminEMg","riboflavinMg"] },
+    { "id":"latte-di-mandorla","name":"Bevanda di mandorla, non zuccherata","aliases":["latte di mandorla","bevanda alle mandorle","latte"],"fdc":174832,"liquid":true,"strip":["calciumMg","vitaminDUg","vitaminEMg"] },
+    { "id":"latte-di-avena","name":"Bevanda di avena, non zuccherata","aliases":["latte di avena","bevanda all'avena","oat milk","latte"],"fdc":2257046,"liquid":true,"strip":["calciumMg","vitaminDUg","vitaminB12Ug","riboflavinMg"] },
+    { "id":"latte-al-cioccolato","name":"Latte al cioccolato parzialmente scremato","aliases":["latte e cioccolato","latte cioccolato","cioccolata fredda"],"fdc":170880,"liquid":true,"approx":"con vitamine A e D aggiunte","strip":["vitaminAUg","vitaminDUg"] },
+    { "id":"vino-rosso","name":"Vino rosso da tavola","aliases":["vino","vino rosso","chianti","barolo","montepulciano","merlot","sangiovese"],"fdc":173190,"liquid":true,"approx":"vino rosso generico, senza distinzione per vitigno" },
+    { "id":"vino-bianco","name":"Vino bianco da tavola","aliases":["vino bianco","pinot grigio","vermentino","trebbiano","chardonnay","vino"],"fdc":174837,"liquid":true,"approx":"vino bianco generico, senza distinzione per vitigno" },
+    { "id":"birra","name":"Birra chiara","aliases":["birra","birra lager","birra media"],"fdc":168746,"liquid":true },
+    { "id":"superalcolico","name":"Superalcolico distillato 40% vol (gin, rum, vodka, whisky)","aliases":["grappa","whisky","vodka","rum","gin","brandy","cognac","distillato"],"fdc":174815,"liquid":true,"approx":"distillati a 80 proof = 40% vol; grappa e amari hanno gradazioni e zuccheri diversi" }
+  ]
+}

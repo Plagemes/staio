@@ -6,6 +6,7 @@ import { activeLots } from "@/core/ledger";
 import { appendEvents, getDeviceId, useEventLog, usePantry } from "@/data";
 import { Button, LedgerRow, Label, PantryRow, SectionHeader, Value, Wordmark } from "@/design";
 import { buildUndo } from "../actions";
+import { TodayNutrition } from "../nutrition/TodayNutrition";
 import { TodayDiary } from "./TodayDiary";
 import { useNotice } from "../notice";
 import { dayOf, formatDayLabel } from "../format";
@@ -80,6 +81,8 @@ export function Today() {
       {ready && pantry.data && log.data && now ? (
         <>
           <TodayDiary now={now} pantry={pantry.data} log={log.data} />
+
+          <TodayNutrition now={now} />
 
           <section className={ui.section}>
             <SectionHeader label="Da mangiare prima" actionLabel="Tutta la dispensa" actionHref="/app/dispensa" />

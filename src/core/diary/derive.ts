@@ -5,6 +5,7 @@ import {
   type Source,
   type ValidationError,
 } from "../ledger";
+import { cloneMealItems } from "./items";
 import { isValidTimeZone, localDate } from "./calendar";
 import { isVoid, prepareLog, rejectedErrors, rejectedKey, voidsOfLog } from "./log";
 import {
@@ -171,9 +172,6 @@ function entryOf(e: DiaryEvent): DiaryEntry {
   };
 }
 
-const cloneItems = (items: readonly MealItem[] | undefined): MealItem[] =>
-  (items ?? []).map((i) => ({ name: i.name, quantity: { ...i.quantity }, certainty: i.certainty }));
-
 function anomalyKey(a: DiaryAnomaly): string {
   return [a.code, a.eventId ?? "", a.targetEventId ?? "", a.mealId ?? "", a.eventType ?? ""].join(
     "\u0000",
@@ -280,7 +278,7 @@ export function deriveDiary(
           mealId: e.mealId,
           kind: e.kind,
           ...(e.title !== undefined ? { title: e.title } : {}),
-          items: cloneItems(e.items),
+          items: cloneMealItems(e.items),
           ...(e.habitId !== undefined ? { habitId: e.habitId } : {}),
         });
         break;
@@ -348,7 +346,7 @@ export function deriveDiary(
       title: h.title,
       kind: h.kind,
       ...(h.usualTime !== undefined ? { usualTime: h.usualTime } : {}),
-      items: cloneItems(h.items),
+      items: cloneMealItems(h.items),
       eventId: h.id,
       recordedAt: h.recordedAt,
       certainty: h.certainty,

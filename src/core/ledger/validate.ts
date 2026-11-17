@@ -143,6 +143,11 @@ export function validateEvent(
     else if (!isCalendarDate(v.date)) add(`${path}.date`, "invalid_date");
     requireEnum(v, "kind", EXPIRY_KINDS, `${path}.kind`);
   };
+  // Solo cifre, da 8 a 14 (EAN-8, UPC-A, EAN-13, GTIN-14); stringa vuota = assente.
+  const checkBarcode = (v: unknown, path: string) => {
+    if (typeof v !== "string") add(path, "invalid_type");
+    else if (v !== "" && !/^\d{8,14}$/.test(v)) add(path, "invalid_value");
+  };
   const checkCents = (v: unknown, path: string) => {
     if (typeof v !== "number") add(path, "invalid_type");
     else if (!Number.isInteger(v) || v < 0) add(path, "invalid_value");
@@ -196,6 +201,7 @@ export function validateEvent(
     case "declare":
       requireString(event, "productRef");
       optionalString(event, "category");
+      if (event.barcode !== undefined) checkBarcode(event.barcode, "barcode");
       checkQuantity("quantity", false, lotId);
       requireEnum(event, "location", LOCATIONS);
       if (event.expiry !== undefined) checkExpiry(event.expiry, "expiry");
@@ -248,6 +254,10 @@ export function validateEvent(
         if (patch.category !== null && typeof patch.category !== "string") {
           add("patch.category", "invalid_type");
         }
+      }
+      if (patch.barcode !== undefined) {
+        touched++;
+        if (patch.barcode !== null) checkBarcode(patch.barcode, "patch.barcode");
       }
       if (patch.expiry !== undefined) {
         touched++;

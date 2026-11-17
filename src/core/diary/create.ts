@@ -9,6 +9,7 @@ import {
   type ValidationError,
 } from "../ledger";
 import type { DiaryHabit } from "./derive";
+import { cloneMealItems } from "./items";
 import type {
   DiaryEvent,
   DrinkEvent,
@@ -120,7 +121,7 @@ export function createMeal(input: MealInput, options: DiaryEventOptions): MealEv
       mealId: input.mealId ?? (options.idGenerator ?? generateId)(),
       kind: input.kind,
       title: input.title,
-      items: input.items,
+      items: input.items === undefined ? undefined : cloneMealItems(input.items),
       habitId: input.habitId,
     },
     options,
@@ -136,7 +137,7 @@ export function createMealFromHabit(
     {
       kind: habit.kind,
       title: habit.title,
-      items: habit.items.map((i) => ({ ...i, quantity: { ...i.quantity } })),
+      items: cloneMealItems(habit.items),
       habitId: habit.habitId,
     },
     { source: "habit", ...options },
@@ -196,7 +197,7 @@ export interface HabitInput {
 
 /** Definisce o ridefinisce un pasto abituale (vale l'ultimo evento con lo stesso `habitId`). */
 export function createHabit(input: HabitInput, options: DiaryEventOptions): HabitEvent {
-  return build<HabitEvent>("habit", input, options);
+  return build<HabitEvent>("habit", { ...input, items: cloneMealItems(input.items) }, options);
 }
 
 /** Ritira un pasto abituale: ripete la definizione con `archived: true`. */
@@ -211,7 +212,7 @@ export function archiveHabit(
       title: habit.title,
       kind: habit.kind,
       usualTime: habit.usualTime,
-      items: habit.items,
+      items: cloneMealItems(habit.items),
       archived: true,
     },
     options,

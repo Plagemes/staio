@@ -1,0 +1,331 @@
+.quiet {
+  margin: 0;
+  padding: var(--space-7) 0;
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+  color: var(--color-graphite);
+}
+
+.dayBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+  padding-top: var(--space-7);
+}
+
+.energyRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.energyNumber {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-5);
+}
+
+.bigNumber {
+  font-family: var(--font-display);
+  font-size: var(--text-display);
+  line-height: 0.88;
+  letter-spacing: var(--tracking-display);
+}
+
+.of {
+  font-family: var(--font-data);
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+}
+
+.more {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+}
+
+/* Confronto con i riferimenti */
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  border-bottom: var(--rule-width) solid var(--color-rule);
+}
+
+.rowButton {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4) var(--space-6);
+  width: 100%;
+  min-height: 56px;
+  padding: var(--space-5) 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rowName {
+  font-size: var(--text-body);
+  font-weight: 500;
+}
+
+.rowHeadline {
+  font-family: var(--font-data);
+  font-size: var(--text-data);
+  text-align: right;
+}
+
+.rowKind {
+  grid-column: 1 / -1;
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+}
+
+.rowBar {
+  grid-column: 1 / -1;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: 0 0 var(--space-7);
+}
+
+.contributors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-body-sm);
+}
+
+.contributor {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-6);
+}
+
+.contributorShare {
+  font-family: var(--font-data);
+  font-size: var(--text-data);
+  color: var(--color-graphite);
+}
+
+.matched {
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+}
+
+.note {
+  margin: 0;
+  padding: var(--space-6) var(--space-7);
+  border-left: 2px solid var(--color-rule-strong);
+  background: var(--color-surface);
+  font-size: var(--text-caption);
+  line-height: 1.5;
+}
+
+.disclaimer {
+  margin: 0;
+  padding-top: var(--space-7);
+  border-top: var(--rule-width) solid var(--color-rule);
+  font-size: var(--text-caption);
+  line-height: 1.5;
+  color: var(--color-graphite);
+}
+
+.unresolved {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-block: var(--space-6);
+  border-bottom: var(--rule-width) solid var(--color-rule);
+}
+
+.suggestions {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.suggestion {
+  display: block;
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: var(--space-4) var(--space-3);
+  border: none;
+  border-bottom: var(--rule-width) solid var(--color-rule);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: var(--text-body-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.suggestion:hover {
+  background: var(--color-surface);
+}
+
+.per100 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-7);
+  margin: 0;
+  font-size: var(--text-body-sm);
+}
+
+.per100 div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  border-bottom: var(--rule-width) solid var(--color-rule);
+  padding-block: var(--space-2);
+}
+
+.per100 dt {
+  color: var(--color-graphite);
+}
+
+.per100 dd {
+  margin: 0;
+  font-family: var(--font-data);
+  font-size: var(--text-data);
+}
+
+.contributorItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: var(--space-3);
+}
+
+.stateWarning {
+  font-size: var(--text-caption);
+  font-weight: 500;
+  color: var(--color-ochre);
+}
+
+.stateToggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.stateButton {
+  min-height: var(--tap-min);
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--text-body-sm);
+  cursor: pointer;
+}
+
+.stateButton[aria-pressed="true"] {
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+  color: var(--color-on-ink);
+  font-weight: 600;
+}
+
+.know {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  padding: var(--space-7) 0 0 var(--space-9);
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+}
+
+.choice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.candidates {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  width: 100%;
+}
+
+.candidateGroup,
+.candidateGroupTwins {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.candidateGroup {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Lo stesso alimento in stati diversi: due voci affiancate, nessuna già scelta */
+.candidateGroupTwins {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.candidate {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-height: 56px;
+  padding: var(--space-4) var(--space-6);
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.candidate[aria-pressed="true"] {
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+  color: var(--color-on-ink);
+}
+
+.candidateName {
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.candidateMeta {
+  font-size: var(--text-caption);
+  opacity: 0.8;
+}
+
+.chosen {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+  width: 100%;
+  padding: var(--space-4) var(--space-6);
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-body-sm);
+}

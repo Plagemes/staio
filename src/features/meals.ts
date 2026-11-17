@@ -75,6 +75,8 @@ export interface MealPick {
 export interface FreeItemInput {
   name: string;
   quantityText: string;
+  /** Alimento della tabella scelto dall'utente: il nome scritto resta com'è e il calcolo usa questo. */
+  foodId?: string;
 }
 
 export interface MealInput {
@@ -148,7 +150,7 @@ export function buildMealEvents(input: MealInput, ctx: MealContext): MealResult 
     }
     const q = readQuantity(item.quantityText);
     if (!q.ok) errors.free[index] = q.error;
-    else items.push({ name, quantity: q.quantity, certainty: "estimated" });
+    else items.push({ name, quantity: q.quantity, certainty: "estimated", ...(item.foodId ? { foodId: item.foodId } : {}) });
   });
 
   if (consumes.length + items.length === 0 && Object.keys(errors.picks).length + Object.keys(errors.free).length === 0) {
@@ -246,7 +248,12 @@ export function buildMealFromHabit(
       consumes.push({ lotId: lot.lotId, quantity: { value: take, unit: lot.unit }, certainty: item.certainty });
     }
     if (need > 1e-9) {
-      free.push({ name: item.name, quantity: { value: need, unit: item.quantity.unit }, certainty: "estimated" });
+      free.push({
+        name: item.name,
+        quantity: { value: need, unit: item.quantity.unit },
+        certainty: "estimated",
+        ...(item.foodId ? { foodId: item.foodId } : {}),
+      });
       missing.push(item.name);
     }
   }

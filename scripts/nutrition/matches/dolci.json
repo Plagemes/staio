@@ -1,0 +1,26 @@
+{
+  "group": "dolci",
+  "file": "sweets",
+  "items": [
+    { "id":"zucchero-semolato","name":"Zucchero semolato","aliases":["zucchero","zucchero bianco","zucchero raffinato"],"fdc":169655 },
+    { "id":"zucchero-di-canna","name":"Zucchero di canna (scuro)","aliases":["zucchero di canna","zucchero grezzo","zucchero bruno","zucchero"],"fdc":168833,"approx":"brown sugar statunitense (zucchero bianco con melassa)" },
+    { "id":"miele","name":"Miele","aliases":["miele millefiori","miele d'acacia"],"fdc":169640,"liquid":true },
+    { "id":"marmellata","name":"Confettura di frutta","aliases":["marmellata","confettura","marmellate"],"fdc":169641,"approx":"voce generica 'Jams and preserves'" },
+    { "id":"crema-di-nocciole-e-cacao","name":"Crema spalmabile alle nocciole e al cacao","aliases":["crema alla nocciola","crema di nocciole","crema al cioccolato"],"fdc":168000,"approx":"voce generica 'Chocolate-flavored hazelnut spread'" },
+    { "id":"cioccolato-fondente-45","name":"Cioccolato fondente 45-59% cacao","aliases":["cioccolato fondente","cioccolato","cioccolato amaro"],"fdc":170271 },
+    { "id":"cioccolato-fondente-70","name":"Cioccolato fondente 70-85% cacao","aliases":["cioccolato extra fondente","cioccolato fondente 70%","cioccolato 85%","cioccolato"],"fdc":170273 },
+    { "id":"cioccolato-al-latte","name":"Cioccolato al latte","aliases":["cioccolato al latte","tavoletta di cioccolato","cioccolato"],"fdc":167587 },
+    { "id":"cacao-amaro","name":"Cacao amaro in polvere","aliases":["cacao","cacao in polvere","cacao magro"],"fdc":169593 },
+    { "id":"biscotti-frollini-al-burro","name":"Biscotti frollini al burro","aliases":["frollini","biscotti secchi","biscotti al burro","pasta frolla secca","biscotti"],"fdc":172819,"approx":"butter cookies industriali, con farina non arricchita" },
+    { "id":"biscotti-avena","name":"Biscotti all'avena","aliases":["biscotti d'avena","biscotti avena e uvetta","biscotti"],"fdc":172725,"strip":["ironMg","thiaminMg","riboflavinMg","niacinMg","folateUg","vitaminB12Ug"] },
+    { "id":"savoiardi","name":"Savoiardi","aliases":["biscotti savoiardi","biscotti"],"fdc":172821,"strip":["ironMg","thiaminMg","riboflavinMg","niacinMg","folateUg","vitaminB12Ug"] },
+    { "id":"cornetto-al-burro","name":"Cornetto al burro (croissant)","aliases":["cornetto","croissant","brioche","cornetto vuoto"],"fdc":174987,"strip":["ironMg","thiaminMg","riboflavinMg","niacinMg","folateUg","vitaminB12Ug"],"nameNote":"dato USA" },
+    { "id":"plumcake","name":"Torta tipo plumcake al burro","aliases":["plumcake","torta margherita","ciambellone","quattro quarti"],"fdc":172704,"approx":"pound cake industriale","strip":["ironMg","thiaminMg","riboflavinMg","niacinMg","folateUg","vitaminB12Ug"],"state":"as_sold","nameNote":"dato USA, pound cake" },
+    { "id":"pan-di-spagna","name":"Pan di Spagna","aliases":["pan di spagna","torta paradiso"],"fdc":172706,"approx":"sponge cake industriale","strip":["ironMg","thiaminMg","riboflavinMg","niacinMg","folateUg","vitaminB12Ug"],"nameNote":"dato USA, sponge cake" },
+    { "id":"cheesecake","name":"Cheesecake","aliases":["torta al formaggio"],"fdc":172711,"strip":["ironMg","thiaminMg","riboflavinMg","niacinMg","folateUg","vitaminB12Ug"] },
+    { "id":"gelato-alla-vaniglia","name":"Gelato alla vaniglia","aliases":["gelato","gelato fiordilatte","gelato crema"],"fdc":167575,"approx":"ice cream statunitense","nameNote":"dato USA, ice cream" },
+    { "id":"gelato-al-cioccolato","name":"Gelato al cioccolato","aliases":["gelato cioccolato"],"fdc":168809,"approx":"ice cream statunitense","nameNote":"dato USA, ice cream" },
+    { "id":"budino-alla-vaniglia","name":"Budino alla vaniglia","aliases":["budino","crema pasticcera pronta"],"fdc":169608 },
+    { "id":"creme-caramel","name":"Crème caramel (flan)","aliases":["creme caramel","crema caramella","flan"],"fdc":167574 }
+  ]
+}

@@ -178,6 +178,14 @@ export interface EditForm {
   expiryKind: ChosenExpiryKind | "none";
   expiryDate: string;
   priceText: string;
+  /** Solo per un lotto con codice a barre il cui nome cambia: è ancora lo stesso prodotto? */
+  sameProduct: "" | "yes" | "no";
+}
+
+/** Il nome è cambiato e il lotto ha un codice a barre: serve chiedere se è ancora lo stesso prodotto. */
+export function needsSameProductAnswer(lot: Pick<Lot, "productRef" | "barcode">, form: Pick<EditForm, "name">): boolean {
+  const name = cleanName(form.name);
+  return lot.barcode !== undefined && name !== "" && name !== lot.productRef;
 }
 
 export function formFromLot(lot: Lot): EditForm {
@@ -189,10 +197,11 @@ export function formFromLot(lot: Lot): EditForm {
     expiryKind: kind === undefined ? "none" : kind === "use_by" ? "use_by" : "best_before",
     expiryDate: lot.expiry?.date ?? "",
     priceText: lot.priceCents !== undefined ? (lot.priceCents / 100).toFixed(2).replace(".", ",") : "",
+    sameProduct: "",
   };
 }
 
-export type EditErrors = Partial<Record<"name" | "category" | "expiryDate" | "price" | "form", string>>;
+export type EditErrors = Partial<Record<"name" | "category" | "expiryDate" | "price" | "sameProduct" | "form", string>>;
 
 export type EditResult = ActionResult | { ok: false; error: string; fields: EditErrors };
 
@@ -218,6 +227,12 @@ export function buildEdit(
   const name = cleanName(form.name);
   if (name === "") fields.name = "Scrivi come si chiama l'alimento.";
   else if (name !== lot.productRef) changes.productRef = name;
+
+  // un altro nome può voler dire un altro prodotto: il codice a barre non deve restare attaccato per sbaglio
+  if (needsSameProductAnswer(lot, form)) {
+    if (form.sameProduct === "") fields.sameProduct = "Dimmi se è ancora lo stesso prodotto.";
+    else if (form.sameProduct === "no") changes.barcode = null;
+  }
 
   if (form.category !== "" && !isFoodCategory(form.category)) fields.category = "Scegli una categoria dall'elenco.";
   else if (form.category !== "" && form.category !== (lot.category ?? "")) changes.category = form.category;

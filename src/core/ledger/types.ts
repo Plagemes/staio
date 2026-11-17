@@ -100,6 +100,8 @@ export interface PurchaseEvent extends EventBase {
   productRef: string;
   /** Categoria dell'alimento: stringa libera, il libro mastro non conosce l'elenco. */
   category?: string;
+  /** Codice a barre del prodotto: solo cifre, da 8 a 14. */
+  barcode?: string;
   quantity: Quantity;
   /** Prezzo totale del lotto, in centesimi di euro. */
   priceCents?: number;
@@ -115,6 +117,7 @@ export interface DeclareEvent extends EventBase {
   lotId: string;
   productRef: string;
   category?: string;
+  barcode?: string;
   quantity: Quantity;
   location: Location;
   expiry?: Expiry;
@@ -167,6 +170,7 @@ export interface LotPatch {
   expiry?: Expiry | null;
   productRef?: string;
   category?: string | null;
+  barcode?: string | null;
   priceCents?: number | null;
   store?: string | null;
 }

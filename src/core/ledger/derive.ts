@@ -74,6 +74,8 @@ export interface Lot {
   productRef: string;
   /** Categoria dell'alimento (stringa libera), se nota. */
   category?: string;
+  /** Codice a barre del prodotto (solo cifre, 8-14), se noto. */
+  barcode?: string;
   origin: "purchase" | "declare";
   status: "active" | "finished";
   unit: Unit;
@@ -199,10 +201,10 @@ interface Candidate {
   id: string;
 }
 type Winners = Partial<
-  Record<"productRef" | "category" | "expiry" | "priceCents" | "store", Candidate>
+  Record<"productRef" | "category" | "barcode" | "expiry" | "priceCents" | "store", Candidate>
 >;
 
-// Regola dei campi descrittivi (scadenza, productRef, categoria, prezzo, negozio): si modificano solo con
+// Regola dei campi descrittivi (scadenza, productRef, categoria, codice a barre, prezzo, negozio): si modificano solo con
 // `updateLot`; vince l'ultima scrittura per (recordedAt, id), non per `at`. Una creazione
 // sostitutiva (`replaces`) non li rivendica mai: eredita valori e timbri della creazione
 // d'origine. Limiti noti:
@@ -431,6 +433,10 @@ export function derivePantry(
       lot.category = origin.category;
       won.category = stamp;
     }
+    if (!isBlank(origin.barcode)) {
+      lot.barcode = origin.barcode;
+      won.barcode = stamp;
+    }
     if (origin.expiry) {
       lot.expiry = { date: origin.expiry.date, kind: origin.expiry.kind };
       won.expiry = stamp;
@@ -570,6 +576,12 @@ export function derivePantry(
           if (takes("category")) {
             if (patch.category === null) delete lot.category;
             else lot.category = patch.category;
+          }
+        }
+        if (patch.barcode !== undefined && (patch.barcode === null || !isBlank(patch.barcode))) {
+          if (takes("barcode")) {
+            if (patch.barcode === null) delete lot.barcode;
+            else lot.barcode = patch.barcode;
           }
         }
         if (patch.expiry !== undefined && takes("expiry")) {

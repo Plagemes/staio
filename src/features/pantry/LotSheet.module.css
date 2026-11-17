@@ -161,3 +161,9 @@
   align-items: flex-start;
   gap: var(--space-3);
 }
+
+.nutrients {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}

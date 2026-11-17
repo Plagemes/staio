@@ -26,6 +26,7 @@ describe("readCaptureParams", () => {
   it("scarta categorie e codici non validi", () => {
     expect(from("categoria=boh&barcode=abc&nome=%20%20")).toEqual({});
     expect(from("barcode=123")).toEqual({});
+    expect(from("barcode=1234567")).toEqual({});
   });
 
   it("taglia i testi troppo lunghi", () => {
@@ -48,7 +49,7 @@ describe("cattura da codice a barre", () => {
   };
   const ctx = { now: "2026-11-16T10:00:00.000Z", deviceId: "d", idGenerator: createIdGenerator({ now: () => 1, random: () => 0.5 }) };
 
-  it("scrive fonte barcode, certezza label e nota con codice e marca", () => {
+  it("scrive fonte barcode, certezza label, il codice nel campo e la marca nella nota", () => {
     const r = buildCaptureEvents(input, ctx);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
@@ -56,8 +57,11 @@ describe("cattura da codice a barre", () => {
       type: "purchase",
       source: "barcode",
       certainty: "label",
-      note: "Codice a barre 8001234567890 · Granarolo",
+      barcode: "8001234567890",
+      note: "Marca: Granarolo",
     });
+    expect(r.events[0].note).not.toMatch(/Codice a barre/);
+    expect(derivePantry(r.events).lots[0].barcode).toBe("8001234567890");
     expect(derivePantry(r.events).lots).toHaveLength(1);
   });
 
@@ -70,5 +74,12 @@ describe("cattura da codice a barre", () => {
     const r = buildCaptureEvents({ ...input, barcode: undefined, brand: undefined }, ctx);
     expect(r.ok && r.events[0]).toMatchObject({ source: "manual" });
     expect(r.ok && r.events[0]).not.toHaveProperty("note");
+    expect(r.ok && r.events[0]).not.toHaveProperty("barcode");
+  });
+
+  it("un codice non valido non diventa un campo né cambia la fonte", () => {
+    const r = buildCaptureEvents({ ...input, barcode: "123" }, ctx);
+    expect(r.ok && r.events[0]).toMatchObject({ source: "manual" });
+    expect(r.ok && r.events[0]).not.toHaveProperty("barcode");
   });
 });

@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { BottomNav, type NavArea } from "@/design";
 import { useOnlineStatus } from "@/pwa";
 import { NoticeProvider } from "../notice";
+import { BarcodeMigration } from "./BarcodeMigration";
 import styles from "./AppShell.module.css";
 
 const HREFS = {
@@ -36,6 +37,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const online = useOnlineStatus();
   return (
     <NoticeProvider>
+      <BarcodeMigration />
       <div className={styles.shell}>
         {online ? null : (
           <p className={styles.offline} role="status">

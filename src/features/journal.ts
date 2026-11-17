@@ -25,6 +25,7 @@ const PATCH_LABELS: Record<keyof LotPatch, string> = {
   expiry: "scadenza",
   productRef: "nome",
   category: "categoria",
+  barcode: "codice a barre",
   priceCents: "prezzo",
   store: "negozio",
 };

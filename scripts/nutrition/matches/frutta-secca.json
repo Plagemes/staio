@@ -1,0 +1,21 @@
+{
+  "group": "frutta-secca",
+  "file": "nuts-seeds",
+  "items": [
+    { "id":"mandorle","name":"Mandorle, secche con pellicola","aliases":["mandorla","mandorle","frutta secca"],"fdc":170567,"unit":"almond","state":"dried" },
+    { "id":"noci","name":"Noci inglesi, sgusciate","aliases":["noce","noci","gherigli di noce","frutta secca"],"fdc":170187,"state":"dried" },
+    { "id":"nocciole","name":"Nocciole, secche","aliases":["nocciola","nocciole","frutta secca"],"fdc":170581,"unit":"nuts","state":"dried" },
+    { "id":"pinoli","name":"Pinoli, secchi","aliases":["pinolo","pinoli","frutta secca"],"fdc":170591,"state":"dried" },
+    { "id":"pistacchi","name":"Pistacchi, crudi","aliases":["pistacchio","pistacchi","frutta secca"],"fdc":170184,"state":"dried" },
+    { "id":"anacardi","name":"Anacardi, crudi","aliases":["anacardio","anacardi","frutta secca"],"fdc":170162,"state":"dried" },
+    { "id":"castagne-crude","name":"Castagne, crude con buccia interna","aliases":["castagna","castagne","marroni","marrone"],"fdc":170574,"approx":"castagna europea, parte edibile con pellicola" },
+    { "id":"cocco-fresco","name":"Cocco, polpa fresca","aliases":["cocco","noce di cocco","polpa di cocco"],"fdc":170169 },
+    { "id":"arachidi","name":"Arachidi, crude","aliases":["arachide","noccioline americane","noccioline","frutta secca"],"fdc":172430,"state":"dried" },
+    { "id":"burro-di-arachidi","name":"Burro di arachidi, cremoso, senza sale","aliases":["burro d'arachidi","crema di arachidi","peanut butter"],"fdc":172470 },
+    { "id":"semi-di-sesamo","name":"Semi di sesamo, secchi","aliases":["sesamo","semi di sesamo"],"fdc":170150 },
+    { "id":"semi-di-girasole","name":"Semi di girasole, sgusciati secchi","aliases":["girasole","semi di girasole"],"fdc":170562 },
+    { "id":"semi-di-zucca","name":"Semi di zucca, sgusciati secchi","aliases":["semi di zucca","zucca semi"],"fdc":170556 },
+    { "id":"semi-di-lino","name":"Semi di lino","aliases":["lino","semi di lino"],"fdc":169414,"state":"dried" },
+    { "id":"semi-di-chia","name":"Semi di chia, secchi","aliases":["chia"],"fdc":170554 }
+  ]
+}

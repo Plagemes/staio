@@ -93,6 +93,26 @@ export function Settings() {
       </section>
 
       <section className={ui.section}>
+        <SectionHeader label="Profilo" />
+        <div className={styles.block}>
+          <p className={ui.paragraph}>Sesso ed età servono a scegliere i valori di riferimento per la nutrizione. Restano sul telefono.</p>
+          <Link href="/app/impostazioni/profilo" className={ui.textLink}>
+            Profilo per la nutrizione
+          </Link>
+        </div>
+      </section>
+
+      <section className={ui.section}>
+        <SectionHeader label="Intelligenza artificiale" />
+        <div className={styles.block}>
+          <p className={ui.paragraph}>Facoltativa: serve a leggere gli scontrini. Decidi tu se usarla e con quale servizio.</p>
+          <Link href="/app/impostazioni/ai" className={ui.textLink}>
+            Intelligenza artificiale
+          </Link>
+        </div>
+      </section>
+
+      <section className={ui.section}>
         <SectionHeader label="Pasti abituali" />
         <div className={styles.block}>
           <p className={ui.paragraph}>I pasti che ripeti e che Staio ti propone all&apos;ora giusta. Qui li rinomini o li ritiri.</p>

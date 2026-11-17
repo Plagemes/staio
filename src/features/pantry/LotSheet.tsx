@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { DeclareEvent, PurchaseEvent } from "@/core/ledger";
 import { formatQuantity } from "@/core/units";
 import { appendEvents, getDeviceId } from "@/data";
+import { LotNutrients } from "../nutrition/Per100";
 import { ExpiryTag, Label, LevelBar, Value } from "@/design";
 import { recipeForUnknown } from "@/models3d/fallback";
 import ModelViewer from "@/models3d/ModelViewer";
@@ -165,6 +166,10 @@ export function LotSheet({ entry, creation, now, onClose }: LotSheetProps) {
             </div>
           ) : null}
         </dl>
+
+        <section className={styles.nutrients} aria-label="Nutrienti">
+          <LotNutrients lotId={lot.lotId} productRef={lot.productRef} barcode={lot.barcode} />
+        </section>
 
         {lot.remaining > 0 ? (
           <LotActions entry={entry} creation={creation} now={now} busy={busy} perform={perform} error={error} />

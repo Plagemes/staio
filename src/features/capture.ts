@@ -82,10 +82,8 @@ export function cleanName(text: string): string {
   return s === "" ? s : s[0].toUpperCase() + s.slice(1);
 }
 
-function barcodeNote(input: CaptureInput): string {
-  const brand = input.brand?.trim();
-  return `Codice a barre ${input.barcode}${brand ? ` · ${brand}` : ""}`;
-}
+/** Cifre, da 8 a 14 come nel libro mastro: altro non è un codice a barre. */
+const BARCODE_RE = /^\d{8,14}$/;
 
 export function buildCaptureEvents(input: CaptureInput, ctx: CaptureContext): CaptureResult {
   const errors: FieldErrors = {};
@@ -121,7 +119,9 @@ export function buildCaptureEvents(input: CaptureInput, ctx: CaptureContext): Ca
 
   if (Object.keys(errors).length > 0 || !reading.ok) return { ok: false, errors };
 
-  const fromBarcode = input.barcode !== undefined && input.barcode !== "";
+  const barcode = input.barcode !== undefined && BARCODE_RE.test(input.barcode) ? input.barcode : undefined;
+  const fromBarcode = barcode !== undefined;
+  const brand = input.brand?.trim();
   const idGenerator = ctx.idGenerator ?? generateId;
   const lotId = idGenerator();
   // Un acquisto con la quantità letta in etichetta; ciò che c'era già in casa è, per sua natura, approssimato.
@@ -132,7 +132,9 @@ export function buildCaptureEvents(input: CaptureInput, ctx: CaptureContext): Ca
     deviceId: ctx.deviceId,
     schemaVersion: SCHEMA_VERSION,
     source: fromBarcode ? ("barcode" as const) : ("manual" as const),
-    ...(fromBarcode ? { note: barcodeNote(input) } : {}),
+    // il codice è un campo dell'evento; nella nota resta solo la marca
+    ...(fromBarcode ? { barcode } : {}),
+    ...(fromBarcode && brand ? { note: `Marca: ${brand}` } : {}),
     lotId,
     productRef: name,
     category: input.category,
