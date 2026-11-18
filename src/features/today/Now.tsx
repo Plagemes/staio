@@ -1,15 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { createWater, getDay, habitsToPropose, localMoment, type DiaryHabit, type DiaryState } from "@/core/diary";
 import type { AnyEvent } from "@/core/events";
 import { activeLots, type PantryState } from "@/core/ledger";
 import { Button, Label } from "@/design";
-import { Sheet } from "../common";
+import { ActionList, Sheet, type ActionItem } from "../common";
 import { drinkCounts } from "../drinks";
 import { DRINK_PRESETS, formatMl, type DrinkPreset } from "../health";
 import { DrinkPantrySuggestion, useDrinkSuggestion } from "../health/DrinkPantry";
-import { DrinkPresetChips, useDrinkActions } from "../health/Drinks";
+import { CustomDrinkForm, DrinkPresetChips, useDrinkActions } from "../health/Drinks";
 import { evaluateLots } from "../lots";
 import { buildMealFromHabit, itemText } from "../meals";
 import ui from "../ui.module.css";
@@ -17,6 +17,7 @@ import { useRecord } from "../useRecord";
 import { HABIT_WINDOW_MINUTES, nowAction, nowActionHref, nowActionLabel } from "./nowModel";
 import { useWaterGoal } from "./useWaterGoal";
 import styles from "./Now.module.css";
+import diaryStyles from "./Today.module.css";
 
 interface Props {
   now: string;
@@ -48,6 +49,9 @@ export function Now({ now, today, diary, pantry, onShowWater, onDrinkAdded }: Pr
   const goal = useWaterGoal();
   const [error, setError] = useState<string | null>(null);
   const [sheet, setSheet] = useState(false);
+  /** Il passo del foglio «Bevande»: le scelte rapide, oppure «Un'altra bevanda» scritta a mano. */
+  const [sheetStep, setSheetStep] = useState<"main" | "custom">("main");
+  const customFormId = useId();
   const [sheetError, setSheetError] = useState<string | null>(null);
   const busy = recording || drinkActions.busy;
 
@@ -84,6 +88,42 @@ export function Now({ now, today, diary, pantry, onShowWater, onDrinkAdded }: Pr
     const id = drinkIdOf(result.events);
     if (id) onDrinkAdded?.(id);
   }
+
+  // un tocco segna e chiude: l'avviso non deve restare sotto il foglio
+  const onSheetDrinkAdded = (name: string, events: readonly AnyEvent[]) => {
+    setSheet(false);
+    suggestion.offer(name, events);
+    const id = drinkIdOf(events);
+    if (id) onDrinkAdded?.(id);
+  };
+
+  const backToPresets = () => setSheetStep("main");
+
+  const otherItems: ActionItem[] = [
+    {
+      id: "custom",
+      label: "Un'altra bevanda",
+      hint: "nome e millilitri",
+      disabled: drinkActions.busy,
+      onSelect: () => {
+        setSheetError(null);
+        setSheetStep("custom");
+      },
+    },
+    ...(onShowWater
+      ? [
+          {
+            id: "water",
+            label: "Acqua: un'altra quantità",
+            disabled: drinkActions.busy,
+            onSelect: () => {
+              setSheet(false);
+              onShowWater();
+            },
+          },
+        ]
+      : []),
+  ];
 
   return (
     <>
@@ -128,6 +168,7 @@ export function Now({ now, today, diary, pantry, onShowWater, onDrinkAdded }: Pr
             disabled={busy}
             onClick={() => {
               setSheetError(null);
+              setSheetStep("main");
               setSheet(true);
             }}
           >
@@ -151,36 +192,37 @@ export function Now({ now, today, diary, pantry, onShowWater, onDrinkAdded }: Pr
 
       {/* fuori dal blocco tinto: il foglio non ne eredita i colori */}
       {sheet ? (
-        <Sheet title="Bevande" onClose={() => setSheet(false)} busy={drinkActions.busy}>
-          <DrinkPresetChips
-            actions={drinkActions}
-            onError={setSheetError}
-            // un tocco segna e chiude: l'avviso non deve restare sotto il foglio
-            onAdded={(name, events) => {
-              setSheet(false);
-              suggestion.offer(name, events);
-              const id = drinkIdOf(events);
-              if (id) onDrinkAdded?.(id);
-            }}
-          />
-          {sheetError ? (
-            <p className={ui.error} role="alert">
-              {sheetError}
-            </p>
-          ) : null}
-          {onShowWater ? (
-            <div>
-              <Button
-                variant="text"
-                onClick={() => {
-                  setSheet(false);
-                  onShowWater();
-                }}
-              >
-                Acqua: un&apos;altra quantità
-              </Button>
-            </div>
-          ) : null}
+        <Sheet
+          title="Bevande"
+          onClose={() => setSheet(false)}
+          busy={drinkActions.busy}
+          footer={
+            sheetStep === "custom" ? (
+              <div className={diaryStyles.stepFooter}>
+                <Button variant="text" disabled={drinkActions.busy} onClick={backToPresets}>
+                  Indietro
+                </Button>
+                <Button type="submit" form={customFormId} disabled={drinkActions.busy}>
+                  Segna
+                </Button>
+              </div>
+            ) : undefined
+          }
+          onBack={sheetStep === "custom" ? backToPresets : undefined}
+        >
+          {sheetStep === "custom" ? (
+            <CustomDrinkForm actions={drinkActions} formId={customFormId} onAdded={onSheetDrinkAdded} />
+          ) : (
+            <>
+              <DrinkPresetChips actions={drinkActions} onError={setSheetError} onAdded={onSheetDrinkAdded} />
+              {sheetError ? (
+                <p className={ui.error} role="alert">
+                  {sheetError}
+                </p>
+              ) : null}
+              <ActionList items={otherItems} />
+            </>
+          )}
         </Sheet>
       ) : null}
     </>

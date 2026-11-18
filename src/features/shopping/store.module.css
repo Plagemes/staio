@@ -1,0 +1,211 @@
+/* In negozio: righe grandi da spuntare con una mano, «Metti in dispensa». Solo variabili di tema; bersagli da 56 px. */
+
+.trip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-group);
+  min-width: 0;
+}
+
+.status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.statusLine {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.addForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Le voci: una casella grande, il nome a sinistra, la quantità a destra */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-item);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  min-height: 56px;
+  padding: var(--space-3) var(--space-7);
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.row:focus-within {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.rowDone {
+  composes: row;
+  border-color: var(--color-rule);
+  background: none;
+  color: var(--color-graphite);
+}
+
+.row input {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-figure);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.rowDone .name {
+  text-decoration: line-through;
+}
+
+.qty {
+  flex: none;
+  font-family: var(--font-data);
+  font-size: var(--text-data);
+  color: var(--color-graphite);
+}
+
+/* Metti in dispensa: righe chiuse a filetti, aperte solo dove manca un dato */
+
+.putList {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.putItem {
+  border-top: var(--rule-width) solid var(--color-rule);
+}
+
+.putItem:last-child {
+  border-bottom: var(--rule-width) solid var(--color-rule);
+}
+
+.putRow {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: var(--space-5) 0;
+  border: none;
+  background: none;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--text-body-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.putRow:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.putText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.putDetail {
+  font-size: var(--text-caption);
+  line-height: 1.4;
+  color: var(--color-graphite);
+}
+
+.line {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding: var(--space-5) 0;
+  font-size: var(--text-body-sm);
+  overflow-wrap: anywhere;
+}
+
+.putOpen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-group);
+  padding-bottom: var(--space-7);
+}
+
+.putName {
+  font-weight: 600;
+}
+
+.putFields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-group);
+}
+
+.stepFooter {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-item);
+}
+
+.stepFooter > :first-child {
+  flex: none;
+}
+
+.stepFooter > :last-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.barStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.barButton {
+  width: 100%;
+}
+
+/* ------------------------------------------------------------------------------------------------
+   Vivo: le righe da spuntare sono schede piene, come le voci della lista; «Metti in dispensa» resta a righe.
+   ------------------------------------------------------------------------------------------------ */
+
+:global([data-palette="vivo"]) .row {
+  border-color: transparent;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-palette="vivo"]) .rowDone {
+  background: var(--color-fill);
+  box-shadow: none;
+}

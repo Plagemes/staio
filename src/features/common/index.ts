@@ -4,3 +4,5 @@ export { Disclosure, type DisclosureProps } from "./Disclosure";
 export { QuantityPicker, type QuantityOption, type QuantityPickerProps, type QuantityValue } from "./QuantityPicker";
 export { Sheet, type SheetProps } from "./Sheet";
 export { closeSheetThen } from "./sheetHistory";
+export { BreakdownSheet, type BreakdownGroup, type BreakdownRow, type BreakdownSheetProps } from "./Breakdown";
+export { useWakeLock } from "./useWakeLock";

@@ -319,4 +319,32 @@ describe("buildReceiptRequest", () => {
     expect(request.maxOutputTokens).toBeGreaterThan(1000);
     expect(buildReceiptRequest({ images: [image], maxOutputTokens: 123 }).maxOutputTokens).toBe(123);
   });
+
+  /** Impronta del testo: un carattere cambiato la cambia. */
+  const fingerprint = (s: string) => {
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) h = (Math.imul(h, 33) ^ s.charCodeAt(i)) >>> 0;
+    return `${s.length}:${h.toString(16)}`;
+  };
+
+  it("con una foto la richiesta è identica a quella di prima delle foto multiple", () => {
+    const request = buildReceiptRequest({ images: [image], today: "2026-11-17" });
+    expect(request.text).toBe("Ecco la foto dello scontrino. Oggi è 2026-11-17. Rispondi solo con il JSON.");
+    expect(fingerprint(request.instructions)).toBe("4509:489f429");
+    expect(request.instructions).not.toMatch(/parti dello stesso scontrino/);
+    expect(buildReceiptRequest({ images: [image] }).text).toBe("Ecco la foto dello scontrino. Rispondi solo con il JSON.");
+  });
+
+  it("con più foto dice che sono parti dello stesso scontrino, in ordine, e che le righe ripetute nella sovrapposizione valgono una volta", () => {
+    const images = [image, { ...image, dataBase64: "BBBB" }, { ...image, dataBase64: "CCCC" }];
+    const request = buildReceiptRequest({ images, today: "2026-11-17" });
+    expect(request.images).toEqual(images);
+    for (const text of [request.instructions, request.text]) {
+      expect(text).toMatch(/parti dello stesso scontrino/);
+      expect(text).toMatch(/una volta sola/);
+    }
+    expect(request.text).toContain("3 foto");
+    expect(request.text).toContain("2026-11-17");
+    expect(request.instructions.startsWith(buildReceiptRequest({ images: [image] }).instructions)).toBe(true);
+  });
 });

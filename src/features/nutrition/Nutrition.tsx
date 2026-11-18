@@ -2,20 +2,43 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { compareWithReferences, type NutrientKey } from "@/core/nutrition";
+import { localMoment } from "@/core/diary";
+import {
+  DEFAULT_MIN_COMPLETE_DAYS,
+  analyzeVariety,
+  compareWithReferences,
+  foodLookup,
+  periodBreakdown,
+  proteinSpread,
+  type NutrientKey,
+} from "@/core/nutrition";
 import { Button, Label, ProgressLine, SectionHeader, Tabs, Value } from "@/design";
+import { Disclosure } from "../common";
+import { BreakdownSheet } from "../common/Breakdown";
 import { dayOf } from "../format";
 import { NutritionDisclaimer } from "./Disclaimer";
 import { LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
+import { averageContent, countedDaysContent, countedDaysText } from "./breakdownView";
 import {
   CERTAINTY_LABELS,
   certaintyExplanation,
   formatNutrient,
   nutrientLabel,
 } from "./labels";
-import { buildNutritionRows, averageIntake, inPeriod, outOfHomeDayCount, outOfHomeDaysText, periodOf, topContributors, type ComparisonRow } from "./prepare";
+import {
+  averageIntake,
+  buildNutritionRows,
+  inPeriod,
+  notComputableCount,
+  outOfHomeDayCount,
+  outOfHomeDaysText,
+  periodOf,
+  topContributors,
+  unresolvedGroups,
+  type ComparisonRow,
+} from "./prepare";
 import { toEngineProfile } from "./profile";
 import styles from "./nutrition.module.css";
 import { createFoodSearch, type FoodOption, type FoodSearch } from "./candidates";
@@ -23,8 +46,10 @@ import { FoodPicker } from "./FoodCandidates";
 import { CostPerNutrientSection } from "./CostPerNutrient";
 import { UnresolvedList } from "./UnresolvedList";
 import { ProteinSpreadSection, VarietySection } from "./WeekSections";
+import { comparisonGateText, otherNutrientsTitle, splitComparisons, spreadSummary, unresolvedTitle, varietySummary } from "./summaries";
 import { useFoodCorrection } from "./useCorrection";
 import { useIntake, useNutritionProfile, useReferences } from "./useNutrition";
+import { varietyView } from "./weekView";
 
 const PERIODS = [
   { id: "7", label: "7 giorni" },
@@ -32,6 +57,8 @@ const PERIODS = [
 ];
 
 const AVERAGED: readonly NutrientKey[] = ["energyKcal", "proteinG", "carbsG", "sugarsG", "fatG", "saturatedFatG", "fiberG", "saltG"];
+
+type OpenSheet = { kind: "days" } | { kind: "average"; key: NutrientKey };
 
 function Row({
   row,
@@ -138,11 +165,11 @@ function Row({
   );
 }
 
-/** I limiti di questi numeri, detti chiaramente. */
+/** I limiti di questi numeri, detti chiaramente. Il testo è quello di sempre: sta dietro «Che cosa significa». */
 function WhatToKnow() {
   return (
-    <section className={ui.section}>
-      <SectionHeader label="Cosa sapere" />
+    <>
+      <Label>Cosa sapere</Label>
       <ul className={styles.know}>
         <li>I valori sono stime da una banca dati statunitense, non misure sui tuoi prodotti.</li>
         <li>I micronutrienti mancano spesso, e lo iodio quasi sempre: un nutriente senza dato non vale zero.</li>
@@ -152,10 +179,15 @@ function WhatToKnow() {
         <li>Un pasto registrato come «Fuori casa» conta nei giorni completi con una stima della sola energia: per gli altri nutrienti il dato manca.</li>
         <li>Servono almeno cinque giorni completi per un confronto con i riferimenti.</li>
       </ul>
-    </section>
+    </>
   );
 }
 
+/**
+ * Le medie del periodo rispetto ai riferimenti. In vista: i giorni contati (si aprono e dicono perché), le medie
+ * (ognuna si apre e dice da quali giorni e voci viene), fino a sei confronti. Il resto in righe richiuse; le
+ * spiegazioni dietro «Che cosa significa».
+ */
 export function Nutrition() {
   const data = useIntake();
   const refs = useReferences();
@@ -163,22 +195,53 @@ export function Nutrition() {
   const now = useNow();
   const [period, setPeriod] = useState("7");
   const [openId, setOpenId] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<OpenSheet | null>(null);
+  const [costOpen, setCostOpen] = useState(false);
 
   const search = useMemo(() => (data.foods ? createFoodSearch(data.foods) : undefined), [data.foods]);
   const applyCorrection = useFoodCorrection(data.overrides);
   const today = now ? dayOf(now) : null;
   const n = Number(period);
   const range = useMemo(() => (today ? periodOf(today, n) : null), [today, n]);
-  const periodDays = useMemo(() => (data.intake && range ? inPeriod(data.intake.days, range.from, range.to) : []), [data.intake, range]);
+  const allDays = data.intake?.days;
+  const periodDays = useMemo(() => (allDays && range ? inPeriod(allDays, range.from, range.to) : []), [allDays, range]);
 
   const comparisons = useMemo(() => {
-    if (!data.intake || !refs || !profile || !range || !today) return undefined;
-    return compareWithReferences(data.intake.days, refs, toEngineProfile(profile, today), range);
-  }, [data.intake, refs, profile, range, today]);
+    if (!allDays || !refs || !profile || !range || !today) return undefined;
+    return compareWithReferences(allDays, refs, toEngineProfile(profile, today), range);
+  }, [allDays, refs, profile, range, today]);
   const rows = useMemo(() => (comparisons ? buildNutritionRows(comparisons, periodDays) : undefined), [comparisons, periodDays]);
 
+  // i giorni contati non dipendono dal nutriente: quelli dell'energia valgono per tutti
+  const counting = useMemo(() => (allDays && range ? periodBreakdown(allDays, range, "energyKcal") : undefined), [allDays, range]);
+  const spread = useMemo(() => (allDays && today ? proteinSpread(allDays, today) : undefined), [allDays, today]);
+  const variety = useMemo(() => (allDays && data.foods && today ? analyzeVariety(allDays, foodLookup(data.foods), today) : undefined), [allDays, data.foods, today]);
+  const unresolved = useMemo(() => (allDays ? unresolvedGroups(allDays) : []), [allDays]);
+  const skipped = useMemo(() => (allDays ? notComputableCount(allDays) : 0), [allDays]);
+  const averages = useMemo(
+    () =>
+      AVERAGED.flatMap((k) => {
+        const a = averageIntake(periodDays, k);
+        return a ? [{ key: k, avg: a }] : [];
+      }),
+    [periodDays],
+  );
+  const timeZone = data.intake?.timeZone;
+  const nowMinutes = useMemo(() => (now && timeZone ? localMoment(now, timeZone)?.minutes : undefined), [now, timeZone]);
+  const outOfHomeText = useMemo(() => outOfHomeDaysText(outOfHomeDayCount(periodDays)), [periodDays]);
+  const prepInfo = data.prepInfo;
+
+  // il contenuto del foglio si calcola solo quando il foglio è aperto, e una volta sola
+  const sheetContent = useMemo(() => {
+    if (!sheet || !allDays || !counting || !range || !today) return undefined;
+    if (sheet.kind === "days") return countedDaysContent(counting, { today, ...(nowMinutes !== undefined ? { nowMinutes } : {}), ...(outOfHomeText ? { note: outOfHomeText } : {}) });
+    const avg = averages.find((a) => a.key === sheet.key)?.avg;
+    if (!avg) return undefined;
+    return averageContent(periodBreakdown(allDays, range, sheet.key), avg, { today, contributors: topContributors(periodDays, sheet.key, 5, prepInfo) });
+  }, [sheet, allDays, counting, range, today, nowMinutes, outOfHomeText, averages, periodDays, prepInfo]);
+
   if (data.error) return <StorageError />;
-  if (!data.ready || !profileReady || !refs || !today || !range) {
+  if (!data.ready || !profileReady || !refs || !today || !range || !now || !counting) {
     return (
       <div className={ui.screen}>
         <h1 className={ui.title}>Nutrizione</h1>
@@ -187,12 +250,12 @@ export function Nutrition() {
     );
   }
 
-  const complete = periodDays.filter((d) => d.complete).length;
-  const outOfHomeText = outOfHomeDaysText(outOfHomeDayCount(periodDays));
-  const averages = AVERAGED.flatMap((k) => {
-    const a = averageIntake(periodDays, k);
-    return a ? [{ key: k, avg: a }] : [];
-  });
+  const complete = counting.complete;
+  const gate = comparisonGateText({ hasProfile: profile !== null, completeDays: complete, required: DEFAULT_MIN_COMPLETE_DAYS });
+  const split = rows && !gate ? splitComparisons(rows) : undefined;
+  const remembered = search ? Object.values(data.overrides).filter((id) => search.byId(id) !== undefined).length : 0;
+  const showUnresolved = search !== undefined && (unresolved.length > 0 || remembered > 0 || skipped > 0);
+
   const renderRows = (list: ComparisonRow[]) => (
     <ul className={styles.rows}>
       {list.map((row) => (
@@ -217,86 +280,117 @@ export function Nutrition() {
           Torna a Salute
         </Link>
       </div>
-      <p className={ui.lead}>
-        Quanto assumi rispetto ai valori di riferimento. Non è un giudizio e non serve a dire come stai: serve a vedere dove sei.
-      </p>
 
-      <Tabs label="Periodo" items={PERIODS} value={period} onChange={setPeriod} />
-      <p className={ui.hint}>
-        Giorni completi nel periodo: {complete} su {periodDays.length}. Contano solo i giorni con colazione, pranzo e cena tracciati.
-        {outOfHomeText ? ` ${outOfHomeText}` : ""}
-      </p>
+      <div className={styles.periodBlock}>
+        <Tabs label="Periodo" items={PERIODS} value={period} onChange={setPeriod} />
+        <button type="button" className={styles.countLine} aria-haspopup="dialog" onClick={() => setSheet({ kind: "days" })}>
+          {countedDaysText(complete, n)}
+          <span className={styles.why}> · perché</span>
+        </button>
+      </div>
 
       <section className={ui.section}>
-        <SectionHeader label="Assunzione media al giorno" />
+        <SectionHeader label="Media al giorno" />
         {averages.length === 0 ? (
           <p className={styles.quiet}>
             Ancora nessun giorno completo con dati nel periodo. Registra colazione, pranzo e cena (anche come «Fuori casa», che conta come stima) per vedere le medie.
           </p>
         ) : (
-          <ul className={styles.contributors}>
+          <ul className={styles.rows}>
             {averages.map(({ key, avg }) => (
-              <li key={key} className={styles.contributor}>
-                <span>{nutrientLabel(key)}</span>
-                <span className={styles.contributorShare}>
-                  {avg.partial ? "almeno " : ""}
-                  <Value certainty={avg.certainty}>{formatNutrient(key, avg.value)}</Value>
-                </span>
+              <li key={key} className={styles.row}>
+                <button type="button" className={styles.lineButton} aria-haspopup="dialog" onClick={() => setSheet({ kind: "average", key })}>
+                  <span>{nutrientLabel(key)}</span>
+                  <span className={styles.contributorShare}>
+                    {avg.partial ? "almeno " : ""}
+                    <Value certainty={avg.certainty}>{formatNutrient(key, avg.value)}</Value>
+                  </span>
+                </button>
               </li>
             ))}
           </ul>
         )}
       </section>
 
-      {!profile ? (
-        <div className={ui.callout} role="group" aria-label="Profilo mancante">
-          <p className={ui.paragraph}>
-            Per confrontare con i valori di riferimento servono sesso ed età. Senza, vedi i nutrienti ma non il confronto.
-          </p>
-          <div className={ui.row}>
-            <Button href="/app/impostazioni/profilo">Compila il profilo</Button>
-          </div>
-        </div>
-      ) : rows ? (
-        <>
+      <section className={ui.section}>
+        <SectionHeader label="Rispetto al riferimento" />
+        {gate ? (
           <p className={ui.hint}>
-            Riferimenti per {profile.sex === "female" ? "una donna adulta" : "un uomo adulto"}.{" "}
-            <Link href="/app/impostazioni/profilo" className={ui.textLink}>
-              Cambia profilo
-            </Link>
+            {gate}
+            {!profile ? (
+              <>
+                {" "}
+                <Link href="/app/impostazioni/profilo" className={ui.textLink}>
+                  Compila il profilo
+                </Link>
+              </>
+            ) : null}
           </p>
-          {rows.compared.length > 0 ? (
-            <section className={ui.section}>
-              <SectionHeader label="Rispetto al riferimento" />
-              {renderRows(rows.compared)}
-              <p className={ui.hint}>In ordine: prima ciò che è più lontano dal riferimento, in più o in meno.</p>
-            </section>
-          ) : null}
-          {rows.notes.length > 0 ? (
-            <section className={ui.section}>
-              <SectionHeader label="Riferimento solo a parole" />
-              {renderRows(rows.notes)}
-            </section>
-          ) : null}
-          {rows.insufficient.length > 0 ? (
-            <section className={ui.section}>
-              <SectionHeader label="Dati insufficienti" />
-              {renderRows(rows.insufficient)}
-            </section>
-          ) : null}
-        </>
-      ) : null}
+        ) : profile && split ? (
+          <>
+            <p className={ui.hint}>
+              Riferimenti per {profile.sex === "female" ? "una donna adulta" : "un uomo adulto"}.{" "}
+              <Link href="/app/impostazioni/profilo" className={ui.textLink}>
+                Cambia profilo
+              </Link>
+            </p>
+            {split.shown.length > 0 ? renderRows(split.shown) : null}
+          </>
+        ) : null}
+      </section>
 
-      {data.intake ? <ProteinSpreadSection days={data.intake.days} today={today} /> : null}
-      {data.intake && data.foods ? <VarietySection days={data.intake.days} foods={data.foods} today={today} /> : null}
+      <div className={styles.closedRows}>
+        {split && split.hidden > 0 ? (
+          <Disclosure title={otherNutrientsTitle(split.hidden)}>
+            {split.more.length > 0 ? renderRows(split.more) : null}
+            {split.notes.length > 0 ? (
+              <div>
+                <Label>Riferimento solo a parole</Label>
+                {renderRows(split.notes)}
+              </div>
+            ) : null}
+            {split.insufficient.length > 0 ? (
+              <div>
+                <Label>Dati insufficienti</Label>
+                {renderRows(split.insufficient)}
+              </div>
+            ) : null}
+          </Disclosure>
+        ) : null}
+        {allDays && spread ? (
+          <Disclosure title="Proteine nella giornata" summary={spreadSummary(spread)}>
+            <ProteinSpreadSection headless days={allDays} today={today} spread={spread} />
+          </Disclosure>
+        ) : null}
+        {allDays && data.foods && variety ? (
+          <Disclosure title="Varietà vegetale" summary={varietySummary(varietyView(variety))}>
+            <VarietySection headless days={allDays} foods={data.foods} today={today} report={variety} />
+          </Disclosure>
+        ) : null}
+        {allDays && search && showUnresolved ? (
+          // aperta quando ci sono voci da collegare: lì si può fare qualcosa
+          <Disclosure title={unresolvedTitle(unresolved.length)} summary={unresolved.length > 0 ? "restano fuori dai totali" : undefined} defaultOpen={unresolved.length > 0}>
+            <UnresolvedList headless days={allDays} search={search} overrides={data.overrides} prepInfo={data.prepInfo} groups={unresolved} skipped={skipped} />
+          </Disclosure>
+        ) : null}
+        <Disclosure title="Costo per nutriente" open={costOpen} onOpenChange={setCostOpen}>
+          {costOpen ? <CostPerNutrientSection headless foods={data.foods} overrides={data.overrides} today={today} /> : null}
+        </Disclosure>
+      </div>
 
-      {data.intake && search ? <UnresolvedList days={data.intake.days} search={search} overrides={data.overrides} prepInfo={data.prepInfo} /> : null}
+      <Disclosure quiet title="Che cosa significa">
+        <p>Quanto assumi rispetto ai valori di riferimento. Non è un giudizio e non serve a dire come stai: serve a vedere dove sei.</p>
+        {/* il numero dei giorni contati sta in cima, e si apre: qui resta la regola */}
+        <p>
+          Contano solo i giorni con colazione, pranzo e cena tracciati.
+          {outOfHomeText ? ` ${outOfHomeText}` : ""}
+        </p>
+        {split && split.shown.length > 0 ? <p>In ordine: prima ciò che è più lontano dal riferimento, in più o in meno.</p> : null}
+        <WhatToKnow />
+        <NutritionDisclaimer />
+      </Disclosure>
 
-      <CostPerNutrientSection foods={data.foods} overrides={data.overrides} today={today} />
-
-      <WhatToKnow />
-
-      <NutritionDisclaimer />
+      {sheetContent ? <BreakdownSheet {...sheetContent} onClose={() => setSheet(null)} /> : null}
     </div>
   );
 }

@@ -1,29 +1,3 @@
-.card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-7);
-  padding-top: var(--space-7);
-}
-
-.big {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-5);
-}
-
-.bigNumber {
-  font-family: var(--font-display);
-  font-size: var(--text-display);
-  line-height: 0.88;
-  letter-spacing: var(--tracking-display);
-}
-
-.of {
-  font-family: var(--font-data);
-  font-size: var(--text-caption);
-  color: var(--color-graphite);
-}
-
 .buttons {
   display: flex;
   flex-wrap: wrap;
@@ -88,14 +62,44 @@
   cursor: pointer;
 }
 
-.score:disabled {
-  opacity: 0.5;
+.score:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
-.group {
+/* La scelta fatta: piena, come una scelta di ui.choices */
+.score[aria-pressed="true"] {
+  border-color: var(--color-ink);
+  background: var(--color-ink);
+  color: var(--color-on-ink);
+  font-weight: 600;
+}
+
+/* «Come sto»: quattro righe, ognuna con il nome della misura e le sue cinque pastiglie */
+.scoreRows {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--gap-item);
+}
+
+.scoreRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.scoreRow > .scores {
+  flex: 1;
+  min-width: 0;
+}
+
+/* larga quanto la parola più lunga («Digestione»): le quattro file di pastiglie restano in colonna */
+.scoreLabel {
+  flex: none;
+  width: 5.25rem;
+  font-size: var(--text-body-sm);
+  font-weight: 500;
 }
 
 .chartBox {
@@ -146,97 +150,111 @@
   color: var(--color-graphite);
 }
 
-.todayList {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  font-size: var(--text-caption);
-  color: var(--color-graphite);
-}
-
-.disclosure {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
+/* I due campi restano allineati anche se un'etichetta va a capo */
 .twoCols {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
   gap: var(--space-4);
 }
 
-.entries {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+.unit {
+  align-self: center;
+  font-size: var(--text-body-sm);
+  color: var(--color-graphite);
 }
 
-.entry {
+/* Il piede di un passo con un pulsante che conferma: «Indietro» a sinistra, il pulsante pieno a destra */
+.stepFooter {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-item);
+}
+
+.stepFooter > :last-child {
+  flex: 1;
+}
+
+/* «Segna»: il blocco d'azione in cima a Salute. Un'etichetta e tre pastiglie, ognuna apre il suo foglio */
+.mark {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.markChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-item);
+}
+
+.markChip {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-min);
+  padding: 0 var(--space-5);
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--text-body-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.markChip:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* «Andamento»: le righe richiuse in fila, e sotto la riga piccola che spiega */
+.trends {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.meaning {
+  margin-top: var(--space-6);
+}
+
+/* Dentro una riga di «Andamento»: una riga di testo per dato */
+.facts {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
   font-size: var(--text-body-sm);
+  line-height: 1.4;
 }
 
-.entryRow {
+/* In fondo ad «Acqua e bevande»: dove si segna, e il collegamento */
+.goTo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+.suggest {
   display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
   align-items: center;
-  gap: var(--space-2) var(--space-6);
-}
-
-.entryTime {
-  font-family: var(--font-data);
-  font-size: var(--text-label);
-  color: var(--color-graphite);
-}
-
-.entryActions {
-  display: inline-flex;
-  gap: var(--space-2);
-}
-
-.fluids {
-  margin: 0;
-  font-size: var(--text-caption);
-  color: var(--color-graphite);
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-4) 0;
 }
 
 /* ------------------------------------------------------------------------------------------------
-   Vivo: ogni riquadro di Salute è una scheda; numeri grandi in grassetto nel colore della scheda (acqua), anello
-   accanto al numero, pulsanti pieni. .ring non ha resa negli altri temi (l'anello lì non si mostra).
+   Vivo: pastiglie piene. «Segna» è una scheda tinta di Salute (ui.tile, ui.tone) con le pastiglie bianche sulla
+   tinta; le righe di «Andamento» sono schede staccate.
    ------------------------------------------------------------------------------------------------ */
-
-:global([data-palette="vivo"]) .card:not([data-tone]) {
-  padding: var(--space-7) var(--space-8);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  box-shadow: var(--card-shadow);
-}
-
-:global([data-palette="vivo"]) .big {
-  align-items: center;
-  column-gap: var(--space-4);
-}
-
-:global([data-palette="vivo"]) .bigNumber {
-  font-size: var(--text-heading);
-  font-weight: var(--weight-display);
-  line-height: 1;
-  color: var(--tone, var(--color-ink));
-}
-
-:global([data-palette="vivo"]) .ring {
-  margin-left: auto;
-}
 
 :global([data-palette="vivo"]) .chip,
 :global([data-palette="vivo"]) .score {
@@ -270,15 +288,22 @@
   stroke: var(--area-health);
 }
 
-/* Il numero grande resta nel carattere dei titoli anche quando è un valore (stima, misura) */
-:global([data-palette="vivo"]) .bigNumber * {
-  font-family: inherit;
+:global([data-palette="vivo"]) .score[aria-pressed="true"] {
+  background: var(--button-fill);
+  color: var(--button-text);
 }
 
-.suggest {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3) var(--space-5);
-  padding: var(--space-4) 0;
+:global([data-palette="vivo"]) .markChip {
+  border-color: transparent;
+  background: var(--color-surface);
+  font-weight: 600;
+  transition: background-color var(--motion-fast) ease;
+}
+
+:global([data-palette="vivo"]) .markChip:active {
+  transform: var(--press-transform);
+}
+
+:global([data-palette="vivo"]) .trends {
+  gap: var(--gap-item);
 }

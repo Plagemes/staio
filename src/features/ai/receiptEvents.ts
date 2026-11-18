@@ -1,6 +1,7 @@
 // Dalla lettura dello scontrino alle righe da rivedere, e dalle righe confermate agli acquisti del registro.
 // Logica pura: la scrittura nel registro (`appendEvents`) la fa la schermata.
 import type { ReceiptReading } from "@/core/ai";
+import { withExpiryChoices, type ExpiryChoice } from "@/core/ai/receiptExpiry";
 import { normalizeLineKey, quantityKey, type LineState, type MemoryEntry } from "@/core/ai/receiptMemory";
 import {
   SCHEMA_VERSION,
@@ -51,6 +52,10 @@ export interface ReviewLine {
   remembered?: { source: "store" | "general"; applied: boolean; entry: MemoryEntry };
   /** L'utente ha già toccato la riga: la memoria non la cambia più. */
   touched?: boolean;
+  /** Scadenza scelta nella revisione: va sull'acquisto. Senza, vale la stima per categoria. */
+  expiry?: ExpiryChoice;
+  /** «Va bene» sulla categoria proposta dalla lettura o dal nome: l'utente l'ha letta e la tiene. */
+  categoryChecked?: true;
 }
 
 function quantityTextOf(line: ReceiptReading["lines"][number]): string {
@@ -105,7 +110,14 @@ export interface ReceiptContext {
 
 export type ReceiptEventsResult =
   | { ok: true; events: PurchaseEvent[]; receiptId: string; summary: string }
-  | { ok: false; errors: Record<string, string>; form?: string };
+  | {
+      ok: false;
+      /** Per riga: nome, quantità, categoria. */
+      errors: Record<string, string>;
+      /** Per riga: la data di scadenza scelta (si mostra sotto il suo campo). */
+      expiryErrors?: Record<string, string>;
+      form?: string;
+    };
 
 /** Prefisso fisso e non ambiguo della nota: altri moduli leggono le note, e il testo grezzo di una riga non deve poter sembrare un loro formato. */
 export const RECEIPT_NOTE_PREFIX = "Riga scontrino";
@@ -136,7 +148,8 @@ export function purchaseInstant(date: string, now: string): string {
 
 /**
  * Un acquisto per ogni riga inclusa, tutti con lo stesso `receiptId`. Tutto ciò che è stato interpretato
- * (quantità, categoria, luogo) è una stima: la certezza è `estimated`.
+ * (quantità, categoria, luogo) è una stima: la certezza è `estimated`. La scadenza scelta per un fresco sta
+ * sull'acquisto stesso: tutto lo scontrino è un solo elenco di eventi, quindi una sola scrittura.
  */
 export function buildReceiptEvents(lines: readonly ReviewLine[], meta: ReceiptMeta, ctx: ReceiptContext): ReceiptEventsResult {
   const chosen = lines.filter((l) => l.include);
@@ -158,6 +171,8 @@ export function buildReceiptEvents(lines: readonly ReviewLine[], meta: ReceiptMe
   const at = purchaseInstant(meta.date, ctx.now);
   const store = meta.store.trim();
   const events: PurchaseEvent[] = [];
+  const choices: Record<string, ExpiryChoice> = {};
+  const lineOfLot = new Map<string, string>();
   for (const { line, name, quantity } of parsed) {
     if (!quantity.ok) continue;
     const event: PurchaseEvent = {
@@ -186,10 +201,19 @@ export function buildReceiptEvents(lines: readonly ReviewLine[], meta: ReceiptMe
       continue;
     }
     events.push(event);
+    lineOfLot.set(event.lotId, line.key);
+    if (line.expiry) choices[event.lotId] = line.expiry;
   }
   if (Object.keys(errors).length > 0) return { ok: false, errors };
 
-  const count = events.length;
-  const summary = `${count} ${count === 1 ? "alimento" : "alimenti"} dallo scontrino${store !== "" ? ` (${store})` : ""}`;
-  return { ok: true, events, receiptId, summary };
+  const dated = withExpiryChoices(events, choices);
+  if (!dated.ok) {
+    const expiryErrors: Record<string, string> = {};
+    for (const [lotId, message] of Object.entries(dated.errors)) expiryErrors[lineOfLot.get(lotId) ?? lotId] = message;
+    return { ok: false, errors: {}, expiryErrors };
+  }
+
+  const count = dated.purchases.length;
+  const summary = `${count} ${count === 1 ? "alimento" : "alimenti"}${store !== "" ? ` da ${store}` : ""}`;
+  return { ok: true, events: dated.purchases, receiptId, summary };
 }

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useId, useMemo, useState } from "react";
-import { activeLots, estimatedPantryValue, type Location } from "@/core/ledger";
+import { activeLots, estimatedPantryValue, type Location, type PantryState } from "@/core/ledger";
 import { appendEvents, getDeviceId, useEventLog, usePantry } from "@/data";
 import { Button, Label, PantryRow, Tabs, Value } from "@/design";
 import { buildRemoveMany, type RemoveManyKind } from "../actions";
@@ -21,6 +21,7 @@ import { useNow } from "../useNow";
 import { filterEntries, normalizeSearch, splitByExpiry } from "./filter";
 import { breakdownText, groupEntries, groupName, type LotGroup } from "./groups";
 import { LotSheet } from "./LotSheet";
+import { LOT_WAIT_MS, lotLinkVerdict } from "./lotLink";
 import { entryDetail, entryExpiry } from "./rows";
 import { SelectionBar } from "./SelectionBar";
 import styles from "./Pantry.module.css";
@@ -44,8 +45,11 @@ export function Pantry() {
   const [listError, setListError] = useState<string | null>(null);
   /** La scheda aperta: il gruppo scelto e i suoi lotti, per ritrovarla quando mangiare un po' cambia il gruppo (non è più intatta). */
   const [selected, setSelected] = useState<{ key: string; lotIds: readonly string[]; initialLotId?: string } | null>(null);
-  /** L'alimento chiesto dall'indirizzo (`?lotto=`): la sua scheda si apre quando l'indirizzo è tornato pulito. */
-  const [wanted, setWanted] = useState<string | null>(null);
+  /**
+   * L'alimento chiesto dall'indirizzo (`?lotto=`): la sua scheda si apre quando l'indirizzo è tornato pulito. `seen` è
+   * la dispensa in cui lo si è cercato la prima volta, `waitedMs` quanto si è aspettato (`lotLinkVerdict`).
+   */
+  const [wanted, setWanted] = useState<{ lotId: string; seen: PantryState | null; waitedMs: number } | null>(null);
   const [missing, setMissing] = useState(false);
   const notice = useNotice();
   const pickIds = useId();
@@ -68,13 +72,21 @@ export function Pantry() {
   // `?lotto=` si legge una volta e si toglie subito dall'indirizzo, prima che la scheda si apra (`replaceState`, che il
   // router integra: indirizzo e router restano d'accordo). Così la scheda si apre come con un tocco e chiuderla è un
   // semplice passo indietro, senza navigazioni che corrono contro il foglio.
-  if (lottoParam !== null && lottoParam !== wanted) setWanted(lottoParam);
+  if (lottoParam !== null && lottoParam !== wanted?.lotId) setWanted({ lotId: lottoParam, seen: null, waitedMs: 0 });
   useEffect(() => {
     if (lottoParam === null) return;
     const url = new URL(window.location.href);
     url.searchParams.delete("lotto");
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
   }, [lottoParam]);
+
+  // l'attesa di un alimento che non c'è ancora: passato il tempo, si ridisegna e `lotLinkVerdict` decide
+  const wantedId = wanted?.lotId ?? null;
+  useEffect(() => {
+    if (wantedId === null) return;
+    const timer = window.setTimeout(() => setWanted((w) => (w?.lotId === wantedId ? { ...w, waitedMs: LOT_WAIT_MS } : w)), LOT_WAIT_MS);
+    return () => window.clearTimeout(timer);
+  }, [wantedId]);
 
   const stopSelecting = () => {
     setSelecting(false);
@@ -103,10 +115,17 @@ export function Pantry() {
 
   const allGroups = groupEntries(entries);
   if (wanted !== null && lottoParam === null) {
-    setWanted(null);
-    const linked = allGroups.find((g) => g.entries.some((e) => e.lot.lotId === wanted));
-    if (linked) setSelected({ key: linked.key, lotIds: linked.entries.map((e) => e.lot.lotId), initialLotId: wanted });
-    else setMissing(true);
+    // Si rifà a ogni disegno finché la richiesta è aperta: subito dopo un salvataggio la dispensa in mano può essere
+    // ancora quella di prima, e l'alimento compare con lo stato dopo.
+    const linked = allGroups.find((g) => g.entries.some((e) => e.lot.lotId === wanted.lotId));
+    const verdict = lotLinkVerdict({ found: linked !== undefined, stateChanged: wanted.seen !== null && wanted.seen !== pantry.data, waitedMs: wanted.waitedMs });
+    if (verdict === "wait") {
+      if (wanted.seen === null) setWanted({ ...wanted, seen: pantry.data });
+    } else {
+      setWanted(null);
+      if (linked) setSelected({ key: linked.key, lotIds: linked.entries.map((e) => e.lot.lotId), initialLotId: wanted.lotId });
+      else setMissing(true);
+    }
   }
   const selectedGroup = selected
     ? (allGroups.find((g) => g.key === selected.key) ?? allGroups.find((g) => g.entries.some((e) => selected.lotIds.includes(e.lot.lotId))))
@@ -223,6 +242,8 @@ export function Pantry() {
               aria-label={`Apri ${groupName(group)}`}
               onClick={() => {
                 setMissing(false);
+                // chi tocca un alimento mentre quello dell'indirizzo è atteso ha scelto che cosa guardare
+                setWanted(null);
                 setSelected({ key: group.key, lotIds });
               }}
             />

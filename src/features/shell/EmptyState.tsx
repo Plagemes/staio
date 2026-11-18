@@ -1,3 +1,6 @@
+"use client";
+
+import { sharedLog } from "@/data";
 import { Button } from "@/design";
 import styles from "../ui.module.css";
 
@@ -36,11 +39,24 @@ export function LoadingLine({ text = "Apro i dati del telefono…" }: { text?: s
   );
 }
 
+/**
+ * «Riprova» fa ripartire la lettura condivisa del registro; se l'errore non viene da lì (una lettura della sola
+ * schermata), ricarica la pagina, che rifà tutte le letture.
+ */
+function retryReading() {
+  if (!sharedLog().retry()) window.location.reload();
+}
+
 export function StorageError() {
   return (
     <div className={styles.calloutStrong} role="alert">
       Non riesco ad aprire l&apos;archivio di questo dispositivo. Succede in alcune finestre private: apri l&apos;app in una
       finestra normale e riprova.
+      <div>
+        <Button variant="text" onClick={retryReading}>
+          Riprova
+        </Button>
+      </div>
     </div>
   );
 }

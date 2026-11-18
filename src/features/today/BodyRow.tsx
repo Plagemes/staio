@@ -16,10 +16,27 @@ import { useRemove } from "./useRemove";
 import styles from "./Today.module.css";
 
 /**
- * Il contenuto della riga «Corpo»: una riga per pesata, umore, sintomo o integratore, in ordine di ora, ognuna con
- * «Togli». La pesata si tocca e si corregge nel foglio «Peso». In fondo, dove si segna una misura nuova.
+ * Il contenuto della riga «Corpo» di Oggi: le voci del giorno e, in fondo, dove si segna una misura nuova.
  */
 export function BodyRow({ lines, log }: { lines: readonly BodyLine[]; log: readonly AnyEvent[] }) {
+  return (
+    <div className={styles.rowContent}>
+      <BodyLines lines={lines} log={log} />
+      <div>
+        <Link href="/app/salute" className={ui.textLink}>
+          Segna in Salute
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Le voci del corpo di un giorno: una riga per pesata, umore, sintomo o integratore, in ordine di ora, ognuna con
+ * «Togli». La pesata si tocca e si corregge nel foglio «Peso». La usano la riga «Corpo» di Oggi e «Oggi» di Salute:
+ * stesse righe, stesso foglio, stessi avvisi.
+ */
+export function BodyLines({ lines, log }: { lines: readonly BodyLine[]; log: readonly AnyEvent[] }) {
   const { remove, busy } = useRemove();
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<BodyLine | null>(null);
@@ -33,7 +50,7 @@ export function BodyRow({ lines, log }: { lines: readonly BodyLine[]; log: reado
   }
 
   return (
-    <div className={styles.rowContent}>
+    <>
       <ul className={styles.lines}>
         {lines.map((line) => (
           <li key={line.eventId} id={entryElementId(line.eventId)} className={styles.line}>
@@ -65,13 +82,8 @@ export function BodyRow({ lines, log }: { lines: readonly BodyLine[]; log: reado
           {error}
         </p>
       ) : null}
-      <div>
-        <Link href="/app/salute" className={ui.textLink}>
-          Segna in Salute
-        </Link>
-      </div>
       {editing ? <WeightSheet line={editing} onClose={() => setEditing(null)} /> : null}
-    </div>
+    </>
   );
 }
 

@@ -1,7 +1,11 @@
 // Salute: acqua, peso, bevande, integratori. Letture di testo, grafico del peso, valori tipici. Logica pura.
 import {
   addDays,
+  createMood,
+  createSymptom,
+  dateRange,
   daysBetween,
+  waterByDay,
   weightMovingAverage,
   weightSeries,
   type DiaryState,
@@ -9,6 +13,7 @@ import {
   type WeightAveragePoint,
   type WeightPoint,
 } from "@/core/diary";
+import type { AnyEvent } from "@/core/events";
 import { formatQuantity } from "@/core/units";
 import { readQuantity } from "./capture";
 
@@ -101,23 +106,159 @@ export const DRINK_PRESETS: readonly DrinkPreset[] = [
   { id: "spirit", name: "Superalcolico", ml: 40, alcoholG: alcoholGrams(40, 40), energyKcal: 90, basis: "40% vol" },
 ];
 
-/** Nomi degli integratori presi di recente, dal più frequente: per l'aggiunta con un tocco. */
+/** Il nome di un integratore senza maiuscole né spazi in più: «Vitamina  D » e «vitamina d» sono lo stesso. */
+export const supplementKey = (name: string): string => name.trim().replace(/\s+/g, " ").toLowerCase();
+
+const later = (a: { at: string; eventId: string }, b: { at: string; eventId: string }): boolean =>
+  a.at > b.at || (a.at === b.at && a.eventId > b.eventId);
+
+/**
+ * Nomi degli integratori presi di recente, dal più frequente: per l'aggiunta con un tocco. Lo stesso integratore
+ * scritto in due modi («Vitamina  D», «vitamina d») è una riga sola, con il nome scritto l'ultima volta.
+ */
 export function recentSupplementNames(diary: DiaryState, today: string, days = 30, limit = 6): string[] {
   const from = addDays(today, -(days - 1));
-  const counts = new Map<string, { name: string; n: number }>();
+  const counts = new Map<string, { name: string; n: number; last: { at: string; eventId: string } }>();
   for (const day of diary.days) {
     if (day.date < from || day.date > today) continue;
     for (const s of day.supplements) {
-      const key = s.name.trim().toLowerCase();
+      const key = supplementKey(s.name);
+      const name = s.name.trim().replace(/\s+/g, " ");
       const cur = counts.get(key);
-      if (cur) cur.n += 1;
-      else counts.set(key, { name: s.name.trim(), n: 1 });
+      if (!cur) counts.set(key, { name, n: 1, last: s });
+      else {
+        cur.n += 1;
+        if (later(s, cur.last)) {
+          cur.name = name;
+          cur.last = s;
+        }
+      }
     }
   }
   return [...counts.values()]
     .sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, "it"))
     .slice(0, limit)
     .map((c) => c.name);
+}
+
+/**
+ * La dose dell'ultima volta che questo integratore è stato preso, per riproporla. La memoria è il diario: se l'ultima
+ * volta la dose non c'era, non se ne propone una più vecchia.
+ */
+export function lastSupplementDose(diary: DiaryState, name: string): string | undefined {
+  const key = supplementKey(name);
+  let last: { at: string; eventId: string; dose?: string } | undefined;
+  for (const day of diary.days) {
+    for (const s of day.supplements) {
+      if (supplementKey(s.name) === key && (!last || later(s, last))) last = s;
+    }
+  }
+  return last?.dose?.trim() || undefined;
+}
+
+/** Le misure di «Come sto», nell'ordine in cui si leggono ovunque: nel foglio, nell'avviso, nell'andamento. */
+export type ScoreMeasure = "mood" | "energy" | "digestion" | "sleep";
+
+export const SCORE_MEASURES: readonly ScoreMeasure[] = ["mood", "energy", "digestion", "sleep"];
+
+export const SCORE_LABELS: Record<ScoreMeasure, string> = {
+  mood: "Umore",
+  energy: SYMPTOM_LABELS.energy,
+  digestion: SYMPTOM_LABELS.digestion,
+  sleep: SYMPTOM_LABELS.sleep,
+};
+
+/** Ciò che si è scelto nel foglio «Come sto»: da una a quattro misure, ognuna da 1 a 5. */
+export type ScorePicks = Partial<Record<ScoreMeasure, number>>;
+
+/** Le misure scelte, nell'ordine di sempre. */
+export function pickedMeasures(picks: ScorePicks): { measure: ScoreMeasure; score: number }[] {
+  return SCORE_MEASURES.flatMap((measure) => {
+    const score = picks[measure];
+    return score === undefined ? [] : [{ measure, score }];
+  });
+}
+
+/** Gli eventi di «Come sto», da scrivere insieme: un `mood` per l'umore e un `symptom` per ogni altra misura scelta. */
+export function buildScoreEvents(picks: ScorePicks, ctx: { deviceId: string; now: string }): AnyEvent[] {
+  const options = { deviceId: ctx.deviceId, now: () => ctx.now };
+  return pickedMeasures(picks).map(({ measure, score }) =>
+    measure === "mood" ? createMood({ score }, options) : createSymptom({ kind: measure, score }, options),
+  );
+}
+
+export const TREND_DAYS = 7;
+/** Sotto questa soglia non si dà una media: due giorni non dicono come va una settimana. */
+export const MIN_SCORE_DAYS = 3;
+
+export interface ScoreAverage {
+  measure: ScoreMeasure;
+  /** Giorni della finestra con almeno un valore. */
+  days: number;
+  /** Media dei valori dei giorni, a una cifra dopo la virgola. Assente sotto i tre giorni. */
+  average?: number;
+}
+
+/**
+ * Le medie di «Come sto» negli ultimi `days` giorni, oggi compreso. Un giorno conta una volta sola per misura, con
+ * l'ultimo valore segnato quel giorno: chi si corregge alle sei di sera non pesa il doppio.
+ */
+export function scoreAverages(diary: DiaryState, today: string, days = TREND_DAYS): ScoreAverage[] {
+  const from = addDays(today, -(days - 1));
+  const values = new Map<ScoreMeasure, number[]>(SCORE_MEASURES.map((m) => [m, []]));
+  for (const day of diary.days) {
+    if (day.date < from || day.date > today) continue;
+    const last = new Map<ScoreMeasure, { at: string; eventId: string; score: number }>();
+    const keep = (measure: ScoreMeasure, entry: { at: string; eventId: string; score: number }) => {
+      const cur = last.get(measure);
+      if (!cur || later(entry, cur)) last.set(measure, entry);
+    };
+    for (const m of day.moods) keep("mood", m);
+    for (const s of day.symptoms) if (s.kind !== "other") keep(s.kind, s);
+    for (const [measure, entry] of last) values.get(measure)?.push(entry.score);
+  }
+  return SCORE_MEASURES.map((measure) => {
+    const list = values.get(measure) ?? [];
+    if (list.length < MIN_SCORE_DAYS) return { measure, days: list.length };
+    return { measure, days: list.length, average: Math.round((list.reduce((sum, v) => sum + v, 0) / list.length) * 10) / 10 };
+  });
+}
+
+export interface SupplementDays {
+  name: string;
+  /** In quanti giorni della finestra è stato preso (due volte nello stesso giorno contano una). */
+  days: number;
+}
+
+/** Gli integratori presi negli ultimi `days` giorni, oggi compreso, dal più costante. */
+export function supplementDays(diary: DiaryState, today: string, days = TREND_DAYS): SupplementDays[] {
+  const from = addDays(today, -(days - 1));
+  const seen = new Map<string, { name: string; dates: Set<string> }>();
+  for (const day of diary.days) {
+    if (day.date < from || day.date > today) continue;
+    for (const s of day.supplements) {
+      const key = supplementKey(s.name);
+      const cur = seen.get(key);
+      if (cur) cur.dates.add(day.date);
+      else seen.set(key, { name: s.name.trim(), dates: new Set([day.date]) });
+    }
+  }
+  return [...seen.values()]
+    .map((entry) => ({ name: entry.name, days: entry.dates.size }))
+    .sort((a, b) => b.days - a.days || a.name.localeCompare(b.name, "it"));
+}
+
+export interface WaterWeekDay {
+  date: string;
+  /** Zero se quel giorno non c'è acqua segnata: non si sa se non si è bevuto o se non si è scritto. */
+  ml: number;
+}
+
+/** L'acqua degli ultimi sette giorni, dal più vecchio a oggi: sempre sette righe, nei giorni del fuso del diario. */
+export function waterWeek(diary: DiaryState, today: string): WaterWeekDay[] {
+  const from = addDays(today, -(TREND_DAYS - 1));
+  const byDate = new Map(waterByDay(diary, { from, to: today }).map((d) => [d.date, d.ml]));
+  return dateRange(from, today).map((date) => ({ date, ml: byDate.get(date) ?? 0 }));
 }
 
 export const WEIGHT_WINDOW_DAYS = 30;

@@ -2,11 +2,12 @@
 
 import { useId, useState } from "react";
 import { Button, SectionHeader } from "@/design";
+import { getSetting } from "@/data";
 import { formatQuantity } from "@/core/units";
 import { formatPrice, parsePriceCents } from "../format";
 import ui from "../ui.module.css";
 import { dismiss, setQuantity } from "./decisions";
-import { SETTING_KEYS } from "./settings";
+import { SETTING_KEYS, emptyDecisions, isDecisions } from "./settings";
 import type { ShoppingData } from "./useShoppingData";
 import type { useSettingsUndo } from "./useSettingsUndo";
 import styles from "./shopping.module.css";
@@ -106,10 +107,12 @@ export function Costs({ data, undo }: { data: ShoppingData; undo: Undo }) {
           </label>
           <div className={styles.inline}>
             <input id={id} className={ui.input} inputMode="decimal" value={text} onChange={(e) => setText(e.target.value)} placeholder="80" autoComplete="off" aria-invalid={error ? true : undefined} />
-            <Button type="submit">Salva</Button>
+            <Button type="submit" variant="outline">
+              Salva
+            </Button>
             {data.budgetCents !== null ? (
               <Button
-                variant="outline"
+                variant="text"
                 onClick={async () => {
                   setText("");
                   await undo.apply("Tetto di spesa tolto.", { [SETTING_KEYS.budget]: null }, { [SETTING_KEYS.budget]: data.budgetCents });
@@ -145,13 +148,16 @@ export function Costs({ data, undo }: { data: ShoppingData; undo: Undo }) {
                     <button
                       type="button"
                       className={styles.action}
-                      onClick={() =>
-                        undo.apply(
+                      onClick={async () => {
+                        // la scelta si rilegge dall'archivio: ciò che è a schermo può essere di un istante fa
+                        const stored = await getSetting<unknown>(SETTING_KEYS.decisions);
+                        const decisions = isDecisions(stored) ? stored : emptyDecisions();
+                        await undo.apply(
                           a.action === "remove" ? `Tolto per il tetto: ${a.name}.` : `Ridotto per il tetto: ${a.name}.`,
-                          { [SETTING_KEYS.decisions]: a.action === "remove" ? dismiss(data.decisions, a.itemId, view.today) : setQuantity(data.decisions, a.itemId, a.toQuantity) },
-                          { [SETTING_KEYS.decisions]: data.decisions },
-                        )
-                      }
+                          { [SETTING_KEYS.decisions]: a.action === "remove" ? dismiss(decisions, a.itemId, view.today) : setQuantity(decisions, a.itemId, a.toQuantity) },
+                          { [SETTING_KEYS.decisions]: decisions },
+                        );
+                      }}
                     >
                       Accetta
                     </button>

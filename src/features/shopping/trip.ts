@@ -1,10 +1,11 @@
 // In negozio: la spesa in corso, il totale stimato, gli acquisti da registrare e la riconciliazione. Logica pura.
-import type { LedgerEvent, Location, PantryState } from "@/core/ledger";
+import type { LedgerEvent, Location, PantryState, Unit } from "@/core/ledger";
 import { validateEvent } from "@/core/ledger";
 import {
   estimateCost,
   normalizeName,
   orderForStore,
+  uncheckItem,
   type CompletedTrip,
   type OrderedItem,
   type PriceBook,
@@ -15,8 +16,10 @@ import {
 } from "@/core/shopping";
 import { formatQuantity } from "@/core/units";
 import { buildCaptureEvents, type CaptureContext } from "../capture";
-import { formatPrice } from "../format";
+import { dayOf, formatPrice } from "../format";
+import { suggestCategory } from "../labels";
 import { isFoodCategory } from "../lots";
+import { itemKey, proposeLocation, withItemDefault, type ItemDefault, type LocationSource } from "../memory/itemDefaults";
 import { HISTORY_LIMIT } from "./settings";
 
 export function linesOfTrip(
@@ -24,7 +27,7 @@ export function linesOfTrip(
   noQuantity: ReadonlyArray<{ id: string; name: string }> = [],
 ): ShoppingLine[] {
   // senza quantità: nella spesa in corso valgono quantità zero, mostrata come «senza quantità»
-  const open: ShoppingLine[] = noQuantity.map((n) => ({ id: n.id, key: n.id.replace(/|qb$/, ""), name: n.name, unit: "pz", quantity: 0 }));
+  const open: ShoppingLine[] = noQuantity.map((n) => ({ id: n.id, key: n.id.replace(/\|qb$/, ""), name: n.name, unit: "pz", quantity: 0 }));
   return [...open, ...items.map((v) => ({
     id: v.id,
     key: v.item.key,
@@ -149,6 +152,183 @@ export function purchaseRows(trip: TripState, pantry: PantryState): PurchaseRow[
   }
   return rows;
 }
+
+/** Da dove viene la categoria proposta: dall'ultimo acquisto dello stesso prodotto, dalla memoria per nome, solo dal nome. */
+export type CategorySource = "lot" | "memory" | "name" | "none" | "chosen";
+
+/** Una riga di «Metti in dispensa»: già compilata, con l'origine del luogo e della categoria proposti. */
+export interface PutAwayRow extends PurchaseRow {
+  locationFrom: LocationSource;
+  categoryFrom: CategorySource;
+}
+
+/** Una voce che risulta già entrata in dispensa il giorno della spesa, con l'acquisto che lo dice. */
+export interface AlreadyRow {
+  row: PutAwayRow;
+  lot: { createdAt: string; quantity: number; unit: Unit; store?: string };
+}
+
+export interface PutAwayState {
+  /** Da mettere in dispensa. */
+  pending: PutAwayRow[];
+  /** Un acquisto dello stesso prodotto registrato nei giorni della spesa: non si ripropone, ma si vede e si può aggiungere lo stesso. */
+  already: AlreadyRow[];
+}
+
+/** I lotti scritti da «Metti in dispensa», per voce; una forma rovinata vale come nessun segno. */
+export function putAwayMarks(trip: TripState): Record<string, string[]> {
+  const raw: unknown = trip.putAway;
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return {};
+  const out: Record<string, string[]> = {};
+  for (const [id, lots] of Object.entries(raw)) {
+    if (Array.isArray(lots) && lots.every((l) => typeof l === "string")) out[id] = lots;
+  }
+  return out;
+}
+
+/** Segna le voci appena messe in dispensa con i loro lotti. */
+export function markPutAway(trip: TripState, lots: Readonly<Record<string, readonly string[]>>): TripState {
+  const marks = putAwayMarks(trip);
+  for (const [id, ids] of Object.entries(lots)) marks[id] = [...(marks[id] ?? []), ...ids];
+  return { ...trip, putAway: marks };
+}
+
+/** Toglie i segni di questi lotti («Annulla» dell'acquisto). */
+export function unmarkPutAway(trip: TripState, lotIds: readonly string[]): TripState {
+  const drop = new Set(lotIds);
+  const marks: Record<string, string[]> = {};
+  for (const [id, lots] of Object.entries(putAwayMarks(trip))) {
+    const kept = lots.filter((l) => !drop.has(l));
+    if (kept.length > 0) marks[id] = kept;
+  }
+  return { ...trip, putAway: marks };
+}
+
+/**
+ * Le righe di «Metti in dispensa». Una voce segnata con un lotto ancora in dispensa è entrata e non compare più, qualunque
+ * sia il tempo passato. Una voce con un acquisto dello stesso prodotto (nome o codice) registrato nei giorni della spesa,
+ * in qualunque negozio e a qualunque ora, va in `already`, a meno che si sia scelto di aggiungerla lo stesso (`force`).
+ * Quantità dalla lista; luogo dalla memoria per nome, poi dall'ultimo lotto dello stesso prodotto, poi dalla categoria;
+ * categoria dall'ultimo lotto, poi dalla memoria, poi dal nome.
+ */
+export function putAwayRows(
+  trip: TripState,
+  pantry: PantryState,
+  readDefault: (name: string) => ItemDefault | undefined,
+  options: { force?: ReadonlySet<string>; timeZone?: string } = {},
+): PutAwayState {
+  const present = new Set(pantry.lots.map((l) => l.lotId));
+  const marks = putAwayMarks(trip);
+  const done = new Set(Object.entries(marks).filter(([, lots]) => lots.some((l) => present.has(l))).map(([id]) => id));
+  const ours = new Set(Object.values(marks).flat());
+  const firstDay = dayOf(trip.startedAt, options.timeZone);
+  const lastDay = dayOf(trip.endedAt ?? trip.startedAt, options.timeZone);
+  const sameDays = pantry.lots.filter((l) => {
+    if (l.origin !== "purchase" || ours.has(l.lotId)) return false;
+    const d = dayOf(l.createdAt, options.timeZone);
+    return d >= firstDay && d <= lastDay;
+  });
+  const barcodeOf = new Map(trip.items.map((i) => [i.id, i.barcode]));
+  const keyOf = new Map<string, string>([...trip.items.map((i) => [i.id, i.key] as const), ...trip.offList.map((o) => [o.id, o.key] as const)]);
+
+  const out: PutAwayState = { pending: [], already: [] };
+  for (const r of purchaseRows(trip, pantry)) {
+    if (done.has(r.id)) continue;
+    const remembered = readDefault(r.name);
+    let categoryFrom: CategorySource = "none";
+    let category = "";
+    if (r.category) [category, categoryFrom] = [r.category, "lot"];
+    else if (isFoodCategory(remembered?.category)) [category, categoryFrom] = [remembered?.category as string, "memory"];
+    else {
+      const guess = suggestCategory(r.name);
+      if (guess) [category, categoryFrom] = [guess, "name"];
+    }
+    const proposed = proposeLocation({ chosen: null, remembered: remembered?.location ?? (r.location || undefined), category });
+    const row: PutAwayRow = { ...r, category, location: proposed.location, locationFrom: proposed.from, categoryFrom };
+
+    const key = keyOf.get(r.id) ?? normalizeName(r.name);
+    const barcode = barcodeOf.get(r.id);
+    const match = options.force?.has(r.id) ? undefined : sameDays.find((l) => normalizeName(l.productRef) === key || (barcode !== undefined && l.barcode === barcode));
+    if (match) {
+      out.already.push({ row, lot: { createdAt: match.createdAt, quantity: match.initial, unit: match.unit, ...(match.store ? { store: match.store } : {}) } });
+    } else out.pending.push(row);
+  }
+  return out;
+}
+
+/**
+ * Gli acquisti di «Metti in dispensa», uno per riga, con i lotti scritti per ciascuna (per segnarle). Le regole e gli
+ * errori sono quelli di `buildPurchases`.
+ */
+export function buildPutAway(
+  rows: readonly PurchaseRow[],
+  store: string | null,
+  ctx: CaptureContext,
+): { ok: true; events: LedgerEvent[]; lots: Record<string, string[]> } | { ok: false; errors: Record<string, string> } {
+  const errors: Record<string, string> = {};
+  const events: LedgerEvent[] = [];
+  const lots: Record<string, string[]> = {};
+  for (const row of rows) {
+    const r = buildPurchases([row], store, ctx);
+    if (!r.ok) {
+      Object.assign(errors, r.errors);
+      continue;
+    }
+    events.push(...r.events);
+    lots[row.id] = r.events.flatMap((e) => (e.type === "purchase" ? [e.lotId] : []));
+  }
+  if (Object.keys(errors).length > 0) return { ok: false, errors };
+  if (events.length === 0) return { ok: false, errors: { _: "Non c'è niente da registrare." } };
+  return { ok: true, events, lots };
+}
+
+/** La memoria per nome dopo «Metti in dispensa»: categoria, luogo e quantità di ogni riga scritta. */
+export function learnDefaults(memory: unknown, rows: readonly PurchaseRow[], now: string): Record<string, ItemDefault> {
+  let next: unknown = memory;
+  for (const r of rows) {
+    next = withItemDefault(next, { name: r.name, category: r.category, ...(r.location !== "" ? { location: r.location } : {}), quantityText: r.quantityText }, now);
+  }
+  return next as Record<string, ItemDefault>;
+}
+
+/** «Annulla»: per i nomi di quelle righe la memoria torna com'era prima (la voce di prima, o nessuna). */
+export function restoreDefaults(current: unknown, before: unknown, names: readonly string[]): Record<string, unknown> {
+  const out: Record<string, unknown> = typeof current === "object" && current !== null && !Array.isArray(current) ? { ...current } : {};
+  const previous: Record<string, unknown> = typeof before === "object" && before !== null && !Array.isArray(before) ? (before as Record<string, unknown>) : {};
+  for (const name of names) {
+    const key = itemKey(name);
+    if (Object.hasOwn(previous, key)) out[key] = previous[key];
+    else delete out[key];
+  }
+  return out;
+}
+
+/** «Togli» in «Metti in dispensa»: la voce non è stata comprata (si toglie la spunta) o la fuori lista esce. Niente va in dispensa. */
+export function withoutPurchase(trip: TripState, rowId: string): TripState {
+  if (trip.items.some((i) => i.id === rowId)) return uncheckItem(trip, rowId);
+  if (trip.offList.some((o) => o.id === rowId)) return { ...trip, offList: trip.offList.filter((o) => o.id !== rowId) };
+  return trip;
+}
+
+export type MissingField = "quantity" | "category";
+
+/** Che cosa manca a una riga per entrare in dispensa: la quantità o la categoria. Il luogo c'è sempre (proposto). */
+export function missingOf(row: Pick<PurchaseRow, "quantityText" | "category">): MissingField[] {
+  const out: MissingField[] = [];
+  if (row.quantityText.trim() === "") out.push("quantity");
+  if (!isFoodCategory(row.category)) out.push("category");
+  return out;
+}
+
+/** Cambiata la categoria a mano, il luogo segue la regola della categoria solo se non l'ha dato la memoria o l'utente. */
+export function withCategory(row: PutAwayRow, category: string): PutAwayRow {
+  if (row.locationFrom !== "category" && row.locationFrom !== "default") return { ...row, category, categoryFrom: "chosen" };
+  const proposed = proposeLocation({ chosen: null, category });
+  return { ...row, category, categoryFrom: "chosen", location: proposed.location, locationFrom: proposed.from };
+}
+
+/** La categoria viene solo dal nome: va controllata (la scadenza stimata dipende da lei). */
+export const needsCheck = (row: Pick<PutAwayRow, "categoryFrom">): boolean => row.categoryFrom === "name";
 
 export type PurchaseResult =
   | { ok: true; events: LedgerEvent[]; message: string }

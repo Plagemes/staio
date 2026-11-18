@@ -143,3 +143,5 @@ I `font-weight: 400` scritti accanto a `--font-display` sono diventati `var(--we
   nel markup), esperimenti con stato «in corso» (solo la pastiglia, niente striscia), scheda dentro scheda nelle schermate di Qualità.
 - Schermate con moduli dentro una sezione (per esempio la ricerca del Ricettario) non hanno i campi in scheda: la regola vale
   per `.screen > .form` e `ui.fields`; vale anche per i campi di Spesa, Preparazioni e Qualità.
+
+- Ondata 3 (Salute, Spesa, In negozio, scontrino, Più alimenti, Nutrizione, «Da cosa è fatto»): nessuna classe nuova solo-Vivo. Le regole Vivo di `shopping.module.css` (`.disclosures`, `.lineButton:active`) stanno su classi con resa di base; il blocco «Segna» di Salute non ha regole Vivo proprie. Da `vivoScope.test.ts` è tolta la voce di `health.module.css` (`.ring`, la classe non c'è più).

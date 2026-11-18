@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { changeConsumeQuantity, deriveDiary, getDay } from "@/core/diary";
-import { consume, drink, mood, purchase, supplement, symptom, voidOf, water, weight } from "@/core/diary/test-helpers";
+import { changeConsumeQuantity, deriveDiary, getDay, mealsWithPantry } from "@/core/diary";
+import { consume, drink, meal, mood, purchase, supplement, symptom, voidOf, water, weight } from "@/core/diary/test-helpers";
 import type { AnyEvent } from "@/core/events";
 import { derivePantry, type LedgerEvent } from "@/core/ledger";
 import { drinkLinkNote, linkedConsumes, removeDrink } from "../drinks";
-import { bodyLines, bodySummary, buildWeightCorrection, drinkConsumes, waterGlasses, weightInputText } from "./dayRows";
+import { bodyLines, bodySummary, buildWeightCorrection, drinkConsumes, mealsWithPantryOf, waterGlasses, weightInputText } from "./dayRows";
 
 const TZ = "Europe/Rome";
 const DAY = "2026-11-16";
@@ -176,3 +176,43 @@ describe("drinkConsumes: «Togli» e «Cambia ora» portano con sé tutta la fam
     expect(drinkConsumes("d1", after, voidedOf(after))).toEqual([]);
   });
 });
+
+describe("mealsWithPantryOf: i pasti con i loro consumi, una volta per stato del registro", () => {
+  const q = (value: number) => ({ value, unit: "g" as const });
+  const log: AnyEvent[] = [
+    purchase("p1", "2026-11-15T08:00:00.000Z", { lotId: "lot-1", productRef: "Pasta", quantity: q(500), location: "dispensa" }),
+    meal("m1", "2026-11-15T12:00:00.000Z", { mealId: "lunch-15", kind: "lunch" }),
+    consume("c1", "2026-11-15T12:00:00.000Z", { lotId: "lot-1", quantity: q(80), mealId: "lunch-15" }),
+    meal("m2", "2026-11-16T12:00:00.000Z", { mealId: "lunch-16", kind: "lunch" }),
+    consume("c2", "2026-11-16T12:00:00.000Z", { lotId: "lot-1", quantity: q(90), mealId: "lunch-16" }),
+    consume("c3", "2026-11-16T12:01:00.000Z", { lotId: "lot-1", quantity: q(10), mealId: "lunch-16" }),
+    voidOf("v1", "2026-11-16T12:05:00.000Z", "c3"),
+  ];
+
+  it("dà ciò che dà mealsWithPantry, e lo stesso oggetto a chi lo chiede di nuovo con lo stesso stato", () => {
+    const { diary } = view(log);
+    const first = mealsWithPantryOf(diary, log);
+    expect(first).toEqual(mealsWithPantry(diary, log));
+    expect(first.map((m) => m.pantryConsumes.map((c) => c.id))).toEqual([["c1"], ["c2"]]);
+    expect(mealsWithPantryOf(diary, log)).toBe(first);
+  });
+
+  it("un registro nuovo o un altro diario: si ricalcola", () => {
+    const { diary } = view(log);
+    const first = mealsWithPantryOf(diary, log);
+    const next = [...log, consume("c4", "2026-11-16T12:02:00.000Z", { lotId: "lot-1", quantity: q(5), mealId: "lunch-16" })];
+    const nextDiary = view(next).diary;
+    const after = mealsWithPantryOf(nextDiary, next);
+    expect(after).not.toBe(first);
+    expect(after.find((m) => m.mealId === "lunch-16")?.pantryConsumes.map((c) => c.id)).toEqual(["c2", "c4"]);
+    expect(mealsWithPantryOf(view(log).diary, log)).toEqual(first);
+  });
+
+  it("in sviluppo il risultato, condiviso, è congelato", () => {
+    const meals = mealsWithPantryOf(view(log).diary, log);
+    expect(() => (meals as MealList).push(meals[0])).toThrow(TypeError);
+    expect(() => (meals[0].pantryConsumes as unknown[]).pop()).toThrow(TypeError);
+  });
+});
+
+type MealList = ReturnType<typeof mealsWithPantry>;

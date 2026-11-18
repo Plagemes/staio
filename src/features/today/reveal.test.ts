@@ -45,6 +45,20 @@ describe("locateEntry: dove sta nel diario la voce di `?voce=`", () => {
     expect(locate([skipped], "x1")).toEqual({ found: true, date: "2026-11-15", elementId: "voce-x1" });
   });
 
+  it("una voce scritta a mano si indica con `<id del pasto>-<posizione>`", () => {
+    const items = [
+      { name: "Pizza", quantity: { value: 1, unit: "pz" as const }, certainty: "estimated" as const },
+      { name: "Birra", quantity: { value: 330, unit: "ml" as const }, certainty: "estimated" as const },
+    ];
+    const withItems = meal("m2", "2026-11-15T19:00:00.000Z", { mealId: "meal-2", kind: "dinner", certainty: "estimated", items });
+    expect(locate([withItems], "m2-1")).toEqual({ found: true, date: "2026-11-15", elementId: "voce-m2-1" });
+    // una posizione che il pasto non ha, o un pasto che non esiste, non c'è
+    expect(locate([withItems], "m2-5")).toEqual({ found: false });
+    expect(locate([withItems], "altro-0")).toEqual({ found: false });
+    // un pasto tolto non c'è più
+    expect(locate([withItems, voidOf("v2", "2026-11-15T20:00:00.000Z", "m2")], "m2-0")).toEqual({ found: false });
+  });
+
   it("un evento annullato non c'è più; né c'è un annullamento", () => {
     const tea = drink("d1", "2026-11-16T09:00:00.000Z", { name: "Tè", ml: 200 });
     const undo = voidOf("v1", "2026-11-16T09:01:00.000Z", "d1");

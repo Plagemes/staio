@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseReceiptResponse } from "@/core/ai";
-import { createIdGenerator, validateEvent } from "@/core/ledger";
+import { activeLots, createIdGenerator, derivePantry, validateEvent, type PurchaseEvent } from "@/core/ledger";
+import { buildUndo } from "../actions";
 import { buildReceiptEvents, includedTotalCents, purchaseInstant, receiptNote, storeLabel, toReviewLines, type ReviewLine } from "./receiptEvents";
 
 const NOW = "2026-11-17T09:30:00.000Z";
@@ -22,8 +23,8 @@ const reading = parseReceiptResponse(
   }),
 );
 
-const sequentialIds = () => {
-  let t = 1_790_000_000_000;
+const sequentialIds = (start = 1_790_000_000_000) => {
+  let t = start;
   return createIdGenerator({ now: () => t++, random: () => 0.5 });
 };
 
@@ -195,5 +196,78 @@ describe("receiptNote", () => {
     if (!result.ok) throw new Error("atteso ok");
     expect(result.events[0].note).toBe("Riga scontrino: YOGURT");
     expect("barcode" in result.events[0]).toBe(false);
+  });
+});
+
+describe("buildReceiptEvents: scadenze scelte nella revisione", () => {
+  const meta = { store: "Conad", date: "2026-11-14" };
+  const ctx = () => ({ now: NOW, deviceId: "dev-1", idGenerator: sequentialIds() });
+  const fresh = toReviewLines(
+    parseReceiptResponse(
+      JSON.stringify({
+        lines: [
+          { raw: "PETTO POLLO", name: "Petto di pollo", quantity: 400, unit: "g", priceCents: 520, isFood: true, category: "poultry" },
+          { raw: "INSALATA", name: "Insalata", quantity: 250, unit: "g", priceCents: 150, isFood: true, category: "leafy_vegetables" },
+          { raw: "PASTA 500G", name: "Pasta", quantity: 500, unit: "g", priceCents: 99, isFood: true, category: "pasta_dry" },
+          { raw: "MOZZARELLA", name: "Mozzarella", quantity: 125, unit: "g", priceCents: 89, isFood: true, category: "cheese_fresh" },
+        ],
+      }),
+    ),
+  );
+  const withChoices = fresh.map((l) =>
+    l.key === "line-0" ? { ...l, expiry: { date: "2026-11-17", via: "shortcut" as const } } : l.key === "line-1" ? { ...l, expiry: { date: "2026-11-21", via: "label" as const } } : l,
+  );
+
+  it("la data scelta sta sull'acquisto stesso, con la regola di certezza di sempre", () => {
+    const result = buildReceiptEvents(withChoices, meta, ctx());
+    if (!result.ok) throw new Error(JSON.stringify(result));
+    expect(result.events.map((e) => e.expiry)).toEqual([{ date: "2026-11-17", kind: "estimated" }, { date: "2026-11-21", kind: "best_before" }, undefined, undefined]);
+    for (const e of result.events) expect(validateEvent(e)).toEqual([]);
+    expect(result.summary).toBe("4 alimenti da Conad");
+  });
+
+  it("tutti gli eventi di uno scontrino stanno in un elenco solo, e sono solo acquisti", () => {
+    const result = buildReceiptEvents(withChoices, meta, ctx());
+    if (!result.ok) throw new Error("atteso ok");
+    expect(result.events.every((e) => e.type === "purchase" && e.receiptId === result.receiptId)).toBe(true);
+    expect(result.events).toHaveLength(4);
+  });
+
+  it("annullandoli tutti la dispensa torna com'era", () => {
+    const before: PurchaseEvent = {
+      id: "old-1",
+      type: "purchase",
+      at: "2026-11-10T12:00:00.000Z",
+      recordedAt: "2026-11-10T12:00:00.000Z",
+      deviceId: "dev-1",
+      schemaVersion: 1,
+      certainty: "label",
+      source: "manual",
+      lotId: "old-lot",
+      productRef: "Riso",
+      category: "rice_cereals",
+      quantity: { value: 1000, unit: "g" },
+      location: "dispensa",
+    };
+    const result = buildReceiptEvents(withChoices, meta, ctx());
+    if (!result.ok) throw new Error("atteso ok");
+    const written = [before, ...result.events];
+    expect(activeLots(derivePantry(written))).toHaveLength(5);
+    const undone = [...written, ...buildUndo(result.events, { now: "2026-11-17T09:31:00.000Z", deviceId: "dev-1", idGenerator: sequentialIds(1_800_000_000_000) })];
+    expect(new Set(undone.map((e) => e.id)).size).toBe(undone.length);
+    expect(activeLots(derivePantry(undone))).toEqual(activeLots(derivePantry([before])));
+  });
+
+  it("una data non valida ferma il salvataggio e dice la riga, sotto il campo della data", () => {
+    const bad = fresh.map((l) => (l.key === "line-3" ? { ...l, expiry: { date: "2026-02-31", via: "label" as const } } : l));
+    const result = buildReceiptEvents(bad, meta, ctx());
+    expect(result).toEqual({ ok: false, errors: {}, expiryErrors: { "line-3": "Scrivi una data valida." } });
+  });
+
+  it("una data scritta dall'utente vale anche su una riga che non è un fresco", () => {
+    const lines = fresh.map((l) => (l.key === "line-2" ? { ...l, expiry: { date: "2026-12-01", via: "label" as const } } : l));
+    const result = buildReceiptEvents(lines, meta, ctx());
+    if (!result.ok) throw new Error("atteso ok");
+    expect(result.events[2].expiry).toEqual({ date: "2026-12-01", kind: "best_before" });
   });
 });

@@ -27,14 +27,22 @@ export function UnresolvedList({
   search,
   overrides,
   prepInfo,
+  headless = false,
+  groups: givenGroups,
+  skipped: givenSkipped,
 }: {
   days: readonly DayIntake[];
   search: FoodSearch;
   overrides: FoodOverrides;
   prepInfo?: ReadonlyMap<string, PrepPortionInfo>;
+  /** Senza il titolo di sezione: dentro una riga richiusa che ha già il titolo. */
+  headless?: boolean;
+  /** Già calcolati da chi la contiene: il registro intero non si scorre due volte. */
+  groups?: readonly UnresolvedGroup[];
+  skipped?: number;
 }) {
-  const groups = useMemo(() => unresolvedGroups(days), [days]);
-  const skipped = useMemo(() => notComputableCount(days), [days]);
+  const groups = useMemo(() => givenGroups ?? unresolvedGroups(days), [givenGroups, days]);
+  const skipped = useMemo(() => givenSkipped ?? notComputableCount(days), [givenSkipped, days]);
   const apply = useFoodCorrection(overrides);
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -65,8 +73,8 @@ export function UnresolvedList({
   if (groups.length === 0 && remembered.length === 0 && skipped === 0) return null;
 
   return (
-    <section className={ui.section}>
-      <SectionHeader label="Voci non riconosciute" />
+    <section className={ui.section} aria-label={headless ? "Voci non riconosciute" : undefined}>
+      {headless ? null : <SectionHeader label="Voci non riconosciute" />}
       {groups.length === 0 ? (
         <p className={styles.quiet}>Tutte le voci hanno trovato un dato.</p>
       ) : (

@@ -96,7 +96,9 @@ export function Spending({ data, undo }: { data: ShoppingData; undo: Undo }) {
           </label>
           <div className={styles.inline}>
             <input id={id} className={ui.input} inputMode="decimal" value={text} onChange={(e) => setText(e.target.value)} placeholder="300" autoComplete="off" aria-invalid={error ? true : undefined} />
-            <Button type="submit">Salva</Button>
+            <Button type="submit" variant="outline">
+              Salva
+            </Button>
             <Button variant="text" onClick={() => setEditing(false)}>
               Annulla
             </Button>

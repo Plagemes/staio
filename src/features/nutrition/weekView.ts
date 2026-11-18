@@ -18,7 +18,7 @@ export const MOMENT_LABELS: Record<ProteinMoment, string> = {
   other: "Altro",
 };
 
-const MOMENT_WHERE: Record<ProteinMoment, string> = {
+export const MOMENT_WHERE: Record<ProteinMoment, string> = {
   breakfast: "a colazione",
   lunch: "a pranzo",
   dinner: "a cena",

@@ -1,33 +1,16 @@
 "use client";
 
-// Scelte rapide delle bevande e elenco di quelle segnate oggi. Serve sia a Salute sia a Oggi:
-// stesso codice, stessi eventi, stesso avviso con «Annulla».
+// Le bevande: le scelte rapide, «Un'altra bevanda» scritta a mano e le scritture che le accompagnano. Si segnano da
+// Oggi e dal «+»: stesso codice, stessi eventi, stesso avviso con «Annulla».
 
-import { useCallback, useMemo, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { familyConsumes, InvalidDiaryEventError, type DiaryDrink } from "@/core/diary";
 import type { AnyEvent } from "@/core/events";
 import type { ConsumeEvent } from "@/core/ledger";
-import { activeLots } from "@/core/ledger";
-import { appendEvents, getAllEvents, getDeviceId, getPantry, useEventLog, usePantry } from "@/data";
-import { Button, Value } from "@/design";
-import {
-  buildDrink,
-  drinkCounts,
-  drinkDetail,
-  drinkKindOf,
-  drinkMomentWord,
-  inputOfPreset,
-  linkedConsumes,
-  pantryOptionsForDrink,
-  removeDrink,
-  retimeDrink,
-  shortTime,
-  type DrinkInput,
-} from "../drinks";
+import { appendEvents, getAllEvents, getDeviceId, getPantry } from "@/data";
+import { buildDrink, inputOfPreset, linkedConsumes, removeDrink, retimeDrink, type DrinkInput } from "../drinks";
 import { formatMl, DRINK_PRESETS, type DrinkPreset } from "../health";
 import { useNotice } from "../notice";
-import { useNow } from "../useNow";
-import { DrinkPantrySuggestion } from "./DrinkPantry";
 import ui from "../ui.module.css";
 import styles from "./health.module.css";
 
@@ -140,124 +123,125 @@ export function DrinkPresetChips({
   );
 }
 
-/** Le bevande segnate, con l'ora, ciascuna annullabile e con l'ora correggibile. */
-export function DrinkEntries({
-  drinks,
-  date,
-  actions,
-  onError,
-  showCounts = false,
-  showMoment = false,
-  scalable = false,
-}: {
-  drinks: readonly DiaryDrink[];
-  date: string;
-  actions: Actions;
-  onError: (message: string | null) => void;
-  /** «Tè × 2»: un riepilogo sopra l'elenco, per vedere un doppio tocco. */
-  showCounts?: boolean;
-  /** Aggiunge il momento a cui la bevanda appartiene («colazione», «spuntino»...). */
-  showMoment?: boolean;
-  /** Solo per il giorno corrente: un tè o un caffè senza consumo collegato offre «Scala dalla dispensa». */
-  scalable?: boolean;
-}) {
-  const [editing, setEditing] = useState<string | null>(null);
-  const [timeText, setTimeText] = useState("");
-  const [scaling, setScaling] = useState<string | null>(null);
-  const log = useEventLog();
-  const pantry = usePantry();
-  const now = useNow();
-  const closeScaling = useCallback(() => setScaling(null), []);
-  // le bevande senza consumo collegato e con qualcosa da scalare in dispensa
-  const scaleState = useMemo(() => {
-    const offer = new Set<string>();
-    if (!scalable || !log.data || !pantry.data || !now) return offer;
-    const lots = activeLots(pantry.data);
-    for (const d of drinks) {
-      const kind = drinkKindOf(d.name);
-      if (!kind || linkedConsumes(d.eventId, log.data, pantry.data.voidedEventIds).length > 0) continue;
-      if (pantryOptionsForDrink(kind, lots, now, { timeZone: actions.timeZone }).length > 0) offer.add(d.eventId);
-    }
-    return offer;
-  }, [scalable, log.data, pantry.data, now, drinks, actions.timeZone]);
-  if (drinks.length === 0) return null;
+const readNumber = (text: string): number | undefined => {
+  const t = text.trim().replace(",", ".");
+  if (t === "" || !/^\d+(?:\.\d+)?$/.test(t)) return undefined;
+  return Number(t);
+};
 
-  async function confirmTime(drink: DiaryDrink) {
-    onError(null);
-    const result = await actions.retime(drink, date, timeText);
-    if (result.ok) setEditing(null);
-    else onError(result.error);
+/**
+ * «Un'altra bevanda»: una bevanda che non è tra le scelte rapide, con nome e millilitri scritti a mano. È un passo del
+ * foglio delle bevande: il pulsante che conferma sta nel piede del foglio e si lega al modulo con `formId`
+ * (`<Button type="submit" form={formId}>`). Alcol e caffeina lasciati vuoti restano non indicati, non zero.
+ */
+export function CustomDrinkForm({
+  actions,
+  formId,
+  onAdded,
+}: {
+  actions: Actions;
+  formId: string;
+  /** Dopo la scrittura, come per le scelte rapide: chi ospita il modulo chiude il foglio. */
+  onAdded: (name: string, events: readonly AnyEvent[]) => void;
+}) {
+  const ids = useId();
+  const nameRef = useRef<HTMLInputElement>(null);
+  const mlRef = useRef<HTMLInputElement>(null);
+  const running = useRef(false);
+  const [name, setName] = useState("");
+  const [ml, setMl] = useState("");
+  const [caffeine, setCaffeine] = useState("");
+  const [alcohol, setAlcohol] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  // il passo si apre per scrivere
+  useEffect(() => {
+    nameRef.current?.focus();
+  }, []);
+
+  async function submit() {
+    if (running.current) return;
+    const drinkName = name.trim();
+    const volume = readNumber(ml);
+    if (drinkName === "") return setError("Scrivi che bevanda è.");
+    if (volume === undefined || volume <= 0) return setError("Scrivi i millilitri, per esempio 250.");
+    const caffeineMg = caffeine.trim() === "" ? undefined : readNumber(caffeine);
+    const alcoholG = alcohol.trim() === "" ? undefined : readNumber(alcohol);
+    if (caffeine.trim() !== "" && caffeineMg === undefined) return setError("La caffeina va scritta in milligrammi, solo il numero.");
+    if (alcohol.trim() !== "" && alcoholG === undefined) return setError("L'alcol va scritto in grammi, solo il numero.");
+    setError(null);
+    running.current = true;
+    try {
+      const result = await actions.add({ name: drinkName, ml: volume, caffeineMg, alcoholG }, "label");
+      if (result.ok) onAdded(drinkName, result.events);
+      else setError(result.error);
+    } finally {
+      running.current = false;
+    }
   }
 
+  const field = (set: (value: string) => void) => (event: { target: { value: string } }) => {
+    set(event.target.value);
+    setError(null);
+  };
+
   return (
-    <div className={styles.group}>
-      {showCounts ? <p className={ui.paragraph}>{drinkCounts(drinks)}</p> : null}
-      <ul className={styles.entries}>
-        {drinks.map((d) => {
-          const detail = drinkDetail(d);
-          const open = editing === d.eventId;
-          return (
-            <li key={d.eventId} className={styles.entry}>
-              <div className={styles.entryRow}>
-                <span>
-                  <span className={styles.entryTime}>{shortTime(d.at, actions.timeZone)}</span>{" "}
-                  {detail.estimated ? <Value certainty="estimated">{detail.text}</Value> : detail.text}
-                  {showMoment ? ` · ${drinkMomentWord(d.at, actions.timeZone)}` : ""}
-                </span>
-                <span className={styles.entryActions}>
-                  <Button
-                    variant="text"
-                    disabled={actions.busy}
-                    onClick={() => {
-                      setEditing(open ? null : d.eventId);
-                      setTimeText(shortTime(d.at, actions.timeZone).padStart(5, "0"));
-                    }}
-                    aria-expanded={open}
-                  >
-                    Cambia ora
-                  </Button>
-                  {scaleState.has(d.eventId) ? (
-                    <Button variant="text" onClick={() => setScaling(scaling === d.eventId ? null : d.eventId)} aria-expanded={scaling === d.eventId}>
-                      Scala dalla dispensa
-                    </Button>
-                  ) : null}
-                  <Button variant="text" disabled={actions.busy} onClick={() => void actions.remove(d).then((r) => !r.ok && onError(r.error))}>
-                    Annulla
-                  </Button>
-                </span>
-              </div>
-              {scaling === d.eventId && scaleState.has(d.eventId) ? (
-                <DrinkPantrySuggestion
-                  persistent
-                  suggestion={{ kind: drinkKindOf(d.name)!, drinkEventId: d.eventId }}
-                  timeZone={actions.timeZone}
-                  onDone={closeScaling}
-                />
-              ) : null}
-              {open ? (
-                <div className={styles.inline}>
-                  <label className={ui.srOnly} htmlFor={`drink-time-${d.eventId}`}>
-                    Ora in cui l&apos;hai bevuto
-                  </label>
-                  <input
-                    id={`drink-time-${d.eventId}`}
-                    className={ui.input}
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="off"
-                    value={timeText}
-                    onChange={(e) => setTimeText(e.target.value)}
-                    placeholder="08:15"
-                  />
-                  <Button variant="outline" disabled={actions.busy} onClick={() => void confirmTime(d)}>
-                    Salva
-                  </Button>
-                </div>
-              ) : null}
-            </li>
-          );
-        })}
-      </ul>
-    </div>
+    <form
+      id={formId}
+      className={ui.form}
+      noValidate
+      onSubmit={(event) => {
+        event.preventDefault();
+        void submit();
+      }}
+    >
+      <div className={ui.field}>
+        <label className={ui.fieldLabel} htmlFor={`${ids}-name`}>
+          Un&apos;altra bevanda
+        </label>
+        <input
+          ref={nameRef}
+          id={`${ids}-name`}
+          className={ui.input}
+          type="text"
+          autoComplete="off"
+          enterKeyHint="next"
+          value={name}
+          onChange={field(setName)}
+          // Invio nel nome passa ai millilitri; conferma dagli altri campi
+          onKeyDown={(event) => {
+            if (event.key !== "Enter") return;
+            event.preventDefault();
+            mlRef.current?.focus();
+          }}
+          placeholder="Succo d'arancia"
+        />
+      </div>
+      <div className={ui.field}>
+        <label className={ui.fieldLabel} htmlFor={`${ids}-ml`}>
+          Millilitri
+        </label>
+        <input ref={mlRef} id={`${ids}-ml`} className={ui.input} type="text" inputMode="decimal" autoComplete="off" value={ml} onChange={field(setMl)} placeholder="250" />
+      </div>
+      <div className={styles.twoCols}>
+        <div className={ui.field}>
+          <label className={ui.fieldLabel} htmlFor={`${ids}-caf`}>
+            Caffeina, mg <span className={ui.optional}>(facoltativa)</span>
+          </label>
+          <input id={`${ids}-caf`} className={ui.input} type="text" inputMode="decimal" autoComplete="off" value={caffeine} onChange={field(setCaffeine)} />
+        </div>
+        <div className={ui.field}>
+          <label className={ui.fieldLabel} htmlFor={`${ids}-alc`}>
+            Alcol, grammi <span className={ui.optional}>(facoltativo)</span>
+          </label>
+          <input id={`${ids}-alc`} className={ui.input} type="text" inputMode="decimal" autoComplete="off" value={alcohol} onChange={field(setAlcohol)} />
+        </div>
+      </div>
+      {error ? (
+        <p className={ui.error} role="alert">
+          {error}
+        </p>
+      ) : null}
+    </form>
   );
 }

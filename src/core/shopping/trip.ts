@@ -30,6 +30,11 @@ export interface TripState {
   endedAt?: string;
   items: TripItem[];
   offList: OffListEntry[];
+  /**
+   * Dopo la spesa: voce (o fuori lista) -> lotti scritti da «Metti in dispensa». Una voce con un lotto ancora presente
+   * nella dispensa è già entrata, qualunque sia il tempo passato; annullato l'acquisto, il lotto sparisce e la voce torna.
+   */
+  putAway?: Record<string, string[]>;
 }
 
 function assertInstant(value: string, what: string): void {
@@ -53,6 +58,73 @@ export function startTrip(
     }));
   const store = params.store?.trim() ? params.store.trim() : null;
   return { store, startedAt: params.startedAt, items, offList: [] };
+}
+
+const sameLine = (item: TripItem, line: ShoppingLine): boolean =>
+  item.key === line.key &&
+  item.name === line.name &&
+  item.unit === line.unit &&
+  item.quantity === line.quantity &&
+  item.barcode === (line.barcode || undefined);
+
+/**
+ * La spesa in corso allineata alla lista di adesso. Le voci già spuntate restano sempre (anche se nel frattempo
+ * sono uscite dalla lista); le voci nuove entrano, non spuntate; quelle non spuntate che non sono più in lista escono;
+ * di una voce che resta si aggiornano nome e quantità. Una voce senza quantità che ne riceve una (o il contrario) cambia
+ * identificativo nella lista: qui resta la stessa voce, con la sua spunta. Se non cambia niente restituisce lo stesso oggetto.
+ */
+export function syncTrip(trip: TripState, lines: readonly ShoppingLine[]): TripState {
+  const byId = new Map<string, ShoppingLine>();
+  for (const l of lines) if (!byId.has(l.id)) byId.set(l.id, l);
+  const tripIds = new Set(trip.items.map((i) => i.id));
+  // le voci nuove, nello stesso ordine che darebbe `startTrip`
+  const fresh = [...byId.values()].filter((l) => !tripIds.has(l.id)).sort((a, b) => cmp(a.id, b.id));
+  const claimed = new Set<string>();
+  let changed = false;
+  const items: TripItem[] = [];
+  for (const item of trip.items) {
+    const line = byId.get(item.id);
+    if (!line) {
+      const heir = fresh.find((l) => l.key === item.key && !claimed.has(l.id) && (l.quantity === 0) !== (item.quantity === 0));
+      if (heir) {
+        claimed.add(heir.id);
+        changed = true;
+        items.push({
+          id: heir.id,
+          key: heir.key,
+          name: heir.name,
+          unit: heir.unit,
+          quantity: heir.quantity,
+          ...(heir.barcode ? { barcode: heir.barcode } : {}),
+          ...(item.checkedAt !== undefined ? { checkedAt: item.checkedAt } : {}),
+        });
+        continue;
+      }
+      if (item.checkedAt !== undefined) items.push(item);
+      else changed = true;
+      continue;
+    }
+    if (sameLine(item, line)) {
+      items.push(item);
+      continue;
+    }
+    changed = true;
+    items.push({
+      id: item.id,
+      key: line.key,
+      name: line.name,
+      unit: line.unit,
+      quantity: line.quantity,
+      ...(line.barcode ? { barcode: line.barcode } : {}),
+      ...(item.checkedAt !== undefined ? { checkedAt: item.checkedAt } : {}),
+    });
+  }
+  for (const l of fresh) {
+    if (claimed.has(l.id)) continue;
+    changed = true;
+    items.push({ id: l.id, key: l.key, name: l.name, unit: l.unit, quantity: l.quantity, ...(l.barcode ? { barcode: l.barcode } : {}) });
+  }
+  return changed ? { ...trip, items } : trip;
 }
 
 /** Spunta una voce (idempotente: una voce già spuntata mantiene il primo istante). */

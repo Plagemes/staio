@@ -6,7 +6,6 @@ import {
   drinksByMoment,
   instantOfLocal,
   localMoment,
-  mealsWithPantry,
   momentOfMinutes,
   voidMeal,
   type DiaryDay,
@@ -45,6 +44,7 @@ import {
 import { useNotice } from "../notice";
 import ui from "../ui.module.css";
 import { useRecord } from "../useRecord";
+import { mealsWithPantryOf } from "./dayRows";
 import { DrinkLines } from "./DrinkLines";
 import { OTHER_VERSION_NOTE, isCompactMoment, mealSheetTitle, momentChoices, repeatableNames, revivedMealText, snackBlockTitle } from "./editText";
 import { EntrySheet, type EntryTarget } from "./EntrySheet";
@@ -139,7 +139,8 @@ export function MealMoments({ date, today, now, diary, day, meals, loose, log, p
   const viewingToday = date === today;
   // «Come ieri»: i pasti di ieri servono solo guardando oggi
   const yesterdayMeals = useMemo(
-    () => (viewingToday ? mealsWithPantry(diary, log).filter((m) => m.date === dayBefore(today)) : []),
+    // gli stessi pasti già calcolati per il diario del giorno (`mealsWithPantryOf`): il registro si rilegge una volta sola
+    () => (viewingToday ? mealsWithPantryOf(diary, log).filter((m) => m.date === dayBefore(today)) : []),
     [viewingToday, diary, log, today],
   );
 

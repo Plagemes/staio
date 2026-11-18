@@ -3,10 +3,9 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { COST_BASIS, costPerNutrient, type CostNutrient, type NutrientCostResult } from "@/core/prices";
-import { derivePantry } from "@/core/ledger";
 import type { FoodComposition } from "@/core/nutrition";
 import { Button, Label, SectionHeader, Tabs, Value } from "@/design";
-import { useEventLog } from "@/data";
+import { derivedOf, useEventLog } from "@/data";
 import { formatPrice } from "../format";
 import ui from "../ui.module.css";
 import styles from "./nutrition.module.css";
@@ -25,9 +24,23 @@ const TITLES: Record<CostNutrient, string> = {
 };
 const SHOWN = 5;
 
-/** Costo per nutriente degli alimenti comprati con un prezzo: un confronto, non un consiglio. Richiudibile, in fondo. */
-export function CostPerNutrientSection({ foods, overrides, today }: { foods: readonly FoodComposition[] | undefined; overrides: FoodOverrides; today: string }) {
+/**
+ * Costo per nutriente degli alimenti comprati con un prezzo: un confronto, non un consiglio. Richiudibile, in fondo.
+ * Con `headless` è solo il contenuto, già aperto: chi lo usa lo mette in una riga richiusa e lo rende solo da aperta.
+ */
+export function CostPerNutrientSection({
+  foods,
+  overrides,
+  today,
+  headless = false,
+}: {
+  foods: readonly FoodComposition[] | undefined;
+  overrides: FoodOverrides;
+  today: string;
+  headless?: boolean;
+}) {
   const [open, setOpen] = useState(false);
+  if (headless) return foods ? <Ranking foods={foods} overrides={overrides} today={today} /> : <p className={styles.quiet}>Calcolo…</p>;
   return (
     <section className={ui.section} aria-label="Costo per nutriente">
       <div className={ui.head}>
@@ -50,7 +63,8 @@ function Ranking({ foods, overrides, today }: { foods: readonly FoodComposition[
 
   const result = useMemo<NutrientCostResult | undefined>(() => {
     if (!log.data || !products) return undefined;
-    const pantry = derivePantry(log.data);
+    // la dispensa già derivata e condivisa: non si rifà sul registro, e non si modifica
+    const pantry = derivedOf(log.data).pantry;
     const resolve = buildResolver({ foods, products, barcodes: barcodesOfLots(pantry.lots), overrides });
     return costPerNutrient(
       pantry.lots,

@@ -49,6 +49,8 @@ export type {
   ResolverSources,
 } from "./resolve";
 export { computeIntake } from "./intake";
+export { dayBreakdown, periodBreakdown } from "./breakdown";
+export type { BreakdownPart, DayBreakdown, DayCount, PeriodBreakdown } from "./breakdown";
 export {
   OUT_OF_HOME_FACTOR,
   OUT_OF_HOME_HISTORY_DAYS,

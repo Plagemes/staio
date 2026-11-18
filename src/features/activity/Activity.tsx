@@ -5,8 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { addDays, instantOfLocal } from "@/core/diary";
 import { DEFAULT_TIME_ZONE } from "@/core/expiry";
 import type { AnyEvent } from "@/core/events";
-import { derivePantry, type PantryState } from "@/core/ledger";
-import { appendEvents, getDeviceId, useEventLog } from "@/data";
+import type { PantryState } from "@/core/ledger";
+import { appendEvents, derivedOf, getDeviceId, useEventLog } from "@/data";
 import { Button, Label, cx } from "@/design";
 import { dayOf, formatDayLabel, formatTime } from "../format";
 import { useNotice } from "../notice";
@@ -84,7 +84,8 @@ export function Activity() {
     if (!events || !now || deviceId === null) return undefined;
     const today = dayOf(now, TZ);
     const since = instantOfLocal(addDays(today, -(DAYS - 1)), 0, TZ) ?? new Date(Date.parse(now) - DAYS * 86_400_000).toISOString();
-    const pantry = derivePantry(events);
+    // la dispensa già calcolata per questo stato del registro, la stessa delle altre schermate
+    const pantry = derivedOf(events).pantry;
     const index = indexLog(events);
     const days: Day[] = [];
     // solo le azioni degli ultimi giorni diventano righe: il resto del registro non si descrive né si controlla

@@ -37,6 +37,30 @@ function liveConsume(log: readonly AnyEvent[], event: ConsumeEvent, voided: Read
 }
 
 /**
+ * Una voce scritta a mano non ha un evento suo: si indica con `<id del pasto>-<posizione>`. Il pasto può essere stato
+ * corretto nel frattempo: la riga è quella della versione che vale adesso, alla stessa posizione.
+ */
+function locateFreeItem(
+  log: readonly AnyEvent[],
+  id: string,
+  options: { timeZone: string; today: string; voided: ReadonlySet<string>; maxDaysBack?: number },
+): EntryLocation {
+  const match = /^(.+)-(\d+)$/.exec(id);
+  if (!match) return NOT_FOUND;
+  const base = log.find((e) => e.id === match[1]);
+  if (!base || base.type !== "meal") return NOT_FOUND;
+  const current = currentMeal(base.mealId, log);
+  if (!current) return NOT_FOUND;
+  const position = Number(match[2]);
+  if (position >= (current.meal.items?.length ?? 0)) return NOT_FOUND;
+  const date = localDate(current.meal.at, options.timeZone);
+  if (date === undefined) return NOT_FOUND;
+  const oldest = addDays(options.today, -(options.maxDaysBack ?? REVEAL_MAX_DAYS_BACK));
+  if (date > options.today || date < oldest) return NOT_FOUND;
+  return { found: true, date, elementId: `${entryElementId(current.meal.id)}-${position}` };
+}
+
+/**
  * Dove sta nel diario l'evento `eventId`: il giorno (tra oggi e `REVEAL_MAX_DAYS_BACK` giorni fa) e l'`id` della riga.
  * Un consumo corretto porta alla voce che lo ha sostituito. Non c'è se l'evento non esiste, è un annullamento, è stato
  * annullato o cade fuori da quei giorni.
@@ -49,7 +73,8 @@ export function locateEntry(
   const id = eventId.trim();
   if (id === "") return NOT_FOUND;
   const found = log.find((e) => e.id === id);
-  if (!found || found.type === "void") return NOT_FOUND;
+  if (!found) return locateFreeItem(log, id, options);
+  if (found.type === "void") return NOT_FOUND;
   const event = found.type === "consume" ? liveConsume(log, found, options.voided) : options.voided.has(id) ? undefined : found;
   if (!event) return NOT_FOUND;
   const date = dayOfEntry(event, log, options.timeZone);

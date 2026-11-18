@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { getDay, instantOfLocal, localMoment, mealsWithPantry, type DiaryState, type MealKind } from "@/core/diary";
+import { getDay, instantOfLocal, localMoment, type DiaryState, type MealKind } from "@/core/diary";
 import type { AnyEvent } from "@/core/events";
 import type { PantryState } from "@/core/ledger";
 import { SectionHeader } from "@/design";
@@ -14,7 +14,7 @@ import { MEAL_KIND_LABELS, TYPICAL_MEAL_TIME, minutesOfTime } from "../meals";
 import { looseConsumesOf } from "../pantry/eaten";
 import ui from "../ui.module.css";
 import { BodyRow } from "./BodyRow";
-import { bodyLines, bodySummary, waterGlasses } from "./dayRows";
+import { bodyLines, bodySummary, mealsWithPantryOf, waterGlasses } from "./dayRows";
 import { dayStatusLine, diaryTitle } from "./dayStatus";
 import { useDayIntake } from "./MealLines";
 import { MealMoments } from "./MealMoments";
@@ -58,7 +58,7 @@ export function TodayDiary({ now, today, date, diary, pantry, log, plan, waterOp
 
   const meals = useMemo(
     () =>
-      mealsWithPantry(diary, log)
+      mealsWithPantryOf(diary, log)
         .filter((m) => m.date === date)
         .sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0)),
     [diary, log, date],

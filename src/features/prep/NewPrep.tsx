@@ -25,6 +25,7 @@ import { IngredientPicker, type PickRow } from "./IngredientPicker";
 import { SUBSTITUTION_PARAM, chosenText, missingIndices, parseSubstitutions } from "../recipes/substitutes";
 import { useSubstitutes } from "../recipes/useSubstitutes";
 import styles from "./prep.module.css";
+import { useStartProposal } from "./startProposal";
 import { resolvePrepSubstitutions } from "./substitution";
 
 /** `/app/preparazioni/nuova`, con `?ricetta=ID&porzioni=N` per partire da una ricetta. */
@@ -127,22 +128,29 @@ function Form({ recipe, written, substitutions, unapplied, servings, entries, no
   const products = useProducts();
   const { recordWith, busy } = useRecord();
 
-  // La proposta si calcola una volta, alla prima apertura: le correzioni dell'utente non vengono mai riscritte.
-  const [start] = useState(() => {
-    if (!recipe) return { picks: [] as PickRow[], unmatched: [] as Unmatched[] };
-    const lookup = foods ? makeLookup(foods, overrides) : undefined;
-    const proposal = proposeFromRecipe(recipe, entries.map((e) => e.lot), {
-      ...(servings !== undefined ? { servings } : {}),
-      ...(lookup ? { contextFor: makeContextFor(lookup) } : {}),
-    });
-    return { picks: picksFromProposal(proposal), unmatched: proposal.unmatched };
-  });
+  /** Gli ingredienti come li ha lasciati l'utente; `null` finché non li tocca e vale la proposta. */
+  const [editedPicks, setPicks] = useState<PickRow[] | null>(null);
+  // La proposta si calcola all'apertura e si rifà con i dati che arrivano subito dopo (`useStartProposal`): le
+  // correzioni dell'utente non vengono mai riscritte.
+  const start = useStartProposal(
+    () => {
+      if (!recipe) return { picks: [] as PickRow[], unmatched: [] as Unmatched[] };
+      const lookup = foods ? makeLookup(foods, overrides) : undefined;
+      const proposal = proposeFromRecipe(recipe, entries.map((e) => e.lot), {
+        ...(servings !== undefined ? { servings } : {}),
+        ...(lookup ? { contextFor: makeContextFor(lookup) } : {}),
+      });
+      return { picks: picksFromProposal(proposal), unmatched: proposal.unmatched };
+    },
+    [recipe, entries, servings, foods, overrides],
+    editedPicks !== null,
+  );
 
   const [title, setTitle] = useState(recipe?.title ?? "");
   const [portionsText, setPortionsText] = useState(servings !== undefined ? String(Math.max(1, Math.round(servings))) : "");
   const [location, setLocation] = useState<Location>("frigo");
   const [shelfDaysText, setShelfDaysText] = useState("");
-  const [picks, setPicks] = useState<PickRow[]>(start.picks);
+  const picks = editedPicks ?? start.picks;
   const [errors, setErrors] = useState<PrepErrors | null>(null);
 
   const byId = useMemo(() => new Map(entries.map((e) => [e.lot.lotId, e.lot])), [entries]);

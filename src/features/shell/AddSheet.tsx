@@ -13,7 +13,7 @@ import { Button, Label, cx } from "@/design";
 import { buildUndo } from "../actions";
 import { ActionList, Sheet, type ActionItem } from "../common";
 import { formatMl } from "../health";
-import { DrinkPresetChips, useDrinkActions } from "../health/Drinks";
+import { CustomDrinkForm, DrinkPresetChips, useDrinkActions } from "../health/Drinks";
 import { evaluateLots } from "../lots";
 import { useNotice } from "../notice";
 import { useProducts } from "../nutrition/useNutrition";
@@ -33,7 +33,7 @@ import { drinkNoticeText, eatenHint, visitNoticeText } from "./addSheetText";
 import { LoadingLine, StorageError } from "./EmptyState";
 import styles from "./AddSheet.module.css";
 
-type Step = "main" | "drinks" | "shopping" | "more";
+type Step = "main" | "drinks" | "customDrink" | "shopping" | "more";
 
 const WATER_ML = 200;
 
@@ -348,8 +348,10 @@ export function AddSheet({ onClose }: { onClose: () => void }) {
       {error}
     </p>
   ) : null;
+  // «Un'altra bevanda» è un passo dentro «Ho bevuto»: da lì si torna alle scelte rapide
+  const goBack = () => go(step === "customDrink" ? "drinks" : "main");
   const back = (
-    <Button variant="text" className={styles.back} disabled={busy} onClick={() => go("main")}>
+    <Button variant="text" className={styles.back} disabled={busy} onClick={goBack}>
       Indietro
     </Button>
   );
@@ -404,9 +406,27 @@ export function AddSheet({ onClose }: { onClose: () => void }) {
         {/* un tocco segna e chiude: l'avviso non deve restare sotto il foglio */}
         <DrinkPresetChips actions={drinkActions} onError={setError} onAdded={(name, events) => close({ text: drinkNoticeText(name), events })} />
         {errorLine}
+        <ActionList items={[{ id: "custom", label: "Un'altra bevanda", hint: "nome e millilitri", disabled: busy, onSelect: () => go("customDrink") }]} />
       </>
     );
     footer = back;
+  } else if (step === "customDrink") {
+    body = (
+      <>
+        <Label as="h3" className={styles.stepTitle}>
+          Ho bevuto
+        </Label>
+        <CustomDrinkForm actions={drinkActions} formId={`${ids}-drink`} onAdded={(name, events) => close({ text: drinkNoticeText(name), events })} />
+      </>
+    );
+    footer = (
+      <div className={styles.stepFooter}>
+        {back}
+        <Button type="submit" form={`${ids}-drink`} className={styles.done} disabled={busy}>
+          Segna
+        </Button>
+      </div>
+    );
   } else if (step === "shopping") {
     body = (
       <>
@@ -482,7 +502,7 @@ export function AddSheet({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Sheet title="Aggiungi" onClose={() => close()} busy={busy} footer={footer} onBack={step === "main" ? undefined : () => go("main")}>
+    <Sheet title="Aggiungi" onClose={() => close()} busy={busy} footer={footer} onBack={step === "main" ? undefined : goBack}>
       {body}
       {keyboard > 0 ? <div aria-hidden="true" style={{ height: keyboard }} /> : null}
     </Sheet>

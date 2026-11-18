@@ -35,8 +35,42 @@ function isTwins(options: readonly FoodOption[]): boolean {
 /** Per proporre candidati basta una somiglianza più bassa di quella per riconoscere da soli: l'utente sceglie. */
 const SUGGEST_MIN_CONFIDENCE = 0.5;
 
+/** Con questa somiglianza un alimento si propone anche se le parole scritte non sono inizi di parole del suo nome. */
+const PROPOSE_ANYWAY_CONFIDENCE = 0.8;
+
+/** Parole di legame che non dicono che cosa si è mangiato: non servono a proporre un alimento. */
+const LINK_WORDS = new Set(["a", "al", "alla", "alle", "allo", "ai", "agli", "all", "con", "da", "dal", "dalla", "de", "del", "della", "delle", "dello", "dei", "degli", "di", "e", "ed", "il", "in", "la", "le", "lo", "gli", "i", "per", "su", "un", "una", "uno"]);
+
+/** Minuscole e senza accenti, divise in parole. */
+function words(text: string): string[] {
+  return text
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w !== "");
+}
+
+/**
+ * Ogni parola scritta è l'inizio di una parola del nome dell'alimento, fuori dalle parentesi: «pizza» non porta a
+ * «Mozzarella a bassa umidità (tipo per pizza)», «mozzarella» sì. Le parole di legame non contano.
+ */
+export function nameStartsWith(foodName: string, query: string): boolean {
+  const asked = words(query).filter((w) => !LINK_WORDS.has(w));
+  if (asked.length === 0) return false;
+  const own = words(foodName.replace(/\([^)]*\)/g, " "));
+  return asked.every((w) => own.some((o) => o.startsWith(w)));
+}
+
+/** Un candidato si propone se il nome comincia con le parole scritte, oppure se la somiglianza è alta. */
+const proposable = (c: FoodCandidate, query: string) => c.confidence >= PROPOSE_ANYWAY_CONFIDENCE || nameStartsWith(c.food.name, query);
+
 export interface FoodSearch {
   /** Candidati per il testo scritto, ordinati; le voci dello stesso gruppo `variantOf` sono vicine. */
+  /**
+   * Proposte per il testo scritto: solo gli alimenti il cui nome (fuori dalle parentesi) ha una parola che comincia con
+   * ogni parola scritta, oppure molto simili (`nameStartsWith`).
+   */
   groups(query: string, limit?: number): OptionGroup[];
   byId(id: string | undefined): FoodComposition | undefined;
   /** Dove di un alimento la tabella ha solo la voce secca: l'alimento secco (o crudo) che corrisponde al nome. */
@@ -50,15 +84,19 @@ export function createFoodSearch(foods: readonly FoodComposition[]): FoodSearch 
   return {
     groups(query, limit = 8) {
       if (query.trim().length < 2) return [];
-      const out: OptionGroup[] = [];
+      const out: (OptionGroup & { proposable: boolean })[] = [];
       for (const candidate of matcher.search(query, { limit, minConfidence: SUGGEST_MIN_CONFIDENCE })) {
         const option = optionOf(candidate);
         const last = out[out.length - 1];
         const key = candidate.variantOf ?? candidate.food.id;
-        if (last && last.key === key) last.options.push(option);
-        else out.push({ key, twins: false, options: [option] });
+        const ok = proposable(candidate, query);
+        if (last && last.key === key) {
+          last.options.push(option);
+          last.proposable ||= ok;
+        } else out.push({ key, twins: false, options: [option], proposable: ok });
       }
-      return out.map((g) => ({ ...g, twins: isTwins(g.options) }));
+      // un gruppo di gemelli (cotto e crudo) resta intero se una sua voce si propone
+      return out.filter((g) => g.proposable).map(({ key, options }) => ({ key, options, twins: isTwins(options) }));
     },
     byId: (id) => (id === undefined ? undefined : byId.get(id)),
     uncookedFor(name) {

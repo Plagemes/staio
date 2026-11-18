@@ -88,6 +88,8 @@ export interface ShoppingView {
   /** Voci aggiunte a mano senza quantità: restano in lista e vanno in negozio. */
   noQuantity: QuantitylessItem[];
   suppressed: ViewItem[];
+  /** Proposte tolte da poco (`DISMISS_DAYS` giorni): fuori da `items`, ma non nascoste. */
+  dismissed: ViewItem[];
   issues: ListIssue[];
   book: PriceBook;
   histories: PriceHistoryResult;
@@ -169,6 +171,7 @@ export function buildShoppingView(input: ViewInput): ShoppingView {
   }
 
   const items = list.items.filter((i) => !isDismissed(input.decisions, i.id, today)).map(toView);
+  const dismissed = list.items.filter((i) => isDismissed(input.decisions, i.id, today)).map(toView);
   const suppressed = list.suppressed.map(toView);
 
   const priced = items.filter((i) => i.costCents !== null);
@@ -215,6 +218,7 @@ export function buildShoppingView(input: ViewInput): ShoppingView {
     items,
     noQuantity,
     suppressed,
+    dismissed,
     issues: list.issues,
     book,
     histories,

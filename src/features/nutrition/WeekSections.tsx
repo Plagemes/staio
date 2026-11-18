@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import {
   PLANT_GROUPS,
   PROTEIN_MOMENTS,
@@ -9,6 +9,8 @@ import {
   proteinSpread,
   type DayIntake,
   type FoodComposition,
+  type ProteinSpread,
+  type VarietyReport,
 } from "@/core/nutrition";
 import { Label, ProgressLine, SectionHeader, Value } from "@/design";
 import ui from "../ui.module.css";
@@ -16,13 +18,26 @@ import { CERTAINTY_LABELS, certaintyExplanation } from "./labels";
 import styles from "./nutrition.module.css";
 import { MOMENT_LABELS, PLANT_GROUP_LABELS, absentText, monotonyText, spreadView, varietyView } from "./weekView";
 
-/** Proteine per momento della giornata nei giorni completi degli ultimi 7: descrizione, nessun obiettivo. */
-export function ProteinSpreadSection({ days, today }: { days: readonly DayIntake[]; today: string }) {
-  const spread = useMemo(() => proteinSpread(days, today), [days, today]);
-  const view = spreadView(spread);
+/** Il contenuto con il suo titolo di sezione, oppure da solo (`headless`): dentro una riga richiusa che ha già il titolo. */
+function Frame({ label, headless, children }: { label: string; headless: boolean; children: ReactNode }) {
+  if (headless) return <div className={ui.section}>{children}</div>;
   return (
     <section className={ui.section}>
-      <SectionHeader label="Proteine nella giornata" />
+      <SectionHeader label={label} />
+      {children}
+    </section>
+  );
+}
+
+/**
+ * Proteine per momento della giornata nei giorni completi degli ultimi 7: descrizione, nessun obiettivo. `spread`, se
+ * c'è, è già calcolato da chi la usa (per il riepilogo della riga richiusa) e non si rifà.
+ */
+export function ProteinSpreadSection({ days, today, headless = false, spread: given }: { days: readonly DayIntake[]; today: string; headless?: boolean; spread?: ProteinSpread }) {
+  const spread = useMemo(() => given ?? proteinSpread(days, today), [given, days, today]);
+  const view = spreadView(spread);
+  return (
+    <Frame label="Proteine nella giornata" headless={headless}>
       {view.empty ? (
         <p className={styles.quiet}>{view.coverage}</p>
       ) : (
@@ -64,22 +79,34 @@ export function ProteinSpreadSection({ days, today }: { days: readonly DayIntake
           <p className={ui.hint}>«Altro» comprende gli spuntini. Descrive come sono distribuite, non quante ne servono.</p>
         </>
       )}
-    </section>
+    </Frame>
   );
 }
 
 /** Vegetali diversi degli ultimi 7 giorni, per gruppo, con ciò che manca da più tempo e la monotonia dei pasti. */
-export function VarietySection({ days, foods, today }: { days: readonly DayIntake[]; foods: readonly FoodComposition[]; today: string }) {
-  const report = useMemo(() => analyzeVariety(days, foodLookup(foods), today), [days, foods, today]);
+export function VarietySection({
+  days,
+  foods,
+  today,
+  headless = false,
+  report: given,
+}: {
+  days: readonly DayIntake[];
+  foods: readonly FoodComposition[];
+  today: string;
+  headless?: boolean;
+  report?: VarietyReport;
+}) {
+  const report = useMemo(() => given ?? analyzeVariety(days, foodLookup(foods), today), [given, days, foods, today]);
   const view = varietyView(report);
   return (
-    <section className={ui.section}>
-      <SectionHeader label="Varietà vegetale della settimana" />
+    <Frame label="Varietà vegetale della settimana" headless={headless}>
       {view.empty ? (
         <p className={styles.quiet}>Ancora nessun dato negli ultimi 7 giorni: registra i pasti e qui compaiono i vegetali diversi che hai mangiato.</p>
       ) : (
         <>
-          <div className={ui.tile}>
+          {/* dentro una riga richiusa (che in Vivo è già una scheda) niente scheda dentro la scheda */}
+          <div className={headless ? undefined : ui.tile}>
             <Label>Vegetali diversi, ultimi 7 giorni</Label>
             <div className={styles.energyNumber}>
               <span className={styles.bigNumber}>{view.headline}</span>
@@ -127,6 +154,6 @@ export function VarietySection({ days, foods, today }: { days: readonly DayIntak
           </p>
         </>
       )}
-    </section>
+    </Frame>
   );
 }

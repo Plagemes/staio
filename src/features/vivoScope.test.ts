@@ -36,7 +36,6 @@ const FILES = ROOTS.flatMap(cssFiles).map((path) => ({ path, sel: selectors(read
 const VIVO_ONLY_CLASSES: Record<string, string[]> = {
   "ui.module.css": [".group", ".tile", ".tone", ".stateRow", ".fields"],
   "Today.module.css": [".dayLabel", ".momentList"],
-  "health.module.css": [".ring"],
   "frigo.module.css": [".scene"],
   "LotSheet.module.css": [".rows"],
 };

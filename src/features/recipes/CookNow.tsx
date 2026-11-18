@@ -14,6 +14,7 @@ import { MEAL_KIND_LABELS, MEAL_KIND_ORDER, buildMealEvents, suggestMealKind, ty
 import { useFoodOverrides, useFoods } from "../nutrition/useNutrition";
 import { picksFromProposal, proposeFromRecipe, unmatchedText, type Unmatched } from "../prep/fromRecipe";
 import { IngredientPicker, type PickRow } from "../prep/IngredientPicker";
+import { useStartProposal } from "../prep/startProposal";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
@@ -130,8 +131,12 @@ function Form({
   const recipe = useMemo(() => applySubstitutions(written, substitutions), [written, substitutions]);
   const safety = useRecipeSafety(recipe);
 
-  // Calcolata una volta, alla prima apertura: le correzioni dell'utente non vengono mai riscritte.
-  const [start] = useState(() => {
+  /** Ingredienti e voci a mano come li ha lasciati l'utente; `null` finché non li tocca e vale la proposta. */
+  const [editedPicks, setPicks] = useState<PickRow[] | null>(null);
+  const [editedFree, setEditedFree] = useState<FreeRow[] | null>(null);
+  // Calcolata all'apertura e rifatta con i dati che arrivano subito dopo (`useStartProposal`): le correzioni
+  // dell'utente non vengono mai riscritte.
+  const start = useStartProposal(() => {
     const lookup = foods ? makeLookup(foods, overrides) : undefined;
     const proposal = proposeFromRecipe(recipe, entries.map((e) => e.lot), {
       servings,
@@ -153,10 +158,11 @@ function Form({
         };
       });
     return { picks: picksFromProposal(proposal), unmatched: proposal.unmatched as Unmatched[], free };
-  });
+  }, [recipe, entries, servings, foods, overrides], editedPicks !== null || editedFree !== null);
 
-  const [picks, setPicks] = useState<PickRow[]>(start.picks);
-  const [free, setFree] = useState<FreeRow[]>(start.free);
+  const picks = editedPicks ?? start.picks;
+  const free = editedFree ?? start.free;
+  const setFree = (change: (rows: FreeRow[]) => FreeRow[]) => setEditedFree((rows) => change(rows ?? start.free));
   const [kind, setKind] = useState<MealKind | null>(null);
   const [errors, setErrors] = useState<MealErrors | null>(null);
   const [vote, setVote] = useState<DishVote>({});

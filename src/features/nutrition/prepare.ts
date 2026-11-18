@@ -14,7 +14,8 @@ import {
   type StatePreference,
   type UnresolvedLine,
 } from "@/core/nutrition";
-import { MAIN_MEALS, MEAL_KIND_LABELS } from "../meals";
+import type { MealKind } from "@/core/diary";
+import { MAIN_MEALS, MEAL_KIND_LABELS, MOMENT_STARTS, type DeclarableKind } from "../meals";
 import type { MealItemRef } from "./corrections";
 import { isPrepRef, type PrepPortionInfo } from "./prepPortion";
 import { NUTRIENT_INFO, OUT_OF_HOME_EXPLANATION, REFERENCE_KIND_LABELS, STATE_LABELS, formatNutrient, nutrientLabel, variantLabel } from "./labels";
@@ -94,12 +95,48 @@ function reasonsText(day: DayIntake): string {
   return parts.join("; ");
 }
 
+const WITH_ARTICLE: Record<DeclarableKind, string> = { breakfast: "la colazione", lunch: "il pranzo", dinner: "la cena" };
+
+function kindList(kinds: readonly DeclarableKind[]): string {
+  const names = kinds.map((k) => MEAL_KIND_LABELS[k].toLowerCase());
+  return names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} e ${names[names.length - 1]}`;
+}
+
+const isDeclarable = (k: MealKind): k is DeclarableKind => k === "breakfast" || k === "lunch" || k === "dinner";
+
+/**
+ * I pasti principali che mancano e sono già cominciati, con la stessa regola dello stato del giorno
+ * (`today/dayStatus.ts`, `MOMENT_STARTS`): senza `nowMinutes` il giorno è passato e contano tutti.
+ */
+export function startedMissing(missing: readonly MealKind[], nowMinutes?: number): DeclarableKind[] {
+  return MAIN_MEALS.filter(isDeclarable).filter((k) => missing.includes(k) && (nowMinutes === undefined || nowMinutes >= MOMENT_STARTS[k]));
+}
+
+/** «manca il pranzo», «mancano colazione e pranzo»; vuoto se non manca niente. */
+export function missingMealsText(kinds: readonly DeclarableKind[]): string {
+  if (kinds.length === 0) return "";
+  return kinds.length === 1 ? `manca ${WITH_ARTICLE[kinds[0]]}` : `mancano ${kindList(kinds)}`;
+}
+
+/** Il motivo per cui il totale di oggi è parziale, contando solo i momenti già cominciati. */
+function reasonsTextToday(day: DayIntake, nowMinutes: number): string {
+  const parts: string[] = [];
+  if (day.reasons.includes("untracked_meals")) parts.push("ci sono pasti segnati come non tracciati");
+  const missing = missingMealsText(startedMissing(day.coverage.missing, nowMinutes));
+  if (missing) parts.push(missing);
+  if (day.reasons.includes("empty_meals")) parts.push("un pasto è senza voci");
+  return parts.length > 0 ? parts.join("; ") : "la giornata non è finita";
+}
+
 function linesOf(day: DayIntake): IntakeLine[] {
   return [...day.meals.flatMap((m) => m.lines), ...day.standalone];
 }
 
-/** Energia e macronutrienti di una giornata, ognuno con la sua certezza; dice se il totale è parziale. */
-export function dayNutritionView(day: DayIntake | undefined, date: string): DayNutritionView {
+/**
+ * Energia e macronutrienti di una giornata, ognuno con la sua certezza; dice se il totale è parziale. Con `nowMinutes`
+ * (il giorno è oggi) la frase sul totale parziale conta solo i momenti già cominciati, come lo stato del giorno.
+ */
+export function dayNutritionView(day: DayIntake | undefined, date: string, options: { nowMinutes?: number } = {}): DayNutritionView {
   if (!day) return { date, empty: true, complete: false, resolved: 0, total: 0, macros: [] };
   const lines = linesOf(day);
   const resolved = lines.filter((l) => l.status === "ok").length;
@@ -119,7 +156,9 @@ export function dayNutritionView(day: DayIntake | undefined, date: string): DayN
     ...(drinksOnlyText ? { drinksOnlyText } : {}),
     empty,
     complete: day.complete,
-    ...(day.complete ? {} : { partialText: `Totale parziale: ${reasonsText(day)}.` }),
+    ...(day.complete
+      ? {}
+      : { partialText: `Totale parziale: ${options.nowMinutes === undefined ? reasonsText(day) : reasonsTextToday(day, options.nowMinutes)}.` }),
     ...(resolved < lines.length ? { coverageText: `calcolato su ${resolved} ${resolved === 1 ? "voce" : "voci"} di ${lines.length}` } : {}),
     ...(missingCells.length > 0 ? { missingText: `Dato mancante per: ${missingCells.map((c) => `${c.label.toLowerCase()} ${missingPercentText(c.missingShare)}`).join(", ")}.` } : {}),
     resolved,

@@ -1,12 +1,14 @@
 // Nutrienti di pasti e giornate a partire dal registro degli eventi.
 
 import {
+  DEFAULT_TIME_ZONE,
   dayCoverage,
   deriveDiary,
   localDate,
   type DayCoverage,
   type DiaryDay,
   type DiaryMeal,
+  type DiaryState,
   type MealKind,
 } from "../diary";
 import { isValidKnownEvent, prepareLog, voidsOfLog } from "../diary/log";
@@ -14,6 +16,7 @@ import {
   derivePantry,
   type Certainty,
   type ConsumeEvent,
+  type PantryState,
   type Quantity,
 } from "../ledger";
 import {
@@ -168,6 +171,16 @@ export interface IntakeOptions {
   statePreference?: Partial<Record<"mealItem" | "pantry", readonly FoodState[]>>;
   /** Fuso orario IANA con cui si assegnano gli eventi ai giorni. Predefinito `Europe/Rome`. */
   timeZone?: string;
+}
+
+/**
+ * Diario e dispensa già derivati dallo stesso registro (per esempio dalla lettura condivisa): `computeIntake` li usa
+ * invece di rifarli. Devono venire proprio da quegli eventi; il diario con lo stesso fuso di `options.timeZone`
+ * (altrimenti si rifà).
+ */
+export interface IntakeDerived {
+  diary?: DiaryState;
+  pantry?: PantryState;
 }
 
 export interface IntakeResult {
@@ -422,15 +435,19 @@ export function computeIntake(
   events: Iterable<unknown>,
   resolver: CompositionResolver,
   options: IntakeOptions = {},
+  derived: IntakeDerived = {},
 ): IntakeResult {
   const preferences = { ...DEFAULT_STATE_PREFERENCE, ...options.statePreference };
   // Il risolutore riceve con ogni voce gli stati preferiti per quel tipo di voce.
   const resolve: CompositionResolver = (subject) =>
     resolver({ ...subject, preferStates: subject.preferStates ?? preferences[subject.kind] });
   const list = [...events];
-  const diary = deriveDiary(list, options);
+  const given = derived.diary;
+  // un diario calcolato in un altro fuso darebbe altri giorni: si rifà
+  const diary =
+    given !== undefined && given.timeZone === (options.timeZone ?? DEFAULT_TIME_ZONE) ? given : deriveDiary(list, options);
   const consumes = activeConsumeEvents(list);
-  const lots = new Map(derivePantry(list).lots.map((l) => [l.lotId, l]));
+  const lots = new Map((derived.pantry ?? derivePantry(list)).lots.map((l) => [l.lotId, l]));
   const lotRef = (lotId: string) => {
     const lot = lots.get(lotId);
     return lot

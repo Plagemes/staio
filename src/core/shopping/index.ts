@@ -89,6 +89,7 @@ export {
   orderForStore,
   reconcile,
   startTrip,
+  syncTrip,
   tripProgress,
   uncheckItem,
 } from "./trip";

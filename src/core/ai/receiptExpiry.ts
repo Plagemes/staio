@@ -1,11 +1,13 @@
-// Dopo lo scontrino: le scadenze dei soli deperibili. Logica pura: la stima viene da `core/expiry` (solo lettura),
-// la scadenza scelta entra nel registro come `updateLot` sul lotto appena creato (l'acquisto non si tocca).
+// Scadenze dei soli deperibili dello scontrino. Logica pura: la stima viene da `core/expiry` (solo lettura).
+// La scelta fatta nella revisione va sull'acquisto stesso (`withExpiryChoices`); `buildExpiryEvents` la scrive invece
+// come `updateLot` su un lotto già creato.
 import { SHELF_LIFE, addDays, effectiveExpiry, isFoodCategory, toCalendarDate, type FoodCategory } from "@/core/expiry";
 import {
   correctLot,
   generateId,
   isCalendarDate,
   validateEvent,
+  type Expiry,
   type ExpiryKind,
   type IdGenerator,
   type LedgerEvent,
@@ -39,20 +41,35 @@ export interface ExpiryReviewRow {
   estimate: string;
 }
 
+/**
+ * Scadenza stimata dalla categoria e dal luogo per un acquisto fatto all'istante `at`, `YYYY-MM-DD`; `undefined` se la
+ * riga non è un fresco (stessa regola della revisione) o il motore non la sa stimare.
+ */
+export function freshExpiryEstimate(input: { category?: string; location: Location; at: string }): string | undefined {
+  if (!needsExpiryReview(input.category, input.location)) return undefined;
+  return lotExpiryEstimate(input);
+}
+
+/** Scadenza stimata dalla categoria e dal luogo per qualunque alimento, fresco o no; `undefined` se non si sa stimare. */
+export function lotExpiryEstimate(input: { category?: string; location: Location; at: string }): string | undefined {
+  const { category, location, at } = input;
+  if (!isFoodCategory(category)) return undefined;
+  try {
+    return effectiveExpiry({ id: "estimate", labelDateType: "none", purchaseDate: toCalendarDate(at), location, category }, at).date;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Una riga per ogni acquisto deperibile appena entrato, nell'ordine dello scontrino. */
 export function expiryReviewRows(purchases: readonly PurchaseEvent[]): ExpiryReviewRow[] {
   const rows: ExpiryReviewRow[] = [];
   for (const p of purchases) {
-    if (p.expiry || !isFoodCategory(p.category) || !needsExpiryReview(p.category, p.location)) continue;
-    try {
-      const estimate = effectiveExpiry(
-        { id: p.lotId, labelDateType: "none", purchaseDate: toCalendarDate(p.at), location: p.location, category: p.category },
-        p.at,
-      ).date;
-      rows.push({ lotId: p.lotId, name: p.productRef, quantity: p.quantity, location: p.location, category: p.category, estimate });
-    } catch {
-      // una riga che il motore non sa stimare non entra nella revisione
-    }
+    if (p.expiry || !isFoodCategory(p.category)) continue;
+    // una riga che il motore non sa stimare non entra nella revisione
+    const estimate = freshExpiryEstimate(p);
+    if (estimate === undefined) continue;
+    rows.push({ lotId: p.lotId, name: p.productRef, quantity: p.quantity, location: p.location, category: p.category, estimate });
   }
   return rows;
 }
@@ -61,6 +78,41 @@ export function expiryReviewRows(purchases: readonly PurchaseEvent[]): ExpiryRev
 export interface ExpiryChoice {
   date: string;
   via: "shortcut" | "label";
+}
+
+/** La scadenza che una scelta dà al lotto: la data stampata ha il tipo della categoria, un tasto rapido è una stima. */
+export function expiryOfChoice(category: string | undefined, choice: ExpiryChoice): Expiry {
+  return { date: choice.date, kind: choice.via === "label" ? labelKindFor(category) : "estimated" };
+}
+
+export type ExpiryChoicesResult = { ok: true; purchases: PurchaseEvent[] } | { ok: false; errors: Record<string, string> };
+
+/**
+ * Le scadenze scelte nella revisione vanno sugli acquisti stessi, prima di scriverli: una sola scrittura per lo scontrino.
+ * Stessa regola di `buildExpiryEvents` per il tipo di data. Una data scelta dall'utente vale sempre, anche se la riga
+ * poi è passata a una categoria o a un luogo non freschi; chi non sceglie tiene la stima per categoria.
+ */
+export function withExpiryChoices(purchases: readonly PurchaseEvent[], choices: Readonly<Record<string, ExpiryChoice>>): ExpiryChoicesResult {
+  const errors: Record<string, string> = {};
+  const out: PurchaseEvent[] = [];
+  for (const p of purchases) {
+    const choice = Object.hasOwn(choices, p.lotId) ? choices[p.lotId] : undefined;
+    if (!choice || p.expiry) {
+      out.push(p);
+      continue;
+    }
+    if (!isCalendarDate(choice.date)) {
+      errors[p.lotId] = "Scrivi una data valida.";
+      continue;
+    }
+    const dated: PurchaseEvent = { ...p, expiry: expiryOfChoice(p.category, choice) };
+    if (validateEvent(dated).length > 0) {
+      errors[p.lotId] = "Non riesco a salvare questa scadenza.";
+      continue;
+    }
+    out.push(dated);
+  }
+  return Object.keys(errors).length > 0 ? { ok: false, errors } : { ok: true, purchases: out };
 }
 
 /** Data di un tasto rapido (l'elenco è quello della scheda del prodotto, passato dal componente) a partire da oggi. */
@@ -93,10 +145,9 @@ export function buildExpiryEvents(
       errors[p.lotId] = "Scrivi una data valida.";
       continue;
     }
-    const kind: ExpiryKind = choice.via === "label" ? labelKindFor(p.category) : "estimated";
     const produced = correctLot(
       p,
-      { expiry: { date: choice.date, kind } },
+      { expiry: expiryOfChoice(p.category, choice) },
       {
         lot: { productRef: p.productRef, category: p.category, barcode: p.barcode, expiry: undefined, priceCents: p.priceCents, store: p.store },
         now: () => ctx.now,

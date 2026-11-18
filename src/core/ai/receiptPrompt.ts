@@ -1,4 +1,4 @@
-// Richiesta per la lettura di uno scontrino italiano da una foto. La risposta deve essere solo JSON.
+// Richiesta per la lettura di uno scontrino italiano da una o più foto. La risposta deve essere solo JSON.
 import type { FoodCategory } from "@/core/expiry";
 import type { AiImage, AiRequest } from "./types";
 
@@ -100,11 +100,25 @@ Categorie ammesse per "category":
 ${categories}`;
 }
 
+/** Solo con più foto: con una foto la richiesta resta quella di sempre. */
+const PARTS_RULES = `
+
+Più foto.
+- Le foto sono parti dello stesso scontrino, nell'ordine dato: la prima è l'inizio, l'ultima la fine. Leggile come un solo scontrino.
+- Due foto vicine si sovrappongono: una riga che compare in fondo a una foto e in cima alla successiva è la stessa riga, riportala una volta sola.
+- Due righe uguali nella stessa foto sono due articoli: riportale entrambe.
+- store, chain e date si leggono in cima, totalCents in fondo.`;
+
 export function buildReceiptRequest(options: ReceiptRequestOptions): AiRequest {
   const today = options.today ? ` Oggi è ${options.today}.` : "";
+  const count = options.images.length;
+  const text =
+    count > 1
+      ? `Ecco ${count} foto dello scontrino: sono parti dello stesso scontrino, in ordine dall'alto in basso. Le righe ripetute dove una foto si sovrappone alla successiva vanno riportate una volta sola.${today} Rispondi solo con il JSON.`
+      : `Ecco la foto dello scontrino.${today} Rispondi solo con il JSON.`;
   return {
-    instructions: receiptInstructions(),
-    text: `Ecco la foto dello scontrino.${today} Rispondi solo con il JSON.`,
+    instructions: count > 1 ? receiptInstructions() + PARTS_RULES : receiptInstructions(),
+    text,
     images: options.images,
     maxOutputTokens: options.maxOutputTokens ?? DEFAULT_RECEIPT_MAX_TOKENS,
   };

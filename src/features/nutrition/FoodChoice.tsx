@@ -47,7 +47,10 @@ export function FoodChoice({
   if (!hasCandidates) return null;
   return (
     <div className={styles.choice}>
-      <p className={ui.fieldLabel}>Quale alimento della tabella?</p>
+      <div>
+        <p className={ui.fieldLabel}>È uno di questi?</p>
+        <p className={ui.hint}>Serve per contare i nutrienti.</p>
+      </div>
       {none ? (
         <div className={styles.chosen} role="status">
           <span>

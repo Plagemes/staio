@@ -1,19 +1,41 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useState } from "react";
-import { Button, Label, SectionHeader } from "@/design";
+import { useId, useMemo, useRef, useState } from "react";
+import { Button, SectionHeader, cx } from "@/design";
+import { generateId } from "@/core/ledger";
+import { spendRanges, summarizeSpend } from "@/core/prices";
+import { emptyRejections, type RejectionMemory } from "@/core/shopping";
 import { formatQuantity } from "@/core/units";
-import { parseQuantityInUnit } from "../actions";
-import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
+import { getSetting } from "@/data";
+import { ActionBar, Disclosure, MoreActions, type ActionItem } from "../common";
+import { LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { Costs } from "./Costs";
 import { Prices } from "./Prices";
 import { Spending } from "./Spending";
+import { ItemSheet, type ItemActions, type SheetTarget } from "./ItemSheet";
 import { coveredText } from "./planNeeds";
 import { confirm, confirmAll, forgetRejections, reject, restore, setQuantity, unconfirm } from "./decisions";
-import { parseManualLines, toManualItems } from "./manual";
-import { SETTING_KEYS } from "./settings";
+import {
+  addedText,
+  barState,
+  confirmedAllText,
+  confirmedText,
+  costsSummary,
+  itemQuantityText,
+  itemSubline,
+  leftInField,
+  notReadText,
+  proposedAgainText,
+  quantityChangedText,
+  readEntries,
+  removedText,
+  toInputs,
+  unconfirmedText,
+} from "./listText";
+import { baseQuantityOf, mergeManualItems, type ManualItem } from "./manual";
+import { SETTING_KEYS, emptyDecisions, isDecisions, isManualList, isRejectionMemory, type Decisions } from "./settings";
 import { useShoppingData, type ShoppingData } from "./useShoppingData";
 import { useSettingsUndo } from "./useSettingsUndo";
 import type { ViewItem } from "./view";
@@ -36,314 +58,288 @@ export function Shopping() {
   return <ShoppingView data={data} undo={undo} />;
 }
 
+/* Prima di scrivere, lo stato si rilegge dall'archivio: ciò che è a schermo può essere di un istante fa. */
+
+async function readDecisions(): Promise<Decisions> {
+  const stored = await getSetting<unknown>(SETTING_KEYS.decisions);
+  return isDecisions(stored) ? stored : emptyDecisions();
+}
+
+async function readRejections(): Promise<RejectionMemory> {
+  const stored = await getSetting<unknown>(SETTING_KEYS.rejections);
+  return isRejectionMemory(stored) ? stored : emptyRejections();
+}
+
+/** Come `add.ts`: accetta anche la forma scritta prima che le voci avessero un id. */
+async function readManual(): Promise<ManualItem[]> {
+  const stored = await getSetting<unknown>(SETTING_KEYS.manual);
+  if (isManualList(stored)) return stored;
+  if (!Array.isArray(stored)) return [];
+  const now = new Date().toISOString();
+  const out: ManualItem[] = [];
+  for (const e of stored) {
+    if (typeof e !== "object" || e === null || typeof (e as { product?: unknown }).product !== "string") continue;
+    const r = e as { id?: unknown; product: string; quantity?: { value: number; unit: "g" | "ml" | "pz" }; addedAt?: unknown };
+    const quantity = baseQuantityOf(r.quantity);
+    out.push({ id: typeof r.id === "string" ? r.id : generateId(), product: r.product, ...(quantity ? { quantity } : {}), addedAt: typeof r.addedAt === "string" ? r.addedAt : now });
+  }
+  return out;
+}
+
+const NO_ACTION: () => Promise<boolean> = async () => false;
+
+let writing = false;
+
+/** Una scrittura alla volta: un secondo tocco mentre la prima è in corso non fa niente (`undefined`). */
+async function guarded(write: () => Promise<boolean>): Promise<boolean | undefined> {
+  if (writing) return undefined;
+  writing = true;
+  try {
+    return await write();
+  } catch {
+    return false;
+  } finally {
+    writing = false;
+  }
+}
+
 function ShoppingView({ data, undo }: { data: ShoppingData; undo: Undo }) {
   const view = data.view!;
-  const { decisions, rejections } = data;
+  const [sheetId, setSheetId] = useState<string | null>(null);
+  const run = guarded;
+
   const unconfirmed = view.items.filter((i) => !i.confirmed);
+  const sospese = [...view.dismissed, ...view.suppressed];
+  const listCount = view.items.length + view.noQuantity.length;
+  const month = useMemo(() => {
+    const pantry = data.plan.pantry;
+    const range = spendRanges(view.today).find((r) => r.id === "month");
+    return pantry && range ? summarizeSpend(pantry, range) : null;
+  }, [data.plan.pantry, view.today]);
 
-  async function setDecisions(message: string, next: typeof decisions) {
-    await undo.apply(message, { [SETTING_KEYS.decisions]: next }, { [SETTING_KEYS.decisions]: decisions });
+  async function removeManual(name: string, manualIds: readonly string[]): Promise<boolean> {
+    const stored = await readManual();
+    const gone = new Set(manualIds);
+    return undo.apply(removedText(name, false), { [SETTING_KEYS.manual]: stored.filter((m) => !gone.has(m.id)) }, { [SETTING_KEYS.manual]: stored });
   }
 
-  async function onReject(v: ViewItem) {
-    if (v.isManual) {
-      const gone = new Set(v.manualIds);
-      await undo.apply(`Tolto dalla lista: ${v.name}.`, { [SETTING_KEYS.manual]: data.manual.filter((m) => !gone.has(m.id)) }, { [SETTING_KEYS.manual]: data.manual });
-      return;
+  async function removeProposal(v: ViewItem): Promise<boolean> {
+    const [decisions, memory] = await Promise.all([readDecisions(), readRejections()]);
+    const next = reject(decisions, memory, v.item, view.today);
+    return undo.apply(
+      removedText(v.name, true),
+      { [SETTING_KEYS.decisions]: next.decisions, [SETTING_KEYS.rejections]: next.memory },
+      { [SETTING_KEYS.decisions]: decisions, [SETTING_KEYS.rejections]: memory },
+    );
+  }
+
+  async function changeDecisions(message: string, change: (d: Decisions) => Decisions): Promise<boolean> {
+    const decisions = await readDecisions();
+    return undo.apply(message, { [SETTING_KEYS.decisions]: change(decisions) }, { [SETTING_KEYS.decisions]: decisions });
+  }
+
+  function actionsFor(target: SheetTarget): ItemActions {
+    if (target.kind === "plain") {
+      const n = target.n;
+      return { confirm: NO_ACTION, unconfirm: NO_ACTION, setQuantity: NO_ACTION, remove: async () => (await run(() => removeManual(n.name, n.manualIds))) ?? false };
     }
-    const r = reject(decisions, rejections, v.item, view.today);
-    await undo.apply(`Rifiutato: ${v.name}. Me lo ricordo.`, { [SETTING_KEYS.decisions]: r.decisions, [SETTING_KEYS.rejections]: r.memory }, { [SETTING_KEYS.decisions]: decisions, [SETTING_KEYS.rejections]: rejections });
+    const v = target.v;
+    return {
+      confirm: async () => (await run(() => changeDecisions(confirmedText(v.name, itemQuantityText(v)), (d) => confirm(d, v.id, v.quantity)))) ?? false,
+      unconfirm: async () => (await run(() => changeDecisions(unconfirmedText(v.name), (d) => unconfirm(d, v.id)))) ?? false,
+      setQuantity: async (value) =>
+        (await run(() => changeDecisions(quantityChangedText(v.name, formatQuantity({ value, unit: v.unit })), (d) => setQuantity(d, v.id, value)))) ?? false,
+      remove: async () => (await run(() => (v.isManual ? removeManual(v.name, v.manualIds) : removeProposal(v)))) ?? false,
+    };
   }
+
+  async function confirmAllNow() {
+    await run(async () => {
+      if (unconfirmed.length === 0) return true;
+      return changeDecisions(confirmedAllText, (d) => confirmAll(d, unconfirmed));
+    });
+  }
+
+  async function proposeAgain(v: ViewItem) {
+    await run(async () => {
+      const [decisions, memory] = await Promise.all([readDecisions(), readRejections()]);
+      return undo.apply(
+        proposedAgainText(v.name),
+        { [SETTING_KEYS.rejections]: forgetRejections(memory, v.id), [SETTING_KEYS.decisions]: restore(decisions, v.id) },
+        { [SETTING_KEYS.rejections]: memory, [SETTING_KEYS.decisions]: decisions },
+      );
+    });
+  }
+
+  const target: SheetTarget | null = useMemo(() => {
+    if (sheetId === null) return null;
+    const v = view.items.find((i) => i.id === sheetId);
+    if (v) return { kind: "item", v };
+    const n = view.noQuantity.find((q) => q.id === sheetId);
+    return n ? { kind: "plain", n } : null;
+  }, [sheetId, view.items, view.noQuantity]);
+
+  // la voce non c'è più (tolta, o la lista è cambiata): il foglio non ha più di cui parlare
+  if (sheetId !== null && target === null) setSheetId(null);
+
+  const more: ActionItem[] = [
+    ...(unconfirmed.length > 0 ? [{ id: "confirm-all", label: "Conferma tutte", onSelect: () => void confirmAllNow() }] : []),
+    { id: "stock", label: "Scorte minime", href: "/app/spesa/scorte" },
+    { id: "shelf", label: "Confronta sullo scaffale", href: "/app/qualita/scaffale" },
+    { id: "quality", label: "Qualità dei prodotti", href: "/app/qualita" },
+    { id: "week", label: "Pianifica la settimana", href: "/app/piano/settimana" },
+  ];
+
+  const bar = barState({ listCount, tripOn: data.trip !== null, lastTripOn: data.lastTrip !== null });
+  const noHistory = view.day.date === null && view.day.insufficientHistoryCount > 0;
 
   return (
     <div className={ui.screen}>
       <div className={ui.head}>
         <h1 className={ui.title}>Lista della spesa</h1>
-        <Label>Stime</Label>
+        <MoreActions items={more} />
       </div>
-      <p className={ui.lead}>
-        Le voci sono proposte dai tuoi consumi, dalle scorte minime e dal piano: ognuna dice perché c&apos;è. Confermale, cambia la quantità o rifiutale: me lo ricordo.
-      </p>
 
-      <section className={styles.dayCard} aria-label="Giorno consigliato">
-        <Label>Prossima spesa</Label>
-        <p className={styles.costLine}>{view.dayText}</p>
-      </section>
-
-      <AddManual data={data} undo={undo} />
-
-      {data.planUnresolved > 0 ? (
-        <p className={ui.hint}>
-          Nel piano ci sono {data.planUnresolved} {data.planUnresolved === 1 ? "ricetta o preparazione" : "ricette o preparazioni"} che non riesco a scomporre in ingredienti: i loro ingredienti non sono nella lista.
-        </p>
-      ) : null}
-
-      {data.coveredPreps.length > 0 ? (
-        <div className={styles.card} aria-label="Porzioni già pronte">
-          <Label>Porzioni già pronte</Label>
-          <ul className={styles.reasons}>
-            {data.coveredPreps.map((c) => (
-              <li key={c.prepId}>{coveredText(c)}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+      <div className={styles.addBlock}>
+        <AddField undo={undo} />
+        {view.day.date !== null ? <p className={ui.paragraph}>{view.dayText}</p> : null}
+      </div>
 
       <section className={ui.section} aria-label="Voci">
-        <SectionHeader label={`Da comprare (${view.items.length})`} />
-        {view.items.length === 0 && view.noQuantity.length > 0 ? <p className={ui.paragraph}>Nessuna proposta: ci sono solo le voci senza quantità, qui sotto.</p> : null}
-        {view.items.length === 0 && view.noQuantity.length === 0 ? (
-          <EmptyState
-            title="Niente da comprare per ora"
-            text="Qui compariranno gli alimenti che stanno per finire, quelli sotto la scorta minima, quelli che servono al piano e ciò che aggiungi tu, ognuno con la sua ragione."
-            actionLabel="Pianifica la settimana"
-            actionHref="/app/piano/settimana"
-            secondaryLabel="Imposta le scorte minime"
-            secondaryHref="/app/spesa/scorte"
-          />
-        ) : view.items.length === 0 ? null : (
-          <ul className={styles.items}>
+        <SectionHeader label={`Da comprare (${listCount})`} />
+        {listCount === 0 ? (
+          <p className={ui.paragraph}>Niente da comprare per ora.</p>
+        ) : (
+          <ul className={cx(styles.list, ui.group)}>
             {view.items.map((v) => (
-              <ItemCard
-                key={v.id}
-                v={v}
-                onConfirm={() => setDecisions(`Confermato: ${v.name}, ${formatQuantity({ value: v.quantity, unit: v.unit })}.`, confirm(decisions, v.id, v.quantity))}
-                onUnconfirm={() => setDecisions(`Di nuovo una proposta: ${v.name}.`, unconfirm(decisions, v.id))}
-                onQuantity={(q) => setDecisions(`${v.name}: ${formatQuantity({ value: q, unit: v.unit })}.`, setQuantity(decisions, v.id, q))}
-                onReject={() => onReject(v)}
-              />
+              <li key={v.id} className={styles.line}>
+                <button type="button" className={styles.lineButton} aria-haspopup="dialog" onClick={() => setSheetId(v.id)}>
+                  <span className={styles.lineHead}>
+                    <span className={styles.lineName}>{v.name}</span>
+                    <span className={styles.lineQty}>{itemQuantityText(v)}</span>
+                  </span>
+                  <Subline text={itemSubline(v)} />
+                </button>
+              </li>
+            ))}
+            {view.noQuantity.map((n) => (
+              <li key={n.id} className={styles.line}>
+                <button type="button" className={styles.lineButton} aria-haspopup="dialog" onClick={() => setSheetId(n.id)}>
+                  <span className={styles.lineHead}>
+                    <span className={styles.lineName}>{n.name}</span>
+                    <span className={styles.lineQty}>—</span>
+                  </span>
+                  <Subline text="aggiunta da te" />
+                </button>
+              </li>
             ))}
           </ul>
         )}
       </section>
 
-      {view.noQuantity.length > 0 ? (
-        <section className={ui.section} aria-label="Senza quantità">
-          <SectionHeader label={`Senza quantità (${view.noQuantity.length})`} />
-          <p className={ui.hint}>Voci aggiunte senza una quantità, per esempio «q.b.»: ci sono in lista e vanno in negozio, ma non c&apos;è un numero.</p>
-          <ul className={styles.items}>
-            {view.noQuantity.map((n) => (
-              <li key={n.id} className={styles.item}>
-                <div className={styles.itemHead}>
-                  <h3 className={styles.itemName}>{n.name}</h3>
-                  <span className={styles.itemQty}>q.b.</span>
-                </div>
-                <p className={styles.meta}>Aggiunta da te. Nessun prezzo stimato: manca la quantità.</p>
-                <div className={styles.actions}>
-                  <button
-                    type="button"
-                    className={styles.actionDanger}
-                    onClick={() => {
-                      const gone = new Set(n.manualIds);
-                      void undo.apply(`Tolto dalla lista: ${n.name}.`, { [SETTING_KEYS.manual]: data.manual.filter((m) => !gone.has(m.id)) }, { [SETTING_KEYS.manual]: data.manual });
-                    }}
-                  >
-                    Togli
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+      <div className={styles.disclosures}>
+        <Disclosure title="Costi e prezzi" summary={month ? costsSummary(month) : undefined}>
+          <Costs data={data} undo={undo} />
+          <Spending data={data} undo={undo} />
+          <Prices view={view} />
+          <Link href="/app/salute/nutrizione" className={ui.textLink}>
+            Costo per nutriente
+          </Link>
+        </Disclosure>
 
-      {view.items.length + view.noQuantity.length > 0 ? (
-        <div className={ui.row}>
-          <Button href="/app/spesa/negozio">{data.trip ? "Riprendi la spesa" : "Vai in negozio"}</Button>
-          {unconfirmed.length > 0 ? (
-            <Button variant="outline" onClick={() => setDecisions("Confermate tutte le voci.", confirmAll(decisions, unconfirmed))}>
-              Conferma tutte
-            </Button>
+        {sospese.length > 0 ? (
+          <Disclosure title={`Sospese (${sospese.length})`} summary={sospese.map((v) => v.name).join(", ")}>
+            <p className={ui.hint}>Le hai tolte tu, o le hai rifiutate più volte: non le propongo finché non lo chiedi. Restano qui, mai nascoste.</p>
+            <ul className={cx(styles.list, ui.group)}>
+              {sospese.map((v) => (
+                <li key={v.id} className={styles.line}>
+                  <div className={styles.lineStatic}>
+                    <span className={styles.lineHead}>
+                      <span className={styles.lineName}>{v.name}</span>
+                      <span className={styles.lineQty}>{itemQuantityText(v)}</span>
+                    </span>
+                    <Subline text={v.reasons[0] ?? null} />
+                    <button type="button" className={styles.action} onClick={() => void proposeAgain(v)}>
+                      Proponila di nuovo
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </Disclosure>
+        ) : null}
+      </div>
+
+      <div className={styles.footLines}>
+        <Disclosure title="Che cosa significa" quiet>
+          <p>Le voci sono proposte dai tuoi consumi, dalle scorte minime e dal piano: ognuna dice perché c&apos;è. Confermale, cambia la quantità o toglile: me lo ricordo.</p>
+          {noHistory ? <p>{view.dayText}</p> : null}
+          {data.planUnresolved > 0 ? (
+            <p>
+              Nel piano ci sono {data.planUnresolved} {data.planUnresolved === 1 ? "ricetta o preparazione" : "ricette o preparazioni"} che non riesco a scomporre in ingredienti: i loro ingredienti non sono nella lista.
+            </p>
           ) : null}
-        </div>
-      ) : data.trip || data.lastTrip ? (
-        <Button href="/app/spesa/negozio" variant="outline">
-          {data.trip ? "Riprendi la spesa" : "Vedi l'ultima spesa"}
-        </Button>
-      ) : null}
-
-      <Link href="/app/qualita/scaffale" className={ui.textLink}>
-        Confronta sullo scaffale
-      </Link>
-
-      {view.suppressed.length > 0 ? (
-        <section className={ui.section} aria-label="Proposte sospese">
-          <SectionHeader label={`Sospese (${view.suppressed.length})`} />
-          <p className={ui.hint}>Le hai rifiutate più volte: non le propongo più finché non lo chiedi. Restano qui, mai nascoste.</p>
-          <ul className={styles.items}>
-            {view.suppressed.map((v) => (
-              <li key={v.id} className={styles.item}>
-                <div className={styles.itemHead}>
-                  <h3 className={styles.itemName}>{v.name}</h3>
-                  <span className={styles.itemQty}>{formatQuantity({ value: v.quantity, unit: v.unit })}</span>
-                </div>
-                <ul className={styles.reasons}>
-                  {v.reasons.map((r) => (
-                    <li key={r}>{r}</li>
-                  ))}
-                </ul>
-                <div className={styles.actions}>
-                  <button
-                    type="button"
-                    className={styles.action}
-                    onClick={() =>
-                      undo.apply(
-                        `Di nuovo tra le proposte: ${v.name}.`,
-                        { [SETTING_KEYS.rejections]: forgetRejections(rejections, v.id), [SETTING_KEYS.decisions]: restore(decisions, v.id) },
-                        { [SETTING_KEYS.rejections]: rejections, [SETTING_KEYS.decisions]: decisions },
-                      )
-                    }
-                  >
-                    Proponila di nuovo
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      <Costs data={data} undo={undo} />
-
-      <Spending data={data} undo={undo} />
-
-      <Prices view={view} />
-
-      <div className={ui.row}>
-        <Link href="/app/spesa/scorte" className={ui.textLink}>
-          Scorte minime
-        </Link>
-        <Link href="/app/qualita" className={ui.textLink}>
-          Qualità di ciò che mangi
-        </Link>
+          {data.coveredPreps.length > 0 ? (
+            <p>
+              <strong>Porzioni già pronte.</strong> {data.coveredPreps.map((c) => coveredText(c)).join(" ")}
+            </p>
+          ) : null}
+        </Disclosure>
         <Link href="/app/piano" className={ui.textLink}>
           Torna al piano
         </Link>
       </div>
+
+      {target ? <ItemSheet key={sheetId} target={target} actions={actionsFor(target)} onClose={() => setSheetId(null)} /> : null}
+
       {undo.node}
+
+      {bar ? (
+        <ActionBar>
+          <Button href={bar.href} variant={bar.variant}>
+            {bar.label}
+          </Button>
+        </ActionBar>
+      ) : null}
     </div>
   );
 }
 
-function ItemCard({
-  v,
-  onConfirm,
-  onUnconfirm,
-  onQuantity,
-  onReject,
-}: {
-  v: ViewItem;
-  onConfirm: () => void;
-  onUnconfirm: () => void;
-  onQuantity: (value: number) => void;
-  onReject: () => void;
-}) {
-  const id = useId();
-  const [editing, setEditing] = useState(false);
-  const [text, setText] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  function submit() {
-    const r = parseQuantityInUnit(text, v.unit);
-    if (!r.ok) return setError(r.error);
-    onQuantity(r.quantity.value);
-    setEditing(false);
-    setError(null);
-  }
-
-  return (
-    <li className={styles.item}>
-      <div className={styles.itemHead}>
-        <h3 className={styles.itemName}>{v.name}</h3>
-        <span className={styles.itemQty}>{formatQuantity({ value: v.quantity, unit: v.unit })}</span>
-      </div>
-      <ul className={styles.reasons}>
-        {v.reasons.map((r) => (
-          <li key={r}>{r}</li>
-        ))}
-      </ul>
-      {v.changed ? <p className={styles.meta}>Proposta: {formatQuantity({ value: v.proposedQuantity, unit: v.unit })}. Hai scelto tu la quantità.</p> : null}
-      <p className={styles.meta}>
-        {v.stockText}. Costo stimato: {v.costText}.
-      </p>
-      {v.priceNote ? <p className={styles.meta}>{v.priceNote}</p> : null}
-      {v.forecastNote ? <p className={styles.meta}>{v.forecastNote}</p> : null}
-      {v.notes.map((n) => (
-        <p key={n} className={styles.meta}>
-          {n}
-        </p>
-      ))}
-      {v.confirmed ? <span className={styles.tag}>{v.isManual ? "Aggiunta da te" : "Confermata"}</span> : null}
-
-      {editing ? (
-        <div className={ui.field}>
-          <label className={ui.fieldLabel} htmlFor={id}>
-            Quanto ne compri
-          </label>
-          <div className={styles.inline}>
-            <input id={id} className={ui.input} value={text} onChange={(e) => setText(e.target.value)} placeholder={v.unit === "pz" ? "2" : v.unit === "ml" ? "1 l" : "500 g"} autoComplete="off" aria-invalid={error ? true : undefined} />
-            <Button onClick={submit}>Salva</Button>
-            <Button variant="text" onClick={() => setEditing(false)}>
-              Annulla
-            </Button>
-          </div>
-          {error ? <p className={ui.error}>{error}</p> : null}
-        </div>
-      ) : null}
-
-      <div className={styles.actions}>
-        {!v.confirmed ? (
-          <button type="button" className={styles.action} onClick={onConfirm}>
-            Conferma
-          </button>
-        ) : !v.isManual ? (
-          <button type="button" className={styles.action} onClick={onUnconfirm}>
-            Rimetti in proposta
-          </button>
-        ) : null}
-        <button
-          type="button"
-          className={styles.action}
-          onClick={() => {
-            setText(formatQuantity({ value: v.quantity, unit: v.unit }));
-            setEditing(true);
-          }}
-        >
-          Cambia quantità
-        </button>
-        <button type="button" className={styles.actionDanger} onClick={onReject}>
-          {v.isManual ? "Togli" : "Rifiuta"}
-        </button>
-      </div>
-    </li>
-  );
+function Subline({ text }: { text: string | null }) {
+  return text ? <span className={styles.lineNote}>{text}</span> : null;
 }
 
-function AddManual({ data, undo }: { data: ShoppingData; undo: Undo }) {
+/** Il campo in cima: si scrive che cosa manca, Invio aggiunge e il campo resta pronto. */
+function AddField({ undo }: { undo: Undo }) {
   const id = useId();
+  const fieldRef = useRef<HTMLTextAreaElement>(null);
   const [text, setText] = useState("");
   const [message, setMessage] = useState<string | null>(null);
 
   async function add() {
-    const reading = parseManualLines(text);
+    const reading = readEntries(text);
+    if (reading.items.length === 0 && reading.rejected.length === 0) return;
     if (reading.items.length === 0) {
-      setMessage(reading.rejected.length > 0 ? `Non capisco: «${reading.rejected.join("», «")}». Prova con «2 l latte» o «pane».` : "Scrivi almeno una voce.");
+      setMessage(notReadText(reading.rejected));
       return;
     }
-    const added = toManualItems(reading.items, new Date().toISOString());
-    const ok = await undo.apply(
-      `Aggiunte alla lista: ${reading.items.map((i) => i.product).join(", ")}.`,
-      { [SETTING_KEYS.manual]: [...data.manual, ...added] },
-      { [SETTING_KEYS.manual]: data.manual },
-    );
-    if (!ok) return;
-    setText("");
-    const assumed = reading.items.filter((i) => i.assumedOne).map((i) => i.product);
-    const parts: string[] = [];
-    if (assumed.length > 0) parts.push(`Senza quantità: ${assumed.join(", ")} vale un pezzo.`);
-    if (reading.rejected.length > 0) parts.push(`Non ho capito: «${reading.rejected.join("», «")}».`);
-    setMessage(parts.length > 0 ? parts.join(" ") : null);
+    const ok = await guarded(async () => {
+      const stored = await readManual();
+      const next = mergeManualItems(stored, toInputs(reading), new Date().toISOString());
+      return undo.apply(addedText(reading.items.map((i) => i.product)), { [SETTING_KEYS.manual]: next }, { [SETTING_KEYS.manual]: stored });
+    });
+    if (ok === undefined) return;
+    if (!ok) {
+      setMessage("Non sono riuscito a salvare. Riprova.");
+      return;
+    }
+    // resta nel campo solo ciò che non si è letto
+    setText(leftInField(reading.rejected));
+    setMessage(reading.rejected.length > 0 ? notReadText(reading.rejected) : null);
+    fieldRef.current?.focus();
   }
+
+  const lines = Math.min(4, Math.max(1, text.split(/\r?\n/).length));
 
   return (
     <form
@@ -354,15 +350,41 @@ function AddManual({ data, undo }: { data: ShoppingData; undo: Undo }) {
       }}
     >
       <label className={ui.fieldLabel} htmlFor={id}>
-        Aggiungi a mano <span className={ui.optional}>(una voce per riga)</span>
+        Aggiungi alla spesa
       </label>
-      <textarea id={id} className={ui.input} rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder={"2 l latte\npane\n6 uova"} style={{ paddingBlock: "var(--space-5)" }} />
-      {message ? <p className={ui.hint}>{message}</p> : null}
-      <div>
+      <div className={styles.addRow}>
+        <textarea
+          ref={fieldRef}
+          id={id}
+          className={cx(ui.input, styles.addField)}
+          rows={lines}
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            setMessage(null);
+          }}
+          onKeyDown={(e) => {
+            // Invio aggiunge; a capo solo con Maiusc. Un testo incollato su più righe resta com'è.
+            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              void add();
+            }
+          }}
+          placeholder="2 l latte, pane, 6 uova"
+          enterKeyHint="done"
+          autoComplete="off"
+          aria-invalid={message ? true : undefined}
+          aria-describedby={message ? `${id}-msg` : undefined}
+        />
         <Button type="submit" variant="outline">
-          Aggiungi alla lista
+          Aggiungi
         </Button>
       </div>
+      {message ? (
+        <p id={`${id}-msg`} className={ui.error} role="alert">
+          {message}
+        </p>
+      ) : null}
     </form>
   );
 }

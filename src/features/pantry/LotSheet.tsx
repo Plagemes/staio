@@ -5,11 +5,11 @@
 // l'avviso con «Annulla»; un errore resta scritto dentro la scheda.
 import { useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { isLocalProduct } from "@/core/catalog";
-import { deriveDiary, type DiaryState } from "@/core/diary";
+import type { DiaryState } from "@/core/diary";
 import { DEFAULT_TIME_ZONE } from "@/core/expiry";
 import { buildLotStory, type DeclareEvent, type Location, type PurchaseEvent } from "@/core/ledger";
 import { formatQuantity } from "@/core/units";
-import { appendEvents, getAllEvents, getDeviceId, getPantry, useDiary, useEventLog, usePantry } from "@/data";
+import { appendEvents, derivedOf, getAllEvents, getDeviceId, getPantry, useDiary, useEventLog, usePantry } from "@/data";
 import { Button, ExpiryTag, Label, LevelBar, Value } from "@/design";
 import { recipeForUnknown } from "@/models3d/fallback";
 import ModelViewer from "@/models3d/ModelViewer";
@@ -159,7 +159,8 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
     const { target, choice } = amountFor(amount);
     const lots = target === "group" ? members.map((m) => m.lot) : [lot];
     try {
-      const state: DiaryState | undefined = diary.data ?? (log.data ? deriveDiary(log.data) : undefined);
+      // il diario già calcolato per questo stato del registro (lo stesso che legge `useDiary`)
+      const state: DiaryState | undefined = diary.data ?? (log.data ? derivedOf(log.data).diary : undefined);
       if (!state) {
         setError("Un attimo, sto ancora caricando. Riprova.");
         return;

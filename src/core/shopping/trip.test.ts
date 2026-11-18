@@ -8,6 +8,7 @@ import {
   orderForStore,
   reconcile,
   startTrip,
+  syncTrip,
   tripProgress,
   uncheckItem,
   type CompletedTrip,
@@ -59,6 +60,77 @@ describe("spesa in corso", () => {
     const trip = startTrip(LIST, { startedAt: at(28, 9) });
     checkItem(trip, "latte|ml", at(28, 10));
     expect(trip.items.every((i) => i.checkedAt === undefined)).toBe(true);
+  });
+});
+
+describe("lista viva: syncTrip", () => {
+  const started = () => {
+    let trip = startTrip(LIST, { store: "Conad", startedAt: at(28, 9) });
+    trip = addOffList(trip, { id: "o1", name: "Gelato", addedAt: at(28, 9) });
+    return checkItem(trip, "latte|ml", at(28, 10));
+  };
+
+  it("una voce entrata in lista dopo l'inizio compare, non spuntata, in coda", () => {
+    const trip = started();
+    const next = syncTrip(trip, [...LIST, line("pane", "pz", 1)]);
+    expect(next.items.map((i) => i.id)).toEqual([...trip.items.map((i) => i.id), "pane|pz"]);
+    expect(next.items.at(-1)?.checkedAt).toBeUndefined();
+  });
+
+  it("una voce spuntata resta anche se esce dalla lista", () => {
+    const next = syncTrip(started(), LIST.filter((l) => l.key !== "latte"));
+    expect(next.items.find((i) => i.id === "latte|ml")?.checkedAt).toBe(at(28, 10));
+  });
+
+  it("una voce non spuntata che esce dalla lista esce anche dalla spesa", () => {
+    const next = syncTrip(started(), LIST.filter((l) => l.key !== "pasta"));
+    expect(next.items.some((i) => i.id === "pasta|g")).toBe(false);
+    expect(next.items).toHaveLength(3);
+  });
+
+  it("di una voce che resta segue nome e quantità, e se era spuntata resta spuntata", () => {
+    const lines = LIST.map((l) => (l.key === "latte" ? { ...l, quantity: 1000, name: "Latte intero" } : l.key === "burro" ? { ...l, quantity: 500 } : l));
+    const next = syncTrip(started(), lines);
+    expect(next.items.find((i) => i.id === "latte|ml")).toMatchObject({ quantity: 1000, name: "Latte intero", checkedAt: at(28, 10) });
+    expect(next.items.find((i) => i.id === "burro|g")).toMatchObject({ quantity: 500 });
+    expect(next.items.find((i) => i.id === "burro|g")?.checkedAt).toBeUndefined();
+  });
+
+  it("senza differenze restituisce lo stesso oggetto", () => {
+    const trip = started();
+    expect(syncTrip(trip, [...LIST].reverse())).toBe(trip);
+  });
+
+  it("tolta la spunta, la voce torna al suo posto", () => {
+    const trip = uncheckItem(started(), "latte|ml");
+    const next = syncTrip(trip, LIST);
+    expect(next).toBe(trip);
+    expect(orderForStore(next.items, [], "Conad").map((o) => o.item.key)).toEqual(["burro", "latte", "pasta", "uova"]);
+  });
+
+  it("una voce senza quantità che ne riceve una resta la stessa voce, con la sua spunta: non compare due volte", () => {
+    const qb: ShoppingLine = { id: "pane|qb", key: "pane", name: "Pane", unit: "pz", quantity: 0 };
+    let trip = startTrip([...LIST, qb], { startedAt: at(28, 9) });
+    trip = checkItem(trip, "pane|qb", at(28, 10));
+    const next = syncTrip(trip, [...LIST, line("pane", "pz", 2)]);
+    expect(next.items.filter((i) => i.key === "pane")).toEqual([{ id: "pane|pz", key: "pane", name: "pane", unit: "pz", quantity: 2, checkedAt: at(28, 10) }]);
+    // una voce con quantità che cambia unità non eredita la spunta: è un'altra voce
+    const milk = syncTrip(started(), [...LIST.filter((l) => l.key !== "latte"), line("latte", "pz", 1)]);
+    expect(milk.items.filter((i) => i.key === "latte").map((i) => [i.id, i.checkedAt !== undefined])).toEqual([
+      ["latte|ml", true],
+      ["latte|pz", false],
+    ]);
+  });
+
+  it("non cambia negozio, inizio, fuori lista; l'ordine delle voci che restano è stabile", () => {
+    const trip = started();
+    const next = syncTrip(trip, [line("uova", "pz", 12), line("aglio", "pz", 1), line("burro", "g", 250)]);
+    expect(next.store).toBe(trip.store);
+    expect(next.startedAt).toBe(trip.startedAt);
+    expect(next.offList).toBe(trip.offList);
+    expect(next.items.map((i) => i.id)).toEqual(["burro|g", "latte|ml", "uova|pz", "aglio|pz"]);
+    expect(trip.items).toHaveLength(4);
+    expect(trip.items.find((i) => i.id === "uova|pz")?.quantity).toBe(6);
   });
 });
 

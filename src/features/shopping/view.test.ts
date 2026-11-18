@@ -70,6 +70,20 @@ describe("vista della lista", () => {
     expect(isDismissed(restore(r.decisions, item.id), item.id, today)).toBe(false);
   });
 
+  it("una proposta tolta da poco non sparisce: sta tra le sospese finché non scade o torna", () => {
+    const base = buildShoppingView(input());
+    const item = base.items[0].item;
+    expect(base.dismissed).toEqual([]);
+    const r = reject(emptyDecisions(), emptyRejections(), item, today);
+    const after = buildShoppingView(input({ decisions: r.decisions, rejections: r.memory }));
+    expect(after.dismissed.map((v) => v.id)).toEqual([item.id]);
+    const back = buildShoppingView(input({ decisions: restore(r.decisions, item.id), rejections: r.memory }));
+    expect(back.dismissed).toEqual([]);
+    expect(back.items.find((i) => i.id === item.id)).toBeDefined();
+    const later = buildShoppingView({ ...input({ decisions: r.decisions, rejections: r.memory }), today: day(40) });
+    expect(later.dismissed.find((v) => v.id === item.id)).toBeUndefined();
+  });
+
   it("sotto la scorta minima compare con la sua ragione", () => {
     const stock = setMinimum(emptyStockConfig(), "Pasta", "g", 500);
     const l = ledger();

@@ -55,3 +55,5 @@ export {
   useSetting,
 } from "./hooks";
 export type { LiveValue } from "./hooks";
+export { LOADING_VALUE, createSharedLog, createSharedValue, derivedOf, freezeShared, sharedLog } from "./shared";
+export type { Derived, LogSnapshot, SharedLog, SharedSnapshot, SharedValue } from "./shared";

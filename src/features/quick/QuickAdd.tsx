@@ -1,57 +1,130 @@
 "use client";
 
-import Link from "next/link";
-import { useDeferredValue, useId, useMemo, useState } from "react";
-import type { Location } from "@/core/ledger";
+import { useDeferredValue, useId, useMemo, useRef, useState } from "react";
+import { activeLots, type Location } from "@/core/ledger";
 import { formatQuantity } from "@/core/units";
-import { appendEvents, getDeviceId } from "@/data";
+import { appendEvents, getDeviceId, usePantry } from "@/data";
 import { Button, Label, Value } from "@/design";
 import { searchRecipes } from "@/models3d/catalog";
+import { ActionBar } from "../common";
 import { FOOD_CATEGORY_GROUPS, FOOD_CATEGORY_LABELS, LOCATION_LABELS, LOCATION_ORDER } from "../labels";
+import { getSetting, setSetting, useSetting } from "../localSettings";
+import { ITEM_DEFAULTS_KEY, itemKey, readItemDefault, withItemDefault } from "../memory/itemDefaults";
+import { useItemDefaults } from "../memory/useItemDefaults";
 import { useNotice } from "../notice";
-import { buildQuickEvents, overrideKey, parseQuickLines, type QuickOverrides, type QuickRow } from "../quickAdd";
+import {
+  QUICK_MODE_KEY,
+  buildQuickEvents,
+  initialQuickMode,
+  isQuickMode,
+  overrideKey,
+  parseQuickLines,
+  quickAddedMessage,
+  restoreRemembered,
+  type QuickMode,
+  type QuickOverrides,
+  type QuickRow,
+} from "../quickAdd";
 import ui from "../ui.module.css";
 import styles from "./QuickAdd.module.css";
 
 const modelCategoryOf = (name: string): string | undefined =>
   name.trim().length >= 2 ? searchRecipes(name)[0]?.category : undefined;
 
+const isStoredMode = (value: unknown): value is QuickMode | null => value === null || isQuickMode(value);
+
+const MODES: readonly { value: QuickMode; label: string; hint: string }[] = [
+  { value: "bought", label: "Appena comprati", hint: "Entrano come acquisti di oggi." },
+  { value: "had", label: "Già in casa", hint: "Entrano come cose che avevi già: senza prezzo, quantità stimate." },
+];
+
+/** Prima le righe da correggere, poi le altre, ciascun gruppo nell'ordine scritto. */
+const fixFirst = (rows: readonly QuickRow[]): QuickRow[] => [...rows].sort((a, b) => Number(a.status === "ok") - Number(b.status === "ok"));
+
 export function QuickAdd() {
   const notice = useNotice();
   const ids = useId();
+  const pantry = usePantry();
+  const stored = useSetting(QUICK_MODE_KEY, isStoredMode, null);
+  const { memory } = useItemDefaults();
+  const savingRef = useRef(false);
+  const [picked, setPicked] = useState<QuickMode | null>(null);
   const [text, setText] = useState("");
   const [overrides, setOverrides] = useState<Record<string, QuickOverrides>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // la scelta ricordata; la prima volta, quando si sa se la dispensa è vuota
+  const known = stored.ready && (stored.value !== null || pantry.data !== undefined || pantry.error !== undefined);
+  const mode: QuickMode | null =
+    picked ?? (known ? initialQuickMode(stored.value, pantry.data ? activeLots(pantry.data).length === 0 : false) : null);
+
   const deferred = useDeferredValue(text);
   const rows = useMemo(
-    () => parseQuickLines(deferred, { modelCategoryOf, overrides: new Map(Object.entries(overrides)) }),
-    [deferred, overrides],
+    () =>
+      parseQuickLines(deferred, {
+        modelCategoryOf,
+        overrides: new Map(Object.entries(overrides)),
+        remembered: (name) => readItemDefault(memory, name),
+      }),
+    [deferred, overrides, memory],
   );
+  const shown = useMemo(() => fixFirst(rows), [rows]);
   const ready = rows.filter((r) => r.status === "ok");
   const toFix = rows.length - ready.length;
+
+  function choose(next: QuickMode) {
+    setPicked(next);
+    void setSetting(QUICK_MODE_KEY, next).catch(() => undefined);
+  }
 
   function patch(row: QuickRow, change: QuickOverrides) {
     const key = overrideKey(row.index, row.line);
     setOverrides((o) => ({ ...o, [key]: { ...o[key], ...change } }));
   }
 
+  /** Ricorda luogo, categoria e quantità di ogni riga scritta; restituisce la memoria di prima (nulla se non si è scritto). */
+  async function rememberRows(rows: readonly QuickRow[]): Promise<unknown> {
+    try {
+      const before = await getSetting(ITEM_DEFAULTS_KEY);
+      const at = new Date().toISOString();
+      const next = rows.reduce<unknown>(
+        (m, r) => (r.name && r.quantity ? withItemDefault(m, { name: r.name, category: r.category, location: r.location, quantityText: formatQuantity(r.quantity) }, at) : m),
+        before,
+      );
+      await setSetting(ITEM_DEFAULTS_KEY, next);
+      return before ?? {};
+    } catch {
+      // la memoria è un aiuto: se non si scrive, il salvataggio dell'alimento resta valido
+      return undefined;
+    }
+  }
+
   async function save() {
-    if (saving || ready.length === 0) return;
+    if (savingRef.current || saving || ready.length === 0 || mode === null) return;
+    savingRef.current = true;
     setSaving(true);
     setError(null);
     try {
       // si rilegge il testo di adesso, non quello rimandato dell'anteprima
-      const current = parseQuickLines(text, { modelCategoryOf, overrides: new Map(Object.entries(overrides)) });
-      const result = buildQuickEvents(current, { now: new Date().toISOString(), deviceId: await getDeviceId() });
+      const current = parseQuickLines(text, {
+        modelCategoryOf,
+        overrides: new Map(Object.entries(overrides)),
+        remembered: (name) => readItemDefault(memory, name),
+      });
+      const result = buildQuickEvents(current, { now: new Date().toISOString(), deviceId: await getDeviceId() }, { alreadyHave: mode === "had" });
+      if (result.events.length === 0) return;
+      // una sola scrittura per tutte le righe: una riga in «Ultime azioni», un «Annulla»
       const written = await appendEvents(result.events);
-      if (written.added === 0 || written.rejected.length > 0) {
-        setError("Non sono riuscito a salvare tutto. Controlla le righe e riprova.");
+      // ogni riga scritta ha un evento, nello stesso ordine: ciò che non è entrato resta nel campo
+      const rejected = new Set(written.rejected.map((r) => r.index));
+      const events = result.events.filter((_, i) => !rejected.has(i));
+      const savedRows = result.saved.filter((_, i) => !rejected.has(i));
+      if (written.added === 0 || events.length === 0) {
+        setError("Non sono riuscito a salvare. Controlla le righe e riprova.");
         return;
       }
-      // restano nella casella solo le righe non salvate, con le loro correzioni
-      const savedIndexes = new Set(result.saved.map((r) => r.index));
+      const savedIndexes = new Set(savedRows.map((r) => r.index));
       const remaining = current.filter((r) => !savedIndexes.has(r.index));
       const next: Record<string, QuickOverrides> = {};
       remaining.forEach((r, i) => {
@@ -60,36 +133,59 @@ export function QuickAdd() {
       });
       setText(remaining.map((r) => r.line).join("\n"));
       setOverrides(next);
-      const n = result.saved.length;
-      const left = remaining.length;
+      // la memoria per nome impara da ogni riga scritta; «Annulla» la rimette com'era per quei nomi
+      const keys = savedRows.flatMap((r) => (r.name ? [itemKey(r.name)] : []));
+      const before = await rememberRows(savedRows);
       notice.show({
-        message:
-          `${n === 1 ? "Aggiunto 1 alimento" : `Aggiunti ${n} alimenti`} come già in casa.` +
-          (left > 0 ? ` ${left === 1 ? "Una riga resta" : `${left} righe restano`} da sistemare.` : ""),
-        undo: result.events,
+        message: quickAddedMessage(savedRows.length, remaining),
+        undo: events,
+        onUndo: async () => {
+          if (before === undefined) return;
+          try {
+            await setSetting(ITEM_DEFAULTS_KEY, restoreRemembered(await getSetting(ITEM_DEFAULTS_KEY), before, keys));
+          } catch {
+            // la memoria è un aiuto: gli alimenti si tolgono lo stesso
+          }
+        },
+        link: { label: "Vedi", href: "/app/dispensa" },
       });
+      void setSetting(QUICK_MODE_KEY, mode).catch(() => undefined);
     } catch {
       setError("Non sono riuscito a salvare sul telefono. Riprova.");
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   }
 
+  const modeHint = MODES.find((m) => m.value === mode)?.hint;
+
   return (
     <div className={ui.screen}>
       <div className={ui.head}>
-        <h1 className={ui.title}>Ho già in casa</h1>
-        <Label>Aggiunta rapida</Label>
+        <h1 className={ui.title}>Più alimenti</h1>
       </div>
-      <p className={ui.lead}>
-        Scrivi un alimento per riga, con la quantità. Per esempio «latte 1 l», «6 uova» o «pasta 500 g, credenza». Sono
-        cose che avevi già: le quantità valgono come stime e senza prezzo.
-      </p>
+
+      <fieldset className={ui.field}>
+        <legend className={ui.srOnly}>Da dove vengono</legend>
+        <div className={ui.choices}>
+          {MODES.map((m) => (
+            <label key={m.value} className={ui.choice}>
+              <input type="radio" name={`${ids}-mode`} value={m.value} checked={mode === m.value} onChange={() => choose(m.value)} />
+              <span>{m.label}</span>
+            </label>
+          ))}
+        </div>
+        {modeHint ? <p className={ui.hint}>{modeHint}</p> : null}
+      </fieldset>
 
       <div className={ui.field}>
         <label className={ui.fieldLabel} htmlFor={`${ids}-text`}>
           Alimenti, uno per riga
         </label>
+        <p className={ui.hint} id={`${ids}-text-hint`}>
+          Un alimento per riga, con la quantità: “latte 1 l”, “6 uova”, “pasta 500 g, credenza”.
+        </p>
         <textarea
           id={`${ids}-text`}
           className={`${ui.input} ${styles.textarea}`}
@@ -97,6 +193,7 @@ export function QuickAdd() {
           onChange={(e) => setText(e.target.value)}
           autoCapitalize="sentences"
           spellCheck={false}
+          aria-describedby={`${ids}-text-hint`}
           placeholder={"latte 1 l\n6 uova\npasta 500 g, credenza"}
         />
       </div>
@@ -107,8 +204,13 @@ export function QuickAdd() {
             Come ho letto le righe
           </h2>
           <Label>Come ho letto le righe</Label>
+          {toFix > 0 ? (
+            <p className={ui.hint} role="status">
+              {toFix === 1 ? "1 riga non si può aggiungere" : `${toFix} righe non si possono aggiungere`}: restano nel campo da correggere.
+            </p>
+          ) : null}
           <ul className={styles.rows}>
-            {rows.map((row) => (
+            {shown.map((row) => (
               <li key={`${row.index}:${row.line}`} className={styles.row}>
                 {row.status === "unreadable" ? (
                   <>
@@ -120,9 +222,10 @@ export function QuickAdd() {
                     <div className={styles.rowHead}>
                       <span className={styles.rowName}>{row.name}</span>
                       <span className={styles.rowQuantity}>
-                        <Value certainty="estimated">{row.quantity ? formatQuantity(row.quantity) : ""}</Value>
+                        <Value certainty={mode === "bought" ? "label" : "estimated"}>{row.quantity ? formatQuantity(row.quantity) : ""}</Value>
                       </span>
                     </div>
+                    {row.fromMemory ? <p className={ui.hint}>come l&apos;ultima volta</p> : null}
                     <div className={styles.pickers}>
                       <label>
                         <span className={ui.hint}>
@@ -180,32 +283,11 @@ export function QuickAdd() {
         </p>
       ) : null}
 
-      <div className={ui.field}>
-        <Button onClick={save} disabled={saving || ready.length === 0}>
-          {saving
-            ? "Salvo…"
-            : ready.length === 0
-              ? "Aggiungi alla dispensa"
-              : ready.length === 1
-                ? "Aggiungi 1 alimento"
-                : `Aggiungi ${ready.length} alimenti`}
+      <ActionBar>
+        <Button onClick={() => void save()} disabled={saving || ready.length === 0 || mode === null}>
+          {saving ? "Salvo…" : `Aggiungi alla dispensa (${ready.length})`}
         </Button>
-        {toFix > 0 ? (
-          <p className={ui.hint} role="status">
-            {toFix === 1 ? "1 riga non si può aggiungere" : `${toFix} righe non si possono aggiungere`}: restano qui da
-            correggere.
-          </p>
-        ) : null}
-      </div>
-
-      <div className={ui.row}>
-        <Link href="/app/cattura" className={ui.textLink}>
-          Aggiungi un alimento con tutti i dettagli
-        </Link>
-        <Link href="/app/dispensa" className={ui.textLink}>
-          Vai alla dispensa
-        </Link>
-      </div>
+      </ActionBar>
     </div>
   );
 }

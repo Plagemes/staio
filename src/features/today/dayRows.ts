@@ -1,12 +1,39 @@
 // Le righe «Acqua» e «Corpo» del diario di un giorno: i bicchieri d'acqua dal registro, le misure del corpo dal
 // diario già calcolato. Logica pura: nessun secondo modello del diario, solo letture di `DiaryDay` e del registro.
-import { createWeight, deriveDiary, familyConsumes, InvalidDiaryEventError, localDate, validateDiaryEvent, type DiaryDay } from "@/core/diary";
+import {
+  createWeight,
+  deriveDiary,
+  familyConsumes,
+  InvalidDiaryEventError,
+  localDate,
+  mealsWithPantry,
+  validateDiaryEvent,
+  type DiaryDay,
+  type DiaryState,
+  type MealWithPantry,
+} from "@/core/diary";
 import type { AnyEvent } from "@/core/events";
 import type { ConsumeEvent } from "@/core/ledger";
+import { freezeShared } from "@/data";
 import { buildUndo } from "../actions";
 import { linkedConsumes } from "../drinks";
 import { formatTime } from "../format";
 import { formatKg, formatMl, parseWeightKg, SYMPTOM_LABELS } from "../health";
+
+const mealsByLog = new WeakMap<readonly AnyEvent[], { diary: DiaryState; meals: readonly MealWithPantry[] }>();
+
+/**
+ * I pasti del diario con i loro consumi (`mealsWithPantry`), calcolati una volta per stato del registro: Oggi li chiede
+ * in più punti (il diario del giorno, «Come ieri») e ogni volta si rileggerebbe il registro intero. Il diario deve
+ * essere quello dello stesso registro. Il risultato è condiviso: non si modifica sul posto.
+ */
+export function mealsWithPantryOf(diary: DiaryState, log: readonly AnyEvent[]): readonly MealWithPantry[] {
+  const known = mealsByLog.get(log);
+  if (known !== undefined && known.diary === diary) return known.meals;
+  const meals = freezeShared(mealsWithPantry(diary, log));
+  mealsByLog.set(log, { diary, meals });
+  return meals;
+}
 
 /** Un bicchiere: un evento `water` non annullato. */
 export interface WaterGlass {

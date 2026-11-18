@@ -1,10 +1,8 @@
 "use client";
 
-import { useId, useState, type FormEvent } from "react";
-import { createWater, dayFluids, getDay } from "@/core/diary";
-import { useDiary } from "@/data";
-import { Button, Label, ProgressLine, ProgressRing, Value } from "@/design";
-import { dayOf } from "../format";
+import { useId, useState, type FormEvent, type ReactElement } from "react";
+import { createWater } from "@/core/diary";
+import { Button } from "@/design";
 import {
   DEFAULT_WATER_GOAL_ML,
   WATER_PRESETS,
@@ -14,7 +12,6 @@ import {
 } from "../health";
 import { setSetting, useSetting } from "../localSettings";
 import ui from "../ui.module.css";
-import { useNow } from "../useNow";
 import { useRecord } from "../useRecord";
 import styles from "./health.module.css";
 
@@ -22,13 +19,10 @@ export const WATER_GOAL_KEY = "waterGoalMl";
 const isGoal = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v > 0;
 
 /**
- * Acqua di oggi con aggiunta rapida e obiettivo modificabile. Serve sia a Oggi sia a Salute.
- * Con `plain` restano solo i comandi, senza scheda, titolo, numero grande e anello: la riga «Acqua» del diario di Oggi
- * dice già il conto e non vuole una scheda dentro una riga.
+ * I comandi dell'acqua nella riga «Acqua» del diario di Oggi: aggiunta rapida, un'altra quantità, obiettivo. Senza
+ * scheda né conto: il conto lo dice già la riga. L'acqua si segna solo da Oggi e dal «+».
  */
-export function WaterCard({ plain = false }: { plain?: boolean } = {}) {
-  const diary = useDiary();
-  const now = useNow();
+function WaterControls() {
   const goal = useSetting(WATER_GOAL_KEY, isGoal, DEFAULT_WATER_GOAL_ML);
   const { record, busy } = useRecord();
   const ids = useId();
@@ -38,11 +32,7 @@ export function WaterCard({ plain = false }: { plain?: boolean } = {}) {
   const [goalText, setGoalText] = useState("");
   const [goalError, setGoalError] = useState<string | null>(null);
 
-  if (!diary.data || !now) return null;
-  const day = getDay(diary.data, dayOf(now));
-  const ml = day?.waterMl ?? 0;
   const total = goal.value;
-  const fluids = dayFluids(day);
 
   async function add(amount: number) {
     setError(null);
@@ -77,8 +67,8 @@ export function WaterCard({ plain = false }: { plain?: boolean } = {}) {
     }
   }
 
-  const controls = (
-    <>
+  return (
+    <div className={ui.form}>
       <div className={styles.buttons}>
         {WATER_PRESETS.map((p) => (
           <button key={p.ml} type="button" className={styles.chip} disabled={busy} onClick={() => void add(p.ml)}>
@@ -168,32 +158,9 @@ export function WaterCard({ plain = false }: { plain?: boolean } = {}) {
           </Button>
         </div>
       )}
-    </>
-  );
-
-  if (plain) return <div className={ui.form}>{controls}</div>;
-
-  return (
-    <div className={`${styles.card} ${ui.tile} ${ui.tone}`} data-tone="water">
-      <Label>Acqua di oggi</Label>
-      <div className={styles.big}>
-        <span className={styles.bigNumber}>
-          <Value certainty={ml > 0 ? "estimated" : "measured"}>{formatMl(ml)}</Value>
-        </span>
-        <span className={styles.of}>di {formatMl(total)}</span>
-        <ProgressRing value={ml} max={total} tone="water" className={styles.ring} />
-      </div>
-      {fluids.otherMl > 0 || fluids.alcoholicMl > 0 ? (
-        <p className={styles.fluids}>
-          Acqua {formatMl(ml)}
-          {fluids.otherMl > 0 ? ` · altre bevande ${formatMl(fluids.otherMl)}` : ""}
-          {fluids.alcoholicMl > 0 ? ` · bevande alcoliche ${formatMl(fluids.alcoholicMl)}` : ""}. L&apos;obiettivo conta solo l&apos;acqua.
-        </p>
-      ) : null}
-      <ProgressLine value={Math.min(ml, total)} max={total} tone="water" label={`Acqua di oggi: ${formatMl(ml)} su ${formatMl(total)}`} />
-
-      {controls}
-      {ml > 0 ? <p className={ui.hint}>L&apos;acqua si scrive a occhio: vale come stima.</p> : null}
     </div>
   );
 }
+
+/** `plain` non cambia più niente (i comandi sono sempre senza scheda): resta per chi la monta già così. */
+export const WaterCard: (props: { plain?: boolean }) => ReactElement = WaterControls;
