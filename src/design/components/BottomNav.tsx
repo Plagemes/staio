@@ -9,6 +9,8 @@ type BottomNavProps = {
   current?: NavArea | "capture";
   hrefs?: Partial<Record<NavArea | "capture", string>>;
   className?: string;
+  /** Con questa il centro è il pulsante «+», che la chiama; senza resta il collegamento alla cattura. */
+  onAdd?: () => void;
 };
 
 const svgProps = {
@@ -74,7 +76,7 @@ const AREAS: Area[] = [
 ];
 
 /** Ogni voce porta data-area: nel tema Vivo prende il colore della sua area (themes.css). */
-export function BottomNav({ current, hrefs = {}, className }: BottomNavProps) {
+export function BottomNav({ current, hrefs = {}, className, onAdd }: BottomNavProps) {
   const [today, pantry, plan, health] = AREAS;
   const item = (area: Area) => (
     <Link
@@ -92,18 +94,35 @@ export function BottomNav({ current, hrefs = {}, className }: BottomNavProps) {
     <nav aria-label="Aree" className={cx(styles.nav, className)}>
       {item(today)}
       {item(pantry)}
-      <Link
-        href={hrefs.capture ?? "/cattura"}
-        className={cx(styles.capture, current === "capture" && styles.captureCurrent)}
-        data-area="capture"
-        aria-label="Cattura"
-        aria-current={current === "capture" ? "page" : undefined}
-      >
-        <svg {...svgProps} width={24} height={24}>
-          <path d="M4 8h3l1.5-2h7L17 8h3v11H4z" />
-          <circle cx="12" cy="13" r="3.5" />
-        </svg>
-      </Link>
+      {onAdd ? (
+        <button
+          type="button"
+          className={cx(styles.capture, current === "capture" && styles.captureCurrent)}
+          data-area="capture"
+          aria-label="Aggiungi"
+          aria-haspopup="dialog"
+          aria-current={current === "capture" ? "page" : undefined}
+          onClick={onAdd}
+        >
+          <svg {...svgProps} width={24} height={24}>
+            <path d="M12 5v14" />
+            <path d="M5 12h14" />
+          </svg>
+        </button>
+      ) : (
+        <Link
+          href={hrefs.capture ?? "/cattura"}
+          className={cx(styles.capture, current === "capture" && styles.captureCurrent)}
+          data-area="capture"
+          aria-label="Cattura"
+          aria-current={current === "capture" ? "page" : undefined}
+        >
+          <svg {...svgProps} width={24} height={24}>
+            <path d="M4 8h3l1.5-2h7L17 8h3v11H4z" />
+            <circle cx="12" cy="13" r="3.5" />
+          </svg>
+        </Link>
+      )}
       {item(plan)}
       {item(health)}
     </nav>

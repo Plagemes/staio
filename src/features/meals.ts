@@ -29,8 +29,18 @@ import {
   type Lot,
   type Quantity,
 } from "@/core/ledger";
+import {
+  OUT_OF_HOME_FACTOR,
+  OUT_OF_HOME_MIN_MEALS,
+  OUT_OF_HOME_SIZES,
+  REFERENCE_ENERGY_KCAL,
+  estimateOutOfHome,
+  type OutOfHomeEstimate,
+  type OutOfHomeSize,
+} from "@/core/nutrition";
 import { formatQuantity } from "@/core/units";
 import { resolveAmount, type AmountChoice } from "./actions";
+import { formatNutrient } from "./nutrition/labels";
 import { pieceChoices } from "./pieces";
 import { readQuantity } from "./capture";
 import { DEFAULT_TIME_ZONE } from "@/core/expiry";
@@ -306,6 +316,109 @@ export function buildMealFromHabit(
   return { events, mealId: meal.mealId, missing: unique, message };
 }
 
+/* ---------- fuori casa: un pasto di cui non si conoscono gli alimenti, registrato come stima ---------- */
+
+export const OUT_OF_HOME_SIZE_LABELS: Record<OutOfHomeSize, string> = { light: "Leggero", normal: "Normale", large: "Abbondante" };
+
+/** Il nome della voce nel diario: «Fuori casa · normale». */
+export const outOfHomeName = (size: OutOfHomeSize): string => `Fuori casa · ${OUT_OF_HOME_SIZE_LABELS[size].toLowerCase()}`;
+
+/** La voce è una stima «fuori casa»: porta un'energia scritta e non i suoi alimenti. */
+export const isOutOfHomeItem = (item: Pick<MealItem, "energyKcal">): boolean => item.energyKcal !== undefined;
+
+/** La taglia scritta nel nome di una voce «fuori casa»; `undefined` se il nome non è uno dei tre. */
+export function outOfHomeSizeOf(name: string): OutOfHomeSize | undefined {
+  const key = fold(name);
+  return OUT_OF_HOME_SIZES.find((size) => fold(outOfHomeName(size)) === key);
+}
+
+/** «~800 kcal»: la tilde c'è sempre, perché il numero è sempre una stima. */
+export const energyEstimateText = (energyKcal: number): string => `~${formatNutrient("energyKcal", energyKcal)}`;
+
+/** «pranzo fuori casa, normale (~800 kcal, stima)» */
+export function outOfHomeSentence(kind: MealKind, size: OutOfHomeSize, energyKcal: number): string {
+  return `${MEAL_KIND_LABELS[kind].toLowerCase()} fuori casa, ${OUT_OF_HOME_SIZE_LABELS[size].toLowerCase()} (${energyEstimateText(energyKcal)}, stima)`;
+}
+
+const FROM_YOUR_MEALS: Record<MealKind, string> = {
+  breakfast: "dalle tue colazioni",
+  lunch: "dai tuoi pranzi",
+  dinner: "dalle tue cene",
+  snack: "dai tuoi spuntini",
+};
+const FROM_YOUR_RECORDED_MEALS: Record<MealKind, string> = {
+  breakfast: "dalle tue colazioni registrate",
+  lunch: "dai tuoi pranzi registrati",
+  dinner: "dalle tue cene registrate",
+  snack: "dai tuoi spuntini registrati",
+};
+const WITH_ENOUGH_MEALS: Record<MealKind, string> = {
+  breakfast: "colazioni registrate userò le tue",
+  lunch: "pranzi registrati userò i tuoi",
+  dinner: "cene registrate userò le tue",
+  snack: "spuntini registrati userò i tuoi",
+};
+const COUNT_WORDS = ["zero", "uno", "due", "tre", "quattro", "cinque", "sei", "sette", "otto", "nove", "dieci"];
+const inWords = (n: number): string => COUNT_WORDS[n] ?? String(n);
+
+/** La riga piccola sotto la voce: «~480 kcal, stima generica», «~450 kcal, stima dai tuoi pranzi». */
+export function outOfHomeHint(kind: MealKind, estimate: OutOfHomeEstimate): string {
+  return `${energyEstimateText(estimate.energyKcal)}, stima ${estimate.basis === "personal" ? FROM_YOUR_MEALS[kind] : "generica"}`;
+}
+
+/**
+ * Da dove viene la stima, in una riga: «È una stima dai tuoi pranzi registrati, moltiplicata per 1,5.» oppure «È una
+ * stima generica: una parte di 2000 kcal al giorno. Con cinque pranzi registrati userò i tuoi.». Solo il conto, nessun
+ * parere. Non dice «media»: il valore personale è quello di mezzo tra i pasti registrati, tenuto entro limiti
+ * (`estimateOutOfHome`), e «dai tuoi pranzi» resta vero in ogni caso.
+ */
+export function outOfHomeBasisText(kind: MealKind, size: OutOfHomeSize, estimate: OutOfHomeEstimate): string {
+  if (estimate.basis === "personal") {
+    const factor = OUT_OF_HOME_FACTOR[size];
+    return `È una stima ${FROM_YOUR_RECORDED_MEALS[kind]}${factor === 1 ? "" : `, moltiplicata per ${factor.toLocaleString("it-IT")}`}.`;
+  }
+  return `È una stima generica: una parte di ${formatNutrient("energyKcal", REFERENCE_ENERGY_KCAL)} al giorno. Con ${inWords(OUT_OF_HOME_MIN_MEALS)} ${WITH_ENOUGH_MEALS[kind]}.`;
+}
+
+export interface OutOfHomeChoice {
+  id: `out-${OutOfHomeSize}`;
+  size: OutOfHomeSize;
+  /** «Fuori casa · normale»: il nome che la voce avrà nel diario. */
+  label: string;
+  hint: string;
+  estimate: OutOfHomeEstimate;
+}
+
+/**
+ * Le tre voci «Fuori casa» per un momento, dalla più piccola. `history`: l'energia dei pasti registrati in quel
+ * momento negli ultimi 30 giorni (`mealEnergyHistory`).
+ */
+export function outOfHomeChoices(kind: MealKind, history: readonly number[]): OutOfHomeChoice[] {
+  return OUT_OF_HOME_SIZES.map((size) => {
+    const estimate = estimateOutOfHome(kind, size, history);
+    return { id: `out-${size}` as const, size, label: outOfHomeName(size), hint: outOfHomeHint(kind, estimate), estimate };
+  });
+}
+
+/**
+ * Un pasto fuori casa: un evento `meal` con una sola voce, che porta la stima dell'energia e nient'altro. È sempre
+ * una stima. `ctx.mealAt` vale come per gli altri pasti (un giorno passato, l'ora proposta).
+ */
+export function buildOutOfHomeMeal(
+  args: { kind: MealKind; size: OutOfHomeSize; estimate: OutOfHomeEstimate },
+  ctx: MealContext,
+): { events: AnyEvent[]; mealId: string; message: string } {
+  const { kind, size, estimate } = args;
+  const item: MealItem = {
+    name: outOfHomeName(size),
+    quantity: { value: 1, unit: "pz" },
+    certainty: "estimated",
+    energyKcal: estimate.energyKcal,
+  };
+  const meal = createMeal({ kind, items: [item] }, options(ctx, { certainty: "estimated", ...(ctx.mealAt ? { at: ctx.mealAt } : {}) }));
+  return { events: [meal], mealId: meal.mealId, message: `Registrato: ${outOfHomeSentence(kind, size, estimate.energyKcal)}.` };
+}
+
 export function buildUntrackedMeal(kind: MealKind, ctx: MealContext): { events: AnyEvent[]; message: string } {
   const event = createUntrackedMeal({ kind }, options(ctx));
   return { events: [event], message: `Segnato: ${MEAL_KIND_LABELS[kind].toLowerCase()} fuori, non tracciato.` };
@@ -322,10 +435,9 @@ export function buildMealDeclaration(
 ): { events: AnyEvent[]; message: string } {
   const event = createMealDeclaration({ date, kind, status }, options(ctx));
   const name = MEAL_KIND_LABELS[kind].toLowerCase();
-  return {
-    events: [event],
-    message: status === "skipped" ? `Segnato: ${name} saltato.` : `Segnato: ${name} mangiato, senza dettagli.`,
-  };
+  const feminine = kind !== "lunch";
+  const word = status === "skipped" ? (feminine ? "saltata" : "saltato") : feminine ? "mangiata, senza dettagli" : "mangiato, senza dettagli";
+  return { events: [event], message: `Segnato: ${name} ${word}.` };
 }
 
 /** Inizio della fascia di ogni momento (minuti): da lì in poi il momento compare in Oggi. */

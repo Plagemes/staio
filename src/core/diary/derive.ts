@@ -1,4 +1,5 @@
 import {
+  compareEvents,
   isPantryEvent,
   worseCertainty,
   type Certainty,
@@ -8,12 +9,14 @@ import {
 import { isOtherFamilyEvent } from "./foreign";
 import { cloneMealItems } from "./items";
 import { isValidTimeZone, localDate } from "./calendar";
-import { isValidKnownEvent, isVoid, prepareLog, rejectedErrors, rejectedKey, voidsOfLog } from "./log";
+import { isValidKnownEvent, isVoid, prepareLog, rejectedErrors, rejectedKey, removedMealLines, voidsOfLog } from "./log";
+import { recordedLater, resolveMealVersions } from "./mealVersions";
 import {
   DEFAULT_TIME_ZONE,
   type DiaryEvent,
   type MealDeclarationEvent,
   type MealDeclarationStatus,
+  type MealEvent,
   type MealItem,
   type MealKind,
   type SymptomKind,
@@ -29,7 +32,12 @@ export type DiaryAnomalyCode =
   | "id_conflict"
   | "void_target_missing"
   | "void_cycle"
-  /** Due pasti con lo stesso `mealId`: conta il primo nell'ordine canonico. */
+  /**
+   * Più pasti validi con lo stesso `mealId` (due dispositivi l'hanno corretto prima di unirsi): vale il più recente,
+   * unito agli altri dove si può (vedi `mealVersions.ts`). Una per ogni versione che non è la più recente:
+   * `eventId` è quella versione, `keptEventId` quella che vale. Le versioni rimaste fuori stanno in
+   * `DiaryMeal.otherVersions`.
+   */
   | "duplicate_meal"
   /** Il fuso passato non esiste: si è usato quello predefinito. */
   | "invalid_time_zone";
@@ -39,6 +47,8 @@ export interface DiaryAnomaly {
   eventId?: string;
   targetEventId?: string;
   mealId?: string;
+  /** Per `duplicate_meal`: l'evento del pasto che vale. */
+  keptEventId?: string;
   eventType?: string;
   /** Per `invalid_event`. */
   errors?: ValidationError[];
@@ -54,6 +64,16 @@ export interface DiaryEntry {
   note?: string;
 }
 
+/** Una versione del pasto scritta da un altro dispositivo e rimasta fuori da ciò che si mostra. */
+export interface DiaryMealVersion {
+  eventId: string;
+  recordedAt: string;
+  deviceId: string;
+  at: string;
+  kind: MealKind;
+  items: MealItem[];
+}
+
 export interface DiaryMeal extends DiaryEntry {
   mealId: string;
   kind: MealKind;
@@ -61,10 +81,22 @@ export interface DiaryMeal extends DiaryEntry {
   items: MealItem[];
   habitId?: string;
   /**
-   * Righe del pasto che erano consumi della dispensa e sono state annullate (per esempio con «Inserito per
-   * sbaglio»). Assente se nessuna. Un pasto fatto solo di righe annullate non compare affatto.
+   * Voci del pasto che erano consumi della dispensa e sono state tolte (per esempio con «Inserito per sbaglio»).
+   * Un consumo corretto o spostato non è una voce tolta: vale il suo sostituto. Assente se nessuna. Un pasto fatto
+   * solo di consumi che non ci sono più non compare affatto.
    */
   removedLines?: number;
+  /**
+   * Il pasto era stato tolto (tutti i suoi eventi sono annullati) ma gli resta almeno un consumo della dispensa
+   * ancora valido, di solito scritto da un altro dispositivo mentre qui lo si toglieva. Compare lo stesso, con il
+   * momento e l'ora dell'ultima versione e senza voci libere, perché nessun consumo valido resti fuori dal diario.
+   */
+  revived?: true;
+  /**
+   * Versioni dello stesso pasto corrette su un altro dispositivo e in conflitto con questa: non si sono potute unire,
+   * vale la più recente e queste restano da mostrare all'utente. Dalla più recente. Assente se non ce ne sono.
+   */
+  otherVersions?: DiaryMealVersion[];
 }
 
 export interface DiaryUntrackedMeal extends DiaryEntry {
@@ -308,24 +340,27 @@ export function deriveDiary(
     }
   }
 
-  const { voided, findings } = voidsOfLog(log.events);
+  const voids = voidsOfLog(log.events);
+  const { voided, findings } = voids;
   for (const f of findings) {
     anomalies.push({ code: f.code, eventId: f.eventId, targetEventId: f.targetEventId });
   }
   const live = valid.filter((e) => !voided.has(e.id));
 
-  // Consumi della dispensa legati a un pasto: attivi e annullati. Un pasto senza voci scritte nel diario
-  // e con tutti i consumi annullati è un pasto fantasma: il suo contenuto è sparito, non vale come registrato.
-  const mealConsumes = new Map<string, { active: number; removed: number }>();
+  // Consumi della dispensa legati a un pasto: attivi e non più validi (annullati, corretti, spostati altrove). Un pasto
+  // senza voci scritte nel diario e con tutti i consumi non più validi è un pasto fantasma: il suo contenuto è sparito,
+  // non vale come registrato.
+  const mealConsumes = new Map<string, { active: number; gone: number }>();
   for (const e of log.events) {
     const c = e as { id?: unknown; type?: unknown; mealId?: unknown };
     if (c.type !== "consume" || typeof c.mealId !== "string" || c.mealId === "" || typeof c.id !== "string") continue;
     if (!isValidKnownEvent(e)) continue;
-    const entry = mealConsumes.get(c.mealId) ?? { active: 0, removed: 0 };
-    if (voided.has(c.id)) entry.removed++;
+    const entry = mealConsumes.get(c.mealId) ?? { active: 0, gone: 0 };
+    if (voided.has(c.id)) entry.gone++;
     else entry.active++;
     mealConsumes.set(c.mealId, entry);
   }
+  const removedLines = removedMealLines(log.events, voids);
 
   const days = new Map<string, DiaryDay>();
   const dayOf = (e: DiaryEvent): DiaryDay | undefined => {
@@ -336,7 +371,93 @@ export function deriveDiary(
     return day;
   };
 
-  const mealIds = new Set<string>();
+  // I pasti: per ogni `mealId` una riga sola. Tra più versioni valide vale la più recente, unita alle altre dove si
+  // può; un pasto tolto a cui resta un consumo valido compare lo stesso (`revived`).
+  const mealsById = new Map<string, MealEvent>();
+  const liveMeals = new Map<string, MealEvent[]>();
+  const voidedMeals = new Map<string, MealEvent>();
+  for (const e of valid) {
+    if (e.type !== "meal") continue;
+    mealsById.set(e.id, e);
+    if (voided.has(e.id)) {
+      const last = voidedMeals.get(e.mealId);
+      if (!last || recordedLater(e, last)) voidedMeals.set(e.mealId, e);
+    } else {
+      const list = liveMeals.get(e.mealId);
+      if (list) list.push(e);
+      else liveMeals.set(e.mealId, [e]);
+    }
+  }
+  const lines = (mealId: string) => (removedLines.has(mealId) ? { removedLines: removedLines.get(mealId) } : {});
+  const mealRows: { meal: DiaryMeal; recordedAt: string }[] = [];
+  for (const [mealId, versions] of liveMeals) {
+    const consumes = mealConsumes.get(mealId);
+    const ghostly = consumes !== undefined && consumes.active === 0 && consumes.gone > 0;
+    const shown = ghostly ? versions.filter((v) => (v.items?.length ?? 0) > 0) : versions;
+    if (shown.length === 0) continue;
+    const r = resolveMealVersions(shown, (id) => mealsById.get(id));
+    for (const v of shown) {
+      if (v !== r.winner) anomalies.push({ code: "duplicate_meal", eventId: v.id, mealId, keptEventId: r.winner.id });
+    }
+    const w = r.winner;
+    mealRows.push({
+      recordedAt: w.recordedAt,
+      meal: {
+        ...entryOf(w),
+        at: r.at,
+        certainty: r.certainty,
+        mealId,
+        kind: r.kind,
+        ...(w.title !== undefined ? { title: w.title } : {}),
+        items: r.items,
+        ...(w.habitId !== undefined ? { habitId: w.habitId } : {}),
+        ...lines(mealId),
+        ...(r.others.length > 0
+          ? {
+              otherVersions: r.others.map((v) => ({
+                eventId: v.id,
+                recordedAt: v.recordedAt,
+                deviceId: v.deviceId,
+                at: v.at,
+                kind: v.kind,
+                items: cloneMealItems(v.items),
+              })),
+            }
+          : {}),
+      },
+    });
+  }
+  for (const [mealId, last] of voidedMeals) {
+    if (liveMeals.has(mealId) || (mealConsumes.get(mealId)?.active ?? 0) === 0) continue;
+    mealRows.push({
+      recordedAt: last.recordedAt,
+      meal: {
+        eventId: last.id,
+        at: last.at,
+        certainty: last.certainty,
+        source: last.source,
+        mealId,
+        kind: last.kind,
+        items: [],
+        ...lines(mealId),
+        revived: true,
+      },
+    });
+  }
+  mealRows.sort((a, b) =>
+    compareEvents(
+      { id: a.meal.eventId, at: a.meal.at, recordedAt: a.recordedAt },
+      { id: b.meal.eventId, at: b.meal.at, recordedAt: b.recordedAt },
+    ),
+  );
+  for (const { meal } of mealRows) {
+    const date = localDate(meal.at, timeZone);
+    if (date === undefined) continue;
+    let day = days.get(date);
+    if (!day) days.set(date, (day = emptyDay(date)));
+    day.meals.push(meal);
+  }
+
   const declarationEvents: MealDeclarationEvent[] = [];
   const untrackedRecordedAt = new Map<string, string>();
   const habitWinners = new Map<string, Extract<DiaryEvent, { type: "habit" }>>();
@@ -358,30 +479,11 @@ export function deriveDiary(
       declarationEvents.push(e);
       continue;
     }
-    if (e.type === "meal") {
-      const consumes = mealConsumes.get(e.mealId);
-      if ((e.items?.length ?? 0) === 0 && consumes !== undefined && consumes.active === 0 && consumes.removed > 0) continue;
-      if (mealIds.has(e.mealId)) {
-        anomalies.push({ code: "duplicate_meal", eventId: e.id, mealId: e.mealId });
-        continue;
-      }
-      mealIds.add(e.mealId);
-    }
+    if (e.type === "meal") continue;
     const day = dayOf(e);
     if (!day) continue;
     const base = entryOf(e);
     switch (e.type) {
-      case "meal":
-        day.meals.push({
-          ...base,
-          mealId: e.mealId,
-          kind: e.kind,
-          ...(e.title !== undefined ? { title: e.title } : {}),
-          items: cloneMealItems(e.items),
-          ...(e.habitId !== undefined ? { habitId: e.habitId } : {}),
-          ...((mealConsumes.get(e.mealId)?.removed ?? 0) > 0 ? { removedLines: mealConsumes.get(e.mealId)!.removed } : {}),
-        });
-        break;
       case "untrackedMeal":
         day.untrackedMeals.push({ ...base, kind: e.kind });
         untrackedRecordedAt.set(e.id, e.recordedAt);

@@ -1,5 +1,10 @@
 /* Scheda del prodotto: solo variabili di tema. */
 
+/* Il messaggio d'errore della fotocamera sta staccato dal pulsante sotto */
+.scanner section [role="alert"] {
+  margin-bottom: var(--gap-group);
+}
+
 .card {
   display: flex;
   flex-direction: column;

@@ -27,17 +27,17 @@ export type EatenResult =
   | { ok: true; events: AnyEvent[]; message: string; marked: Marked }
   | { ok: false; error: string };
 
-const WHERE: Record<MealKind, string> = { breakfast: "a colazione", lunch: "a pranzo", dinner: "a cena", snack: "fuori pasto" };
+const WHERE: Record<MealKind, string> = { breakfast: "a colazione", lunch: "a pranzo", dinner: "a cena", snack: "come spuntino" };
 
 /** I momenti, nell'ordine in cui si scelgono. */
 export const MOMENT_CHOICES: readonly { kind: MealKind; label: string }[] = [
   { kind: "breakfast", label: "Colazione" },
   { kind: "lunch", label: "Pranzo" },
   { kind: "dinner", label: "Cena" },
-  { kind: "snack", label: "Fuori pasto" },
+  { kind: "snack", label: "Spuntino" },
 ];
 
-/** «a pranzo», «a cena di ieri», «fuori pasto» (con il giorno se non è oggi). */
+/** «a pranzo», «a cena di ieri», «come spuntino» (con il giorno se non è oggi). */
 export function whereText(kind: MealKind, date: string, today: string): string {
   if (date === today) return WHERE[kind];
   return `${WHERE[kind]} ${date === dayBefore(today) ? "di ieri" : `· ${relativeDay(date, today)}`}`;
@@ -54,8 +54,10 @@ const amountOf = (lots: readonly Lot[], consumes: readonly ConsumeEvent[]): stri
   return formatQuantity(consumes[0].quantity);
 };
 
-/** In mezzo a una frase il nome comincia con la minuscola: «275 g di petto di pollo». */
-const nameOf = (lots: readonly Lot[]): string => lots[0].productRef.replace(/^\p{Lu}(?=\p{Ll})/u, (c) => c.toLowerCase());
+/** In mezzo a una frase il nome comincia con la minuscola: «275 g di petto di pollo». Una sigla resta com'è. */
+export const inSentence = (name: string): string => name.replace(/^\p{Lu}(?=\p{Ll})/u, (c) => c.toLowerCase());
+
+const nameOf = (lots: readonly Lot[]): string => inSentence(lots[0].productRef);
 
 /**
  * «Mangiato» da un alimento: il consumo (uno per confezione) e, se serve, il pasto. Il momento viene dall'ora di

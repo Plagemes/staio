@@ -1,22 +1,23 @@
 "use client";
 
-// Gli alimenti della dispensa dentro i momenti del diario di Oggi: quantità, nutrienti (o «senza dato») e, per ciò che si
-// è mangiato con un tocco in Dispensa, «Cambia momento» e «Togli». Un consumo vecchio, senza pasto, compare nel momento
-// della sua ora e si mette in un momento con un tocco.
-import { useMemo, useState } from "react";
-import { QUICK_CONSUME_NOTE, addDays, dayBefore, isQuickConsume, localMoment, type DiaryState, type MealKind } from "@/core/diary";
-import type { ConsumeEvent } from "@/core/ledger";
-import type { IntakeLine, MealIntake } from "@/core/nutrition";
+// Le voci dentro i momenti del diario di Oggi. Una voce di un pasto, della dispensa o libera, è una riga che si tocca:
+// a sinistra nome e quantità, a destra i nutrienti (o «senza dato»); il tocco apre il foglio «Voce». Un consumo senza
+// pasto compare nel momento della sua ora e si mette in un momento con un tocco.
+import { useMemo } from "react";
+import { QUICK_CONSUME_NOTE, localMoment, removeConsume, type DiaryState, type MealKind } from "@/core/diary";
+import type { AnyEvent } from "@/core/events";
+import type { Certainty, ConsumeEvent, Quantity } from "@/core/ledger";
+import { mealEnergyHistory, type IntakeLine, type MealIntake } from "@/core/nutrition";
 import { formatQuantity } from "@/core/units";
 import { Button, Value } from "@/design";
-import { buildUndo } from "../actions";
 import { itemText } from "../meals";
-import { MOMENT_CHOICES, buildChangeMoment } from "../pantry/eaten";
+import { buildChangeMoment } from "../pantry/eaten";
 import { useIntake } from "../nutrition/useNutrition";
 import ui from "../ui.module.css";
 import { useRecord } from "../useRecord";
+import { consumeRemovedText, momentTargets, type MomentTarget } from "./editText";
 import { lineNutrientText } from "./lineText";
-import { inSentence } from "./summaries";
+import entries from "./MealEntries.module.css";
 import styles from "./Today.module.css";
 
 export interface DayIntakeLookup {
@@ -24,6 +25,12 @@ export interface DayIntakeLookup {
   lineOf: (consumeId: string) => IntakeLine | undefined;
   /** I nutrienti di un pasto, per `mealId`. */
   mealOf: (mealId: string) => MealIntake | undefined;
+  /**
+   * Per la stima «fuori casa»: l'energia dei pasti registrati in quel momento negli ultimi 30 giorni fino a `today`
+   * (`mealEnergyHistory`). Si calcola solo quando la si chiede, sui nutrienti che Oggi ha già: `undefined` finché non
+   * sono pronti.
+   */
+  energyHistory: (kind: MealKind, today: string) => readonly number[] | undefined;
 }
 
 /** I nutrienti del giorno già calcolati, per riga e per pasto. Si ricalcola solo quando cambiano i dati. */
@@ -37,137 +44,107 @@ export function useDayIntake(date: string): DayIntakeLookup {
     for (const line of [...(day?.meals.flatMap((m) => m.lines) ?? []), ...(day?.standalone ?? [])]) {
       if (line.kind === "pantry") lines.set(line.eventId, line);
     }
-    return { lineOf: (id) => lines.get(id), mealOf: (id) => meals.get(id) };
+    const histories = new Map<string, readonly number[]>();
+    const energyHistory = (kind: MealKind, today: string) => {
+      if (!intake) return undefined;
+      const key = `${kind} ${today}`;
+      let history = histories.get(key);
+      if (!history) histories.set(key, (history = mealEnergyHistory(intake, kind, today)));
+      return history;
+    };
+    return { lineOf: (id) => lines.get(id), mealOf: (id) => meals.get(id), energyHistory };
   }, [intake, date]);
 }
 
-interface LineProps {
+/** I nutrienti di una voce libera: la riga del pasto alla stessa posizione. */
+export function freeItemLine(intake: DayIntakeLookup, mealId: string, index: number): IntakeLine | undefined {
+  return intake.mealOf(mealId)?.lines.find((l) => l.kind === "mealItem" && l.itemIndex === index);
+}
+
+interface EntryRowProps {
+  /** `voce-<id del consumo>` oppure `voce-<id dell'evento meal>-<posizione>`: lo cerca `/app?voce=…`. */
+  id: string;
+  name: string;
+  quantity: Quantity;
+  certainty: Certainty;
+  line: IntakeLine | undefined;
+  onOpen: () => void;
+}
+
+/** Una voce di un pasto: una riga sola, senza comandi. Il tocco apre il foglio «Voce». */
+export function EntryRow({ id, name, quantity, certainty, line, onOpen }: EntryRowProps) {
+  const note = lineNutrientText(line);
+  return (
+    <li id={id}>
+      <button type="button" className={entries.entry} aria-haspopup="dialog" onClick={onOpen}>
+        <Value certainty={certainty === "estimated" ? "estimated" : "measured"} className={entries.entryText}>
+          <span className={entries.entryName}>{name}</span>
+          <span className={entries.entryAmount}>{formatQuantity(quantity)}</span>
+        </Value>
+        {note ? <span className={entries.entryNote}>{note}</span> : null}
+      </button>
+    </li>
+  );
+}
+
+interface LooseLineProps {
   consume: ConsumeEvent;
   /** Il nome dell'alimento (dal lotto). */
   name: string;
   /** Il giorno mostrato, `YYYY-MM-DD`. */
   date: string;
-  /** Oggi, `YYYY-MM-DD`: per dire «Ieri» solo quando è davvero ieri. */
   today: string;
   diary: DiaryState;
+  log: readonly AnyEvent[];
   line: IntakeLine | undefined;
-  /** Il momento in cui il consumo sta adesso; assente se non è in nessun pasto. */
-  kind?: MealKind;
   onError: (message: string | null) => void;
 }
 
-/** Prima di quest'ora (le 4 del mattino) ciò che si è mangiato può appartenere alla sera prima. */
-const NIGHT_UNTIL_MINUTES = 4 * 60;
-
-interface Target {
-  kind: MealKind;
-  date: string;
-  label: string;
-}
-
-function useLineActions({ consume, name, date, diary, kind, onError }: LineProps) {
+/** Un consumo senza pasto (di prima, o di una preparazione): dice a che momento appartiene e lo mette lì con un tocco. */
+export function LooseLine({ consume, name, date, today, diary, log, line, onError }: LooseLineProps) {
   const { recordWith, busy } = useRecord();
   const amount = formatQuantity(consume.quantity);
+  const note = lineNutrientText(line);
 
-  async function move(to: Pick<Target, "kind" | "date">): Promise<boolean> {
+  async function move(to: Pick<MomentTarget, "kind" | "date">) {
     onError(null);
     const result = await recordWith((deviceId) => {
-      const marked = { consumes: [{ ...consume, note: QUICK_CONSUME_NOTE }], mealId: consume.mealId ?? "", kind: kind ?? "snack", date, joined: false, name, amount };
+      const marked = { consumes: [{ ...consume, note: QUICK_CONSUME_NOTE }], mealId: consume.mealId ?? "", kind: "snack" as const, date, joined: false, name, amount };
       const built = buildChangeMoment(marked, to, { now: new Date().toISOString(), deviceId }, diary);
       if (!built.ok) throw new Error(built.error);
       return { events: built.events, message: built.message };
     });
     if (!result.ok) onError(result.error);
-    return result.ok;
   }
 
   async function remove() {
     onError(null);
-    const result = await recordWith((deviceId) => ({
-      events: buildUndo([consume], { now: new Date().toISOString(), deviceId }),
-      message: `Tolto: ${amount} di ${inSentence(name)}. Sono tornati in dispensa.`,
-    }));
+    const result = await recordWith((deviceId) => {
+      // tutta la famiglia del consumo, non solo quello mostrato: vedi `removeConsume`
+      const built = removeConsume(consume, log, { deviceId, now: new Date().toISOString(), timeZone: diary.timeZone });
+      if (!built.ok) throw new Error(built.error);
+      return { events: built.events, message: consumeRemovedText(name, consume.quantity) };
+    });
     if (!result.ok) onError(result.error);
   }
 
-  return { busy, move, remove };
-}
-
-/**
- * I momenti in cui si può mettere un consumo: quelli del giorno in cui è stato mangiato e, se era notte (prima delle 4),
- * anche pranzo, cena e fuori pasto del giorno prima. Resta fuori il posto in cui sta già.
- */
-function targetsOf({ consume, date, today, diary, kind }: LineProps, withNight: boolean): Target[] {
-  const eaten = localMoment(consume.at, diary.timeZone);
-  const eatenDay = eaten?.date ?? date;
-  // l'etichetta nomina il giorno solo se non è quello che si sta guardando
-  const dayWord = (target: string) =>
-    target === date ? "" : target === dayBefore(date) ? (date === today ? "Ieri · " : "Il giorno prima · ") : target === addDays(date, 1) ? "Il giorno dopo · " : "";
-  const label = (target: string, text: string) => (dayWord(target) === "" ? text : `${dayWord(target)}${text.toLowerCase()}`);
-  const out: Target[] = MOMENT_CHOICES.map((m) => ({ kind: m.kind, date: eatenDay, label: label(eatenDay, m.label) }));
-  if (withNight && eaten !== undefined && eaten.minutes < NIGHT_UNTIL_MINUTES) {
-    const before = dayBefore(eatenDay);
-    for (const m of MOMENT_CHOICES) if (m.kind !== "breakfast") out.push({ kind: m.kind, date: before, label: label(before, m.label) });
-  }
-  return out.filter((t) => !(t.kind === kind && t.date === date));
-}
-
-function MomentChips({ targets, busy, onPick }: { targets: readonly Target[]; busy: boolean; onPick: (target: Target) => void }) {
-  return (
-    <div className={styles.momentChoices} role="group" aria-label="Momento">
-      {targets.map((t) => (
-        <Button key={`${t.date}-${t.kind}`} variant="outline" disabled={busy} onClick={() => onPick(t)}>
-          {t.label}
-        </Button>
-      ))}
-    </div>
-  );
-}
-
-const nutrientNote = (line: IntakeLine | undefined) => {
-  const text = lineNutrientText(line);
-  return text ? <span className={styles.note}>{text}</span> : null;
-};
-
-/** Un alimento della dispensa dentro un pasto, con i nutrienti; se è nato da «Mangiato» in Dispensa, si sposta o si toglie da qui. */
-export function PantryLine(props: LineProps) {
-  const { consume, name } = props;
-  const { busy, move, remove } = useLineActions(props);
-  const [moving, setMoving] = useState(false);
-  const quick = isQuickConsume(consume);
-  return (
-    <li>
-      <Value certainty={consume.certainty === "estimated" ? "estimated" : "measured"}>{itemText(name, consume.quantity)}</Value> {nutrientNote(props.line)}
-      {quick ? (
-        <>
-          {" "}
-          <Button variant="text" disabled={busy} onClick={() => setMoving(!moving)} aria-expanded={moving}>
-            Cambia momento
-          </Button>
-          <Button variant="text" disabled={busy} onClick={() => void remove()}>
-            Togli
-          </Button>
-          {moving ? <MomentChips targets={targetsOf(props, true)} busy={busy} onPick={(to) => void move(to).then((ok) => ok && setMoving(false))} /> : null}
-        </>
-      ) : null}
-    </li>
-  );
-}
-
-/** Un consumo senza pasto (di prima, o di una preparazione): dice a che momento appartiene e lo mette lì con un tocco. */
-export function LooseLine(props: LineProps) {
-  const { consume, name } = props;
-  const { busy, move, remove } = useLineActions(props);
   return (
     <div className={styles.loose}>
       <div className={styles.mealHead}>
         <span className={styles.mealTitle}>
           <Value certainty={consume.certainty === "estimated" ? "estimated" : "measured"}>{itemText(name, consume.quantity)}</Value>
         </span>
-        {nutrientNote(props.line)}
+        {note ? <span className={styles.note}>{note}</span> : null}
       </div>
       <p className={ui.hint}>Mangiato, ma non è in nessun pasto. In quale momento lo metti?</p>
-      <MomentChips targets={targetsOf(props, false)} busy={busy} onPick={(to) => void move(to)} />
+      <div className={styles.momentChoices} role="group" aria-label="Momento">
+        {/* un consumo senza pasto sta nel giorno e all'ora in cui è stato mangiato */}
+        {momentTargets({ date, minutes: localMoment(consume.at, diary.timeZone)?.minutes, today }, false).map((t) => (
+          <Button key={`${t.date}-${t.kind}`} variant="outline" disabled={busy} onClick={() => void move(t)}>
+            {t.label}
+          </Button>
+        ))}
+      </div>
       <div>
         <Button variant="text" disabled={busy} onClick={() => void remove()}>
           Togli

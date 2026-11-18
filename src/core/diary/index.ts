@@ -13,6 +13,7 @@ export type {
   DiaryHabit,
   DiaryMeal,
   DiaryMealDeclaration,
+  DiaryMealVersion,
   DiaryMood,
   DiaryState,
   DiarySupplement,
@@ -81,3 +82,17 @@ export {
   placeConsumes,
 } from "./placeConsume";
 export type { PlaceContext, PlaceResult, PlaceTarget, Placement } from "./placeConsume";
+export {
+  appendItems,
+  changeConsumeQuantity,
+  changeItem,
+  currentMeal,
+  keepMealVersion,
+  lowerMealCertainty,
+  moveItem,
+  removeConsume,
+  removeItem,
+  rewriteMeal,
+} from "./editMeal";
+export { familyConsumes } from "./log";
+export type { EditContext, MealEdit } from "./editMeal";

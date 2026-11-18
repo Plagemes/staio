@@ -135,7 +135,7 @@ export function Settings() {
         </div>
         <div className={styles.block}>
           <Label>Pasti abituali</Label>
-          <p className={ui.paragraph}>I pasti che ripeti e che Staio ti propone all&apos;ora giusta. Qui li rinomini o li ritiri; li trovi anche in Oggi.</p>
+          <p className={ui.paragraph}>I pasti che ripeti. Te li propongo in Oggi all&apos;ora giusta e li trovi in «Registra pasto».</p>
           <Link href="/app/pasti-abituali" className={ui.textLink}>
             Gestisci i pasti abituali
           </Link>
@@ -191,6 +191,13 @@ export function Settings() {
             Tutto resta su questo telefono e funziona anche senza rete. I dati escono dal telefono solo se lo chiedi tu: una copia, la sincronizzazione, una domanda all&apos;AI con la tua chiave.
             {count !== undefined ? ` Eventi registrati: ${count}.` : ""}
           </p>
+        </div>
+        <div className={styles.block}>
+          <Label>Ultime azioni</Label>
+          <p className={ui.paragraph}>Quello che hai fatto negli ultimi 14 giorni, da annullare anche dopo ore.</p>
+          <Link href="/app/attivita" className={ui.textLink}>
+            Ultime azioni
+          </Link>
         </div>
         <div className={styles.block}>
           <Label>Sincronizzazione</Label>

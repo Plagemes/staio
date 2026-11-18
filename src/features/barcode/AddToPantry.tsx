@@ -176,6 +176,18 @@ export function AddToPantry({
       : undefined;
   const estimate = today ? estimatedExpiryDate(category, location, today) : null;
   const splitDates = differentDates && packs > 1;
+  // una sola riga di servizio sotto la data: la stima se manca, da dove viene se c'è
+  const dateNote = splitDates
+    ? ""
+    : !answers.expiryDate
+      ? `Senza data uso una stima${estimate ? `: ${formatCalendarDate(estimate)}` : " dalla categoria"}.`
+      : scannedExpiry && answers.expiryDate === scannedExpiry.date
+        ? "Data letta dal codice: controllala."
+        : photoDate !== null && answers.expiryDate === photoDate
+          ? "Data letta dalla foto: controllala."
+          : packs > 1
+            ? "La data vale per tutte le confezioni."
+            : "";
 
   // una sola scrittura alla volta: il secondo tocco riceve la risposta del primo
   const save = useMemo(
@@ -407,7 +419,7 @@ export function AddToPantry({
                   value={answers.expiryDate ?? ""}
                   onChange={(e) => set({ expiryDate: e.target.value })}
                   aria-invalid={err("expiryDate") ? true : undefined}
-                  aria-describedby={`${ids}-date-note`}
+                  aria-describedby={dateNote ? `${ids}-date-note` : undefined}
                 />
                 {err("expiryDate") ? <p className={ui.error}>{err("expiryDate")}</p> : null}
                 {today ? (
@@ -436,18 +448,11 @@ export function AddToPantry({
                 ) : null}
               </>
             )}
-            <p className={ui.hint} id={`${ids}-date-note`}>
-              {!splitDates && !answers.expiryDate ? "Scrivi o scegli la data stampata sulla confezione (giorno, mese, anno). " : ""}
-              {splitDates ? "" : packs > 1 ? "La data vale per tutte le confezioni. " : ""}
-              {!splitDates && !answers.expiryDate
-                ? `Senza data uso una stima${estimate ? `: ${formatCalendarDate(estimate)}` : " dalla categoria"}. `
-                : ""}
-              {scannedExpiry && answers.expiryDate === scannedExpiry.date
-                ? "Data letta dal codice: controllala."
-                : photoDate !== null && answers.expiryDate === photoDate
-                  ? "Data letta dalla foto: controllala."
-                  : "Il codice a barre contiene solo il codice del prodotto, non la data."}
-            </p>
+            {dateNote ? (
+              <p className={ui.hint} id={`${ids}-date-note`}>
+                {dateNote}
+              </p>
+            ) : null}
           </fieldset>
 
           <fieldset className={ui.field}>

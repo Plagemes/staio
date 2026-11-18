@@ -49,6 +49,21 @@ export type {
   ResolverSources,
 } from "./resolve";
 export { computeIntake } from "./intake";
+export {
+  OUT_OF_HOME_FACTOR,
+  OUT_OF_HOME_HISTORY_DAYS,
+  OUT_OF_HOME_MIN_MEALS,
+  OUT_OF_HOME_MIN_MEAL_SHARE,
+  OUT_OF_HOME_MOMENT_SHARE,
+  OUT_OF_HOME_PERSONAL_RANGE,
+  OUT_OF_HOME_REFERENCE_KCAL,
+  OUT_OF_HOME_SIZES,
+  REFERENCE_ENERGY_KCAL,
+  estimateOutOfHome,
+  mealEnergyHistory,
+  outOfHomeEnergyShare,
+} from "./outOfHome";
+export type { OutOfHomeEstimate, OutOfHomeSize } from "./outOfHome";
 export type {
   DayIntake,
   DayPartialReason,
@@ -57,6 +72,7 @@ export type {
   IntakeOptions,
   IntakeResult,
   MealIntake,
+  OutOfHomeInfo,
   ResolvedLine,
   UnresolvedLine,
   UnresolvedReason,

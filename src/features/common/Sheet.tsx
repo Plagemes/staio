@@ -19,16 +19,22 @@ export interface SheetProps {
   head?: ReactNode;
   /** Fisso in fondo: pulsante principale e, al massimo, una riga di secondari. */
   footer?: ReactNode;
-  /** Azione in corso: «Chiudi», il tocco fuori ed Esc non chiudono. */
+  /** Azione in corso: «Chiudi», il tocco fuori, Esc e il tasto indietro non fanno niente. */
   busy?: boolean;
+  /**
+   * Il foglio è in un passo interno («Altro», «Correggi»). Se c'è, il tasto indietro del telefono, lo scorrimento
+   * dal bordo ed Esc chiamano `onBack` e il foglio resta aperto. «Chiudi» e il tocco fuori chiudono come sempre.
+   */
+  onBack?: () => void;
 }
 
 /**
  * Il foglio dal basso, unico per tutta l'app. È aperto finché è montato: chi lo usa lo rende solo quando serve e,
- * in `onClose`, smette di renderlo. Il tasto indietro del telefono lo chiude (vedi `sheetHistory.ts`).
+ * in `onClose`, smette di renderlo. Il tasto indietro del telefono lo chiude oppure, dentro un passo interno, torna al
+ * passo prima (vedi `sheetHistory.ts`).
  * Una navigazione da codice che segue la chiusura va fatta con `closeSheetThen(() => router.push(…))`.
  */
-export function Sheet({ title, onClose, children, titleHidden = false, head, footer, busy = false }: SheetProps): ReactElement {
+export function Sheet({ title, onClose, children, titleHidden = false, head, footer, busy = false, onBack }: SheetProps): ReactElement {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const router = useRouter();
@@ -46,7 +52,7 @@ export function Sheet({ title, onClose, children, titleHidden = false, head, foo
     onCloseRef.current();
   }, []);
 
-  const step = useSheetHistory(close);
+  const step = useSheetHistory(close, { onBack, busy });
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -92,7 +98,9 @@ export function Sheet({ title, onClose, children, titleHidden = false, head, foo
       }}
       onCancel={(event) => {
         event.preventDefault();
-        requestClose();
+        // Senza un tocco dall'ultima volta il sistema non lascia impedire la chiusura: il foglio si chiude comunque.
+        if (event.cancelable) step.back();
+        else requestClose();
       }}
       onClick={(event) => {
         if (event.target === event.currentTarget) requestClose();

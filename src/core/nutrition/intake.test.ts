@@ -236,3 +236,188 @@ describe("computeIntake: registro", () => {
     expect(computeIntake([], resolver).days).toEqual([]);
   });
 });
+
+describe("computeIntake: pasto fuori casa", () => {
+  const outOfHome = (kcal: number, name = "Fuori casa · normale") => ({
+    name,
+    quantity: q(1, "pz"),
+    certainty: "estimated" as const,
+    energyKcal: kcal,
+  });
+  // colazione e cena di `fullDay`, con il pranzo fuori casa al posto del dolce misterioso
+  const dayWithLunchOut = () =>
+    fullDay().map((e) =>
+      e.id === "m-l" ? meal("m-l", at("12:00"), { mealId: "l", kind: "lunch", certainty: "estimated", items: [outOfHome(800)] }) : e,
+    );
+
+  it("la voce dà una riga con la sola energia, come stima", () => {
+    const lunch = computeIntake(dayWithLunchOut(), resolver).days[0].meals.find((m) => m.mealId === "l");
+    expect(lunch?.lines).toHaveLength(1);
+    expect(lunch?.lines[0]).toMatchObject({
+      kind: "mealItem",
+      status: "ok",
+      label: "Fuori casa · normale",
+      itemIndex: 0,
+      nutrients: { energyKcal: 800 },
+      certainty: "estimated",
+      outOfHome: true,
+    });
+    const line = lunch?.lines[0];
+    expect(line?.status === "ok" && Object.keys(line.nutrients)).toEqual(["energyKcal"]);
+    expect(line?.status === "ok" && line.composition.ref).toBeUndefined();
+    expect(lunch?.totals.energyKcal).toMatchObject({ value: 800, partial: false, certainty: "estimated" });
+    expect(Object.keys(lunch?.totals ?? {})).toEqual(["energyKcal"]);
+    expect(lunch?.certainty).toBe("estimated");
+  });
+
+  it("5. il giorno è completo; l'energia comprende la stima ed è una stima; le proteine sono un minimo", () => {
+    const day = computeIntake(dayWithLunchOut(), resolver).days[0];
+    expect(day.complete).toBe(true);
+    expect(day.reasons).toEqual([]);
+    expect(day.coverage.missing).toEqual([]);
+    // colazione 488 + pranzo fuori casa 800 + cena 150 + consumo senza pasto 80
+    expect(day.totals.energyKcal).toMatchObject({ value: 488 + 800 + 150 + 80, partial: false, certainty: "estimated" });
+    // le proteine vengono solo dalle altre voci: per il pranzo il dato manca
+    expect(day.totals.proteinG?.value).toBeCloseTo(6 + 14.4 + 5 + 30 + 2);
+    expect(day.totals.proteinG).toMatchObject({ partial: true, missingCount: 1 });
+    expect(day.totals.proteinG?.missingShare).toBeGreaterThan(0);
+    for (const total of Object.values(day.totals)) {
+      if (total !== day.totals.energyKcal && total !== day.totals.caffeineMg) expect(total.partial).toBe(true);
+    }
+  });
+
+  it("una voce fuori casa non compare tra le voci da collegare a un alimento", () => {
+    const day = computeIntake(dayWithLunchOut(), resolver).days[0];
+    expect(day.unresolved).toEqual([]);
+    expect(day.meals.flatMap((m) => m.unresolved)).toEqual([]);
+  });
+
+  it("il risolutore non viene interrogato per una voce fuori casa", () => {
+    const asked: string[] = [];
+    computeIntake(dayWithLunchOut(), (subject) => {
+      if (subject.kind === "mealItem") asked.push(subject.name);
+      return resolver(subject);
+    });
+    expect(asked).not.toContain("Fuori casa · normale");
+    expect(asked).toContain("Petto di pollo");
+  });
+
+  it("un giorno fatto solo di pasti fuori casa ha energia stimata e nessun altro nutriente", () => {
+    const day = computeIntake(
+      [
+        meal("o-b", at("07:30"), { mealId: "ob", kind: "breakfast", certainty: "estimated", items: [outOfHome(240, "Fuori casa · leggero")] }),
+        meal("o-l", at("12:00"), { mealId: "ol", kind: "lunch", certainty: "estimated", items: [outOfHome(800)] }),
+        meal("o-d", at("19:30"), { mealId: "od", kind: "dinner", certainty: "estimated", items: [outOfHome(900, "Fuori casa · abbondante")] }),
+      ],
+      resolver,
+    ).days[0];
+    expect(day.complete).toBe(true);
+    expect(Object.keys(day.totals)).toEqual(["energyKcal"]);
+    expect(day.totals.energyKcal).toMatchObject({ value: 1940, partial: false, certainty: "estimated" });
+    expect(day.certainty).toBe("estimated");
+    expect(day.unresolved).toEqual([]);
+  });
+
+  it("13. «Mangiato, senza dettagli» resta un'altra cosa: il giorno non è completo", () => {
+    const events = [...fullDay().filter((e) => e.id !== "m-l"), untracked("u1", at("12:30"), { kind: "lunch" })];
+    const day = computeIntake(events, resolver).days[0];
+    expect(day.complete).toBe(false);
+    expect(day.reasons).toContain("untracked_meals");
+  });
+
+  it("una stima di zero kcal resta un dato, non un vuoto", () => {
+    const day = computeIntake(
+      [meal("o-l", at("12:00"), { mealId: "ol", kind: "lunch", certainty: "estimated", items: [outOfHome(0)] })],
+      resolver,
+    ).days[0];
+    expect(day.meals[0].lines[0]).toMatchObject({ status: "ok", nutrients: { energyKcal: 0 }, outOfHome: true });
+    expect(day.reasons).not.toContain("empty_meals");
+  });
+});
+
+describe("computeIntake: quanta parte del giorno è una stima fuori casa", () => {
+  const measured = (name: string, grams: number) => ({ name, quantity: q(grams, "g"), certainty: "measured" as const });
+  // Sette voci misurate (800 kcal in tutto) e un pranzo fuori casa da 800 kcal: metà dell'energia del giorno.
+  const events = [
+    meal("s-b", at("07:30"), {
+      mealId: "sb",
+      kind: "breakfast",
+      items: [measured("Yogurt greco 0%", 200), measured("Yogurt greco 5%", 100), measured("Prosciutto cotto", 100), measured("Petto di pollo", 100)],
+    }),
+    meal("s-l", at("12:00"), {
+      mealId: "sl",
+      kind: "lunch",
+      certainty: "estimated",
+      items: [{ name: "Fuori casa · normale", quantity: q(1, "pz"), certainty: "estimated" as const, energyKcal: 800 }],
+    }),
+    meal("s-d", at("19:30"), {
+      mealId: "sd",
+      kind: "dinner",
+      items: [measured("Petto di pollo", 100), measured("Prosciutto crudo", 80), measured("Yogurt greco 0%", 80)],
+    }),
+  ];
+  const day = computeIntake(events, resolver).days[0];
+
+  it("per le proteine manca circa metà, non «una voce su otto»", () => {
+    // 100 + 120 + 140 + 100 a colazione, 100 + 200 + 40 a cena: 800 kcal misurate, e 800 stimate
+    expect(day.totals.energyKcal?.value).toBe(1600);
+    expect(day.totals.energyKcal).toMatchObject({ partial: false, missingShare: 0 });
+    // per righe sarebbe 1 su 8, cioè 0,125
+    expect(day.totals.proteinG).toMatchObject({ partial: true, missingCount: 1, count: 8 });
+    expect(day.totals.proteinG?.missingShare).toBeCloseTo(0.5, 2);
+    expect(day.totals.proteinG?.value).toBeCloseTo(20 + 8 + 19 + 20 + 20 + 20.8 + 8);
+    expect(day.outOfHome).toEqual({ meals: 1, energyKcal: 800 });
+  });
+
+  it("vale per ogni nutriente che la stima non copre, e non tocca l'energia", () => {
+    for (const [key, total] of Object.entries(day.totals)) {
+      if (key === "energyKcal") continue;
+      expect(total.partial, key).toBe(true);
+      expect(total.missingShare, key).toBeGreaterThanOrEqual(0.49);
+    }
+  });
+
+  it("se altre voci mancano già di più, resta la quota più alta", () => {
+    // un pasto con la stima (100 kcal) e tre voci di cui due senza dato: per righe 3 su 4, per energia 100 su 250
+    const mixed = computeIntake(
+      [
+        meal("x", at("12:00"), {
+          mealId: "x",
+          kind: "lunch",
+          certainty: "estimated",
+          items: [
+            { name: "Fuori casa · leggero", quantity: q(1, "pz"), certainty: "estimated" as const, energyKcal: 100 },
+            measured("Petto di pollo", 150),
+            measured("Dolce misterioso", 50),
+            measured("Altro mistero", 50),
+          ],
+        }),
+      ],
+      resolver,
+    ).days[0];
+    expect(mixed.totals.proteinG?.missingShare).toBeCloseTo(0.75, 2);
+  });
+
+  it("un giorno senza stime fuori casa non cambia e non porta il segno", () => {
+    const plain = computeIntake(fullDay(), resolver).days[0];
+    expect(plain.outOfHome).toBeUndefined();
+    expect(plain.totals.carbsG?.shareBy).toBeDefined();
+  });
+
+  it("il pasto con la sola stima non ha altri nutrienti; un pasto misto dichiara la sua parte stimata", () => {
+    const lunch = day.meals.find((m) => m.mealId === "sl");
+    expect(Object.keys(lunch?.totals ?? {})).toEqual(["energyKcal"]);
+    const mixedMeal = computeIntake(
+      [
+        meal("y", at("12:00"), {
+          mealId: "y",
+          kind: "lunch",
+          certainty: "estimated",
+          items: [{ name: "Fuori casa · normale", quantity: q(1, "pz"), certainty: "estimated" as const, energyKcal: 300 }, measured("Petto di pollo", 100)],
+        }),
+      ],
+      resolver,
+    ).days[0].meals[0];
+    expect(mixedMeal.totals.proteinG?.missingShare).toBeCloseTo(0.75, 2);
+  });
+});

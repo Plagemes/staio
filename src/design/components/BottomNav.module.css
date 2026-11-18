@@ -43,6 +43,10 @@
   justify-content: center;
   width: var(--capture-size);
   height: var(--capture-size);
+  /* il centro può essere un <button>: senza queste righe resterebbero bordo e margini del browser */
+  padding: 0;
+  border: none;
+  cursor: pointer;
   border-radius: var(--radius-round);
   background: var(--capture-fill);
   color: var(--capture-text);

@@ -59,3 +59,15 @@ export function nutritionSummary(view: DayNutritionView | undefined): string {
 
 /** «6 movimenti», «1 movimento». */
 export const movementsSummary = (count: number): string => (count === 1 ? "1 movimento" : `${count} movimenti`);
+
+const REVIEW_NOTICE_TYPES: ReadonlySet<string> = new Set(["shopping", "plan"]);
+
+/**
+ * Gli avvisi che il riepilogo dice come «altri avvisi»: spesa e piano, tutti. Nessuno ripete le righe «Lista della
+ * spesa: N voci» e «Nel piano, non fatti: N» («Spesa: serve X», «Da cucinare», «Piano della prossima settimana vuoto»
+ * dicono altro), quindi nessuno si toglie per quelle. Scadenze e preparazioni non passano di qui perché il riepilogo ha
+ * già la sua riga per loro, dagli stessi fatti.
+ */
+export function reviewNotices<T extends { type: string }>(notices: readonly T[]): T[] {
+  return notices.filter((n) => REVIEW_NOTICE_TYPES.has(n.type));
+}

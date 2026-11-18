@@ -230,3 +230,49 @@ describe("limiti di plausibilità", () => {
     }
   });
 });
+
+describe("validateDiaryEvent: voce fuori casa (energyKcal)", () => {
+  const out = (extra: Record<string, unknown>) =>
+    meal("m-out", AT, {
+      mealId: "out",
+      kind: "lunch",
+      certainty: "estimated",
+      items: [{ name: "Fuori casa · normale", quantity: { value: 1, unit: "pz" }, certainty: "estimated", ...extra }] as never,
+    });
+
+  it("accetta un'energia stimata tra 0 e il limite", () => {
+    for (const energyKcal of [0, 10, 800, DIARY_LIMITS.energyKcalMax]) expect(validateDiaryEvent(out({ energyKcal }))).toEqual([]);
+  });
+
+  it("la voce senza il campo resta valida", () => {
+    expect(validateDiaryEvent(out({}))).toEqual([]);
+    expect(validateDiaryEvent(meal("m", AT, { mealId: "x", kind: "lunch", items: [item] as never }))).toEqual([]);
+  });
+
+  it("10. rifiuta un'energia negativa, non numerica o oltre il limite", () => {
+    for (const energyKcal of [-1, -0.5, DIARY_LIMITS.energyKcalMax + 1, 50_000, Number.NaN, Infinity, "800", null, true, {}]) {
+      expect(codes(out({ energyKcal }))).toEqual(["items.0.energyKcal:invalid_value"]);
+    }
+  });
+
+  it("11. rifiuta un'energia stimata su una voce misurata o da etichetta", () => {
+    expect(codes(out({ energyKcal: 800, certainty: "measured" }))).toEqual(["items.0.certainty:invalid_value"]);
+    expect(codes(out({ energyKcal: 800, certainty: "label" }))).toEqual(["items.0.certainty:invalid_value"]);
+  });
+
+  it("l'errore è sulla voce giusta, e vale anche per le voci di un pasto abituale", () => {
+    const two = meal("m", AT, {
+      mealId: "x",
+      kind: "lunch",
+      items: [item, { name: "Fuori casa · normale", quantity: { value: 1, unit: "pz" }, certainty: "estimated", energyKcal: -3 }] as never,
+    });
+    expect(codes(two)).toEqual(["items.1.energyKcal:invalid_value"]);
+    const usual = habit("a1", AT, {
+      habitId: "h1",
+      title: "Pranzo al bar",
+      kind: "lunch",
+      items: [{ name: "Fuori casa · normale", quantity: { value: 1, unit: "pz" }, certainty: "measured", energyKcal: 800 }] as never,
+    });
+    expect(codes(usual)).toEqual(["items.0.certainty:invalid_value"]);
+  });
+});

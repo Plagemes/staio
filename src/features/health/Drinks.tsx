@@ -4,7 +4,7 @@
 // stesso codice, stessi eventi, stesso avviso con «Annulla».
 
 import { useCallback, useMemo, useState } from "react";
-import { InvalidDiaryEventError, type DiaryDrink } from "@/core/diary";
+import { familyConsumes, InvalidDiaryEventError, type DiaryDrink } from "@/core/diary";
 import type { AnyEvent } from "@/core/events";
 import type { ConsumeEvent } from "@/core/ledger";
 import { activeLots } from "@/core/ledger";
@@ -46,7 +46,9 @@ export type DrinkAction = { ok: true; events: AnyEvent[] } | { ok: false; error:
 async function consumesOfDrink(drinkEventId: string): Promise<ConsumeEvent[]> {
   try {
     const [events, pantry] = await Promise.all([getAllEvents(), getPantry()]);
-    return linkedConsumes(drinkEventId, events, pantry.voidedEventIds);
+    // tutta la famiglia: annullandone solo il consumo che vale, una sua correzione parallela tornerebbe a contare
+    const linked = linkedConsumes(drinkEventId, events, pantry.voidedEventIds);
+    return linked.length > 0 ? familyConsumes(events, linked) : [];
   } catch {
     return [];
   }
@@ -154,7 +156,7 @@ export function DrinkEntries({
   onError: (message: string | null) => void;
   /** «Tè × 2»: un riepilogo sopra l'elenco, per vedere un doppio tocco. */
   showCounts?: boolean;
-  /** Aggiunge il momento a cui la bevanda appartiene («colazione», «fuori pasto»...). */
+  /** Aggiunge il momento a cui la bevanda appartiene («colazione», «spuntino»...). */
   showMoment?: boolean;
   /** Solo per il giorno corrente: un tè o un caffè senza consumo collegato offre «Scala dalla dispensa». */
   scalable?: boolean;

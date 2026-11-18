@@ -127,6 +127,14 @@ export function validateDiaryEvent(event: unknown): ValidationError[] {
           add(`${base}.foodId`, "invalid_value");
         }
       }
+      const energy = item.energyKcal;
+      if (energy !== undefined) {
+        if (typeof energy !== "number" || !Number.isFinite(energy) || energy < 0 || energy > DIARY_LIMITS.energyKcalMax) {
+          add(`${base}.energyKcal`, "invalid_value");
+        }
+        // Un'energia scritta senza conoscere gli alimenti è una stima: non può presentarsi come misurata o da etichetta.
+        if (item.certainty !== undefined && item.certainty !== "estimated") add(`${base}.certainty`, "invalid_value");
+      }
       const q = item.quantity;
       if (q === undefined) return add(`${base}.quantity`, "required");
       if (!isRecord(q)) return add(`${base}.quantity`, "invalid_type");

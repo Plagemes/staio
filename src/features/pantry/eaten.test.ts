@@ -5,7 +5,7 @@ import type { AnyEvent } from "@/core/events";
 import { derivePantry, type ConsumeEvent } from "@/core/ledger";
 import { buildUndo, type ActionContext } from "../actions";
 import { seededRandom } from "@/core/diary/test-helpers";
-import { buildChangeMoment, buildEaten, eatenDayOf, looseConsumesOf, undoPlacement, whereText, type Marked } from "./eaten";
+import { MOMENT_CHOICES, buildChangeMoment, buildEaten, eatenDayOf, inSentence, looseConsumesOf, undoPlacement, whenText, whereText, type Marked } from "./eaten";
 
 const D = "2026-11-16";
 const TZ = "Europe/Rome";
@@ -106,11 +106,11 @@ describe("a cavallo della mezzanotte (ora di Roma)", () => {
   // 00:20 del 17 a Roma: il giorno dopo, fuori pasto
   const NIGHT = "2026-11-16T23:20:00.000Z";
 
-  it("dopo la mezzanotte è fuori pasto del giorno nuovo, e si può dire «ieri, a cena»", () => {
+  it("dopo la mezzanotte è spuntino del giorno nuovo, e si può dire «ieri, a cena»", () => {
     const r = buildEaten([lotOf(log0)], { kind: "value", value: 100 }, ctx(NIGHT), diaryOf(log0));
     if (!r.ok) throw new Error("atteso ok");
     expect(r.marked.date).toBe("2026-11-17");
-    expect(r.message).toBe("Segnato fuori pasto: 100 g di petto di pollo");
+    expect(r.message).toBe("Segnato come spuntino: 100 g di petto di pollo");
     const log1 = [...log0, ...r.events];
     const moved = buildChangeMoment(r.marked, { kind: "dinner", date: "2026-11-16" }, ctx(NIGHT), diaryOf(log1));
     expect(moved.ok && moved.message).toBe("Ora a cena di ieri: 100 g di petto di pollo");
@@ -123,7 +123,8 @@ describe("a cavallo della mezzanotte (ora di Roma)", () => {
   it("whereText dice «di ieri» e, per giorni più lontani, quanti giorni fa", () => {
     expect(whereText("dinner", "2026-11-16", "2026-11-17")).toBe("a cena di ieri");
     expect(whereText("lunch", "2026-11-14", "2026-11-17")).toBe("a pranzo · 3 giorni fa");
-    expect(whereText("snack", "2026-11-17", "2026-11-17")).toBe("fuori pasto");
+    expect(whereText("snack", "2026-11-17", "2026-11-17")).toBe("come spuntino");
+    expect(whereText("snack", "2026-11-16", "2026-11-17")).toBe("come spuntino di ieri");
   });
 });
 
@@ -282,5 +283,18 @@ describe("due dispositivi spostano lo stesso consumo prima di sincronizzarsi", (
       expect(mealsWithPantry(diaryOf(log), log).flatMap((m) => m.pantryConsumes)).toHaveLength(1);
       expect(getDay(diaryOf(log), D)?.meals.map((m) => m.kind)).toEqual(["snack"]);
     }
+  });
+});
+
+describe("un solo nome per il momento senza pasto", () => {
+  it("si chiama «Spuntino» nella scelta e «come spuntino» nelle frasi", () => {
+    expect(MOMENT_CHOICES.find((m) => m.kind === "snack")?.label).toBe("Spuntino");
+    expect(whenText("snack", "2026-11-17", "2026-11-17")).toBe("Oggi come spuntino");
+    expect(whenText("dinner", "2026-11-16", "2026-11-17")).toBe("Ieri a cena");
+  });
+
+  it("il nome in mezzo a una frase comincia con la minuscola, una sigla no", () => {
+    expect(inSentence("Latte intero")).toBe("latte intero");
+    expect(inSentence("IPA chiara")).toBe("IPA chiara");
   });
 });

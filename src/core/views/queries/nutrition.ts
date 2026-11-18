@@ -186,10 +186,16 @@ const topFoods: QueryDef = {
     const sums = new Map<string, { name: string; value: number; certainty: ResolvedLine["certainty"][] }>();
     let total = 0;
     let unresolved = 0;
+    let outOfHome = 0;
     for (const day of days) {
       for (const line of linesOf(day)) {
         if (line.status !== "ok") {
           unresolved += 1;
+          continue;
+        }
+        // Una stima «fuori casa» non è un alimento: di quel pasto non si sa che cosa c'era. Si dice a parte.
+        if (line.outOfHome === true) {
+          outOfHome += 1;
           continue;
         }
         const v = line.nutrients[key];
@@ -202,8 +208,17 @@ const topFoods: QueryDef = {
         total += v;
       }
     }
+    const notes = [
+      ...(unresolved > 0 ? [`${plural(unresolved, "voce non riconosciuta non è contata", "voci non riconosciute non sono contate")}.`] : []),
+      ...(outOfHome > 0
+        ? [`${plural(outOfHome, "pasto fuori casa stimato non è tra gli alimenti", "pasti fuori casa stimati non sono tra gli alimenti")}: di quei pasti non si conosce il contenuto, e le quote riguardano solo il resto.`]
+        : []),
+    ];
     if (days.length === 0 || sums.size === 0) {
-      return insufficient(`Dati insufficienti: nessuna voce tracciata per intero con il dato di ${info.label.toLowerCase()}.`, basis);
+      return insufficient(
+        `Dati insufficienti: nessuna voce tracciata per intero con il dato di ${info.label.toLowerCase()}.${outOfHome > 0 ? ` ${notes[notes.length - 1]}` : ""}`,
+        basis,
+      );
     }
     const rows = [...sums.values()]
       .sort((a, b) => b.value - a.value)
@@ -219,7 +234,7 @@ const topFoods: QueryDef = {
       kind: "rows",
       rows,
       basis,
-      ...(unresolved > 0 ? { note: `${plural(unresolved, "voce non riconosciuta non è contata", "voci non riconosciute non sono contate")}.` } : {}),
+      ...(notes.length > 0 ? { note: notes.join(" ") } : {}),
     };
   },
 };

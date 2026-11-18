@@ -17,9 +17,16 @@ describe("buildMealDeclaration", () => {
     expect(r.events[0]).toMatchObject({ type: "mealDeclaration", date: "2026-11-16", kind: "lunch", status: "skipped" });
   });
 
+  it("l'avviso concorda con il genere del momento", () => {
+    expect(buildMealDeclaration("2026-11-16", "breakfast", "skipped", ctx).message).toBe("Segnato: colazione saltata.");
+    expect(buildMealDeclaration("2026-11-16", "dinner", "skipped", ctx).message).toBe("Segnato: cena saltata.");
+    expect(buildMealDeclaration("2026-11-16", "breakfast", "untracked", ctx).message).toBe("Segnato: colazione mangiata, senza dettagli.");
+    expect(buildMealDeclaration("2026-11-16", "lunch", "untracked", ctx).message).toBe("Segnato: pranzo mangiato, senza dettagli.");
+  });
+
   it("«Mangiato, senza dettagli» dichiara che il dato manca", () => {
     const r = buildMealDeclaration("2026-11-16", "dinner", "untracked", ctx);
-    expect(r.message).toBe("Segnato: cena mangiato, senza dettagli.");
+    expect(r.message).toBe("Segnato: cena mangiata, senza dettagli.");
   });
 
   it("«Annulla» toglie la dichiarazione; si può anche cambiare idea con una nuova", () => {

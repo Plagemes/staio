@@ -125,11 +125,15 @@ describe("pastiglie e scelta di partenza", () => {
     // appena sotto il rimasto sì
     expect(quantityOptions({ lot: pollo, usual: q(399) }).initial?.optionId).toBe("usual");
 
-    // nei gruppi vale lo stesso con «1 confezione»
+    // nei gruppi «Il solito» che vale una confezione parte già scelto (non è tutto il rimasto), e «1 confezione» non si ripete
     const yogurt = [1, 2, 3].map((n) => lotOf("Yogurt", 125, "g", { lotId: `Y${n}` }));
     const packs = quantityOptions({ lot: yogurt[0], group: yogurt, usual: q(125) });
     expect(packs.options.map((o) => o.label)).toEqual(["Il solito (125 g)", "Tutte (3)"]);
-    expect(packs.initial).toBeNull();
+    expect(packs.initial).toEqual({ value: 125, estimated: false, optionId: "usual" });
+
+    // ma se il solito vale tutte le confezioni, no
+    const mousse = [1, 2].map((n) => lotOf("Mousse", 170, "g", { lotId: `M${n}` }));
+    expect(quantityOptions({ lot: mousse[0], group: mousse, usual: q(340) }).initial).toBeNull();
 
     // uova: «Il solito» che le finisce non si sceglie da solo, si riparte da «1 pz»
     const uova = quantityOptions({ lot: lotOf("Uova", 6, "pz", { eaten: 4 }), usual: q(2, "pz") });
@@ -190,7 +194,7 @@ describe("pastiglie e scelta di partenza", () => {
         const start = quantityOptions({ ...args, ...(usual ? { usual } : {}) }).initial;
         expect(["all", "pack-all", "pack-one"]).not.toContain(start?.optionId);
         // e nemmeno su «Il solito» quando vale tutto il rimasto
-        if (start?.optionId === "usual") expect(start.value).toBeLessThan(args.lot.remaining);
+        if (start?.optionId === "usual") expect(start.value).toBeLessThan(args.group ? args.group.reduce((sum, m) => sum + m.remaining, 0) : args.lot.remaining);
       }
     }
   });
@@ -224,11 +228,11 @@ describe("dal selettore all'azione", () => {
 });
 
 describe("che cosa si ricorda come «Il solito»", () => {
-  it("solo le porzioni parziali scelte apposta: mai «Tutto», «1 confezione», «Tutte», «~Metà»", () => {
-    for (const optionId of ["all", "pack-one", "pack-all", "half"]) {
+  it("le porzioni scelte apposta e «1 confezione»: mai «Tutto», «Tutte», «~Metà»", () => {
+    for (const optionId of ["all", "pack-all", "half"]) {
       expect(remembersPortion({ value: 100, estimated: optionId === "half", optionId })).toBe(false);
     }
-    for (const optionId of ["usual", "pieces-1", "pieces-2", "pieces-half", "count-1", "count-2", undefined]) {
+    for (const optionId of ["pack-one", "usual", "pieces-1", "pieces-2", "pieces-half", "count-1", "count-2", undefined]) {
       expect(remembersPortion({ value: 100, estimated: false, ...(optionId ? { optionId } : {}) })).toBe(true);
     }
   });
@@ -242,6 +246,22 @@ describe("che cosa si ricorda come «Il solito»", () => {
     const next = quantityOptions({ lot: lotOf("Petto di pollo", 400, "g", { lotId: "L2" }), ...(usual ? { usual } : {}) });
     expect(next.options.map((o) => o.id)).toEqual(["half", "all"]);
     expect(next.initial).toBeNull();
+  });
+});
+
+describe("«Il solito» per una confezione da una porzione", () => {
+  it("la mousse ricordata con due confezioni: parte «Il solito (170 g)», «Tutte (2)» resta, nessun doppione", () => {
+    const mousse = [1, 2].map((n) => lotOf("Mousse", 170, "g", { lotId: `M${n}` }));
+    const { options, initial } = quantityOptions({ lot: mousse[0], group: mousse, usual: q(170) });
+    expect(options.map((o) => o.label)).toEqual(["Il solito (170 g)", "Tutte (2)"]);
+    expect(initial?.optionId).toBe("usual");
+  });
+
+  it("senza il solito, con una confezione ricordata la volta prima, la riga resta quella di prima", () => {
+    const mousse = [1, 2].map((n) => lotOf("Mousse", 170, "g", { lotId: `M${n}` }));
+    const { options, initial } = quantityOptions({ lot: mousse[0], group: mousse });
+    expect(options.map((o) => o.id)).toEqual(["pack-one", "pack-all"]);
+    expect(initial).toBeNull();
   });
 });
 

@@ -151,3 +151,18 @@
 :global([data-palette="vivo"]) .entry a {
   min-height: 56px;
 }
+
+/* Vivo: la scheda è più stretta della pagina: quantità e confezioni restano comunque sulla stessa riga, con il campo un po' più stretto */
+:global([data-palette="vivo"]) .pair {
+  flex-wrap: nowrap;
+  gap: var(--gap-item);
+}
+
+:global([data-palette="vivo"]) .pairMain {
+  flex: 1 1 0;
+}
+
+/* il contatore tiene la sua larghezza: il totale («3 × 500 g») va a capo sotto, non accanto */
+:global([data-palette="vivo"]) .pairSide {
+  flex: 0 0 8rem;
+}

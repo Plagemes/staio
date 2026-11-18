@@ -61,6 +61,8 @@ che dipende dall'area va aggiunto alla regola `[data-palette="vivo"] [data-area]
 - Pulsanti: `--button-fill`, `--button-text`, `--button-quiet-fill`, `--button-quiet-border`, `--button-quiet-text`, `--radius-button`.
 - Segmenti: `--tabs-gap`, `--tabs-fill`, `--tabs-pad`, `--tabs-radius`, `--tabs-rule-width`, `--tab-grow`, `--tab-pad-x`, `--tab-radius`, `--tab-indicator`, `--tab-selected-fill`, `--tab-selected-shadow`.
 - Barra in basso: `--nav-fill`, `--nav-rule-width`, `--nav-backdrop`, `--nav-current`, `--capture-fill`, `--capture-text`.
+  Il pulsante centrale è «+» (apre il foglio «Aggiungi»): stessi colori (`--capture-fill`, `--capture-text`) e stessa misura di prima.
+- Evidenza di una riga del diario (appena segnata o aperta con `?voce=`): in Vivo sfondo `--area-today-tint`, senza filetto; negli altri temi filetto `--color-rule-strong`. Poi sfuma.
 - Etichette di stato: `--chip-strength`, `--chip-pad-y`, `--chip-pad-x`, `--chip-radius`.
 - Cifre in griglia: `--figure-gap`, `--figure-fill`, `--figure-radius`, `--figure-pad-x`, `--figure-follow-pad`, `--figure-divider`, `--figure-grid-rule`.
 - Barre: `--bar-height`, `--bar-radius`, `--progress-height`, `--progress-track`.

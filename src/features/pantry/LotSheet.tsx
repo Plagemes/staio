@@ -7,7 +7,7 @@ import { useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { isLocalProduct } from "@/core/catalog";
 import { deriveDiary, type DiaryState } from "@/core/diary";
 import { DEFAULT_TIME_ZONE } from "@/core/expiry";
-import type { DeclareEvent, Location, PurchaseEvent } from "@/core/ledger";
+import { buildLotStory, type DeclareEvent, type Location, type PurchaseEvent } from "@/core/ledger";
 import { formatQuantity } from "@/core/units";
 import { appendEvents, getAllEvents, getDeviceId, getPantry, useDiary, useEventLog, usePantry } from "@/data";
 import { Button, ExpiryTag, Label, LevelBar, Value } from "@/design";
@@ -22,12 +22,14 @@ import { useNotice } from "../notice";
 import { useProducts } from "../nutrition/useNutrition";
 import { addManualEntries } from "../shopping";
 import ui from "../ui.module.css";
-import { buildEaten, undoPlacement } from "./eaten";
+import { buildEaten, inSentence, undoPlacement } from "./eaten";
 import { byNearestExpiry, entryDate } from "./groups";
 import { LotActions, type Perform, type Step } from "./LotActions";
+import { LotHistory } from "./LotHistory";
 import { LotNutrition, lotValuesSummary, useLotValues } from "./LotNutrition";
 import { amountFor, amountLabel, quantityOptions, remembersPortion } from "./quantityOptions";
 import { SAVE_LABELS, saveActions } from "./saveActions";
+import { storyLines, storySummary } from "./storyText";
 import { rememberPortion, useUsualPortion } from "./usePortions";
 import styles from "./LotSheet.module.css";
 
@@ -58,6 +60,8 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
   const products = useProducts();
   const notice = useNotice();
   const ids = useId();
+  /** Dove i passi di conferma mettono il loro pulsante pieno: la riga del piede, accanto a «Indietro». */
+  const [actionSlot, setActionSlot] = useState<HTMLDivElement | null>(null);
   const members = useMemo(() => (group && group.length > 1 ? byNearestExpiry(group) : []), [group]);
   const [chosenId, setChosenId] = useState<string | null>(initialLotId ?? null);
   const entry = members.find((m) => m.lot.lotId === chosenId) ?? members[0] ?? initialEntry;
@@ -97,6 +101,19 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
     setStep(next);
     setError(null);
   };
+  /** Un passo indietro: da «Date diverse» a «Correggi», da ogni altro passo alla scheda. Lo fa «Indietro» nel piede e lo fa il tasto indietro del telefono. */
+  const stepBack = () => go(step === "dates" ? "correct" : "main");
+
+  // la storia compare quando il registro è stato letto: prima mancherebbero i pasti, i prezzi e i campi corretti
+  const story = useMemo(() => {
+    if (!log.data) return undefined;
+    const rows = buildLotStory(lot, log.data);
+    if (rows.length === 0) return undefined;
+    return {
+      summary: storySummary(rows, { timeZone, now }),
+      lines: storyLines(rows, { unit: lot.unit, diary: diary.data, timeZone, now }),
+    };
+  }, [lot, log.data, diary.data, timeZone, now]);
 
   /** Una scrittura alla volta: un secondo tocco mentre la prima è in corso non fa niente. */
   const begin = (): boolean => {
@@ -159,12 +176,16 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
         return;
       }
       const eaten = result.marked.consumes[0]?.quantity;
-      if (remembersPortion(amount) && eaten) {
+      // «1 confezione» è una porzione solo se la confezione era intatta
+      const intact = amount.optionId !== "pack-one" || (eaten !== undefined && eaten.unit === lot.unit && Math.abs(eaten.value - lot.initial) < 1e-6);
+      if (remembersPortion(amount) && intact && eaten) {
         void rememberPortion(lot.productRef, { ...eaten, ...(amount.estimated ? { estimated: true } : {}) }, at);
       }
 
       const { events } = result;
       const date = result.marked.date;
+      const firstId = result.marked.consumes[0]?.id;
+      const params = [...(date === dayOf(at, timeZone) ? [] : [`giorno=${date}`]), ...(firstId ? [`voce=${encodeURIComponent(firstId)}`] : [])];
       onClose();
       notice.show({
         message: result.message,
@@ -173,7 +194,7 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
           const [all, current] = await Promise.all([getAllEvents(), getPantry()]);
           await appendEvents(undoPlacement(events, all, current.voidedEventIds, { now: new Date().toISOString(), deviceId: await getDeviceId() }));
         },
-        link: { label: "Vedi in Oggi", href: date === dayOf(at, timeZone) ? "/app" : `/app?giorno=${date}` },
+        link: { label: "Vedi in Oggi", href: params.length > 0 ? `/app?${params.join("&")}` : "/app" },
       });
     } catch {
       setError("Non sono riuscito a salvare sul telefono. Riprova.");
@@ -188,7 +209,15 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
       const result = buildOpen(lot, ctx);
       if (!result.ok) return result;
       const after = evaluateLots([{ ...lot, openedAt: ctx.now }], ctx.now)[0];
-      return after?.expiry ? { ...result, message: `${result.message} ${sentence(expiryExplanation(after))}` } : result;
+      const message = `Segnato aperto: ${inSentence(lot.productRef)}.`;
+      if (!after?.expiry) return { ...result, message };
+      const { expiry } = after;
+      // la durata dopo l'apertura è una stima, salvo che venga dall'etichetta del prodotto
+      const text =
+        expiry.basis === "opened"
+          ? `Dopo l'apertura: entro ${formatCalendarDate(expiry.date)}${expiry.openedFrom === "product" ? "" : ", stima"}`
+          : expiryExplanation(after);
+      return { ...result, message: `${message} ${sentence(text)}` };
     });
 
   /** Rimette in lista la quantità con cui era entrato: si cambia poi nella lista. */
@@ -217,7 +246,9 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
   const initialText = formatQuantity({ value: lot.initial, unit: lot.unit });
   const remainingCertainty = lot.remainingCertainty === "estimated" ? "estimated" : "measured";
   const freezeEntry = saveActions(entry).includes("freeze") ? previewExpiryAfterMove(lot, "freezer", now) : undefined;
-  const freezePreview = freezeEntry?.expiry ? expiryExplanation(freezeEntry) : null;
+  const freezePreview = freezeEntry?.expiry
+    ? `In freezer: fino al ${formatCalendarDate(freezeEntry.expiry.date)}${freezeEntry.expiry.certainty === "estimated" ? ", stima" : ""}.`
+    : null;
   const qualityHref =
     lot.barcode && !isLocalProduct(products?.get(lot.barcode)) ? `/app/qualita/prodotto?codice=${encodeURIComponent(lot.barcode)}` : undefined;
 
@@ -269,7 +300,7 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
               {SAVE_LABELS.freeze}
             </Button>
           </div>
-          {freezePreview ? <span className={ui.hint}>{`In freezer: ${freezePreview}`}</span> : null}
+          {freezePreview ? <span className={ui.hint}>{freezePreview}</span> : null}
         </div>
       ) : null}
 
@@ -310,9 +341,19 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
   ) : null;
 
   let footer: ReactNode;
-  if (step !== "main") {
+  if (step === "correct" || step === "discard" || step === "move" || step === "dates") {
+    // un passo con un solo pulsante che conferma: «Indietro» a sinistra, il pulsante del passo (messo da `LotActions`) a destra
     footer = (
-      <Button variant="text" className={styles.back} disabled={busy} onClick={() => go(step === "dates" ? "correct" : "main")}>
+      <div className={styles.stepFooter}>
+        <Button variant="text" className={styles.backInline} disabled={busy} onClick={stepBack}>
+          Indietro
+        </Button>
+        <div ref={setActionSlot} className={styles.stepAction} />
+      </div>
+    );
+  } else if (step !== "main") {
+    footer = (
+      <Button variant="text" className={styles.back} disabled={busy} onClick={stepBack}>
         Indietro
       </Button>
     );
@@ -366,7 +407,7 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
   }
 
   return (
-    <Sheet title={lot.productRef} titleHidden head={head} footer={footer} busy={busy} onClose={onClose}>
+    <Sheet title={lot.productRef} titleHidden head={head} footer={footer} busy={busy} onClose={onClose} onBack={step === "main" ? undefined : stepBack}>
       {step === "main" ? (
         <>
           {left ? (
@@ -437,6 +478,11 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
             <Disclosure title="Valori nutrizionali" summary={lotValuesSummary(values)}>
               <LotNutrition lot={lot} />
             </Disclosure>
+            {story ? (
+              <Disclosure title="Storia" summary={story.summary}>
+                <LotHistory lines={story.lines} />
+              </Disclosure>
+            ) : null}
           </div>
         </>
       ) : (
@@ -452,6 +498,8 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
           error={error}
           moveTo={moveTo}
           moveInFooter={opened}
+          actionSlot={actionSlot}
+          formId={`${ids}-step`}
           qualityHref={qualityHref}
           onStep={(next) => {
             if (next === "move") setMoveTo(undefined);

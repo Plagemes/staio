@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { AnyEvent } from "@/core/events";
-import { derivePantry } from "@/core/ledger";
+import { derivePantry, type LedgerEvent } from "@/core/ledger";
 import { buildUndo } from "./actions";
 import { buildCaptureEvents } from "./capture";
-import { buildJournal } from "./journal";
+import { buildJournal, undoBlockOf } from "./journal";
 
 const NOW = "2026-11-16T10:00:00.000Z"; // 11:00 a Roma
 
@@ -110,5 +110,49 @@ describe("la riga «Dispensa» del diario: senza i consumi dei pasti", () => {
     expect(buildJournal(events, pantry, "2026-11-16", undefined, { withoutMealConsumes: false })).toEqual(plain);
     expect(plain.flatMap((r) => r.ids).sort()).toEqual([entry[0].id, "alone", "in-meal", "quick"].sort());
     expect(plain.filter((r) => !r.canUndo).flatMap((r) => r.ids).sort()).toEqual([entry[0].id, "in-meal", "quick"].sort());
+  });
+});
+
+describe("undoBlockOf: la regola della riga «Dispensa», riusata da «Ultime azioni»", () => {
+  const consume = (id: string, lotId: string, grams: number, extra: Record<string, unknown> = {}): LedgerEvent =>
+    ({
+      id, type: "consume", at: "2026-11-16T12:11:00.000Z", recordedAt: "2026-11-16T12:11:00.000Z", deviceId: "d", schemaVersion: 1,
+      certainty: "measured", source: "manual", lotId, quantity: { value: grams, unit: "g" }, ...extra,
+    }) as LedgerEvent;
+  const entry = add("Petto di pollo", "1 kg") as LedgerEvent[];
+  const lotId = (entry[0] as { lotId: string }).lotId;
+  const inMeal = consume("in-meal", lotId, 100, { mealId: "meal-1" });
+  const quick = consume("quick", lotId, 150, { mealId: "meal-2", note: "quick" });
+  const alone = consume("alone", lotId, 200);
+  const events = [...entry, inMeal, quick, alone];
+  const pantry = derivePantry(events);
+
+  it("dà a ogni evento lo stesso motivo che buildJournal mette sulla sua riga", () => {
+    const rows = buildJournal(events, pantry, "2026-11-16");
+    for (const e of events) {
+      const row = rows.find((r) => r.ids.includes(e.id));
+      expect(undoBlockOf(e, pantry), e.id).toBe(row?.undoBlocked);
+      expect(row?.canUndo, e.id).toBe(undoBlockOf(e, pantry) === undefined);
+    }
+    expect(undoBlockOf(alone, pantry)).toBeUndefined();
+    expect(undoBlockOf(inMeal, pantry)).toMatch(/Fa parte di un pasto/);
+    expect(undoBlockOf(quick, pantry)).toMatch(/momento in cui l'hai segnato/);
+    expect(undoBlockOf(entry[0], pantry)).toMatch(/ha già altri movimenti/);
+  });
+
+  it("un ingresso senza altri movimenti si toglie; uno il cui alimento non c'è più, pure", () => {
+    const fresh = add("Yogurt", "125 g") as LedgerEvent[];
+    expect(undoBlockOf(fresh[0], derivePantry(fresh))).toBeUndefined();
+    expect(undoBlockOf(fresh[0], derivePantry([]))).toBeUndefined();
+  });
+
+  it("con gli eventi che si annullano insieme: i consumi di un pasto non fermano, e i movimenti dell'elenco non contano", () => {
+    const all = new Set(events.map((e) => e.id));
+    expect(undoBlockOf(inMeal, pantry, all)).toBeUndefined();
+    expect(undoBlockOf(quick, pantry, all)).toBeUndefined();
+    expect(undoBlockOf(entry[0], pantry, all)).toBeUndefined();
+    // basta un movimento fuori dall'elenco perché l'ingresso resti fermo
+    expect(undoBlockOf(entry[0], pantry, new Set([entry[0].id, "in-meal", "quick"]))).toMatch(/ha già altri movimenti/);
+    expect(undoBlockOf(entry[0], pantry, new Set())).toMatch(/ha già altri movimenti/);
   });
 });

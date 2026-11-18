@@ -6,6 +6,7 @@ import { Button, LedgerRow, Value } from "@/design";
 import { buildUndo } from "../actions";
 import type { JournalRow } from "../journal";
 import ui from "../ui.module.css";
+import { entryElementId } from "./reveal";
 import { useRemove } from "./useRemove";
 import styles from "./Today.module.css";
 
@@ -34,7 +35,8 @@ export function PantryJournal({ rows, log }: { rows: readonly JournalRow[]; log:
       {rows.map((row) => {
         const open = openId === row.id;
         return (
-          <li key={row.id}>
+          // una riga che racconta più eventi uguali si trova anche dagli altri: `?voce=` cerca anche in `data-voci`
+          <li key={row.id} id={entryElementId(row.id)} data-voci={row.ids.join(" ")}>
             <div className={styles.entry}>
               <LedgerRow time={row.time} description={row.description} value={row.estimated ? <Value certainty="estimated">{row.value}</Value> : row.value} />
               <button

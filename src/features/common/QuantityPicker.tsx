@@ -38,8 +38,12 @@ export interface QuantityPickerProps {
 /** Il selettore di quantità: una riga di pastiglie e, dietro l'ultima, un campo numerico con l'unità fissa e i tasti «−» e «+». */
 export function QuantityPicker({ label, unit, options, value, onChange, max, error }: QuantityPickerProps): ReactElement {
   const ids = useId();
-  /** «Altra quantità» scelta a mano: resta scelta anche mentre il campo è vuoto o sbagliato (valore `null`). */
-  const [custom, setCustom] = useState(false);
+  /**
+   * «Altra quantità» scelta a mano: resta scelta anche mentre il campo è vuoto o sbagliato (valore `null`).
+   * Parte già scelta se all'apertura c'è un valore che non è una pastiglia (una quantità da correggere): altrimenti,
+   * svuotando il campo per riscriverla, il campo sparirebbe.
+   */
+  const [custom, setCustom] = useState(() => value !== null && !options.some((option) => option.id === value.optionId));
   const [text, setText] = useState("");
 
   const chosen = value === null ? undefined : options.find((option) => option.id === value.optionId);

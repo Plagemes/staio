@@ -11,6 +11,8 @@ import {
   type EventLike,
   type ValidationError,
 } from "../ledger";
+// `consumeRoots` non è tra le esportazioni del libro mastro: serve solo qui, per ragionare per famiglie di consumi
+import { consumeRoots } from "../ledger/supersede";
 import { isOtherFamilyEvent } from "./foreign";
 import { isDiaryEvent, validateDiaryEvent } from "./validate";
 import { resolveVoids, type VoidFinding, type VoidRef } from "./voids";
@@ -44,6 +46,19 @@ function knownErrors(e: unknown): ValidationError[] {
 /** Criterio di validità per l'unione: tra versioni diverse con lo stesso id vince quella valida. */
 export function isValidKnownEvent(e: unknown): boolean {
   return safe(() => knownErrors(e).length === 0, false);
+}
+
+/**
+ * Gli eventi su cui si ragiona per famiglie di consumi: quelli validi, più ogni evento che non è della dispensa
+ * (anche non valido o di tipo sconosciuto). Un consumo che cita uno di questi non cita un consumo: è la stessa
+ * regola con cui la dispensa tratta gli eventi degli altri moduli, così dispensa e diario contano le stesse voci.
+ */
+function familyEvents(events: readonly unknown[]): unknown[] {
+  return events.filter(
+    (e) =>
+      isValidKnownEvent(e) ||
+      (isRecord(e) && typeof e.type === "string" && typeof e.id === "string" && !safe(() => isPantryEvent(e), false)),
+  );
 }
 
 /** Evento di dispensa o di un'altra famiglia nota: il diario lo ignora. */
@@ -84,7 +99,10 @@ export function rejectedKey(item: unknown): string {
 }
 
 export interface VoidsOfLog {
+  /** Eventi che non contano: annullati da un `void`, più i consumi scartati perché un altro della famiglia vale al loro posto. */
   voided: Set<string>;
+  /** Tra i `voided`, i consumi che nessun `void` ha annullato: non contano solo perché ne vale un altro. */
+  superseded: Set<string>;
   findings: VoidFinding[];
 }
 
@@ -100,9 +118,67 @@ export function voidsOfLog(events: readonly unknown[]): VoidsOfLog {
     }
   }
   const { voided, findings } = resolveVoids(refs, knownIds);
-  // due sostituti dello stesso consumo (due dispositivi): ne vale uno solo, come nella dispensa
-  for (const id of supersededConsumes(events.filter(isValidKnownEvent), voided)) voided.add(id);
-  return { voided, findings };
+  // più sostituti dello stesso consumo (due dispositivi): ne vale uno solo, come nella dispensa
+  const superseded = supersededConsumes(familyEvents(events), voided);
+  for (const id of superseded) voided.add(id);
+  return { voided, superseded, findings };
+}
+
+/** `a` è stato registrato dopo `b`: per `recordedAt`, poi per `id`. */
+function recordedAfter(a: ConsumeEvent, b: ConsumeEvent): boolean {
+  const d = Date.parse(a.recordedAt) - Date.parse(b.recordedAt);
+  return d > 0 || (d === 0 && a.id > b.id);
+}
+
+const isValidConsume = (e: unknown): e is ConsumeEvent =>
+  isRecord(e) && e.type === "consume" && typeof e.id === "string" && isValidKnownEvent(e);
+
+/**
+ * Le voci della dispensa tolte da ogni pasto, per `mealId`. Una voce è una famiglia di consumi (un consumo e i suoi
+ * sostituti): è tolta solo se nessuno della famiglia è ancora valido. Un consumo annullato perché corretto o spostato
+ * ha un sostituto valido, quindi non è una voce tolta. La voce tolta va al pasto in cui stava per ultimo.
+ * `events` è il registro unito, `voids` il risultato di `voidsOfLog` sullo stesso registro.
+ */
+export function removedMealLines(events: readonly unknown[], voids: VoidsOfLog): Map<string, number> {
+  const roots = consumeRoots(familyEvents(events));
+  const families = new Map<string, { alive: boolean; last: ConsumeEvent }>();
+  for (const c of events) {
+    if (!isValidConsume(c)) continue;
+    const alive = !voids.voided.has(c.id) || voids.superseded.has(c.id);
+    const root = roots.get(c.id) ?? c.id;
+    const family = families.get(root);
+    if (!family) families.set(root, { alive, last: c });
+    else {
+      family.alive = family.alive || alive;
+      if (recordedAfter(c, family.last)) family.last = c;
+    }
+  }
+  const out = new Map<string, number>();
+  for (const { alive, last } of families.values()) {
+    if (alive || typeof last.mealId !== "string" || last.mealId === "") continue;
+    out.set(last.mealId, (out.get(last.mealId) ?? 0) + 1);
+  }
+  return out;
+}
+
+/**
+ * Tutti i `consume` ancora validi (non annullati da un `void`) della famiglia dei consumi dati: i consumi stessi, i
+ * loro sostituti e ciò che sostituiscono, anche quelli che oggi non contano perché ne vale un altro. Sono gli eventi da
+ * annullare per togliere una voce: annullando solo quello mostrato tornerebbe a contare il sostituto scritto da un altro
+ * dispositivo. Ordine canonico. Serve il registro intero, `void` compresi.
+ */
+export function familyConsumes(events: Iterable<unknown>, of: readonly Pick<ConsumeEvent, "id">[]): ConsumeEvent[] {
+  const log = prepareLog(events);
+  const voids = voidsOfLog(log.events);
+  const roots = consumeRoots(familyEvents(log.events));
+  const wanted = new Set(of.map((c) => roots.get(c.id) ?? c.id));
+  const out: ConsumeEvent[] = [];
+  for (const e of log.events) {
+    if (!isValidConsume(e)) continue;
+    if (voids.voided.has(e.id) && !voids.superseded.has(e.id)) continue;
+    if (wanted.has(roots.get(e.id) ?? e.id)) out.push(e);
+  }
+  return out;
 }
 
 /**

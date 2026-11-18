@@ -15,7 +15,7 @@ import {
   formatNutrient,
   nutrientLabel,
 } from "./labels";
-import { buildNutritionRows, averageIntake, inPeriod, periodOf, topContributors, type ComparisonRow } from "./prepare";
+import { buildNutritionRows, averageIntake, inPeriod, outOfHomeDayCount, outOfHomeDaysText, periodOf, topContributors, type ComparisonRow } from "./prepare";
 import { toEngineProfile } from "./profile";
 import styles from "./nutrition.module.css";
 import { createFoodSearch, type FoodOption, type FoodSearch } from "./candidates";
@@ -98,7 +98,7 @@ function Row({
                       <span className={styles.contributorShare}>{Math.round(c.share * 100)}%</span>
                     </div>
                     {c.stateText ? <span className={c.stateHonored === false ? styles.stateWarning : styles.matched}>{c.stateText}</span> : null}
-                    {search ? (
+                    {search && !c.outOfHome ? (
                       <div>
                         <Button variant="text" aria-expanded={changing === c.key} onClick={() => setChanging(changing === c.key ? null : c.key)}>
                           Non è questo alimento?
@@ -149,6 +149,7 @@ function WhatToKnow() {
         <li>Molti alimenti comuni non sono riconosciuti da soli: vanno scelti dall&apos;elenco, voce per voce, quando li scrivi in un pasto.</li>
         <li>Nei pasti va detto se l&apos;alimento è pesato a crudo o cotto: la differenza è grande, soprattutto per pasta e riso.</li>
         <li>La carne nei pasti, dove nella tabella non esiste la voce cotta, è calcolata a crudo, e l&apos;app lo indica accanto al valore.</li>
+        <li>Un pasto registrato come «Fuori casa» conta nei giorni completi con una stima della sola energia: per gli altri nutrienti il dato manca.</li>
         <li>Servono almeno cinque giorni completi per un confronto con i riferimenti.</li>
       </ul>
     </section>
@@ -187,6 +188,7 @@ export function Nutrition() {
   }
 
   const complete = periodDays.filter((d) => d.complete).length;
+  const outOfHomeText = outOfHomeDaysText(outOfHomeDayCount(periodDays));
   const averages = AVERAGED.flatMap((k) => {
     const a = averageIntake(periodDays, k);
     return a ? [{ key: k, avg: a }] : [];
@@ -222,13 +224,14 @@ export function Nutrition() {
       <Tabs label="Periodo" items={PERIODS} value={period} onChange={setPeriod} />
       <p className={ui.hint}>
         Giorni completi nel periodo: {complete} su {periodDays.length}. Contano solo i giorni con colazione, pranzo e cena tracciati.
+        {outOfHomeText ? ` ${outOfHomeText}` : ""}
       </p>
 
       <section className={ui.section}>
         <SectionHeader label="Assunzione media al giorno" />
         {averages.length === 0 ? (
           <p className={styles.quiet}>
-            Ancora nessun giorno completo con dati nel periodo. Registra colazione, pranzo e cena (anche come «ho mangiato fuori») per vedere le medie.
+            Ancora nessun giorno completo con dati nel periodo. Registra colazione, pranzo e cena (anche come «Fuori casa», che conta come stima) per vedere le medie.
           </p>
         ) : (
           <ul className={styles.contributors}>

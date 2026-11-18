@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { closeSheetThen, isInternalHref, isOwnEntry, sheetMarkerOf, systemClosesDialogs, withSheetMarker } from "./sheetHistory";
+import { backRequest, closeSheetThen, isInternalHref, isOwnEntry, sheetMarkerOf, systemClosesDialogs, withSheetMarker } from "./sheetHistory";
 
 describe("il passo del foglio nella cronologia", () => {
   const next = { __NA: true, __PRIVATE_NEXTJS_INTERNALS_TREE: { tree: ["", {}], renderedSearch: "" } };
@@ -56,6 +56,41 @@ describe("dove il tasto indietro chiude già il dialog", () => {
     expect(systemClosesDialogs({ hasCloseWatcher: true, userAgent: iphone })).toBe(false);
     // sul computer CloseWatcher risponde solo a Esc
     expect(systemClosesDialogs({ hasCloseWatcher: true, userAgent: desktop, platform: "Windows" })).toBe(false);
+  });
+});
+
+describe("che cosa fa un «indietro» a foglio aperto", () => {
+  it("senza passo interno chiude il foglio", () => {
+    expect(backRequest({ hasBack: false, busy: false })).toBe("close");
+  });
+
+  it("dentro un passo interno torna al passo prima, e il foglio resta", () => {
+    expect(backRequest({ hasBack: true, busy: false })).toBe("back");
+    expect(backRequest({ hasBack: true, busy: false, leftPage: false })).toBe("back");
+  });
+
+  it("con un'azione in corso non fa niente", () => {
+    expect(backRequest({ hasBack: true, busy: true })).toBe("stay");
+    expect(backRequest({ hasBack: false, busy: true })).toBe("stay");
+  });
+
+  it("se la pagina è stata lasciata il foglio si chiude comunque", () => {
+    expect(backRequest({ hasBack: true, busy: false, leftPage: true })).toBe("close");
+    expect(backRequest({ hasBack: true, busy: true, leftPage: true })).toBe("close");
+    expect(backRequest({ hasBack: false, busy: false, leftPage: true })).toBe("close");
+  });
+
+  it("il passo rimesso dopo un «indietro» in un passo interno porta lo stesso segno del foglio", () => {
+    const page = { __NA: true, __PRIVATE_NEXTJS_INTERNALS_TREE: { tree: ["", {}], renderedSearch: "" } };
+    const opened = withSheetMarker(page, "a-1");
+    // l'«indietro» ha riportato sul passo della pagina: il foglio resta aperto e il suo passo torna in cima
+    expect(backRequest({ hasBack: true, busy: false })).not.toBe("close");
+    const restored = withSheetMarker(page, "a-1");
+    expect(sheetMarkerOf(restored)).toBe(sheetMarkerOf(opened));
+    expect(isOwnEntry(restored, "a-1")).toBe(true);
+    expect(restored.__PRIVATE_NEXTJS_INTERNALS_TREE).toBe(page.__PRIVATE_NEXTJS_INTERNALS_TREE);
+    // rimesso due volte resta un passo solo dello stesso foglio
+    expect(withSheetMarker(restored, "a-1")).toEqual(restored);
   });
 });
 

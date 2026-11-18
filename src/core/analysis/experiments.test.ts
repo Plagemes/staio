@@ -445,3 +445,49 @@ describe("compareExperiment", () => {
 });
 
 const clamp15 = (v: number): number => Math.min(5, Math.max(1, Math.round(v)));
+
+describe("compareExperiment: pasti fuori casa stimati", () => {
+  /** 28 giorni completi con umore; nei giorni indicati il pranzo è una stima fuori casa da 800 kcal. */
+  function log(outOn: (i: number) => boolean) {
+    const events: unknown[] = [];
+    for (let i = 0; i < 28; i++) {
+      events.push(...day(i, { kcal: i < 14 ? 2200 : 1900, ...(outOn(i) ? { outOfHome: { kind: "lunch" as const, kcal: 800 } } : {}) }));
+      events.push(moodOn(i, 3 + (i % 2)));
+    }
+    return analyze(events);
+  }
+  const experiment = (over: Partial<ExperimentBody>) => deriveExperiments([make(over)]).experiments[0];
+
+  it("energia assunta: i giorni in cui la stima pesa non entrano nel confronto, e l'avvertenza dice quanti", () => {
+    const { diary, intakeDays } = log((i) => i === 3 || i === 20 || i === 21);
+    const r = compareExperiment(experiment({ measures: ["energyIntake"], excludedFoods: [] }), { diary, intakeDays });
+    if (r.status !== "ok") throw new Error("atteso ok");
+    const energy = r.measures[0];
+    if (energy.status !== "compared") throw new Error("atteso un confronto");
+    expect(energy.reference.n).toBe(13);
+    expect(energy.experiment.n).toBe(12);
+    expect(energy.reference.mean).toBeCloseTo(2200, 0);
+    expect(energy.experiment.mean).toBeCloseTo(1900, 0);
+    expect(r.caveats).toContain(
+      "Energia assunta: 3 giorni con un pasto fuori casa stimato non entrano nel confronto, perché l'energia di quei giorni è in buona parte un valore generico.",
+    );
+  });
+
+  it("aderenza: «Fuori casa» non è un alimento, e i giorni con una stima sono dichiarati", () => {
+    const { diary, intakeDays } = log((i) => i === 15 || i === 16);
+    const r = compareExperiment(experiment({ excludedFoods: ["casa"] }), { diary, intakeDays });
+    if (r.status !== "ok") throw new Error("atteso ok");
+    // la parola «casa» sta nel nome della stima: non deve valere come alimento escluso mangiato
+    expect(r.adherence.measured).toMatchObject({ daysChecked: 14, daysAdherent: 14 });
+    expect(r.caveats).toContain(
+      "In 2 giorni dell'esperimento c'è un pasto fuori casa stimato: di quel pasto non si conoscono gli alimenti, quindi l'aderenza misurata può essere più alta del vero.",
+    );
+  });
+
+  it("senza pasti fuori casa non c'è nessuna avvertenza in più", () => {
+    const { diary, intakeDays } = log(() => false);
+    const r = compareExperiment(experiment({ measures: ["energyIntake", "mood"] }), { diary, intakeDays });
+    if (r.status !== "ok") throw new Error("atteso ok");
+    expect(r.caveats.join(" ")).not.toMatch(/fuori casa/);
+  });
+});

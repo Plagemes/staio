@@ -26,14 +26,16 @@ const round3 = (n: number): number => Math.round(n * 1000) / 1000;
  * Le pastiglie per un alimento, nell'ordine: «Il solito», i pezzi (o «1 pz», «2 pz»), le confezioni di un gruppo,
  * «~Metà», «Tutto». Due pastiglie con la stessa quantità diventano una: resta la prima.
  * `group` sono le confezioni uguali (almeno due) di cui `lot` fa parte; vuoto se è solo.
- * Si parte da «Il solito», altrimenti da un pezzo; mai da «Tutto», «Tutte» o «1 confezione», e nemmeno da un «solito»
- * che vale quanto tutto il rimasto: quello si mostra, ma lo sceglie chi usa l'app.
+ * Si parte da «Il solito», altrimenti da un pezzo; mai da «Tutto», «Tutte» o «1 confezione» in quanto tali, e nemmeno
+ * da un «solito» che vale quanto tutto il rimasto (in un gruppo: di tutte le confezioni): quello si mostra, ma lo
+ * sceglie chi usa l'app. In un gruppo «Il solito» che vale una confezione parte già scelto: è ciò che si è fatto l'ultima volta.
  */
 export function quantityOptions({ lot, group = [], usual }: { lot: Lot; group?: readonly Lot[]; usual?: RememberedPortion }): QuantityChoices {
   if (!(lot.remaining > 0)) return { options: [], initial: null };
   const unit = lot.unit;
   const text = (value: number): string => formatQuantity({ value, unit });
   const found: LotQuantityOption[] = [];
+  const total = round3((group.length > 1 ? group : [lot]).reduce((sum, member) => sum + member.remaining, 0));
 
   if (usual && usual.unit === unit && usual.value > 0 && usual.value <= lot.remaining + EPSILON) {
     const shown = `${usual.estimated ? "~" : ""}${text(usual.value)}`;
@@ -53,7 +55,6 @@ export function quantityOptions({ lot, group = [], usual }: { lot: Lot; group?: 
   }
 
   if (group.length > 1) {
-    const total = round3(group.reduce((sum, member) => sum + member.remaining, 0));
     found.push({ id: "pack-one", label: "1 confezione", value: lot.remaining, summary: "1 confezione" });
     found.push({ id: "pack-all", label: `Tutte (${group.length})`, value: total, summary: `tutte (${group.length})` });
   } else {
@@ -73,7 +74,7 @@ export function quantityOptions({ lot, group = [], usual }: { lot: Lot; group?: 
   // un pezzo che coincide con «Il solito» è sparito come doppione: non si ripiega sul pezzo dopo
   const firstPiece = found.find((o) => o.id.startsWith("pieces-"));
   const start =
-    options.find((o) => o.id === "usual" && o.value < lot.remaining - EPSILON) ??
+    options.find((o) => o.id === "usual" && o.value < total - EPSILON) ??
     (firstPiece && options.includes(firstPiece) ? firstPiece : undefined) ??
     (unit === "pz" ? options.find((o) => o.id === "count-1") : undefined);
   return {
@@ -98,12 +99,13 @@ export function amountFor(value: QuantityValue): { target: "lot" | "group"; choi
 }
 
 /**
- * Se ciò che si è appena mangiato è una porzione da riproporre come «Il solito»: solo le quantità parziali scelte
- * apposta (scritte a mano, pezzi, «1 pz», il solito di prima). «Tutto», «1 confezione», «Tutte» e «~Metà» dipendono
- * dalla confezione, non da quanto si mangia di solito.
+ * Se ciò che si è appena mangiato è una porzione da riproporre come «Il solito»: le quantità scelte apposta (scritte a
+ * mano, pezzi, «1 pz», il solito di prima) e «1 confezione». «Tutto», «Tutte» e «~Metà» dipendono dalla confezione,
+ * non da quanto si mangia di solito. «1 confezione» vale solo se la confezione era intatta (una da una porzione, come
+ * uno yogurt): chi chiama lo controlla, perché una confezione già cominciata dà una quantità che non è una porzione.
  */
 export function remembersPortion(value: QuantityValue): boolean {
-  return !["all", "pack-one", "pack-all", "half"].includes(value.optionId ?? "");
+  return !["all", "pack-all", "half"].includes(value.optionId ?? "");
 }
 
 /** Il testo del pulsante: «Mangiato · 150 g», «Mangiato · Una piadina», «Mangiato · tutte (3)»; senza scelta solo il verbo. */

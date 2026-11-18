@@ -1,12 +1,13 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { BottomNav, type NavArea } from "@/design";
 import { InstallHint, useOnlineStatus } from "@/pwa";
 import { NoticeProvider } from "../notice";
 import { Onboarding, useOnboardingGate } from "../onboarding";
 import { StyleChoice, StyleChoiceBoundary, useStyleChoiceGate } from "../settings/StyleChoice";
+import { AddSheet } from "./AddSheet";
 import { BarcodeMigration } from "./BarcodeMigration";
 import styles from "./AppShell.module.css";
 
@@ -24,6 +25,7 @@ function areaOf(pathname: string): NavArea | "capture" | undefined {
     pathname === "/app/" ||
     pathname.startsWith("/app/impostazioni") ||
     pathname.startsWith("/app/assistente") ||
+    pathname.startsWith("/app/attivita") ||
     pathname.startsWith("/app/pasto") ||
     pathname.startsWith("/app/pasti-abituali")
   )
@@ -48,6 +50,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const area = areaOf(pathname);
   const styleChoice = useStyleChoiceGate(pathname);
   const onboarding = useOnboardingGate(pathname);
+  const [adding, setAdding] = useState(false);
+  // finché si sceglie lo stile o si fa l'introduzione il «+» non apre niente: sotto non c'è ancora l'app
+  const canAdd = !styleChoice.show && !onboarding.show;
   return (
     <NoticeProvider>
       <BarcodeMigration />
@@ -76,8 +81,15 @@ export function AppShell({ children }: { children: ReactNode }) {
           )}
         </main>
         <div className={styles.nav}>
-          <BottomNav current={area} hrefs={HREFS} />
+          <BottomNav
+            current={area}
+            hrefs={HREFS}
+            onAdd={() => {
+              if (canAdd) setAdding(true);
+            }}
+          />
         </div>
+        {adding && canAdd ? <AddSheet onClose={() => setAdding(false)} /> : null}
       </div>
     </NoticeProvider>
   );

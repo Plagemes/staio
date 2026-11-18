@@ -7,6 +7,12 @@ import { ledgerEventsOf } from "./events";
 export const BARCODE_MIGRATION_KEY = "migrations.barcodeFromNote";
 
 /**
+ * La nota degli eventi che l'app scrive da sola, senza un tocco dell'utente (una migrazione dei dati). «Ultime azioni»
+ * mostra solo ciò che l'utente ha fatto: questi eventi restano fuori dall'elenco.
+ */
+export const AUTOMATIC_NOTE = "automatico";
+
+/**
  * Il testo esatto che la cattura scriveva nella nota prima del campo `barcode`: "Codice a barre N",
  * eventualmente seguito da " · marca". La nota di una riga di scontrino inizia con "Riga scontrino:" e non
  * corrisponde, così come qualunque testo che contenga il codice altrove.
@@ -48,7 +54,9 @@ export function legacyBarcodeUpdates(
       // l'originale non c'è più, o aveva un codice diverso da quello della correzione: non si indovina
       if (!original || originalBarcode !== creation.barcode) continue;
     }
-    out.push(...correctLot(creation, { barcode: code }, { lot, deviceId: ctx.deviceId, now: () => ctx.now }));
+    for (const e of correctLot(creation, { barcode: code }, { lot, deviceId: ctx.deviceId, now: () => ctx.now })) {
+      out.push({ ...e, note: AUTOMATIC_NOTE });
+    }
   }
   return out;
 }

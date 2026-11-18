@@ -61,7 +61,7 @@ export function ProteinSpreadSection({ days, today }: { days: readonly DayIntake
             </p>
           ) : null}
           {view.caveat ? <p className={ui.hint}>{view.caveat}</p> : null}
-          <p className={ui.hint}>«Altro» comprende spuntini e consumi fuori pasto. Descrive come sono distribuite, non quante ne servono.</p>
+          <p className={ui.hint}>«Altro» comprende gli spuntini. Descrive come sono distribuite, non quante ne servono.</p>
         </>
       )}
     </section>

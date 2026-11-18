@@ -69,6 +69,21 @@ export function plural(n: number, one: string, many: string): string {
 export const days = (n: number): string => plural(n, "giorno", "giorni");
 export const weighIns = (n: number): string => plural(n, "pesata", "pesate");
 
+/** I giorni lasciati fuori da un conto sull'energia perché un pasto fuori casa stimato vi pesa troppo. */
+export function outOfHomeExcludedText(n: number): string {
+  return `${n === 1 ? "Escluso anche 1 giorno" : `Esclusi anche ${n} giorni`} con un pasto fuori casa stimato: lì l'energia è in buona parte un valore generico, non ciò che hai mangiato.`;
+}
+
+/** I pasti fuori casa del periodo, detti a parte dagli alimenti: «Pasti fuori casa: 3, registrati come stima…». */
+export function outOfHomeMealsText(n: number): string {
+  return `Pasti fuori casa: ${n}, ${n === 1 ? "registrato" : "registrati"} come stima della sola energia. Non ${n === 1 ? "entra" : "entrano"} tra gli alimenti né nelle quantità mangiate.`;
+}
+
+/** I giorni lasciati fuori dalle associazioni perché di un pasto non si conoscono gli alimenti. */
+export function outOfHomeAssociationText(n: number): string {
+  return `${n === 1 ? "1 giorno tracciato per intero ha" : `${n} giorni tracciati per intero hanno`} un pasto fuori casa stimato e non ${n === 1 ? "entra" : "entrano"} nel confronto: di quel pasto non si conoscono gli alimenti.`;
+}
+
 /** "1 h 20 min", "45 min": durate in minuti. */
 export function formatDuration(minutes: number): string {
   const m = Math.round(minutes);
@@ -200,6 +215,11 @@ export function expenditureInsufficient(
           `${days(result.exclusions.partialEnergyDays)} completi non contano perché per alcune voci manca il valore dell'energia: la somma sarebbe un minimo, non l'assunzione.`,
         );
         break;
+      case "out_of_home_energy":
+        reasons.push(
+          `${days(result.exclusions.outOfHomeDays)} completi non contano perché hanno un pasto fuori casa stimato: lì l'energia è in buona parte un valore generico, non ciò che hai mangiato.`,
+        );
+        break;
       case "few_weigh_ins":
         reasons.push(`Nella finestra hai ${weighIns(result.weighIns)}.`);
         missing.push(`Mancano ancora ${weighIns(need(result.weighIns, EXPENDITURE_MIN.weighIns))}.`);
@@ -303,6 +323,7 @@ export function associationsInsufficient(
         break;
       case "few_complete_days":
         reasons.push(`Hai ${days(result.basis.usedDays)} tracciati per intero negli ultimi giorni considerati.`);
+        if (result.basis.outOfHomeDays) reasons.push(`In più, ${outOfHomeAssociationText(result.basis.outOfHomeDays)}`);
         missing.push(`Mancano ancora ${days(need(result.basis.usedDays, ASSOCIATION_MIN.completeDays))} tracciati per intero.`);
         break;
       case "no_testable_comparisons": {

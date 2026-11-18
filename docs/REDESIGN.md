@@ -32,6 +32,18 @@ Questo documento è il progetto definitivo del redesign «utilitario funzionale�
 - **Corretti errori di fatto:** dove sta «Chiudi» nella scheda dell'alimento, dove sta la finestra dei 90 minuti, la categoria obbligatoria, la «versione» del registro che non vede le sostituzioni fatte dall'unione di due telefoni (0.3).
 - **Le sei schermate di ogni giorno** sono definite blocco per blocco, con testi esatti e con ciò che succede dopo ogni azione (5.4). I percorsi lunghi sono diventati una tabella di casi pratici (7).
 
+**Dopo la verifica a schermo dell'ondata 1 (17 nov 2026).** L'ondata 1 è pubblicata ed è stata guardata con i 32 controlli di 10.3: 25 passano, 3 no, 4 non si possono provare senza un telefono vero. Ne sono venute queste modifiche al progetto.
+
+- **Foglio.** Dentro un passo del foglio («Altro», «Correggi») il tasto indietro chiudeva tutto e buttava via ciò che si stava scrivendo: il foglio riceve `onBack` e il pulsante che conferma un passo sta nel piede, in vista (4.1, 5.4.2).
+- **«Spuntino»** prende il posto di «Fuori pasto» nell'ondata 2, non nella 5: a schermo i due nomi stavano uno sopra l'altro (4.10).
+- **Diario.** Tolto `buildDayDiary`: il diario si costruisce già con ciò che c'è, e un secondo modello sarebbe un doppione. Le righe diventano toccabili una per una, ognuna con il suo foglio; spostare un pasto riscrive il solo evento `meal` (i consumi lo seguono per `mealId`) (4.4, 8.2).
+- **Avviso.** Tolta l'azione in più sull'avviso («Aggiungi alla spesa» quando un alimento finisce): con due comandi l'avviso è già una colonna stretta, e si sistema quello. Tolto l'avviso dopo l'unione di due telefoni: la schermata di sincronizzazione dice già quanti eventi sono arrivati (4.2).
+- **«+».** Le quattro azioni sono righe di un elenco, non quattro pulsanti grandi (R4). «Ho comprato» apre la pagina «Aggiungi alla dispensa», che ha già i tre ingressi, invece di una copia del lettore. I risultati della ricerca non hanno pulsanti dentro le righe (R5) e mostrano solo le ricette che il ricettario mostra. `?aggiungi=1`, l'indirizzo incollato e la dettatura passano all'ondata 5, con le scorciatoie (3.2, 3.3, 3.5).
+- **Registra pasto.** I pasti abituali si registrano da lì con un tocco; «Saltato» e «Mangiato, senza dettagli» restano solo in Oggi; il segno «senza dato» sulle righe della dispensa esce (si vede in Oggi dopo la registrazione) (5.4.6).
+- **Fuori casa.** Il campo `energyKcal` sta sulla voce del pasto, non sull'evento; per gli altri nutrienti la voce è «senza dato» (9.3).
+- **Aggiungi a mano.** In Vivo i campi in vista all'apertura sono tre, più l'inizio della scadenza: quattro non ci stanno senza cambiare l'aspetto (5.4.5).
+- **Ondata 2 ridisegnata** in dieci mandati su tre passi, con un mandato di correzioni dell'ondata 1 in testa (10.4).
+
 ---
 
 ## 0. Come leggere questo documento
@@ -150,25 +162,27 @@ Alternativa scartata: una barra per momento d'uso (Oggi · Cucina · ＋ · Disp
 
 Si apre dal basso con il foglio unico (4.1). Dall'alto in basso:
 
-1. **Campo «Cerca o scrivi»**, non attivo all'apertura (la tastiera non copre i pulsanti). È la ricerca (3.3).
-2. **Quattro pulsanti grandi**, sempre nello stesso ordine:
+1. **Campo «Cerca o scrivi»**, non attivo all'apertura (la tastiera non copre l'elenco). È la ricerca (3.3).
+2. **Quattro righe** (`ActionList`, non una griglia di pulsanti: R4), sempre nello stesso ordine, ognuna con una riga piccola che dice che cosa apre:
    - «Ho mangiato»: apre Registra pasto sul momento dell'ora;
-   - «Ho bevuto»: mostra nel foglio acqua e bevande, le più usate in testa; un tocco segna e chiude il foglio;
-   - «Ho comprato»: apre la lettura del codice con la fotocamera accesa; in basso «Scontrino», «Più alimenti», «A mano»;
-   - «Alla spesa»: mostra nel foglio una riga di scrittura; Invio aggiunge, la voce compare in una riga dentro il foglio e il campo resta pronto per la seguente.
-3. **«Altro»**: Peso, Umore, Integratore, Importa una ricetta, Foto del frigo, Ultime azioni.
+   - «Ho bevuto»: mostra nel foglio «Acqua +200 ml» e le bevande rapide; un tocco segna e chiude il foglio;
+   - «Ho comprato»: apre la pagina «Aggiungi alla dispensa» (5.4.5), che ha già «Leggi un codice», «Scontrino», «Più alimenti» e il modulo a mano: una casa sola, nessuna copia;
+   - «Alla spesa»: mostra nel foglio una riga di scrittura; Invio aggiunge, la voce compare in un elenco dentro il foglio e il campo resta pronto per la seguente; «Fatto» chiude, e l'avviso con «Annulla» vale per tutte le voci aggiunte.
+3. **«Altro»**: Peso, umore, integratori (Salute) · Cosa cucinare · Importa una ricetta · Foto del frigo · Chiedi · Ultime azioni.
 
-Su iPhone questi quattro pulsanti fanno le veci delle scorciatoie dell'icona, che lì non esistono.
+«Ho bevuto», «Alla spesa» e «Altro» sono passi dello stesso foglio, con «Indietro» (4.1). Su iPhone queste quattro righe fanno le veci delle scorciatoie dell'icona, che lì non esistono.
 
 ### 3.3 Ricerca
 
-Vive nel campo del foglio «Aggiungi»: una sola casella per cercare e per aggiungere. Cerca senza rete e senza intelligenza artificiale: alimenti in casa, prodotti già letti, ricette, pasti abituali, pagine e impostazioni. I risultati sono raggruppati (In casa, Azioni, Ricette, Prodotti, Pagine), al massimo cinque per gruppo, e agiscono: un tocco apre l'oggetto nel suo posto, e al massimo due pulsanti fanno subito la cosa più probabile. Scrivendo «latte»:
+Vive nel campo del foglio «Aggiungi»: una sola casella per cercare e per aggiungere. Cerca senza rete e senza intelligenza artificiale: alimenti in casa, ricette, pasti abituali, pagine e impostazioni. I risultati sono raggruppati (In casa, Azioni, Ricette, Pasti abituali, Pagine), al massimo cinque per gruppo. Una riga, un'azione (R5): il tocco apre l'oggetto nel suo posto oppure fa l'azione scritta sulla riga; dentro le righe non ci sono pulsanti. Scrivendo «latte»:
 
-- In casa: «Latte intero · 1 l · Frigo · scade tra 3 giorni», con «Mangiato» e «Alla spesa».
-- Azioni: «Aggiungi “latte” alla spesa», «Metti “latte” in dispensa».
-- Se in casa non c'è: «Non ne hai», con «Aggiungi alla spesa».
+- In casa: «Latte intero · 1 l · Frigo · ~3 giorni»; il tocco apre la sua scheda in Dispensa, dove c'è «Mangiato».
+- Azioni: «Aggiungi “latte” alla spesa», «Aggiungi “latte” alla dispensa».
+- Se in casa non c'è: «Non ne hai in casa.», e sotto le due azioni.
 
-Incollando un indirizzo la prima azione è «Importa la ricetta da questo indirizzo»: è la via per iPhone, dove la condivisione verso l'app non esiste. Le liste lunghe hanno inoltre il loro filtro sul posto, con la stessa regola di confronto dei nomi (senza maiuscole né accenti): Dispensa (ondata 1), Ricettario, Registra pasto, Spesa. Non c'è una seconda lente nelle intestazioni.
+Le ricette nei risultati sono solo quelle che il ricettario mostra, con lo stesso controllo di allergeni ed esclusioni: una ricetta nascosta lì non compare qui. I prodotti già letti con il codice non sono un gruppo a sé: si trovano dalla Spesa e dalla scheda dell'alimento.
+
+Nell'ondata 5, con le scorciatoie, il campo riconosce un indirizzo incollato («Importa la ricetta da questo indirizzo»: è la via per iPhone, dove la condivisione verso l'app non esiste). Le liste lunghe hanno inoltre il loro filtro sul posto, con la stessa regola di confronto dei nomi (senza maiuscole né accenti): Dispensa (ondata 1), Registra pasto (ondata 2), Ricettario, Spesa. Non c'è una seconda lente nelle intestazioni.
 
 ### 3.4 Che cosa si accorpa, si sposta, si nasconde
 
@@ -195,9 +209,9 @@ Le pagine non aumentano: ne nasce una («Ultime azioni», `/app/attivita`, ondat
 | `?giorno=YYYY-MM-DD` | Oggi | Apre quel giorno (esiste) | — |
 | `?lotto=<id>` | Dispensa | Apre la scheda di quell'alimento | 1 |
 | `?momento=`, `?giorno=`, `?lotto=` | Registra pasto | Esistono | — |
-| `?voce=<id evento>` | Oggi | Scorre fino alla riga e la evidenzia | 2 |
+| `?voce=<id evento>` | Oggi | Mostra il giorno di quell'evento, scorre fino alla riga e la evidenzia | 2 |
 | `?pasto=<mealId>` | Registra pasto | Aggiunge voci a un pasto esistente | 2 |
-| `?aggiungi=1` | qualunque | Apre il foglio «+» (per le scorciatoie) | 2 |
+| `?aggiungi=1` | qualunque | Apre il foglio «+» (serve solo alle scorciatoie dell'icona) | 5 |
 | `?negozio=1` | Spesa | Apre la modalità negozio | 3 |
 
 Una pagina che legge un parametro con `useSearchParams` va avvolta in `<Suspense>` nel suo file `page.tsx`, come fa già `src/app/app/page.tsx`: senza, la build si ferma. Il service worker ignora il testo dopo «?» nella chiave della cache: senza rete ogni collegamento apre la pagina giusta e il parametro lo legge la pagina. Un identificativo che non esiste più dice «Non c'è più» e offre la schermata di partenza.
@@ -235,13 +249,14 @@ interface SheetProps {
   head?: ReactNode;         // sotto il titolo: figura, stato, avviso
   footer?: ReactNode;       // fisso in fondo: pulsante principale e, al massimo, una riga di secondari
   busy?: boolean;           // azione in corso: «Chiudi» e il tocco fuori non chiudono
+  onBack?: () => void;      // dall'ondata 2: il foglio è in un passo interno; tasto indietro ed Esc tornano al passo prima
 }
 ```
 
 **Regole.**
 
-1. **Un foglio alla volta.** Mai un foglio sopra un foglio. Dentro un foglio, «Altro» o un passo in più cambiano il contenuto dello stesso foglio, con «Indietro» per tornare.
-2. **Chiusura.** «Chiudi», tocco fuori, Esc, tasto indietro, scorrimento dal bordo su iPhone: tutte passano da una sola funzione.
+1. **Un foglio alla volta.** Mai un foglio sopra un foglio. Dentro un foglio, «Altro» o un passo in più cambiano il contenuto dello stesso foglio, con «Indietro» per tornare. In un passo che ha un solo pulsante che conferma («Salva»), il piede porta «Indietro» a sinistra e quel pulsante, pieno, a destra: non sta mai in fondo al corpo che scorre.
+2. **Chiusura.** «Chiudi», tocco fuori, Esc, tasto indietro, scorrimento dal bordo su iPhone: tutte passano da una sola funzione. Dentro un passo interno (`onBack`) il tasto indietro, lo scorrimento dal bordo ed Esc tornano al passo prima e non chiudono; «Chiudi» e il tocco fuori chiudono sempre.
 3. **Cronologia.** All'apertura il foglio aggiunge un passo (`history.pushState`, conservando lo stato che il router di Next tiene in `history.state`). Alla chiusura lo toglie, se è ancora in cima. «Indietro» del telefono chiude il foglio e basta. Un collegamento dentro il foglio mette la pagina nuova al posto del passo del foglio, così tornando indietro non resta un passo vuoto. Dopo una ricarica il segno del foglio nella cronologia viene ripulito e nessun foglio si riapre da solo.
 4. **Dopo un'azione riuscita il foglio si chiude** e l'avviso compare sopra la barra. Un avviso non nasce mai mentre un foglio è aperto (0.3, riga 5): se il foglio resta aperto (errore, passo intermedio), l'esito è una riga dentro il foglio.
 5. **Altezza.** Quanto il contenuto, fino al 92% dello schermo. Ciò che serve per decidere e l'azione principale si vedono senza scorrere.
@@ -262,6 +277,8 @@ Oggi c'è un solo avviso alla volta (`features/notice.tsx`: 15 secondi, sostitui
 - Nessuna domanda di conferma prima di un'azione che ha «Annulla». Resta solo quella di «Cancella tutti i dati».
 - Un'azione che non cambia nulla non mostra avvisi.
 - Dove c'è una barra fissa (4.6) l'avviso sta sopra di essa.
+- Con due comandi («Annulla» e un collegamento) il testo occupa tutta la larghezza e i comandi stanno sotto: a schermo, accanto ai comandi, il testo andava su cinque righe.
+- L'avviso non porta altre azioni: una terza scelta («Aggiungi alla spesa» quando un alimento finisce) non ci sta e resta alla lista della spesa, che lo propone già.
 
 I testi di oggi che già lo fanno restano come sono (li scrivono `features/actions.ts`, `pantry/eaten.ts`, `barcode/directAdd.ts`); cambiano quelli segnati «nuovo».
 
@@ -281,7 +298,8 @@ I testi di oggi che già lo fanno restano come sono (li scrivono `features/actio
 
 - Elenco per giorno, ultimi 14 giorni, delle operazioni dell'utente. Un'operazione è l'insieme degli eventi scritti insieme: stesso `deviceId` e `recordedAt` entro un secondo. `correctLot` scrive il suo `updateLot` un millisecondo dopo: la finestra lo tiene insieme. Va scritto un test per ogni costruttore usato da un'azione dell'interfaccia: gli eventi di un'azione formano una sola operazione.
 - Il testo di ogni riga viene da una funzione pura, `describeOperation` (`activity/operations.ts`, con test), e dice che cosa, quando, dove (collegamento alla riga del diario o alla scheda dell'alimento).
-- «Annulla» scrive un `void` per ogni evento dell'operazione non ancora annullato. Se dopo sono arrivati eventi che ne dipendono (un acquisto già in parte mangiato), «Annulla» è spento e la riga dice che cosa annullare prima (la regola che usa già `journal.ts`). Un'operazione annullata mostra «Annullata · Rifai».
+- «Annulla» scrive un `void` per ogni evento dell'operazione non ancora annullato, annullamenti compresi (è la regola dell'avviso). Se dopo sono arrivati eventi che ne dipendono (un acquisto già in parte mangiato), o se l'operazione è stata corretta da una venuta dopo, «Annulla» non c'è e la riga dice perché e che cosa annullare prima (per la dispensa, la regola che usa già `journal.ts`). Un'operazione annullata mostra «Annullata · Rifai». Un gruppo di soli annullamenti non è una riga: cambia lo stato di ciò che ha annullato.
+- Un'azione arrivata dall'altro telefono porta « · dall'altro telefono». Non c'è un avviso dopo l'unione: la schermata di sincronizzazione dice già quanti eventi sono arrivati.
 - Le modifiche che non stanno nel registro (lista della spesa, obiettivi, memorie) non entrano qui: tengono il loro «Annulla» sull'avviso (`onUndo`, già esistente) e si correggono nella loro schermata.
 - Si raggiunge dall'intestazione del Diario di oggi, da Impostazioni > Dati, dal «+» > Altro e dalla ricerca.
 
@@ -326,10 +344,11 @@ interface QuantityPickerProps {
 
 Oggi su un pasto c'è solo «Annulla questo pasto», con una domanda. Solo i consumi nati dal tocco in Dispensa e le bevande hanno comandi per riga.
 
-- **Tocco su una voce del pasto:** foglio «Voce» con Quantità (4.3), Momento (colazione, pranzo, cena, spuntino, «un altro giorno»), Ora, «Togli», «Apri l'alimento» (`/app/dispensa?lotto=`), e «Collega i valori» se la voce è senza dato (`nutrition/FoodChoice.tsx`).
-- **Tocco sul titolo del pasto:** foglio «Pasto» con Momento, Ora, «Aggiungi qui» (`/app/pasto?pasto=<mealId>`), «Ripeti adesso», «Togli il pasto».
-- **Scritture**, tutte eventi nuovi, tutte con avviso e «Annulla»: una voce dalla dispensa si corregge con `correct` (annulla il consumo e lo riscrive con `replaces`); il cambio di momento o di giorno usa `moveConsumes` (`core/diary/placeConsume.ts`); una voce libera, il momento o l'ora del pasto si correggono annullando l'evento `meal` e scrivendone uno nuovo con lo stesso `mealId`. Le funzioni stanno in `core/diary/editMeal.ts` (nuovo, puro, con test): `changeItemQuantity`, `removeItem`, `moveMeal`, `retimeMeal`, `appendToMeal`, `repeatMeal`.
-- **Stesso schema per le righe del corpo:** peso, umore, sintomi, integratori si correggono e si tolgono dalla loro riga.
+- **Una voce del pasto è una riga che si tocca** (nome e quantità a sinistra, nutrienti o «senza dato» a destra, nessun comando sulla riga). Il tocco apre il foglio «Voce»: Quantità (4.3) con «Salva» nel piede; «Cambia momento» (un passo dello stesso foglio); «Apri l'alimento» (`/app/dispensa?lotto=`); «Collega i valori» se la voce è senza dato (porta a Nutrizione, «Voci non riconosciute»: una casa sola); «Togli».
+- **In fondo a un pasto aperto c'è un solo comando, «Altro»**, che apre il foglio «Pasto» (il titolo del pasto apre e chiude la riga, quindi non può aprire un foglio): «Aggiungi qui» (`/app/pasto?pasto=<mealId>`), «Cambia momento o ora» (momento, giorno, ora), «Ripeti adesso», «Togli il pasto».
+- **«Altro» di un momento senza pasto** apre un foglio con «Come ieri», «Fuori casa» (leggero, normale, abbondante), «Saltato», «Mangiato, senza dettagli».
+- **Scritture**, tutte eventi nuovi, tutte con una sola scrittura, avviso e «Annulla»: una voce della dispensa si corregge con `correct` (annulla il consumo e lo riscrive con `replaces`); una voce della dispensa cambia momento con `moveConsumes` (`core/diary/placeConsume.ts`); una voce libera, e il momento, il giorno o l'ora di tutto il pasto, si correggono annullando l'evento `meal` e scrivendone uno nuovo con lo stesso `mealId` (i consumi restano legati al pasto dal `mealId`, quindi lo seguono senza essere riscritti). Le funzioni stanno in `core/diary/editMeal.ts` (nuovo, puro, con test): `currentMeal`, `changeConsumeQuantity`, `changeItem`, `removeItem`, `moveItem`, `rewriteMeal`, `appendItems`. I costruttori che usano le regole di `features/meals.ts` stanno in `features/mealEdit.ts`: `buildAppendToMeal`, `buildRepeatMeal`.
+- **Stesso schema per le altre righe:** una bevanda apre il foglio «Bevanda» («Cambia ora», «Togli»); nella riga «Acqua» ogni bicchiere ha «Togli»; nella riga «Corpo» peso, umore, sintomi e integratori hanno «Togli», e il peso si corregge dal suo foglio.
 - **Casi:** un pasto che resta senza voci sparisce (regola già in `deriveDiary`); lo spostamento a un giorno passato non riporta indietro la dispensa, e lo dice; due telefoni che correggono lo stesso pasto prima di unirsi: per i consumi vale `core/ledger/supersede.ts`, per i pasti la derivazione segnala `duplicate_meal` e ne conta uno. Serve un test di unione per questo caso.
 
 ### 4.5 Riga richiusa, «Altro», «Che cosa significa»
@@ -415,7 +434,7 @@ Oggi ci sono tre memorie separate (per codice in `barcode/memory.ts`, per riga d
 | Il diario della giornata | Diario di oggi (di un giorno passato: «Diario di lunedì 16») | Registro di oggi, Momenti di oggi, Pasti del giorno |
 | Il quarto momento della giornata | Spuntino | Fuori pasto |
 
-Ogni compito applica il glossario ai testi dei file che possiede. «Spuntino» al posto di «Fuori pasto» si applica tutto insieme nel ripasso finale (ondata 5), perché tocca messaggi e test di più aree.
+Ogni compito applica il glossario ai testi dei file che possiede. «Spuntino» al posto di «Fuori pasto» si applica nell'ondata 2 (mandati 2Z, 2B, 2H): dopo l'ondata 1 i due nomi comparivano insieme nella stessa schermata.
 
 ---
 
@@ -544,7 +563,7 @@ Le pastiglie sono sempre quattro: «Acqua +200 ml», «Caffè», «Tè», «Altr
 
 In coda al diario, due righe richiuse: «Acqua · 0,6 l di 2 l» (c'è sempre, per oggi; dentro, la scheda dell'acqua di oggi con le altre quantità e l'obiettivo) e «Dispensa · 6 movimenti» (solo se ce ne sono; dentro, ciò che oggi è entrato, è stato buttato, aperto, spostato o corretto, senza ripetere ciò che è già nei pasti; toccando una riga: «Togli», oppure il motivo per cui non si può). Dall'ondata 2 si aggiunge «Corpo» (peso, umore, integratori) e ogni riga apre il suo foglio di modifica (4.4).
 
-**In scadenza.** Riepilogo: quanti sono e il primo, con il testo del suo segno di scadenza: «3 alimenti · petto di pollo, ~2 giorni». Dentro: gli alimenti scaduti o che scadono entro tre giorni, ognuno con «Sposta in freezer», «Cosa cucinare», «Con cosa sta bene» come oggi, e in fondo «Tutta la dispensa».
+**In scadenza.** Riepilogo: quanti sono e il primo, con il testo del suo segno di scadenza: «3 alimenti · petto di pollo, ~2 giorni». Dentro: gli alimenti scaduti o che scadono entro tre giorni, ognuno con «Sposta in freezer», «Cosa cucinare», «Con cosa sta bene» come oggi, e in fondo «Tutta la dispensa». Dall'ondata 2 (a schermo erano nove collegamenti per tre alimenti): ogni alimento è una riga sola che apre la sua scheda in Dispensa, dove «Sposta in freezer» è in testa e il resto in «Altro»; in fondo «Cosa cucinare» e «Tutta la dispensa».
 
 **Nutrienti.** Riepilogo: «~241 kcal · ~45 g proteine», oppure «per ora solo bevande: ~1 kcal», oppure «niente da calcolare». Dentro: il blocco di oggi, con le avvertenze dietro «Che cosa significa», e «Nutrizione».
 
@@ -613,7 +632,7 @@ Tutto si vede senza scorrere: nel caso più alto (avviso, tre confezioni, pezzi)
 | «Con cosa sta bene», «Cosa cucinare», «Qualità» | In «Altro» («Qualità del prodotto» solo con il codice) |
 | «Elimina dalla dispensa» | Ultima voce di «Altro», dopo un filetto. Dentro: «Inserito per sbaglio», «Finito», «Buttato», come oggi |
 
-Ordine di «Altro»: Sposta (se non è in vista), Correggi, Aggiungi alla spesa, Aggiungi a un pasto, Cosa cucinare, Con cosa sta bene, Qualità del prodotto, filetto, Elimina dalla dispensa. «Altro», «Buttato», «Sposta», «Correggi» ed «Elimina» cambiano il contenuto dello stesso foglio, con «Indietro».
+Ordine di «Altro»: Sposta (se non è in vista), Correggi, Aggiungi alla spesa, Aggiungi a un pasto, Cosa cucinare, Con cosa sta bene, Qualità del prodotto, filetto, Elimina dalla dispensa. «Altro», «Buttato», «Sposta», «Correggi» ed «Elimina» cambiano il contenuto dello stesso foglio, con «Indietro». Nei passi con un solo pulsante che conferma («Correggi»: «Salva»; «Buttato»: «Segna buttato»; «Sposta») quel pulsante sta nel piede, accanto a «Indietro»: a schermo, in fondo al corpo, non si vedeva (corretto nell'ondata 2). Il tasto indietro dentro un passo torna al passo prima (4.1).
 
 **«Correggi»: quanto ne resta.** Una funzione pura (`pantry/correctQuantity.ts`, con test) sceglie gli eventi:
 
@@ -758,40 +777,52 @@ Da tre schermate a una: «Aggiungi alla dispensa» si vede sempre, e senza aller
 
 Escono dalla pagina i collegamenti «Hai mangiato? Registra un pasto…» e «In negozio? Confronta sullo scaffale» (non c'entrano con l'aggiungere) e «Vai alla dispensa» (c'è la barra in basso).
 
+Misurato a schermo dopo l'ondata 1: nei temi da registro all'apertura si vedono tre campi e mezzo; in Vivo, dove ogni campo è una scheda, due. Con la correzione dell'ondata 2 (quantità e confezioni sulla stessa riga anche in Vivo, niente etichetta accanto al titolo, «Categoria» solo dopo un nome non riconosciuto) in Vivo si vedono per intero Nome, Quantità con le confezioni e «Dove lo metti», più l'inizio di «Scadenza». Quattro campi interi non ci stanno senza cambiare l'aspetto delle schede.
+
 **Dopo ogni azione.** «Aggiungi alla dispensa»: avviso con lo stesso testo della scheda del codice («Aggiunto alla dispensa: latte, 1 l, in frigo. Scadenza stimata: 24 nov 2026.») · Annulla · Vedi; il modulo si svuota e il cursore torna sul nome, per il prossimo; luogo, categoria e quantità si ricordano per quel nome. Se il modulo era arrivato da un codice non trovato, dopo il salvataggio si torna al lettore. Invio nel nome passa alla quantità; nella quantità conferma.
 
 **Casi da coprire.** *Nome già usato:* luogo, categoria e quantità dell'ultima volta arrivano proposti, e si vedono. *Nome di una scheda con valori salvati:* la proposta «Uso i valori salvati per …» resta com'è oggi, mai in silenzio. *Senza scadenza* (sale, zucchero): la categoria dà una stima lunga; lo dice la riga sotto il campo. *Più confezioni con date diverse:* «Date diverse» in «Altri dettagli». *Quantità non scritta:* errore sotto il campo, con il campo a fuoco.
 
 #### 5.4.6 Registra pasto
 
-**«Qui scelgo che cosa ho mangiato e quanto; “Registra” è sempre in basso.»** File: `features/meal/Meal.tsx`. Ondata 2 (compito 2D).
+**«Qui scelgo che cosa ho mangiato e quanto; “Registra” è sempre in basso.»** File: `features/meal/Meal.tsx`. Ondata 2 (mandato 2F).
 
 ```
 ┌────────────────────────────────────────┐
 │ Registra cena                    Altro │
 │ oggi · 19:55 · Cambia                  │
 │ [ Cerca o scrivi un alimento         ] │
+│ Nel piatto (1)                         │
+│ Spinaci                          Togli │
+│  Quanto (Il solito 80 g)(~Metà)(Tutto 150 g)(Altra quantità) │
+│ I tuoi pasti abituali         Gestisci │ solo a piatto vuoto
+│ Solita cena · pollo, insalata, pane    │ un tocco lo registra
 │ Di solito a cena                       │
 │ (Petto di pollo · 150 g) (Insalata · 80 g) (Pane · 60 g) │
 │ Dalla dispensa                         │
-│ ☐ Latte intero · 1 l · frigo           │
-│ ☑ Spinaci · 150 g · scade tra 4 giorni │
-│    (Il solito 80 g)(~Metà)(Tutto 150 g)(Altra quantità) │
-│ ☐ Mousse cacao protein · 3 confezioni  │
+│ ☐ Latte intero · 1 l · ~3 giorni       │
+│ ☐ Mousse cacao protein · 3 confezioni da 170 g │
 ├────────────────────────────────────────┤
-│ [        Registra cena (2)           ] │ barra fissa
+│ [        Registra cena (1)           ] │ barra fissa
 └────────────────────────────────────────┘
 ```
 
 | # | Blocco | Stato |
 |---|---|---|
-| 1 | Testa: «Registra cena»; sotto, giorno e ora con «Cambia» (momento, giorno, ora: l'ora si cambia anche per oggi); «Altro» (Fuori casa, Saltato, Come ieri, Salvalo come pasto abituale, Scrivi o detta e Foto del piatto solo con la chiave) | Sempre |
+| 1 | Testa: «Registra cena»; sotto, giorno e ora con «Cambia» (momento, giorno, ora: l'ora si cambia anche per oggi; alle 21 il pranzo propone le 13:00); «Altro» (Fuori casa in tre taglie, Come ieri, Scrivi o detta e Foto del piatto solo con la chiave, Pasti abituali) | Sempre |
 | 2 | «Cerca o scrivi un alimento»: filtra la dispensa; un nome che in casa non c'è diventa «Aggiungi “pizza” come voce libera» | Sempre |
-| 3 | «Di solito a cena»: fino a sei alimenti usati più spesso in quel momento, con la porzione ricordata; un tocco li mette nel piatto | Aperto, solo se ci sono |
-| 4 | «Dalla dispensa»: una riga per prodotto (non per confezione), in ordine di scadenza; la riga scelta mostra il selettore di quantità, mai con «Tutto» già scelto; se la quantità supera la confezione aperta, il resto si prende dalla seguente, e la riga lo dice | Aperto |
-| — | Barra fissa: «Registra cena (2)»; le voci scelte salgono in cima all'elenco, sotto «Nel piatto» | Sempre |
+| 3 | «Nel piatto (N)»: le voci scelte, ognuna con il selettore di quantità (mai con «Tutto» già scelto) e «Togli»; se la quantità supera la confezione aperta, il resto si prende dalla seguente, e la riga lo dice | Solo se c'è qualcosa |
+| 4 | «I tuoi pasti abituali»: fino a tre, prima quelli del momento; un tocco registra subito; «Gestisci» porta alla loro pagina | Solo a piatto vuoto, se ce ne sono |
+| 5 | «Di solito a cena»: fino a sei alimenti usati più spesso in quel momento, con la porzione ricordata; un tocco li mette nel piatto | Solo se ci sono |
+| 6 | «Dalla dispensa»: una riga per prodotto (non per confezione), in ordine di scadenza; spuntata, sale in «Nel piatto» | Aperto |
+| 7 | «Salvalo come pasto abituale» | In fondo |
+| — | Barra fissa: «Registra cena (2)»; spento, con «Scegli quanto per: …», finché una voce non ha la quantità | Sempre |
 
-**Dopo.** Si torna a Oggi (o al giorno scelto) con la riga del pasto evidenziata e l'avviso «Registrato: cena con spinaci, pane.» · Annulla. **Casi:** dispensa vuota (solo voci libere e pasti abituali); pasto di un giorno passato (la dispensa si scala adesso, e lo dice una riga); alimento senza valori (segno «senza dato»); aggiunta a un pasto esistente (`?pasto=`).
+«Saltato» e «Mangiato, senza dettagli» non stanno qui: stanno in Oggi, in «Altro» del momento (una casa sola).
+
+**Dopo.** Si torna a Oggi (o al giorno scelto) sulla riga del pasto, evidenziata (`?voce=`), con l'avviso «Registrato: cena con spinaci, pane.» · Annulla. **Casi:** dispensa vuota (solo voci libere e pasti abituali); pasto di un giorno passato (la dispensa si scala adesso, e lo dice una riga); aggiunta a un pasto esistente (`?pasto=`: titolo «Aggiungi a cena», pulsante «Aggiungi (2)»). Un alimento senza valori si vede in Oggi dopo la registrazione («senza dato», con «Collega i valori»), non qui.
+
+**Pasti abituali** (`features/habits/Habits.tsx`): ogni riga ha «Registra adesso» e «Altro» (Cambia nome e ora, Cambia gli alimenti, Ritira, senza domanda e con «Annulla»). Si raggiungono da Registra pasto, dalla ricerca e da Impostazioni.
 
 ### 5.5 Le altre schermate
 
@@ -1004,7 +1035,7 @@ Il registro traccia già tutto ciò che vi entra. I buchi sono di due tipi: dati
 È una sola sezione di Oggi, uguale per oggi e per i giorni passati, ordinata per momenti: colazione, pranzo, cena, spuntini. Dentro ogni momento, in ordine di ora: il pasto con le sue voci, le bevande. In coda le righe di riepilogo: acqua, corpo (peso, umore, sintomi, integratori), dispensa (entrate, scarti, spostamenti, correzioni). Ogni riga si tocca.
 
 - **Ondata 1.** La struttura, costruita sui dati che Oggi legge già (`deriveDiary`, `mealsWithPantry`, `drinksByMoment`, `buildJournal`): 5.4.1.
-- **Ondata 2.** Una funzione pura, `buildDayDiary` in `core/diary/dayDiary.ts` (nuovo, con test), restituisce le righe con tipo, ora, momento, titolo, dettaglio, valore con la sua certezza, identificativi degli eventi di origine e azioni possibili. Ogni riga apre il suo foglio di modifica (4.4). Si aggiunge la riga «Corpo». `?voce=<id>` evidenzia una riga.
+- **Ondata 2.** Ogni riga si tocca e apre il suo foglio di modifica (4.4): «Voce», «Pasto», «Bevanda», «Peso». Si aggiungono la riga «Corpo» e, dentro «Acqua», l'elenco dei bicchieri. Ogni riga porta nel markup l'identificativo del suo evento (`id="voce-<id evento>"`), e `/app?voce=<id>` la mostra e la evidenzia; lo stesso succede dopo un tocco su una bevanda in «Adesso» (a schermo la riga nuova nasceva sotto la piega). Non c'è una funzione `buildDayDiary`: il diario si costruisce già con `deriveDiary`, `mealsWithPantry`, `drinksByMoment` e `buildJournal`, e un secondo modello delle stesse righe sarebbe un doppione da tenere allineato.
 
 Non c'è una linea del tempo unica con i filtri: per chi guarda la giornata, «che cosa ho mangiato a pranzo» conta più dell'ora esatta, e una lista mista di pasti, pesate ed entrate rifarebbe il registro affollato da cui si parte.
 
@@ -1045,9 +1076,9 @@ Solo ciò che serve all'esperienza. Sei cose non devono rompersi mai:
 
 ### 9.3 Il pasto fuori casa (ondata 2)
 
-Un evento `meal` con una voce «Fuori casa · normale», certezza `estimated`, e un campo facoltativo nuovo, `energyKcal` (numero tra 0 e 5.000). Nessun nuovo tipo di evento. La stima è la media personale dei pasti registrati in quel momento negli ultimi 30 giorni, per 0,6 (leggero), 1 (normale) o 1,5 (abbondante); con meno di cinque pasti si usa un valore di riferimento scritto in `core/nutrition/FONTI.md`, e la riga dice «stima generica». Il giorno conta come «completo, con stime». È un conto, non un parere.
+Un evento `meal` con una voce «Fuori casa · normale», certezza `estimated`; la voce (`MealItem`) porta un campo facoltativo nuovo, `energyKcal` (numero tra 0 e 5.000). Nessun nuovo tipo di evento. La stima è la media personale dei pasti registrati in quel momento negli ultimi 30 giorni, per 0,6 (leggero), 1 (normale) o 1,5 (abbondante); con meno di cinque pasti si usa un valore di riferimento scritto in `core/nutrition/FONTI.md` (una quota di 2.000 kcal al giorno per momento: la ripartizione è una scelta del progetto, e lì va detto), e la riga dice «stima generica». La stima dà solo l'energia: per gli altri nutrienti la voce è «senza dato», con il meccanismo che c'è già per le voci non riconosciute, così la schermata Nutrizione dice «almeno». Il giorno conta come «completo, con stime». Il numero scritto non si ricalcola quando la media cambia. È un conto, non un parere.
 
-Da verificare prima di scrivere il codice, con un test: che un telefono con la versione vecchia accetti l'evento con il campo in più (`core/diary/validate.ts`, `core/diary/foreign.ts`) e lo legga come un pasto senza energia. Se lo rifiuta, il compito si ferma e lo riporta: il formato va scelto di nuovo prima di scrivere altro.
+Da verificare prima di scrivere il codice, con un test: che un telefono con la versione vecchia accetti l'evento con il campo in più nella voce (`core/diary/validate.ts`, `core/diary/foreign.ts`) e lo legga come un pasto con una voce senza valori. Se lo rifiuta, il compito si ferma e lo riporta: il formato va scelto di nuovo prima di scrivere altro.
 
 ### 9.4 Allergeni: una casa sola (ondata 4, per prima e da sola)
 
@@ -1109,16 +1140,27 @@ A 375×812, in Vivo scuro e in Registro chiaro, con i dati di prova.
 
 **Che cosa sente l'utente.** Ogni riga del diario si tocca e si corregge. «Ultime azioni» annulla anche dopo ore. Il «+» aggiunge da qualunque schermata e risponde a «ce l'ho?». Il pranzo si registra in cinque tocchi. Il pasto fuori casa conta.
 
-**Ordine.** 2A, 2B, 2C, 2D insieme; poi 2E; poi l'integrazione.
+Il piano è stato rifatto dopo la verifica a schermo dell'ondata 1: i compiti troppo grandi sono stati divisi (nessuno supera due schermate complesse), ed è entrato un mandato di correzioni. I mandati completi, l'ordine, le domande per la revisione e i controlli a schermo stanno nella cartella dei mandati dell'ondata 2 (`ORDINE.md`).
 
-| Compito | Che cosa consegna | File in esclusiva | Difficoltà | Revisione |
+**Ordine.** Passo 1: 2Z, 2Y, 2A insieme. Passo 2: 2B, 2H, 2C, 2D, 2E, 2F insieme. Passo 3: 2G da solo. Poi l'integrazione.
+
+| Mandato | Che cosa consegna | File in esclusiva | Difficoltà | Revisione |
 |---|---|---|---|---|
-| **2A** Diario: modifica sul posto | 4.4 e 8.2: foglio «Voce» e foglio «Pasto», riga «Corpo», elenco dei bicchieri, `?voce=` | `features/today/`, `core/diary/editMeal.ts` e `core/diary/dayDiary.ts` (nuovi) | Critico | Sì |
-| **2B** Ultime azioni e storia | 4.2 e 8.3; azione in più sull'avviso («Aggiungi alla spesa» quando un alimento finisce); avviso dopo l'unione di due telefoni | `features/activity/` (nuovo), `src/app/app/attivita/page.tsx` (nuovo), `core/ledger/story.ts` (nuovo), `features/pantry/LotSheet.tsx`, `features/pantry/LotHistory.tsx` (nuovo), `features/journal.ts`, `features/notice.tsx`, `features/sync/` | Critico | Sì |
-| **2C** «+» e ricerca | 3.1-3.3 | `design/components/BottomNav.tsx` e il suo CSS, `features/shell/AppShell.tsx`, `features/shell/AddSheet.tsx` (nuovo), `features/search/` (nuovo) | Difficile | No |
-| **2D** Registra pasto | 5.4.6; «Registra adesso» e alimenti modificabili nei pasti abituali | `features/meal/`, `features/habits/` | Difficile | Sì (quantità che passa da una confezione all'altra) |
-| **2E** Fuori casa e «Come ieri» (dopo 2A e 2D) | 9.3; «Fuori casa», «Come ieri» e «Ripeti adesso» nel momento del diario e in «Altro» di Registra pasto | `core/diary/types.ts`, `core/diary/validate.ts`, `core/nutrition/intake.ts`, `core/nutrition/outOfHome.ts` (nuovo), `core/nutrition/FONTI.md`, `features/meals.ts`; poi gli ingressi in `features/today/` e `features/meal/` | Critico | Sì (nutrizione, nessun parere) |
-| **Integrazione 2** | `/app/attivita` nella cache e nella mappa | `public/sw.js`, `INTEGRAZIONE.md`, `vivoScope.test.ts` | Meccanico | — |
+| **2Z** Correzioni dell'ondata 1 | Pulsante che conferma nel piede dei passi della scheda; ritorno al lettore dopo «Aggiungi a mano»; modulo a mano in Vivo; «Spuntino»; avviso con due comandi; testi; «Il solito» per le monoporzioni | In `features/pantry/`: `LotSheet.tsx`, `LotActions.tsx`, `quantityOptions.ts`, `eaten.ts`; `features/capture/Capture.tsx`; in `features/barcode/`: `BarcodeCapture.tsx`, `AddToPantry.tsx`; `features/notice.tsx` e il suo CSS; solo testi in `meals.ts`, `drinks.ts`, `health/Drinks.tsx`, `nutrition/WeekSections.tsx`, `settings/Settings.tsx` | Ben specificato | No; verifica a schermo |
+| **2Y** Foglio: indietro dentro un passo | 4.1: `onBack` | `features/common/Sheet.tsx`, `sheetHistory.ts` | Difficile | No; verifica su telefono |
+| **2A** Correggere un pasto (funzioni pure) | 4.4: `core/diary/editMeal.ts`, `features/mealEdit.ts` | quei due file, i loro test, `core/diary/index.ts` | Critico | Sì |
+| **2B** Oggi: pasti e voci | 4.4: una riga per voce, fogli «Voce» e «Pasto», «Come ieri», momenti passati vuoti in una riga | In `features/today/`: `MealMoments.tsx`, `MealLines.tsx`, `EntrySheet.tsx`, `MealSheet.tsx` (nuovi), `editText.ts` (nuovo) | Difficile | Sì |
+| **2H** Oggi: il resto del diario | 8.2: foglio «Bevanda», bicchieri, riga «Corpo», «In scadenza» senza collegamenti, la riga nuova in vista, `?voce=`, niente doppioni in «Da guardare» | Gli altri file di `features/today/`; `features/health/WaterCard.tsx` | Difficile | Sì, breve |
+| **2C** Ultime azioni | 4.2 | `features/activity/` (nuovo), `src/app/app/attivita/page.tsx` (nuovo), `features/journal.ts`, un collegamento in `settings/Settings.tsx` | Critico | Sì |
+| **2D** Storia dell'alimento | 8.3; `onBack` collegato alla scheda | `core/ledger/story.ts` (nuovo), `core/ledger/index.ts`, `features/pantry/LotSheet.tsx`, `LotHistory.tsx` e `storyText.ts` (nuovi) | Ben specificato | Sì, breve |
+| **2E** «+» e ricerca | 3.1-3.3 | `design/components/BottomNav.tsx` e il suo CSS, `features/shell/AppShell.tsx`, `features/shell/AddSheet.tsx` (nuovo), `features/search/` (nuovo) | Difficile | Sì, solo sulle ricette nei risultati |
+| **2F** Registra pasto e pasti abituali | 5.4.6 | `features/meal/`, `features/habits/` | Difficile | Sì (quantità che passa da una confezione all'altra) |
+| **2G** Fuori casa (dopo 2B e 2F, da solo) | 9.3 | `core/diary/types.ts`, `validate.ts`, `items.ts`, `editMeal.ts`; `core/nutrition/intake.ts`, `outOfHome.ts` (nuovo), `FONTI.md`; `features/meals.ts`; gli ingressi in `today/MealMoments.tsx`, `today/EntrySheet.tsx`, `meal/Meal.tsx` | Critico | Sì, obbligatoria |
+| **Integrazione 2** | `/app/attivita` nella cache e nella mappa; classi di Vivo nel test | `public/sw.js`, `INTEGRAZIONE.md`, `vivoScope.test.ts`, `VIVO.md` | Meccanico | — |
+
+Nelle tabelle delle sezioni 6 e 8 le sigle dell'ondata 2 sono quelle della prima stesura: 2A lì vale 2A, 2B e 2H di qui; 2B vale 2C e 2D; 2C vale 2E; 2D vale 2F; 2E vale 2G.
+
+**Uscito dall'ondata 2:** `buildDayDiary`; l'azione in più sull'avviso; l'avviso dopo l'unione di due telefoni; `?aggiungi=1`, l'indirizzo incollato e la dettatura nel «+» (ondata 5); il segno «senza dato» in Registra pasto.
 
 ### 10.5 Ondata 3: la spesa entra da sola
 

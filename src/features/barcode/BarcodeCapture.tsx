@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
 import { isRestrictedCode, needsStoreCodeConfirmation, quantityText, type Product } from "@/core/catalog";
 import { compositionFromProduct } from "@/core/nutrition";
 import { deleteProductRecord, putProductRecord } from "@/data";
@@ -13,7 +13,7 @@ import ui from "../ui.module.css";
 import { SHELF_PATH, qualityHref } from "../quality/links";
 import { translatePackaging } from "./packaging";
 import { Scanner, type ScanInfo } from "./Scanner";
-import { captureHrefForCode } from "./links";
+import { CAPTURE_PATH, captureHrefForCode } from "./links";
 import { AddToPantry } from "./AddToPantry";
 import { ProductSafety } from "./ProductSafety";
 import { lookupProduct, type LookupOutcome } from "./lookup";
@@ -41,6 +41,24 @@ export function BarcodeCapture() {
   const recentAddRef = useRef<RecentAdd | null>(null);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  // La pagina resta in memoria quando si va al modulo a mano (Activity): al ritorno, con o senza salvataggio, deve essere
+  // il lettore pronto per il codice seguente, non l'esito di prima. Si riporta al lettore quando la pagina si nasconde.
+  const toFormRef = useRef(false);
+  useLayoutEffect(
+    () => () => {
+      if (!toFormRef.current) return;
+      toFormRef.current = false;
+      abortRef.current?.abort();
+      setView({ kind: "input" });
+    },
+    [],
+  );
+  function noteLeaving(event: MouseEvent<HTMLElement>) {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
+    if (link?.getAttribute("href")?.startsWith(`${CAPTURE_PATH}?`)) toFormRef.current = true;
+  }
 
   async function search(code: string, info?: ScanInfo) {
     abortRef.current?.abort();
@@ -98,7 +116,7 @@ export function BarcodeCapture() {
   }
 
   return (
-    <div className={ui.screen}>
+    <div className={ui.screen} onClickCapture={noteLeaving}>
       <div className={ui.head}>
         <h1 className={ui.title}>Codice a barre</h1>
         <Label>Open Food Facts</Label>
@@ -107,11 +125,13 @@ export function BarcodeCapture() {
       {view.kind === "input" ? (
         <>
           <p className={ui.lead}>Inquadra il codice sulla confezione.</p>
-          <Scanner
-            autoStart
-            onCode={(code, info) => void search(code, info)}
-            ignoreCode={(code) => ignoresRescan(recentAddRef.current, code, Date.now())}
-          />
+          <div className={styles.scanner}>
+            <Scanner
+              autoStart
+              onCode={(code, info) => void search(code, info)}
+              ignoreCode={(code) => ignoresRescan(recentAddRef.current, code, Date.now())}
+            />
+          </div>
           <Disclosure quiet title="Che cosa significa">
             <p>
               Riservatezza: il codice letto viene inviato a Open Food Facts per cercare il prodotto. Non parte nient&apos;altro:
@@ -157,7 +177,7 @@ export function BarcodeCapture() {
           <h2 className={ui.emptyTitle}>Prodotto non trovato</h2>
           <p className={ui.emptyText}>
             {view.rejected
-              ? `La scheda trovata per il codice ${view.code} non è il tuo prodotto: i codici interni dei negozi cambiano da un negozio all'altro. Scrivi i valori a mano, o aggiungilo a mano.`
+              ? `La scheda trovata per il codice ${view.code} non è il tuo prodotto: i codici interni dei negozi cambiano da un negozio all'altro. Scrivi i valori nutrizionali, o aggiungilo a mano.`
               : isRestrictedCode(view.code)
                 ? `Open Food Facts non ha una scheda per il codice ${view.code}, che è un codice interno del negozio. Lo aggiungi a mano: ti ricordo il codice nel modulo.`
                 : `Open Food Facts non conosce il codice ${view.code}. Lo aggiungi a mano: ti ricordo il codice nel modulo.`}

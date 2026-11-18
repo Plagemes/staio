@@ -1,8 +1,11 @@
 import { liveQuery, type Observable } from "dexie";
-import { canonicalStringify, sortEvents, type ValidationError } from "@/core/ledger";
+import { canonicalStringify, generateId, sortEvents, type ValidationError } from "@/core/ledger";
 import {
   mergeAllEvents,
+  OPERATION_ID_FIELD,
+  operationIdOf,
   validateAnyEvent,
+  withOperationId,
   type AllMergeConflict,
   type AnyEvent,
 } from "@/core/events";
@@ -56,6 +59,8 @@ function splitValid(events: readonly unknown[]): {
 /**
  * Aggiunge eventi nuovi. Gli eventi non validi sono rifiutati con i loro errori
  * (gli altri vengono comunque scritti); un id già presente è ignorato.
+ * Una chiamata è una sola azione: tutti i suoi eventi ricevono lo stesso identificativo di operazione (`opId`), con
+ * cui «Ultime azioni» li tiene insieme. Chi importa eventi scritti altrove (`importEvents`) non lo tocca.
  */
 export async function appendEvents(
   events: readonly AnyEvent[],
@@ -64,7 +69,7 @@ export async function appendEvents(
   const db = getDb();
   return db.transaction("rw", db.events, async () => {
     const unique = new Map<string, AnyEvent>();
-    for (const e of valid) if (!unique.has(e.id)) unique.set(e.id, e);
+    for (const e of withOperationId(valid, generateId())) if (!unique.has(e.id)) unique.set(e.id, e);
     const ids = [...unique.keys()];
     const existing = await db.events.bulkGet(ids);
     const fresh = ids
@@ -105,6 +110,18 @@ export async function getEventsAfter(seq: number): Promise<EventsAfter> {
   });
 }
 
+/** Due versioni dello stesso evento che differiscono solo perché una porta l'`opId` e l'altra no. */
+function sameButOperationId(a: AnyEvent, b: AnyEvent): boolean {
+  const [ida, idb] = [operationIdOf(a), operationIdOf(b)];
+  if (ida === idb || (ida !== undefined && idb !== undefined)) return false;
+  const bare = (e: AnyEvent): string => {
+    const { [OPERATION_ID_FIELD]: _opId, ...rest } = e as AnyEvent & Record<string, unknown>;
+    void _opId;
+    return canonicalStringify(rest);
+  };
+  return bare(a) === bare(b);
+}
+
 /**
  * Unisce eventi provenienti da fuori (altro dispositivo, copia di sicurezza) con
  * `mergeEvents`. Per un id già presente con contenuto diverso vince la versione
@@ -120,7 +137,19 @@ export async function importEvents(
     const stored = await db.events.bulkGet(incomingIds);
     const existing = stored.filter((e): e is StoredEvent => e !== undefined).map(strip);
     const existingById = new Map(existing.map((e) => [e.id, e]));
-    const merged = mergeAllEvents(existing, valid);
+    // Lo stesso evento con e senza `opId` non è un conflitto: è lo stesso evento, e vale la versione che lo porta.
+    const upgraded = new Set<string>();
+    const incoming = valid.map((e) => {
+      const old = existingById.get(e.id);
+      if (!old || !sameButOperationId(e, old)) return e;
+      if (operationIdOf(old) !== undefined) return old;
+      upgraded.add(e.id);
+      return e;
+    });
+    const merged = mergeAllEvents(
+      existing.filter((e) => !upgraded.has(e.id)),
+      incoming,
+    );
     const toWrite = merged.events.filter((e) => {
       const old = existingById.get(e.id);
       return old === undefined || canonicalStringify(old) !== canonicalStringify(e);

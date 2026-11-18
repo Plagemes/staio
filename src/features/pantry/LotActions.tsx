@@ -3,7 +3,8 @@
 // I passi della scheda di un alimento oltre a quello principale: «Altro», «Buttato», «Sposta», «Correggi»,
 // «Date diverse per confezione», «Elimina dalla dispensa». Cambiano il contenuto dello stesso foglio: il foglio,
 // la testa e «Indietro» li mette `LotSheet`.
-import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { addDays } from "@/core/expiry";
 import type { DeclareEvent, DiscardReason, Location, PurchaseEvent } from "@/core/ledger";
 import { useEventLog, usePantry } from "@/data";
@@ -47,7 +48,7 @@ import { expiryExplanation, expiryTagView, previewExpiryAfterMove, type PantryEn
 import ui from "../ui.module.css";
 import { buildQuantityCorrection, mergeCorrection, overInitialQuestion, type QuantityCorrection } from "./correctQuantity";
 import { entryDate } from "./groups";
-import { amountFor, amountLabel, quantityOptions } from "./quantityOptions";
+import { amountFor, quantityOptions } from "./quantityOptions";
 import { SAVE_LABELS, cookHref, pairHref } from "./saveActions";
 import styles from "./LotSheet.module.css";
 
@@ -81,8 +82,29 @@ interface LotActionsProps {
   moveInFooter: boolean;
   /** La pagina «Qualità del prodotto», se l'alimento ha un codice e la sua scheda non l'ha scritta l'utente. */
   qualityHref?: string;
+  /** Dove va il pulsante che conferma il passo: la riga del piede fisso, accanto a «Indietro». */
+  actionSlot: HTMLElement | null;
+  /** L'`id` del modulo del passo: lo usa il pulsante nel piede con l'attributo `form`. */
+  formId: string;
   onStep: (step: Step) => void;
   onAddToList: () => void;
+}
+
+const StepContext = createContext<{ slot: HTMLElement | null; formId: string }>({ slot: null, formId: "" });
+
+/**
+ * Il pulsante pieno che conferma un passo. Sta nel piede fisso del foglio, non nel corpo che scorre: si monta lì
+ * con un portale e, se `submit`, invia il modulo del passo con l'attributo `form`.
+ */
+function StepAction({ children, disabled, submit = false, onClick }: { children: ReactNode; disabled: boolean; submit?: boolean; onClick?: () => void }) {
+  const { slot, formId } = useContext(StepContext);
+  if (!slot) return null;
+  return createPortal(
+    <Button type={submit ? "submit" : "button"} {...(submit ? { form: formId } : {})} disabled={disabled} onClick={onClick}>
+      {children}
+    </Button>,
+    slot,
+  );
 }
 
 export function LotActions({
@@ -98,6 +120,8 @@ export function LotActions({
   moveTo,
   moveInFooter,
   qualityHref,
+  actionSlot,
+  formId,
   onStep,
   onAddToList,
 }: LotActionsProps) {
@@ -148,14 +172,16 @@ export function LotActions({
   }
 
   return (
-    <div ref={rootRef} className={styles.step}>
-      {content}
-      {error ? (
-        <p className={ui.error} role="alert">
-          {error}
-        </p>
-      ) : null}
-    </div>
+    <StepContext.Provider value={{ slot: actionSlot, formId }}>
+      <div ref={rootRef} className={styles.step}>
+        {content}
+        {error ? (
+          <p className={ui.error} role="alert">
+            {error}
+          </p>
+        ) : null}
+      </div>
+    </StepContext.Provider>
   );
 }
 
@@ -244,14 +270,14 @@ function DiscardForm({ entry, busy, perform }: SubFormProps) {
         {amount === null ? <p className={ui.hint}>Scegli quanto</p> : null}
       </div>
 
-      <Button
+      <StepAction
         disabled={busy || amount === null}
         onClick={() => {
           if (amount) void perform((ctx) => buildDiscard(lot, amountFor(amount).choice, reason, ctx));
         }}
       >
-        {amountLabel("Buttato", amount, options, lot.unit)}
-      </Button>
+        Segna buttato
+      </StepAction>
     </div>
   );
 }
@@ -294,7 +320,7 @@ function MoveForm({ entry, group = [], now, initialTo, busy, perform }: SubFormP
           <span className={ui.hint}>{expiryExplanation(preview)}</span>
         </div>
       ) : null}
-      <Button
+      <StepAction
         disabled={busy}
         onClick={() =>
           void perform((ctx) =>
@@ -309,8 +335,8 @@ function MoveForm({ entry, group = [], now, initialTo, busy, perform }: SubFormP
           )
         }
       >
-        {`Sposta in ${LOCATION_LABELS[to].toLowerCase()}${lots.length > 1 ? ` (${packsText(lots.length)})` : ""}`}
-      </Button>
+        Sposta
+      </StepAction>
     </div>
   );
 }
@@ -329,13 +355,14 @@ function CorrectForm({
 }: SubFormProps & { creation: PurchaseEvent | DeclareEvent; now: string; onDates: () => void }) {
   const { lot } = entry;
   const ids = useId();
+  const { formId } = useContext(StepContext);
   const log = useEventLog();
   const pantry = usePantry();
   const [scope, setScope] = useState<Scope>("one");
   const [form, setForm] = useState<EditForm>(() => formFromLot(lot));
   const [remainingText, setRemainingText] = useState(() => writeAmount(lot.remaining));
   const [errors, setErrors] = useState<CorrectErrors>({});
-  /** La domanda di conferma per un rimasto più grande di quanto era entrato; finché c'è, «Salva» lascia il posto alla risposta. */
+  /** La domanda di conferma per un rimasto più grande di quanto era entrato; finché c'è, «Salva» nel piede lascia il posto a «Confermo». */
   const [question, setQuestion] = useState<string | null>(null);
   const remainingRef = useRef<HTMLInputElement>(null);
   const set = <K extends keyof EditForm>(key: K, value: EditForm[K]) => {
@@ -400,7 +427,7 @@ function CorrectForm({
   const invalid = (key: keyof CorrectErrors) => (errors[key] ? { "aria-invalid": true, "aria-describedby": `${ids}-${key}-error` } : {});
 
   return (
-    <form className={styles.form} onSubmit={onSubmit} noValidate>
+    <form id={formId} className={styles.form} onSubmit={onSubmit} noValidate>
       <StepTitle>Correggi</StepTitle>
       <ScopePick count={group.length} value={scope} onChange={setScope} />
       {many ? <p className={ui.hint}>Cambio solo ciò che correggi qui: le altre date restano come sono.</p> : null}
@@ -564,26 +591,26 @@ function CorrectForm({
       {question && !many ? (
         <div className={ui.calloutStrong} role="alert">
           <p className={ui.paragraph}>{question}</p>
-          <div className={ui.row}>
-            <Button disabled={busy} onClick={() => void save()}>
-              Confermo
-            </Button>
-            <Button
-              variant="text"
-              disabled={busy}
-              onClick={() => {
-                setQuestion(null);
-                remainingRef.current?.focus();
-              }}
-            >
-              Correggo il numero
-            </Button>
-          </div>
+          <Button
+            variant="text"
+            disabled={busy}
+            onClick={() => {
+              setQuestion(null);
+              remainingRef.current?.focus();
+            }}
+          >
+            Correggo il numero
+          </Button>
         </div>
+      ) : null}
+      {question && !many ? (
+        <StepAction disabled={busy} onClick={() => void save()}>
+          Confermo
+        </StepAction>
       ) : (
-        <Button type="submit" disabled={busy}>
+        <StepAction submit disabled={busy}>
           {many ? `Salva (${packsText(group.length)})` : "Salva"}
-        </Button>
+        </StepAction>
       )}
       {group.length > 1 ? (
         <Button variant="text" onClick={onDates}>
@@ -732,14 +759,12 @@ function DatesForm({ entry, group = [], now, busy, perform }: SubFormProps & { n
           }}
         />
       </div>
-      <div className={ui.row}>
-        <Button disabled={busy || !ready || chosen.length === 0 || date === ""} onClick={() => void save({ date, kind })}>
-          Salva la data
-        </Button>
-        <Button variant="outline" disabled={busy || !ready || chosen.length === 0} onClick={() => void save(null)}>
-          Togli la data
-        </Button>
-      </div>
+      <Button variant="outline" disabled={busy || !ready || chosen.length === 0} onClick={() => void save(null)}>
+        Togli la data
+      </Button>
+      <StepAction disabled={busy || !ready || chosen.length === 0 || date === ""} onClick={() => void save({ date, kind })}>
+        Salva
+      </StepAction>
     </div>
   );
 }

@@ -46,6 +46,8 @@ export interface DayOptions {
   untrackedKinds?: MealKind[];
   /** Al posto di saltare senza dati, dichiara il momento «saltato» (un dato vero). */
   skippedKinds?: MealKind[];
+  /** Questo pasto è una stima «fuori casa» con questa energia; il resto dell'energia va agli altri due pasti. */
+  outOfHome?: { kind: "breakfast" | "lunch" | "dinner"; kcal: number };
 }
 
 let counter = 0;
@@ -55,7 +57,7 @@ const uid = (prefix: string): string => `${prefix}-${++counter}`;
 export function day(i: number, o: DayOptions = {}): unknown[] {
   const times = { breakfast: "07:30", lunch: "12:30", dinner: "19:30", ...o.times };
   const kcal = o.kcal ?? 2000;
-  const grams = (kcal / 3 / 900) * 100;
+  const grams = o.outOfHome ? ((kcal - o.outOfHome.kcal) / 2 / 900) * 100 : (kcal / 3 / 900) * 100;
   const out: unknown[] = [];
   for (const kind of ["breakfast", "lunch", "dinner"] as const) {
     if (o.skippedKinds?.includes(kind) && (kind === "breakfast" || kind === "lunch" || kind === "dinner")) {
@@ -65,6 +67,11 @@ export function day(i: number, o: DayOptions = {}): unknown[] {
     if (o.skip?.includes(kind)) continue;
     if (o.untrackedKinds?.includes(kind)) {
       out.push(untracked(uid("u"), at(i, times[kind]), { kind }));
+      continue;
+    }
+    if (o.outOfHome?.kind === kind) {
+      const estimate = { name: "Fuori casa · normale", quantity: { value: 1, unit: "pz" as const }, certainty: "estimated" as const, energyKcal: o.outOfHome.kcal };
+      out.push(meal(uid("m"), at(i, times[kind]), { mealId: uid("meal"), kind, certainty: "estimated", items: [estimate] }));
       continue;
     }
     const items = [

@@ -1,0 +1,20 @@
+/* I risultati della ricerca: gruppi staccati tra loro, ognuno con la sua etichetta vicina alle sue righe. */
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-group);
+  min-width: 0;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-weight: inherit;
+}

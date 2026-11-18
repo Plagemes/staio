@@ -1,3 +1,77 @@
+/* Testata: titolo, la riga «Quando» e, a richiesta, i tre campi di «Cambia» */
+.top {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-group);
+  min-width: 0;
+}
+
+.titleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6);
+  margin: 0;
+  font-size: var(--text-body-sm);
+  color: var(--color-graphite);
+}
+
+/* I campi di «Cambia»: a distanza di gruppo (in Vivo `ui.fields` li avvicina) */
+.fieldStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-group);
+  min-width: 0;
+}
+
+.searchBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-item);
+  min-width: 0;
+}
+
+/* Nel piatto: una riga per voce, con il selettore di quantità sotto il nome */
+.plate {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-item);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plateRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-bottom: var(--space-6);
+  border-bottom: var(--rule-width) solid var(--color-rule);
+}
+
+.plateHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.plateName {
+  min-width: 0;
+  font-size: var(--text-body);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+/* Elenchi: dispensa e pasti abituali */
 .lots {
   display: flex;
   flex-direction: column;
@@ -9,7 +83,6 @@
 .lot {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
   border-bottom: var(--rule-width) solid var(--color-rule);
 }
 
@@ -47,49 +120,101 @@
   color: var(--color-graphite);
 }
 
-.amounts {
+/* Un pasto abituale: tutta la riga è il comando che lo registra */
+.habitRow {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  padding: 0 0 var(--space-6) calc(22px + var(--space-7));
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: 56px;
+  padding: var(--space-3) 0;
+  border: none;
+  background: none;
+  color: var(--color-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
-.freeRow {
+.habitRow:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.habitRow:focus-visible,
+.addFree:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* «Aggiungi “pizza” come voce libera» */
+.addFree {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-2);
-}
-
-.freeFields {
-  display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-  gap: var(--space-4);
-  width: 100%;
-}
-
-.stateQuestion {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  width: 100%;
-  margin: 0;
+  align-items: center;
+  min-height: 56px;
   padding: 0;
   border: none;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
 }
 
-.stateChoices {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
-}
-
-.bigChoice {
+/* «Di solito a cena»: azioni, fatte come le pastiglie delle bevande di Oggi */
+.chips {
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap-item);
 }
 
-.bigChoice span {
+.chip {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-min);
+  padding: 0 var(--space-5);
+  border: var(--rule-width) solid var(--color-control-border);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--text-body-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* La barra fissa: la riga che dice che cosa manca (o l'errore) sopra il pulsante */
+.barStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.barButton {
   width: 100%;
-  min-height: 64px;
-  font-size: var(--text-body);
+}
+
+/* ------------------------------------------------------------------------------------------------
+   Vivo: le pastiglie di «Di solito» come quelle delle bevande di Oggi.
+   ------------------------------------------------------------------------------------------------ */
+
+:global([data-palette="vivo"]) .chip {
+  border-color: transparent;
+  background: var(--color-surface);
+  font-weight: 600;
+  transition: background-color var(--motion-fast) ease;
+}
+
+:global([data-palette="vivo"]) .chip:active {
+  transform: var(--press-transform);
 }

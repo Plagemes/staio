@@ -11,7 +11,7 @@ import {
   type WeightAveragePoint,
 } from "../diary";
 import { worseCertainty, type Certainty } from "../ledger";
-import type { ComparableDay } from "../nutrition";
+import { outOfHomeEnergyShare, type ComparableDay } from "../nutrition";
 import {
   basisOf,
   freshnessOf,
@@ -75,7 +75,8 @@ export interface ExpenditureOptions {
   minUsedShare?: number;
   /**
    * Quota di dato mancante dell'energia di un giorno oltre la quale il giorno non conta (energia
-   * parziale: il totale sarebbe un minimo, non l'assunzione). Predefinito 0,1.
+   * parziale: il totale sarebbe un minimo, non l'assunzione). Predefinito 0,1. La stessa quota vale
+   * per l'energia che è una stima «fuori casa»: un valore generico, non ciò che si è mangiato.
    */
   maxEnergyMissingShare?: number;
   /** Ampiezza in giorni della media mobile del peso restituita per la visualizzazione. Predefinito 7. */
@@ -101,6 +102,8 @@ export type ExpenditureInsufficientReason =
   | "low_used_share"
   /** Troppi giorni completi con energia parziale (quota di dato mancante sopra soglia). */
   | "partial_energy"
+  /** Tra i giorni che mancano ce ne sono di completi ma con un pasto fuori casa stimato che pesa troppo sull'energia. */
+  | "out_of_home_energy"
   | "implausible_estimate";
 
 export interface ExpenditureExclusions {
@@ -108,6 +111,11 @@ export interface ExpenditureExclusions {
   incompleteDays: number;
   /** Giorni completi con energia mancante o parziale. */
   partialEnergyDays: number;
+  /**
+   * Giorni completi in cui un pasto fuori casa stimato vale più della quota ammessa dell'energia del giorno: il
+   * bilancio userebbe un valore generico al posto di ciò che si è mangiato, quindi non entrano.
+   */
+  outOfHomeDays: number;
   /** Giorni della finestra senza alcuna voce. */
   emptyDays: number;
 }
@@ -162,7 +170,9 @@ const ASSUMPTIONS = [
  * Dispendio medio giornaliero dal bilancio: energia assunta meno l'energia equivalente alla
  * variazione di peso. La variazione di peso è la pendenza della retta sulle pesate della finestra
  * (che liscia le oscillazioni), con l'intervallo gonfiato se i residui sono correlati. L'energia
- * assunta è la media dei soli giorni completi con l'energia nota e non parziale.
+ * assunta è la media dei soli giorni completi con l'energia nota e non parziale; restano fuori anche
+ * i giorni in cui un pasto fuori casa stimato vale più di `maxEnergyMissingShare` dell'energia del
+ * giorno (`exclusions.outOfHomeDays`).
  *
  * Sotto le soglie minime non dà un numero (`status: "insufficient"`).
  */
@@ -184,7 +194,7 @@ export function estimateExpenditure(
   const [minPlausible, maxPlausible] = options.plausibleRangeKcal ?? [800, 6000];
 
   const allDates = [...diary.days.map((d) => d.date), ...intakeDays.map((d) => d.date)];
-  const noExclusions: ExpenditureExclusions = { incompleteDays: 0, partialEnergyDays: 0, emptyDays: 0 };
+  const noExclusions: ExpenditureExclusions = { incompleteDays: 0, partialEnergyDays: 0, outOfHomeDays: 0, emptyDays: 0 };
   const lastDate = allDates.reduce<string | undefined>((m, d) => (m === undefined || d > m ? d : m), undefined);
   const to = options.to ?? lastDate;
   if (to === undefined) {
@@ -206,6 +216,7 @@ export function estimateExpenditure(
   const usable: { date: string; kcal: number; certainty: Certainty }[] = [];
   let incompleteDays = 0;
   let partialEnergyDays = 0;
+  let outOfHomeDays = 0;
   for (const date of inWindow.sort()) {
     const day = intakeByDate.get(date);
     if (!day || !day.complete) {
@@ -217,11 +228,18 @@ export function estimateExpenditure(
       partialEnergyDays++;
       continue;
     }
+    // Un pasto fuori casa stimato è un valore generico: se pesa più della quota ammessa, l'energia del giorno
+    // non è quella mangiata e il bilancio con il peso ne uscirebbe falsato senza che si veda.
+    if (outOfHomeEnergyShare(day) > maxMissing) {
+      outOfHomeDays++;
+      continue;
+    }
     usable.push({ date, kcal: energy.value, certainty: energy.certainty });
   }
   const exclusions: ExpenditureExclusions = {
     incompleteDays,
     partialEnergyDays,
+    outOfHomeDays,
     emptyDays: Math.max(0, periodDays - inWindow.length),
   };
 
@@ -248,6 +266,13 @@ export function estimateExpenditure(
   if (periodDays > 0 && usable.length / periodDays < minUsedShare && !reasons.includes("few_complete_days")) {
     reasons.push("low_used_share");
     details.push("troppi giorni del periodo non sono tracciati per intero");
+  }
+  // Se mancano giorni, si dice anche quanti ce n'erano di completi ma lasciati fuori per una stima fuori casa.
+  if (outOfHomeDays > 0 && (reasons.includes("few_complete_days") || reasons.includes("low_used_share"))) {
+    reasons.push("out_of_home_energy");
+    details.push(
+      `${outOfHomeDays === 1 ? "1 giorno completo ha" : `${outOfHomeDays} giorni completi hanno`} un pasto fuori casa stimato e non ${outOfHomeDays === 1 ? "entra" : "entrano"} nel conto`,
+    );
   }
   const fail = (r: ExpenditureInsufficientReason[], detail: string): ExpenditureResult => ({
     ...insufficient(r, basis, detail),

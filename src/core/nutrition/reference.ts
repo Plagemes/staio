@@ -151,6 +151,8 @@ export interface ComparableDay {
   date: string;
   complete: boolean;
   totals: NutrientTotals;
+  /** Le stime «fuori casa» del giorno, se ce ne sono: vedi `DayIntake.outOfHome`. */
+  outOfHome?: { meals: number; energyKcal: number };
 }
 
 export const DEFAULT_MIN_COMPLETE_DAYS = 5;

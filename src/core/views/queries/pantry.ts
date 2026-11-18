@@ -112,6 +112,8 @@ const foodConsumption: QueryDef = {
       if (!inRange(day.date, period)) continue;
       for (const meal of day.meals) {
         for (const item of meal.items) {
+          // una stima «fuori casa» («1 pz», con la sola energia) non è un alimento mangiato in una certa quantità
+          if (item.energyKcal !== undefined) continue;
           if (!hasWords(stemWords(item.name), needle)) continue;
           const s = slot(item.quantity.unit);
           s.meals += item.quantity.value;

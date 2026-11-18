@@ -182,6 +182,11 @@ export interface PeriodSummary {
   entered: EnteredSection | NoSummaryRecords;
   eaten: FlowSection | NoSummaryRecords;
   topFoods: TopFoodsSection;
+  /**
+   * Pasti fuori casa registrati come stima nel periodo. Non sono cibo di cui si conosca nome o quantità: non entrano
+   * in `eaten`, in `topFoods` né nei piatti, e si dicono a parte.
+   */
+  outOfHomeMeals: number;
   dishes: DishesSection;
   mood: MoodSection;
   waste: WasteSummary;
@@ -262,6 +267,7 @@ interface Window {
   entered: FlowAcc & { declaredLots: number };
   eaten: FlowAcc;
   eatenFoods: Map<string, { name: string; days: Set<string>; q: Quantities }>;
+  outOfHomeMeals: number;
   wasted: FlowAcc;
   wasteReasons: Map<DiscardReason, { q: Quantities; events: number }>;
   wasteCategories: Map<string, { category: string | null; q: Quantities; events: number }>;
@@ -300,6 +306,7 @@ function collect(from: string, to: string, input: SummaryInput, expiredBefore: s
     entered: { ...newFlow(), declaredLots: 0 },
     eaten: newFlow(),
     eatenFoods: new Map(),
+    outOfHomeMeals: 0,
     wasted: newFlow(),
     wasteReasons: new Map(),
     wasteCategories: new Map(),
@@ -335,6 +342,11 @@ function collect(from: string, to: string, input: SummaryInput, expiredBefore: s
     if (d.moods.length > 0) w.mood.perDay.push(mean(d.moods.map((m) => m.score)));
     for (const m of d.meals) {
       for (const item of m.items) {
+        // Una stima «fuori casa» («1 pz», con la sola energia) non è un alimento né una quantità mangiata: si conta a parte.
+        if (item.energyKcal !== undefined) {
+          w.outOfHomeMeals += 1;
+          continue;
+        }
         w.eaten.q.add(item.quantity.unit, item.quantity.value);
         w.eaten.days.add(d.date);
         w.eaten.events += 1;
@@ -602,6 +614,7 @@ export function buildSummary(fullPeriod: ReportPeriod, input: SummaryInput, opti
     entered,
     eaten,
     topFoods,
+    outOfHomeMeals: cur.outOfHomeMeals,
     dishes,
     mood,
     waste,

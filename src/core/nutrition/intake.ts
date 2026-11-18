@@ -18,6 +18,7 @@ import {
 } from "../ledger";
 import {
   nutrientsOfQuantity,
+  roundValue,
   sumNutrients,
   type NotComputableReason,
   type NutrientTotals,
@@ -75,6 +76,12 @@ export interface ResolvedLine extends LineBase {
   nutrients: NutrientAmounts;
   /** La peggiore tra la certezza della quantità e quella dell'origine dei valori. */
   certainty: Certainty;
+  /**
+   * La riga è la stima di un pasto fuori casa: `nutrients` porta la sola energia scritta nella voce, sempre
+   * `estimated`. Non viene da una composizione (`composition` ripete il nome della voce, senza `ref`) e non c'è un
+   * alimento da collegare. Per ogni altro nutriente la riga è un dato mancante: i totali che la comprendono sono parziali.
+   */
+  outOfHome?: true;
 }
 
 export interface UnresolvedLine extends LineBase {
@@ -140,6 +147,20 @@ export interface DayIntake {
   totals: NutrientTotals;
   certainty?: Certainty;
   unresolved: UnresolvedLine[];
+  /**
+   * Presente se nel giorno c'è almeno una stima «fuori casa»: quante voci e quanta energia portano. Chi usa
+   * l'energia del giorno per un conto (dispendio, confronti tra periodi) sa così quanta parte è una stima generica;
+   * chi guarda gli alimenti sa che di quei pasti non si conosce il contenuto.
+   */
+  outOfHome?: OutOfHomeInfo;
+}
+
+/** Le stime «fuori casa» di una giornata. */
+export interface OutOfHomeInfo {
+  /** Voci «fuori casa» (di norma una per pasto). */
+  meals: number;
+  /** Somma dell'energia stimata, in kcal. */
+  energyKcal: number;
 }
 
 export interface IntakeOptions {
@@ -206,6 +227,12 @@ function makeLine(
   };
 }
 
+/** L'energia stimata scritta in una voce «fuori casa», se c'è ed è un numero valido. */
+function writtenEnergyOf(item: object): number | undefined {
+  const kcal = (item as { energyKcal?: unknown }).energyKcal;
+  return typeof kcal === "number" && Number.isFinite(kcal) && kcal >= 0 ? kcal : undefined;
+}
+
 /** Identificativo dell'alimento scelto dall'utente per una voce libera, se presente. */
 function foodIdOf(item: object): string | undefined {
   const id = (item as { foodId?: unknown }).foodId;
@@ -222,6 +249,38 @@ function partOf(line: IntakeLine): SumPart {
     };
   }
   return { nutrients: {}, ...(weight !== undefined ? { weight } : {}) };
+}
+
+/** Le stime «fuori casa» tra le righe; `undefined` se non ce ne sono. */
+function outOfHomeOf(lines: readonly IntakeLine[]): OutOfHomeInfo | undefined {
+  let meals = 0;
+  let energyKcal = 0;
+  for (const line of lines) {
+    if (line.status !== "ok" || line.outOfHome !== true) continue;
+    meals++;
+    energyKcal += line.nutrients.energyKcal ?? 0;
+  }
+  return meals > 0 ? { meals, energyKcal: roundValue(energyKcal) } : undefined;
+}
+
+/**
+ * Una stima «fuori casa» è una riga sola, senza peso: contata per righe direbbe che manca poco («1 voce su 8») anche
+ * quando vale metà giornata. Per i nutrienti che la stima non copre (tutti tranne l'energia) la quota di dato mancante
+ * è allora almeno la parte di energia stimata fuori casa sul totale di energia: un pranzo fuori che vale metà
+ * dell'energia del giorno dice «manca circa metà». Resta un minimo: se anche altre voci non hanno il dato, vale la
+ * quota più alta tra le due.
+ */
+function withOutOfHomeShare(totals: NutrientTotals, outOfHome: OutOfHomeInfo | undefined): NutrientTotals {
+  const energy = totals.energyKcal?.value;
+  if (!outOfHome || !(outOfHome.energyKcal > 0) || energy === undefined || !(energy > 0)) return totals;
+  const share = roundValue(Math.min(1, outOfHome.energyKcal / energy));
+  const out: NutrientTotals = { ...totals };
+  for (const key of Object.keys(totals) as NutrientKey[]) {
+    const total = totals[key];
+    if (key === "energyKcal" || !total || total.missingShare >= share) continue;
+    out[key] = { ...total, missingShare: share, partial: true };
+  }
+  return out;
 }
 
 const unresolvedOf = (lines: readonly IntakeLine[]): UnresolvedLine[] =>
@@ -259,17 +318,32 @@ function mealIntake(
 ): MealIntake {
   const lines: IntakeLine[] = [];
   meal.items.forEach((item, itemIndex) => {
+    const base: LineBase = {
+      kind: "mealItem",
+      label: item.name,
+      quantity: item.quantity,
+      quantityCertainty: item.certainty,
+      eventId: meal.eventId,
+      itemIndex,
+      mealId: meal.mealId,
+    };
+    const writtenEnergy = writtenEnergyOf(item);
+    if (writtenEnergy !== undefined) {
+      // Pasto fuori casa: vale l'energia scritta, senza cercare un alimento. Gli altri nutrienti restano assenti, e
+      // un nutriente assente in una riga rende parziale il suo totale (come per le voci non riconosciute).
+      lines.push({
+        ...base,
+        status: "ok",
+        composition: { name: item.name, origin: "derived" },
+        nutrients: { energyKcal: writtenEnergy },
+        certainty: "estimated",
+        outOfHome: true,
+      });
+      return;
+    }
     lines.push(
       makeLine(
-        {
-          kind: "mealItem",
-          label: item.name,
-          quantity: item.quantity,
-          quantityCertainty: item.certainty,
-          eventId: meal.eventId,
-          itemIndex,
-          mealId: meal.mealId,
-        },
+        base,
         {
           kind: "mealItem",
           name: item.name,
@@ -290,7 +364,7 @@ function mealIntake(
     kind: meal.kind,
     ...(meal.title !== undefined ? { title: meal.title } : {}),
     lines,
-    totals: sum.totals,
+    totals: withOutOfHomeShare(sum.totals, outOfHomeOf(lines)),
     ...(sum.certainty !== undefined ? { certainty: sum.certainty } : {}),
     unresolved: unresolvedOf(lines),
   };
@@ -334,6 +408,10 @@ function pantryLine(
  *   riga dice lo stato assunto in `composition.state`.
  *   Una voce senza composizione o con una quantità non
  *   convertibile è "non risolta" e resta nell'elenco, mai conteggiata come zero.
+ * - Una voce «fuori casa» (con `energyKcal`) dà una riga con la sola energia scritta, come stima: entra nei totali
+ *   di energia del pasto e del giorno, e per ogni altro nutriente è un dato mancante (il totale è un minimo): la
+ *   quota mancante di quei nutrienti è almeno la parte di energia stimata fuori casa sull'energia del giorno
+ *   (`missingShare`), e il giorno porta `outOfHome`. Il momento conta come tracciato.
  * - Le bevande contribuiscono solo con la caffeina e l'alcol che dichiarano.
  * - Una giornata è completa solo se colazione, pranzo e cena sono tracciati, nessun pasto è segnato
  *   come non tracciato e nessun pasto tracciato è vuoto.
@@ -407,6 +485,7 @@ export function computeIntake(
       if (p) parts.push(p);
     }
     const sum = sumNutrients(parts);
+    const outOfHome = outOfHomeOf(allLines);
 
     const coverage = dayCoverage(diaryDay, date);
     const reasons: DayPartialReason[] = [];
@@ -422,9 +501,10 @@ export function computeIntake(
       meals,
       standalone,
       drinks,
-      totals: sum.totals,
+      totals: withOutOfHomeShare(sum.totals, outOfHome),
       ...(sum.certainty !== undefined ? { certainty: sum.certainty } : {}),
       unresolved: unresolvedOf(allLines),
+      ...(outOfHome ? { outOfHome } : {}),
     };
   });
 

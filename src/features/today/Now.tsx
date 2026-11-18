@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { createWater, getDay, habitsToPropose, localMoment, type DiaryHabit, type DiaryState } from "@/core/diary";
+import type { AnyEvent } from "@/core/events";
 import { activeLots, type PantryState } from "@/core/ledger";
 import { Button, Label } from "@/design";
 import { Sheet } from "../common";
@@ -25,7 +26,11 @@ interface Props {
   pantry: PantryState;
   /** «Acqua: un'altra quantità»: apre la riga «Acqua» del diario e la porta in vista. Assente finché il diario non c'è. */
   onShowWater?: () => void;
+  /** Dopo una bevanda segnata (pastiglia o foglio «Bevande»): la schermata porta in vista la sua riga nel diario. */
+  onDrinkAdded?: (drinkEventId: string) => void;
 }
+
+const drinkIdOf = (events: readonly AnyEvent[]): string | undefined => events.find((e) => e.type === "drink")?.id;
 
 const WATER_ML = 200;
 const COFFEE = DRINK_PRESETS.find((p) => p.id === "espresso");
@@ -35,7 +40,7 @@ const TEA = DRINK_PRESETS.find((p) => p.id === "tea");
  * Il blocco d'azione di Oggi: che cosa registrare adesso. Un pulsante per il pasto del momento (con il pasto abituale,
  * se c'è, già pronto), quattro pastiglie per ciò che si beve, e sotto il conto del giorno, che cambia a ogni tocco.
  */
-export function Now({ now, today, diary, pantry, onShowWater }: Props) {
+export function Now({ now, today, diary, pantry, onShowWater, onDrinkAdded }: Props) {
   const timeZone = diary.timeZone;
   const { record, recordWith, busy: recording } = useRecord();
   const drinkActions = useDrinkActions(timeZone);
@@ -71,8 +76,13 @@ export function Now({ now, today, diary, pantry, onShowWater }: Props) {
   async function addDrink(preset: DrinkPreset) {
     setError(null);
     const result = await drinkActions.addPreset(preset);
-    if (result.ok) suggestion.offer(preset.name, result.events);
-    else setError(result.error);
+    if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+    suggestion.offer(preset.name, result.events);
+    const id = drinkIdOf(result.events);
+    if (id) onDrinkAdded?.(id);
   }
 
   return (
@@ -149,6 +159,8 @@ export function Now({ now, today, diary, pantry, onShowWater }: Props) {
             onAdded={(name, events) => {
               setSheet(false);
               suggestion.offer(name, events);
+              const id = drinkIdOf(events);
+              if (id) onDrinkAdded?.(id);
             }}
           />
           {sheetError ? (

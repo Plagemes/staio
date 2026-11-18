@@ -11,3 +11,4 @@ export {
   familyOf,
 } from "./families";
 export type { EventFamily, EventFamilyInfo } from "./families";
+export { OPERATION_ID_FIELD, OPERATION_ID_MAX_LENGTH, operationIdOf, withOperationId } from "./operation";

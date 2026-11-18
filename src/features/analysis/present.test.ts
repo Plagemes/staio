@@ -8,6 +8,9 @@ import {
   formatKgPerWeek,
   formatRange,
   formatSigned,
+  outOfHomeAssociationText,
+  outOfHomeExcludedText,
+  outOfHomeMealsText,
   plural,
   regularityText,
   reliabilityText,
@@ -92,5 +95,22 @@ describe("controllo delle associazioni", () => {
   it("senza permutazioni lo dice; con troppi confronti avverte", () => {
     expect(associationControlText({ ...control, method: "holm", permutations: 0 }).join(" ")).toMatch(/senza la prova di rimescolamento/);
     expect(associationControlText({ ...control, resolutionLimited: true }).join(" ")).toMatch(/non può confermare nessuna associazione/);
+  });
+});
+
+describe("pasti fuori casa stimati nelle analisi", () => {
+  it("il conto del periodo, a parte dagli alimenti", () => {
+    expect(outOfHomeMealsText(1)).toBe("Pasti fuori casa: 1, registrato come stima della sola energia. Non entra tra gli alimenti né nelle quantità mangiate.");
+    expect(outOfHomeMealsText(3)).toBe("Pasti fuori casa: 3, registrati come stima della sola energia. Non entrano tra gli alimenti né nelle quantità mangiate.");
+  });
+
+  it("i giorni lasciati fuori dal dispendio e dalle associazioni, con il perché", () => {
+    expect(outOfHomeExcludedText(1)).toBe(
+      "Escluso anche 1 giorno con un pasto fuori casa stimato: lì l'energia è in buona parte un valore generico, non ciò che hai mangiato.",
+    );
+    expect(outOfHomeExcludedText(4)).toMatch(/^Esclusi anche 4 giorni con un pasto fuori casa stimato: /);
+    expect(outOfHomeAssociationText(2)).toBe(
+      "2 giorni tracciati per intero hanno un pasto fuori casa stimato e non entrano nel confronto: di quel pasto non si conoscono gli alimenti.",
+    );
   });
 });

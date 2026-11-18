@@ -125,6 +125,12 @@ export interface Association {
 export interface AssociationBasisInfo extends DataBasis {
   /** Per esito, i giorni completi con l'esito osservato lo stesso giorno. */
   outcomeDays: Record<OutcomeKey, number>;
+  /**
+   * Giorni tracciati per intero lasciati fuori perché hanno un pasto fuori casa stimato: di quel pasto non si
+   * conoscono gli alimenti, quindi il giorno non si può mettere né tra quelli «con» né tra quelli «senza» un
+   * alimento. Assente se zero.
+   */
+  outOfHomeDays?: number;
 }
 
 export interface AssociationsFound {
@@ -179,9 +185,12 @@ function foodKey(
     label: string;
     status: "ok" | "unresolved";
     composition?: { name: string; ref?: string };
+    outOfHome?: true;
   },
   normalize: (label: string) => string,
 ): { key: string; label: string; ref?: string } | undefined {
+  // una stima «fuori casa» non è un alimento
+  if (line.outOfHome === true) return undefined;
   if (line.status === "ok" && line.composition?.ref !== undefined) {
     return { key: `food:${line.composition.ref}`, label: line.composition.name, ref: line.composition.ref };
   }
@@ -238,9 +247,17 @@ export function findAssociations(
 
   const dayByDate = new Map<string, DiaryDay>(diary.days.map((d) => [d.date, d]));
   const intakeByDate = new Map(intakeDays.map((d) => [d.date, d]));
-  const completeDates = [...intakeByDate.keys()]
+  const trackedDates = [...intakeByDate.keys()]
     .filter((d) => inRange(d, from, to) && intakeByDate.get(d)?.complete === true && isFullyTracked(dayByDate.get(d), d))
     .sort();
+  // Un giorno con un pasto fuori casa stimato è tracciato, ma di quel pasto non si sa che cosa c'era: non si può
+  // dire che un alimento quel giorno mancasse. Entrando tra i giorni «senza» annacquerebbe ogni confronto.
+  const completeDates = trackedDates.filter((d) => intakeByDate.get(d)?.outOfHome === undefined);
+  const outOfHomeDays = trackedDates.length - completeDates.length;
+  const outOfHomeNote =
+    outOfHomeDays > 0
+      ? `${outOfHomeDays === 1 ? "1 giorno tracciato per intero ha" : `${outOfHomeDays} giorni tracciati per intero hanno`} un pasto fuori casa stimato e non ${outOfHomeDays === 1 ? "entra" : "entrano"} nel confronto: di quel pasto non si conoscono gli alimenti.`
+      : undefined;
 
   const outcomeDays = { ...emptyOutcomeDays };
   let outcomeObservations = 0;
@@ -255,13 +272,14 @@ export function findAssociations(
   const basis: AssociationBasisInfo = {
     ...basisOf(periodDays, completeDates.length, outcomeObservations),
     outcomeDays,
+    ...(outOfHomeDays > 0 ? { outOfHomeDays } : {}),
   };
   if (completeDates.length < minComplete) {
     return {
       ...insufficient(
         ["few_complete_days"],
         basis,
-        `servono almeno ${minComplete} giorni tracciati per intero, ce ne sono ${completeDates.length}.`,
+        `servono almeno ${minComplete} giorni tracciati per intero, ce ne sono ${completeDates.length}.${outOfHomeNote ? ` ${outOfHomeNote}` : ""}`,
       ),
       basis,
     };
@@ -460,7 +478,7 @@ export function findAssociations(
       resolutionLimited: checkPermutations && maxExceedances < 0,
       passedTTest,
     },
-    caveats: [...CAVEATS],
+    caveats: [...CAVEATS, ...(outOfHomeNote ? [`${outOfHomeNote[0].toUpperCase()}${outOfHomeNote.slice(1)}`] : [])],
   };
 }
 

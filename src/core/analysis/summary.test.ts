@@ -206,3 +206,34 @@ describe("customPeriod: limiti", () => {
     expect(customPeriod("2028-01-01", "2028-12-31")?.days).toBe(366);
   });
 });
+
+describe("buildSummary: pasti fuori casa stimati", () => {
+  const out = (date: string, kcal = 800) =>
+    meal(id("m"), iso(date), {
+      mealId: id("meal"),
+      kind: "lunch",
+      certainty: "estimated",
+      items: [{ name: "Fuori casa · normale", quantity: { value: 1, unit: "pz" }, certainty: "estimated", energyKcal: kcal }],
+    });
+
+  it("non compaiono tra gli alimenti né nelle quantità mangiate: si contano a parte", () => {
+    const s = build([out("2026-03-03"), out("2026-03-04"), out("2026-03-05"), dish("2026-03-06", "Risotto")]);
+    expect(s.outOfHomeMeals).toBe(3);
+    if (s.topFoods.status !== "ok" || s.eaten.status !== "ok") throw new Error("atteso ok");
+    expect(s.topFoods.items.map((f) => f.name)).toEqual(["Riso"]);
+    expect(s.topFoods.distinct).toBe(1);
+    // solo i 100 g di riso: nessun «pezzo» per le stime
+    expect(s.eaten.quantities).toEqual([expect.objectContaining({ unit: "g", value: 100 })]);
+    if (s.dishes.status !== "ok") throw new Error("atteso ok");
+    expect(s.dishes.top.map((d) => d.title)).toEqual(["Risotto"]);
+  });
+
+  it("un periodo fatto solo di pasti fuori casa non ha alimenti mangiati, ma il conto c'è", () => {
+    const s = build([out("2026-03-03"), out("2026-03-04")]);
+    expect(s.outOfHomeMeals).toBe(2);
+    expect(s.topFoods.status).toBe("insufficient");
+    expect(s.eaten.status).toBe("insufficient");
+    expect(s.recordedDays).toBe(2);
+    expect(build([dish("2026-03-06", "Risotto")]).outOfHomeMeals).toBe(0);
+  });
+});

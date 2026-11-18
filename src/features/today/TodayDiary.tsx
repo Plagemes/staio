@@ -9,11 +9,12 @@ import { Disclosure } from "../common";
 import { relativeDay } from "../format";
 import { formatMl } from "../health";
 import { DrinkPresetChips, useDrinkActions } from "../health/Drinks";
-import { WaterCard } from "../health/WaterCard";
 import { buildJournal } from "../journal";
 import { MEAL_KIND_LABELS, TYPICAL_MEAL_TIME, minutesOfTime } from "../meals";
 import { looseConsumesOf } from "../pantry/eaten";
 import ui from "../ui.module.css";
+import { BodyRow } from "./BodyRow";
+import { bodyLines, bodySummary, waterGlasses } from "./dayRows";
 import { dayStatusLine, diaryTitle } from "./dayStatus";
 import { useDayIntake } from "./MealLines";
 import { MealMoments } from "./MealMoments";
@@ -21,6 +22,7 @@ import { PantryJournal } from "./PantryJournal";
 import { movementsSummary } from "./summaries";
 import type { TodayPlan } from "./useTodayPlan";
 import { useWaterGoal } from "./useWaterGoal";
+import { WaterRow } from "./WaterRow";
 import styles from "./Today.module.css";
 
 interface Props {
@@ -37,18 +39,22 @@ interface Props {
   /** La riga «Acqua» è aperta: la schermata la apre anche da fuori («Acqua: un'altra quantità», il riepilogo). */
   waterOpen: boolean;
   onWaterOpenChange: (open: boolean) => void;
+  /** `?voce=` chiedeva una voce che non c'è più: lo dice una riga sotto il titolo. */
+  entryGone?: boolean;
 }
 
 /**
  * Il diario del giorno: una riga di stato, i momenti con i loro pasti e le loro bevande, e in coda le righe richiuse
- * «Acqua» e «Dispensa». Per un giorno passato l'acqua è solo il totale, e in fondo si può aggiungere una bevanda
- * dimenticata.
+ * «Acqua» (con i bicchieri), «Corpo» (peso, umore, note, integratori) e «Dispensa». Per un giorno passato l'acqua e
+ * il corpo compaiono solo se c'è qualcosa, e in fondo si può aggiungere una bevanda dimenticata.
  */
-export function TodayDiary({ now, today, date, diary, pantry, log, plan, waterOpen, onWaterOpenChange }: Props) {
+export function TodayDiary({ now, today, date, diary, pantry, log, plan, waterOpen, onWaterOpenChange, entryGone = false }: Props) {
   const timeZone = diary.timeZone;
   const pastDay = date < today;
   const goal = useWaterGoal();
   const intake = useDayIntake(date);
+  const voided = useMemo(() => new Set(diary.voidedEventIds), [diary.voidedEventIds]);
+  const glasses = useMemo(() => waterGlasses(log, date, timeZone, voided), [log, date, timeZone, voided]);
 
   const meals = useMemo(
     () =>
@@ -64,10 +70,16 @@ export function TodayDiary({ now, today, date, diary, pantry, log, plan, waterOp
   const day = getDay(diary, date);
   const waterMl = day?.waterMl ?? 0;
   const status = dayStatusLine(day, pastDay ? {} : { nowMinutes: localMoment(now, timeZone)?.minutes ?? 0 });
+  const body = bodySummary(day);
 
   return (
     <section className={ui.section}>
-      <SectionHeader label={diaryTitle(date, today)} />
+      <SectionHeader label={diaryTitle(date, today)} actionLabel="Ultime azioni" actionHref="/app/attivita" />
+      {entryGone ? (
+        <p className={ui.callout} role="status">
+          Questa voce non c&apos;è più.
+        </p>
+      ) : null}
       <p className={styles.status} role="status">
         {status}
       </p>
@@ -87,16 +99,25 @@ export function TodayDiary({ now, today, date, diary, pantry, log, plan, waterOp
         pastDay={pastDay}
       />
 
-      {pastDay && waterMl > 0 ? <p className={styles.status}>Acqua · {formatMl(waterMl)}</p> : null}
-
       <div className={`${styles.rows} ${styles.tail}`}>
-        {pastDay ? null : (
+        {pastDay ? (
+          waterMl > 0 ? (
+            <Disclosure title="Acqua" summary={formatMl(waterMl)}>
+              <WaterRow glasses={glasses} log={log} controls={false} />
+            </Disclosure>
+          ) : null
+        ) : (
           <div id="acqua" className={styles.anchor}>
             <Disclosure title="Acqua" summary={`${formatMl(waterMl)} di ${formatMl(goal)}`} open={waterOpen} onOpenChange={onWaterOpenChange}>
-              <WaterCard />
+              <WaterRow glasses={glasses} log={log} controls />
             </Disclosure>
           </div>
         )}
+        {body !== null ? (
+          <Disclosure title="Corpo" summary={body}>
+            <BodyRow lines={bodyLines(day, timeZone)} log={log} />
+          </Disclosure>
+        ) : null}
         {movements.length > 0 ? (
           <Disclosure title="Dispensa" summary={movementsSummary(movements.length)}>
             <PantryJournal rows={movements} log={log} />
@@ -141,7 +162,7 @@ function ForgottenDrink({ date, today, timeZone }: { date: string; today: string
                   setTimeEdit(null);
                 }}
               />
-              <span>{k === "snack" ? "Fuori pasto" : MEAL_KIND_LABELS[k]}</span>
+              <span>{MEAL_KIND_LABELS[k]}</span>
             </label>
           ))}
         </div>

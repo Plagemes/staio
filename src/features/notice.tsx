@@ -79,7 +79,7 @@ export function NoticeProvider({ children }: { children: ReactNode }) {
       {children}
       {notice ? (
         <div className={styles.dock}>
-          <div className={styles.notice} role="status" aria-live="polite" key={notice.id}>
+          <div className={notice.link && (notice.undo || notice.onUndo) ? `${styles.notice} ${styles.twoCommands}` : styles.notice} role="status" aria-live="polite" key={notice.id}>
             <p className={styles.message}>{notice.message}</p>
             {notice.undo || notice.onUndo ? (
               <button type="button" className={styles.undo} onClick={undo} disabled={notice.busy}>

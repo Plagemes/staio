@@ -376,7 +376,10 @@ export function derivePantry(
   }
 
   const voided = resolveVoids(included, new Set([...byId.keys(), ...foreignIds]), anomalies);
-  for (const id of supersededConsumes(included, voided)) voided.add(id);
+  // Gli eventi degli altri moduli (di cui si conosce solo l'id) contano come «non consumi»: due consumi che per errore
+  // ne citano uno restano due consumi, come nel diario, invece di passare per sostituti di un consumo non arrivato.
+  const foreign = [...foreignIds].map((id) => ({ id, type: "foreign" }));
+  for (const id of supersededConsumes([...foreign, ...included], voided)) voided.add(id);
   const live = included.filter((e) => e.type !== "void" && !voided.has(e.id));
 
   // Legami `replaces` tra creazioni (anche annullate: la sostituita lo è quasi sempre).

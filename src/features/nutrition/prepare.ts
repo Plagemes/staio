@@ -17,7 +17,7 @@ import {
 import { MAIN_MEALS, MEAL_KIND_LABELS } from "../meals";
 import type { MealItemRef } from "./corrections";
 import { isPrepRef, type PrepPortionInfo } from "./prepPortion";
-import { NUTRIENT_INFO, REFERENCE_KIND_LABELS, STATE_LABELS, formatNutrient, nutrientLabel, variantLabel } from "./labels";
+import { NUTRIENT_INFO, OUT_OF_HOME_EXPLANATION, REFERENCE_KIND_LABELS, STATE_LABELS, formatNutrient, nutrientLabel, variantLabel } from "./labels";
 
 /** Quota di dato mancante a parole: da qualunque valore maggiore di zero, mai arrotondata a niente. */
 export function missingPercentText(share: number): string {
@@ -318,6 +318,21 @@ export function buildNutritionRows(comparisons: readonly ReferenceComparison[], 
   };
 }
 
+/** I giorni completi (quelli che entrano nelle medie) con almeno un pasto fuori casa stimato. */
+export function outOfHomeDayCount(days: readonly DayIntake[]): number {
+  return days.filter((d) => d.complete && linesOf(d).some((l) => l.status === "ok" && l.outOfHome === true)).length;
+}
+
+/**
+ * La frase che accompagna il conto dei giorni completi quando tra loro ci sono pasti fuori casa: contano, come stima
+ * della sola energia. Assente se non ce ne sono.
+ */
+export function outOfHomeDaysText(count: number): string | undefined {
+  if (!(count > 0)) return undefined;
+  const which = count === 1 ? "In 1 di questi giorni" : `In ${count} di questi giorni`;
+  return `${which} c'è un pasto fuori casa: conta con una stima della sola energia, e per gli altri nutrienti il dato manca (i numeri con «almeno» sono un minimo).`;
+}
+
 /** Periodo di `n` giorni che finisce oggi, estremi inclusi. */
 export function periodOf(today: string, n: number): { from: string; to: string } {
   return { from: addDays(today, -(n - 1)), to: today };
@@ -447,6 +462,8 @@ export interface Contributor extends LineRefs {
   stateHonored?: boolean;
   /** A che cosa è stato associato (nome nella tabella o prodotto). */
   matchedName: string;
+  /** È la stima di un pasto fuori casa: non c'è un alimento da cambiare. */
+  outOfHome?: true;
   value: number;
   /** Quota sul totale dei contributi, da 0 a 1. */
   share: number;
@@ -473,6 +490,10 @@ export function topContributors(
       if (cur) {
         cur.value += v;
         addRefs(cur, line);
+      }
+      else if (line.outOfHome === true) {
+        // una stima fuori casa non ha un alimento dietro: porta il suo segno e nessuna voce da correggere
+        sums.set(id, { key: id, name: line.label, matchedName: line.label, stateText: OUT_OF_HOME_EXPLANATION, outOfHome: true, value: v, share: 0, mealRefs: [], pantry: false });
       }
       else {
         const { state, statePreference } = line.composition;

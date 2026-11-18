@@ -6,7 +6,7 @@ import { deriveDiary } from "./derive";
 import { mealsWithPantry } from "./pantry";
 import { dayBefore, isQuickConsume, mealForMoment, momentKindAt, moveConsumes, placeConsumes, QUICK_CONSUME_NOTE } from "./placeConsume";
 import { getDay, mealMoments } from "./selectors";
-import { consume, meal, purchase, voidOf } from "./test-helpers";
+import { consume, meal, purchase, seededRandom, shuffled, voidOf } from "./test-helpers";
 
 const D = "2026-03-10";
 const TZ = { timeZone: "UTC" };
@@ -262,6 +262,36 @@ describe("cambiare momento", () => {
     if (!moved.ok) throw new Error("atteso ok");
     const state = deriveDiary([...log, ...moved.events], TZ);
     expect(mealMoments(getDay(state, D)).find((x) => x.kind === "lunch")?.status).toBe("none");
+  });
+});
+
+describe("due telefoni spostano lo stesso consumo", () => {
+  const first = placeConsumes([eaten("c1", at("13:11"), 275)], deriveDiary([lot], TZ), ctx(at("13:11")));
+  if (!first.ok) throw new Error("atteso ok");
+  const log = [lot, ...first.events];
+  const on = (device: string, now: string) => ({ deviceId: device, now, idGenerator: () => `${device}-${++n}`, timeZone: "UTC" });
+
+  it("due volte su uno e una sull'altro: dopo l'unione il consumo è uno solo, lo stesso in qualunque ordine", () => {
+    const a1 = moveConsumes(first.consumes, deriveDiary(log, TZ), on("dev-a", at("13:20")), { kind: "dinner" });
+    if (!a1.ok) throw new Error("atteso ok");
+    const logA = [...log, ...a1.events];
+    const a2 = moveConsumes(a1.consumes, deriveDiary(logA, TZ), on("dev-a", at("13:22")), { kind: "snack" });
+    if (!a2.ok) throw new Error("atteso ok");
+    const b1 = moveConsumes(first.consumes, deriveDiary(log, TZ), on("dev-b", at("13:21")), { kind: "breakfast" });
+    if (!b1.ok) throw new Error("atteso ok");
+    const union = [...logA, ...a2.events, ...log, ...b1.events];
+
+    const random = seededRandom(5);
+    for (let i = 0; i < 20; i++) {
+      const all = shuffled(union, random);
+      const state = deriveDiary(all, TZ);
+      // vale l'ultimo spostamento scritto: lo spuntino del telefono A
+      expect((getDay(state, D)?.meals ?? []).map((m) => m.kind)).toEqual(["snack"]);
+      expect(mealsWithPantry(state, all).flatMap((m) => m.pantryConsumes.map((x) => x.quantity.value))).toEqual([275]);
+      expect(mealsWithPantry(state, all)[0].removedLines).toBeUndefined();
+      expect(derivePantry(all as never[]).lots[0].remaining).toBe(1100 - 275);
+      expect(energyOf(all)).toBe(275);
+    }
   });
 });
 

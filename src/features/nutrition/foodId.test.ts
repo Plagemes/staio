@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveDiary } from "@/core/diary";
+import { appendItems, deriveDiary, removeItem } from "@/core/diary";
 import type { AnyEvent } from "@/core/events";
 import { computeIntake } from "@/core/nutrition";
 import { fakeFood } from "@/core/nutrition/test-helpers";
@@ -142,6 +142,53 @@ describe("correggere l'alimento di una voce già registrata", () => {
     expect(corrected.events).toHaveLength(2);
     const items = deriveDiary([...events, ...corrected.events]).days[0].meals[0].items;
     expect(items.map((i) => i.foodId)).toEqual(["mela", "mela"]);
+  });
+
+  it("un pasto corretto su due telefoni: la voce è quella mostrata, e dopo ne resta una versione sola", () => {
+    const base = save([
+      { name: "Primo", quantityText: "50 g", none: true },
+      { name: "Secondo", quantityText: "50 g", none: true },
+    ]);
+    const first = base[0];
+    if (first.type !== "meal") throw new Error("pasto");
+    const mealId = first.mealId;
+    // un telefono toglie «Primo»; l'altro, senza saperlo, aggiunge «Terzo» un'ora dopo
+    const removed = removeItem(mealId, 0, base, { now: at("2026-11-10", 13), deviceId: "a" });
+    const added = appendItems(mealId, [{ name: "Terzo", quantity: { value: 50, unit: "g" }, certainty: "estimated" }], base, { now: at("2026-11-10", 14), deviceId: "b" });
+    if (!removed.ok || !added.ok) throw new Error("correzioni");
+    const events: AnyEvent[] = [...base, ...removed.events, ...added.events];
+
+    // le due versioni si uniscono: ciò che si mostra non è l'evento più recente così com'è
+    const shown = deriveDiary(events).days[0].meals[0];
+    expect(shown.items.map((i) => i.name)).toEqual(["Secondo", "Terzo"]);
+    const winner = events.find((e) => e.id === shown.eventId);
+    expect(winner?.type === "meal" && winner.items?.map((i) => i.name)).toEqual(["Primo", "Secondo", "Terzo"]);
+
+    const corrected = correctMealItems(events, [{ eventId: shown.eventId, itemIndex: 1 }], "mela", { now: at("2026-11-10", 15), deviceId: "d" });
+    if (!corrected.ok) throw new Error(corrected.error);
+    // tutte e due le versioni in vigore sono annullate, e ne nasce una
+    expect(corrected.events.map((e) => e.type)).toEqual(["void", "void", "meal"]);
+
+    const after = deriveDiary([...events, ...corrected.events]);
+    expect(after.anomalies.filter((a) => a.code === "duplicate_meal")).toEqual([]);
+    expect(after.days[0].meals).toHaveLength(1);
+    const items = after.days[0].meals[0].items;
+    expect(items.map((i) => i.name)).toEqual(["Secondo", "Terzo"]);
+    expect(items.map((i) => i.foodId)).toEqual([undefined, "mela"]);
+
+    // «Annulla» riporta le due versioni di prima, unite allo stesso modo
+    const undo = corrected.events.map((e) => ({ ...e, id: `u-${e.id}`, type: "void", targetEventId: e.id, at: at("2026-11-10", 16), recordedAt: at("2026-11-10", 16) }) as unknown as AnyEvent);
+    const back = deriveDiary([...events, ...corrected.events, ...undo]).days[0].meals[0];
+    expect(back.items.map((i) => [i.name, i.foodId])).toEqual([["Secondo", undefined], ["Terzo", undefined]]);
+  });
+
+  it("una voce indicata su una versione che non è più quella mostrata non si corregge", () => {
+    const base = save([{ name: "Primo", quantityText: "50 g", none: true }]);
+    const first = base[0];
+    if (first.type !== "meal") throw new Error("pasto");
+    const added = appendItems(first.mealId, [{ name: "Terzo", quantity: { value: 50, unit: "g" }, certainty: "estimated" }], base, { now: at("2026-11-10", 14), deviceId: "b" });
+    if (!added.ok) throw new Error("correzione");
+    expect(correctMealItems([...base, ...added.events], [{ eventId: first.id, itemIndex: 0 }], "mela", ctx()).ok).toBe(false);
   });
 
   it("un pasto che non c'è più, o nessuna voce, è un errore e non scrive niente", () => {

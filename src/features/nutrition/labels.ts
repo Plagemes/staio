@@ -103,6 +103,9 @@ export function certaintyExplanation(certainty: Certainty): string {
   }
 }
 
+/** Il segno di una riga che è la stima di un pasto fuori casa, dove si legge da quali voci viene un nutriente. */
+export const OUT_OF_HOME_EXPLANATION = "Stima fuori casa: solo l'energia. Per gli altri nutrienti il dato manca.";
+
 export const REFERENCE_KIND_LABELS: Record<ReferenceKind, string> = {
   PRI: "assunzione raccomandata",
   AI: "assunzione adeguata",

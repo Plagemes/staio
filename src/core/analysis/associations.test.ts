@@ -241,3 +241,45 @@ describe("findAssociations: protezioni", () => {
     expect(dateOf(0)).toBe("2026-03-02");
   });
 });
+
+describe("findAssociations: pasti fuori casa stimati", () => {
+  /** 40 giorni completi con umore; nei giorni indicati il pranzo è una stima fuori casa. */
+  function log(outOn: (i: number) => boolean, total = 40) {
+    const random = rng(3);
+    const events: unknown[] = [];
+    for (let i = 0; i < total; i++) {
+      const out = outOn(i);
+      events.push(...day(i, out ? { outOfHome: { kind: "lunch" as const, kcal: 800 } } : { lunchItems: random() < 0.5 ? [{ name: "Zorballa" }] : [] }));
+      // l'umore è più basso proprio nei giorni fuori casa: se la stima valesse come alimento, verrebbe a galla
+      events.push(moodOn(i, out ? 1 : 4 + (i % 2)));
+    }
+    return analyzeLight(events);
+  }
+
+  it("i giorni con una stima non entrano nel confronto, e l'avvertenza dice quanti sono", () => {
+    const { diary, intakeDays } = log((i) => i % 4 === 0);
+    const r = findAssociations(diary, intakeDays);
+    if (r.status !== "ok") throw new Error("atteso ok");
+    expect(r.basis).toMatchObject({ usedDays: 30, outOfHomeDays: 10 });
+    expect(r.caveats).toContain(
+      "10 giorni tracciati per intero hanno un pasto fuori casa stimato e non entrano nel confronto: di quel pasto non si conoscono gli alimenti.",
+    );
+    expect(r.associations.map((a) => a.exposure.label).join(" ")).not.toMatch(/fuori casa/i);
+  });
+
+  it("se per questo i giorni non bastano, lo dice", () => {
+    const { diary, intakeDays } = log((i) => i % 2 === 0, 20);
+    const r = findAssociations(diary, intakeDays);
+    expect(r.status).toBe("insufficient");
+    if (r.status !== "insufficient") return;
+    expect(r.reasons).toContain("few_complete_days");
+    expect(r.basis).toMatchObject({ usedDays: 10, outOfHomeDays: 10 });
+    expect(r.message).toMatch(/10 giorni tracciati per intero hanno un pasto fuori casa stimato/);
+  });
+
+  it("senza pasti fuori casa il conto non compare", () => {
+    const { diary, intakeDays } = log(() => false);
+    const r = findAssociations(diary, intakeDays);
+    expect(r.basis.outOfHomeDays).toBeUndefined();
+  });
+});

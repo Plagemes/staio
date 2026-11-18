@@ -16,14 +16,19 @@ function drinksOf(events: unknown[], date = "2026-11-16") {
 describe("buildDrink", () => {
   it("riscontro chiaro: nome, ora e momento", () => {
     const r = buildDrink(inputOfPreset(tea), ctx());
-    expect(r.message).toBe("Tè segnato alle 8:12 · colazione");
+    expect(r.message).toBe("Segnato: tè, alle 8:12 · colazione");
     expect(r.events).toHaveLength(1);
     expect(r.events[0]).toMatchObject({ type: "drink", name: "Tè", ml: 200, caffeineMg: 40, energyKcal: 1, certainty: "estimated" });
   });
 
-  it("il momento segue l'ora, con «fuori pasto» a metà pomeriggio", () => {
+  it("di un giorno passato il giorno va in coda", () => {
+    const r = buildDrink(inputOfPreset(tea), { ...ctx(), dayLabel: "ieri" });
+    expect(r.message).toBe("Segnato: tè, alle 8:12 · colazione · ieri");
+  });
+
+  it("il momento segue l'ora, con «spuntino» a metà pomeriggio", () => {
     expect(drinkMomentWord("2026-11-16T11:00:00.000Z", "Europe/Rome")).toBe("pranzo"); // 12:00
-    expect(drinkMomentWord("2026-11-16T16:00:00.000Z", "Europe/Rome")).toBe("fuori pasto"); // 17:00
+    expect(drinkMomentWord("2026-11-16T16:00:00.000Z", "Europe/Rome")).toBe("spuntino"); // 17:00
     expect(drinkMomentWord("2026-11-16T19:30:00.000Z", "Europe/Rome")).toBe("cena"); // 20:30
     expect(shortTime("2026-11-16T07:05:00.000Z", "Europe/Rome")).toBe("8:05");
   });

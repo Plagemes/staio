@@ -27,6 +27,54 @@
   line-height: 1.1;
 }
 
+/* «Registra adesso» in vista, «Altro» accanto */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap-item);
+}
+
+/* «Cambia gli alimenti»: una riga per voce, con la quantità e «Togli» */
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-item);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.itemLine {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 7rem) auto;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.itemName {
+  min-width: 0;
+  font-size: var(--text-body-sm);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.itemQuantity {
+  min-width: 0;
+}
+
+.newItem {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-4);
+}
+
 /* Vivo: titoli e numeri in grassetto come nelle altre schermate */
 :global([data-palette="vivo"]) .title {
   font-weight: var(--weight-display);

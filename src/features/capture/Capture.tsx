@@ -146,8 +146,8 @@ export function Capture() {
   const proposedCategory = prefill.category ?? remembered?.category ?? categoryFor(name);
   const category = edits.category ?? proposedCategory;
   const categoryChosen = edits.category !== undefined;
-  // Il campo sta in vista solo se nessuno l'ha riconosciuta; una volta in vista non si sposta mentre lo si usa
-  const categoryInView = proposedCategory === "";
+  // Il campo sta in vista solo se c'è un nome e nessuno ha riconosciuto la categoria; senza nome non c'è niente da riconoscere
+  const categoryInView = name.trim() !== "" && proposedCategory === "";
 
   // luogo: scelta fatta qui, poi memoria, poi regola per categoria. Se l'utente cambia la categoria, il luogo ricordato per l'altra non vale più.
   const rememberedLocation = edits.category !== undefined && edits.category !== remembered?.category ? undefined : remembered?.location;
@@ -184,6 +184,14 @@ export function Capture() {
   // scheda che l'app aveva creato per questo nome (non un codice a barre letto): va proposta, non applicata
   const offeredProduct = !barcode && loadedNutrition && savedProduct?.localFromName && savedProduct.nutrients ? savedProduct : storeOffer;
   const barcodeIsLocal = savedProduct?.localFromName === true && Boolean(barcode);
+  // arrivato da un codice che l'archivio non conosce: dall'indirizzo è venuto solo il codice e nessuna scheda ha dei valori
+  const noDataForCode =
+    Boolean(barcode) &&
+    prefill.name === undefined &&
+    prefill.quantityText === undefined &&
+    prefill.brand === undefined &&
+    !barcodeIsLocal &&
+    !(loadedNutrition && storedProduct?.nutrients);
   const rejectSaved = () => {
     setChoice({ code: nutritionCode ?? "", use: false });
     if (barcode) return;
@@ -219,7 +227,9 @@ export function Capture() {
   }
 
   /** Mostra gli errori e porta il fuoco sul primo campo; «Altri dettagli» si apre da sola se l'errore sta lì dentro. */
-  function showErrors(next: FieldErrors) {
+  function showErrors(raw: FieldErrors) {
+    // senza nome il campo «Categoria» non è in vista: l'errore da dare è quello del nome
+    const next = name.trim() === "" ? { ...raw, category: undefined } : raw;
     setErrors(next);
     if (next.price || (next.category && !categoryInView) || (next.expiryDate && splitDates)) setDetailsOpen(true);
     const first = (["name", "quantity", "category", "expiryDate", "price"] as const).find((f) => next[f]);
@@ -387,14 +397,15 @@ export function Capture() {
     <div className={ui.screen}>
       <div className={ui.head}>
         <h1 className={ui.title}>Aggiungi alla dispensa</h1>
-        <Label>{barcode ? "Da codice a barre" : "A mano"}</Label>
+        {barcode ? <Label>Da codice a barre</Label> : null}
       </div>
 
       {barcode ? (
         <div className={ui.callout} role="status">
           <p className={ui.paragraph}>
-            {barcodeIsLocal ? "Valori inseriti da te" : `Dati letti dal codice a barre ${barcode}`}
-            {brand ? ` (${brand})` : ""}. Controllali e completa il resto: verranno salvati come letti in etichetta.
+            {noDataForCode
+              ? `Codice ${barcode}: non l'ho trovato. Scrivi tu i dati: la prossima volta li ritrovo dal codice.`
+              : `${barcodeIsLocal ? "Valori inseriti da te" : `Dati letti dal codice a barre ${barcode}`}${brand ? ` (${brand})` : ""}. Controllali e completa il resto: verranno salvati come letti in etichetta.`}
           </p>
           <button
             type="button"
@@ -506,7 +517,7 @@ export function Capture() {
                     autoCapitalize="none"
                     enterKeyHint="done"
                     aria-invalid={err("quantity") ? true : undefined}
-                    aria-describedby={describedBy("quantity", `${ids}-quantity-hint`)}
+                    aria-describedby={describedBy("quantity", quantityText.trim() === "" ? undefined : `${ids}-quantity-hint`)}
                     placeholder="500 g, 1 l, 6 uova"
                   />
                   {err("quantity") ? (
@@ -514,12 +525,14 @@ export function Capture() {
                       {err("quantity")}
                     </p>
                   ) : null}
-                  <p className={ui.hint} id={`${ids}-quantity-hint`}>
-                    {quantityFromMemory ? "Come l'ultima volta. " : ""}
-                    {reading?.ok
-                      ? `Letto come ${formatQuantity(reading.quantity)}. Un numero senza unità conta come pezzi.`
-                      : "Scrivila come la diresti: «500 g», «1 l», «6 uova»."}
-                  </p>
+                  {quantityText.trim() === "" ? null : (
+                    <p className={ui.hint} id={`${ids}-quantity-hint`}>
+                      {quantityFromMemory ? "Come l'ultima volta. " : ""}
+                      {reading?.ok
+                        ? `Letto come ${formatQuantity(reading.quantity)}. Un numero senza unità conta come pezzi.`
+                        : "Scrivila come la diresti: «500 g», «1 l», «6 uova»."}
+                    </p>
+                  )}
                 </div>
                 <div className={styles.pairSide}>
                   <PackCounter packs={packs} onChange={changePacks} quantityOne={quantityText.trim()} />

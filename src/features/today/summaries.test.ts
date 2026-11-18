@@ -3,7 +3,7 @@ import { derivePantry, type LedgerEvent } from "@/core/ledger";
 import { buildCaptureEvents, type CaptureInput } from "../capture";
 import { evaluateLots, isExpiring } from "../lots";
 import type { DayNutritionView, NutrientCell } from "../nutrition/prepare";
-import { expiringSummary, mealSummary, movementsSummary, nutritionSummary } from "./summaries";
+import { expiringSummary, mealSummary, movementsSummary, nutritionSummary, reviewNotices } from "./summaries";
 
 describe("mealSummary: il riepilogo di un pasto richiuso", () => {
   it("ora, nomi in minuscolo ed energia", () => {
@@ -99,5 +99,32 @@ describe("movementsSummary", () => {
   it("singolare e plurale", () => {
     expect(movementsSummary(1)).toBe("1 movimento");
     expect(movementsSummary(6)).toBe("6 movimenti");
+  });
+});
+
+describe("reviewNotices: gli «altri avvisi» del riepilogo", () => {
+  const notices = [
+    { type: "shopping", key: "shopping:latte:2026-11-18", short: "Spesa: serve latte" },
+    { type: "plan", key: "plan:cook:p1:2026-11-18", short: "Da cucinare: ragù" },
+    { type: "plan", key: "plan:week:2026-11-23", short: "Piano della prossima settimana vuoto" },
+    { type: "expiry", key: "expiry:lot1:today", short: "Yogurt: scade oggi" },
+    { type: "prep", key: "prep:p2:tomorrow", short: "Ragù: domani" },
+  ];
+
+  it("spesa, «Da cucinare» e piano della settimana restano tutti: non ripetono le righe di lista e piano", () => {
+    expect(reviewNotices(notices).map((n) => n.key)).toEqual([
+      "shopping:latte:2026-11-18",
+      "plan:cook:p1:2026-11-18",
+      "plan:week:2026-11-23",
+    ]);
+  });
+
+  it("nessun avviso di spesa o di piano si toglie, quanti che siano", () => {
+    const many = Array.from({ length: 5 }, (_, i) => ({ type: i % 2 ? "plan" : "shopping", key: `k${i}` }));
+    expect(reviewNotices(many)).toHaveLength(5);
+  });
+
+  it("scadenze e preparazioni non si contano tra gli altri avvisi: il riepilogo le dice nella sua riga", () => {
+    expect(reviewNotices(notices).some((n) => n.type === "expiry" || n.type === "prep")).toBe(false);
   });
 });

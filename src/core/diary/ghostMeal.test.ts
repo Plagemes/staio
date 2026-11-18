@@ -110,3 +110,79 @@ describe("pasto misto: perde solo le righe annullate", () => {
     expect(day?.meals[0].lines.length).toBe(2); // insalata + consumo c2
   });
 });
+
+describe("una voce corretta o spostata non è una voce tolta", () => {
+  const insalata = { name: "Insalata", quantity: q(100), certainty: "estimated" as const };
+  const lunch = meal("m1", at("12:30"), { mealId: "meal-1", kind: "lunch", items: [insalata] });
+  const c1 = consume("c1", at("12:31"), { lotId: "lot-1", quantity: q(80), mealId: "meal-1" });
+  const linesOf = (log: unknown[]) => Object.fromEntries(mealsWithPantry(deriveDiary(log, TZ), log).map((m) => [m.mealId, m.removedLines]));
+
+  it("quantità corretta (annullato e sostituito): nessuna voce tolta", () => {
+    const corrected = [lot, lunch, c1, voidOf("v1", at("13:00"), "c1"), consume("c2", at("12:31"), { lotId: "lot-1", quantity: q(60), mealId: "meal-1", replaces: "c1", recordedAt: at("13:00") })];
+    expect(linesOf(corrected)).toEqual({ "meal-1": undefined });
+  });
+
+  it("corretta due volte, e su due telefoni: ancora nessuna voce tolta", () => {
+    const twice = [
+      lot,
+      lunch,
+      c1,
+      voidOf("v1", at("13:00"), "c1"),
+      consume("c2", at("12:31"), { lotId: "lot-1", quantity: q(60), mealId: "meal-1", replaces: "c1", recordedAt: at("13:00") }),
+      voidOf("v2", at("13:05"), "c2"),
+      consume("c3", at("12:31"), { lotId: "lot-1", quantity: q(70), mealId: "meal-1", replaces: "c2", recordedAt: at("13:05") }),
+      voidOf("vb", at("13:02"), "c1", { deviceId: "dev-b" }),
+      consume("cb", at("12:31"), { lotId: "lot-1", quantity: q(90), mealId: "meal-1", replaces: "c1", recordedAt: at("13:02"), deviceId: "dev-b" }),
+    ];
+    expect(linesOf(twice)).toEqual({ "meal-1": undefined });
+    expect(mealsWithPantry(deriveDiary(twice, TZ), twice)[0].pantryConsumes.map((c) => c.id)).toEqual(["c3"]);
+  });
+
+  it("spostata in un altro pasto: non risulta tolta né da quello di partenza né da quello di arrivo", () => {
+    const dinner = meal("m2", at("20:00"), { mealId: "meal-2", kind: "dinner", items: [insalata] });
+    const moved = [lot, lunch, dinner, c1, voidOf("v1", at("13:00"), "c1"), consume("c2", at("12:31"), { lotId: "lot-1", quantity: q(80), mealId: "meal-2", replaces: "c1", recordedAt: at("13:00") })];
+    expect(linesOf(moved)).toEqual({ "meal-1": undefined, "meal-2": undefined });
+  });
+
+  it("corretta e poi tolta: una voce tolta sola, nel pasto in cui stava per ultima", () => {
+    const dinner = meal("m2", at("20:00"), { mealId: "meal-2", kind: "dinner", items: [insalata] });
+    const gone = [
+      lot,
+      lunch,
+      dinner,
+      c1,
+      voidOf("v1", at("13:00"), "c1"),
+      consume("c2", at("12:31"), { lotId: "lot-1", quantity: q(80), mealId: "meal-2", replaces: "c1", recordedAt: at("13:00") }),
+      voidOf("v2", at("21:00"), "c2"),
+    ];
+    expect(linesOf(gone)).toEqual({ "meal-1": undefined, "meal-2": 1 });
+  });
+
+  it("correzione annullata: torna il consumo di prima, nessuna voce tolta", () => {
+    const undone = [
+      lot,
+      lunch,
+      c1,
+      voidOf("v1", at("13:00"), "c1"),
+      consume("c2", at("12:31"), { lotId: "lot-1", quantity: q(60), mealId: "meal-1", replaces: "c1", recordedAt: at("13:00") }),
+      voidOf("u1", at("13:01"), "v1"),
+      voidOf("u2", at("13:01"), "c2"),
+    ];
+    expect(linesOf(undone)).toEqual({ "meal-1": undefined });
+    expect(mealsWithPantry(deriveDiary(undone, TZ), undone)[0].pantryConsumes.map((c) => c.id)).toEqual(["c1"]);
+  });
+
+  it("il pasto di partenza senza voci proprie, rimasto vuoto dopo lo spostamento, sparisce come prima", () => {
+    const bare = meal("m3", at("12:30"), { mealId: "meal-3", kind: "lunch" });
+    const dinner = meal("m2", at("20:00"), { mealId: "meal-2", kind: "dinner" });
+    const moved = [
+      lot,
+      bare,
+      dinner,
+      consume("c1", at("12:31"), { lotId: "lot-1", quantity: q(80), mealId: "meal-3" }),
+      voidOf("v1", at("13:00"), "c1"),
+      consume("c2", at("12:31"), { lotId: "lot-1", quantity: q(80), mealId: "meal-2", replaces: "c1", recordedAt: at("13:00") }),
+    ];
+    expect(linesOf(moved)).toEqual({ "meal-2": undefined });
+  });
+});

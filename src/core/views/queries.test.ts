@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { QUERY_CATALOG, getQuery } from "./catalog";
+import { meal } from "../diary/test-helpers";
 import { consume, purchase, q } from "../ledger/test-helpers";
 import { runQuery } from "./run";
 import { EMPTY_CONTEXT, TODAY, buildContext, sampleEvents } from "./test-helpers";
@@ -314,5 +315,84 @@ describe("tutto il catalogo", () => {
     const r = number(exec("tracked_days", { period: "last_month" }));
     expect(r.basis).toContain("su 31");
     expect(number(exec("tracked_days", { period: "this_month" })).basis).toContain("su 16");
+  });
+});
+
+describe("pasti fuori casa stimati", () => {
+  const measured = (name: string, value: number, unit: "g" | "ml") => ({ name, quantity: q(value, unit), certainty: "measured" as const });
+  const estimate = (kcal: number) => ({ name: "Fuori casa · normale", quantity: q(1, "pz"), certainty: "estimated" as const, energyKcal: kcal });
+  /**
+   * Dal 10 al 15 novembre: latte a colazione (120 kcal, 6 g di proteine), pollo a cena (100 kcal, 20 g) e a pranzo una
+   * stima fuori casa. Con 880 kcal stimate su 1100 il pranzo vale l'80% dell'energia del giorno.
+   */
+  function daysWithLunchOut(kcal = 880) {
+    const events = [];
+    for (let day = 10; day <= 15; day++) {
+      const d = `2026-11-${day}`;
+      events.push(
+        meal(`ob${day}`, `${d}T07:00:00Z`, { mealId: `omb${day}`, kind: "breakfast", items: [measured("Latte intero", 200, "ml")] }),
+        meal(`ol${day}`, `${d}T12:00:00Z`, { mealId: `oml${day}`, kind: "lunch", certainty: "estimated", items: [estimate(kcal)] }),
+        meal(`od${day}`, `${d}T19:00:00Z`, { mealId: `omd${day}`, kind: "dinner", items: [measured("Petto di pollo crudo", 100, "g")] }),
+      );
+    }
+    return events;
+  }
+  const ctx = buildContext(daysWithLunchOut());
+
+  it("i giorni contano come tracciati per intero, e l'energia comprende la stima come stima", () => {
+    const r = number(exec("nutrient_average", { nutrient: "energyKcal", period: "last_7_days" }, ctx));
+    expect(r.value).toBe(1100);
+    expect(r.certainty).toBe("estimated");
+    expect(r.basis).toContain("6 giorni tracciati per intero");
+    expect(r.note).toBeUndefined();
+  });
+
+  it("la media delle proteine dice che per circa l'80% manca il dato, non «una voce su tre»", () => {
+    const r = number(exec("nutrient_average", { nutrient: "proteinG", period: "last_7_days" }, ctx));
+    expect(r.value).toBe(26);
+    expect(r.note).toBe("Per circa il 80% di ciò che hai mangiato manca il dato: il valore può essere più basso del reale.");
+  });
+
+  it("il confronto con il riferimento porta la stessa nota", () => {
+    const r = number(exec("nutrient_vs_reference", { nutrient: "proteinG", period: "last_14_days" }, ctx));
+    expect(r.value).toBe(52);
+    expect(r.note).toContain("Per circa il 80% manca il dato: il valore può essere più basso del reale.");
+  });
+
+  it("anche una stima che conta per una voce su dieci ma vale un terzo dell'energia fa scrivere la nota", () => {
+    // un giorno con nove voci misurate (900 kcal) e una stima da 450: per voci sarebbe il 10%, per energia un terzo
+    const events = [];
+    for (let day = 10; day <= 15; day++) {
+      const d = `2026-11-${day}`;
+      const chicken = (n: number) => Array.from({ length: n }, () => measured("Petto di pollo crudo", 100, "g"));
+      events.push(
+        meal(`pb${day}`, `${d}T07:00:00Z`, { mealId: `pmb${day}`, kind: "breakfast", items: chicken(4) }),
+        meal(`pl${day}`, `${d}T12:00:00Z`, { mealId: `pml${day}`, kind: "lunch", certainty: "estimated", items: [estimate(450)] }),
+        meal(`pd${day}`, `${d}T19:00:00Z`, { mealId: `pmd${day}`, kind: "dinner", items: chicken(5) }),
+      );
+    }
+    const r = number(exec("nutrient_vs_reference", { nutrient: "proteinG", period: "last_14_days" }, buildContext(events)));
+    expect(r.note).toContain("Per circa il 33% manca il dato");
+  });
+
+  it("«Fuori casa» non compare tra gli alimenti da cui viene un nutriente, e la nota dice quanti pasti restano fuori", () => {
+    const energy = rows(exec("top_foods_for_nutrient", { nutrient: "energyKcal", period: "last_7_days", limit: 10 }, ctx));
+    expect(energy.rows.map((x) => x.label)).toEqual(["Latte intero", "Petto di pollo crudo"]);
+    expect(energy.rows.reduce((s, x) => s + (x.share ?? 0), 0)).toBeCloseTo(1, 6);
+    expect(energy.note).toBe(
+      "6 pasti fuori casa stimati non sono tra gli alimenti: di quei pasti non si conosce il contenuto, e le quote riguardano solo il resto.",
+    );
+    const protein = rows(exec("top_foods_for_nutrient", { nutrient: "proteinG", period: "last_7_days", limit: 10 }, ctx));
+    expect(protein.rows.map((x) => x.label)).toEqual(["Petto di pollo crudo", "Latte intero"]);
+    // senza pasti fuori casa la nota non ne parla
+    expect(rows(exec("top_foods_for_nutrient", { nutrient: "energyKcal", period: "last_7_days", limit: 10 })).note ?? "").not.toMatch(/fuori casa/);
+  });
+
+  it("i consumi di un alimento non contano la stima come «1 pz» di qualcosa", () => {
+    const r = exec("food_consumption", { food: "casa", period: "last_30_days" }, ctx);
+    expect(r.kind).toBe("insufficient");
+    expect(exec("food_consumption", { food: "fuori", period: "last_30_days" }, ctx).kind).toBe("insufficient");
+    const milk = rows(exec("food_consumption", { food: "latte", period: "last_30_days" }, ctx));
+    expect(milk.rows.map((x) => x.label)).toEqual(["Millilitri"]);
   });
 });

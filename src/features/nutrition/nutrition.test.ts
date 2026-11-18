@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Product } from "@/core/catalog";
 import type { AnyEvent } from "@/core/events";
-import { compareWithReferences, computeIntake } from "@/core/nutrition";
+import { compareWithReferences, computeIntake, estimateOutOfHome } from "@/core/nutrition";
 import { FAKE_FOODS, fakeFood } from "@/core/nutrition/test-helpers";
 import { REFERENCE_VALUES } from "@/core/nutrition/data/reference";
 import type { ReferenceWithVariant } from "@/core/nutrition";
@@ -9,14 +9,14 @@ import { derivePantry, type Lot } from "@/core/ledger";
 import { buildCaptureEvents } from "../capture";
 import { buildDrink, inputOfPreset } from "../drinks";
 import { DRINK_PRESETS } from "../health";
-import { buildMealEvents, buildUntrackedMeal } from "../meals";
+import { buildMealEvents, buildOutOfHomeMeal, buildUntrackedMeal } from "../meals";
 import { createFoodSearch } from "./candidates";
 
 /** Gli id dei candidati per un testo, in ordine. */
 const idsFor = (foods: Parameters<typeof createFoodSearch>[0], query: string) =>
   createFoodSearch(foods).groups(query).flatMap((g) => g.options.map((o) => o.id));
 import { NUTRITION_DISCLAIMER, NUTRITION_DISCLAIMER_SHORT, certaintyExplanation, formatNutrient, stateLabel } from "./labels";
-import { buildNutritionRows, dayNutritionView, stateText, topContributors, unresolvedGroups } from "./prepare";
+import { averageIntake, buildNutritionRows, dayNutritionView, outOfHomeDayCount, outOfHomeDaysText, stateText, topContributors, unresolvedGroups } from "./prepare";
 import { currentAge, isNutritionProfile, parseAge, toEngineProfile, variantChoices, withVariant } from "./profile";
 import { barcodesOfLots, buildResolver, overrideKeyOf } from "./resolver";
 
@@ -381,5 +381,106 @@ describe("nota sulle fonti", () => {
     }
     expect(NUTRITION_DISCLAIMER).toMatch(/pane, pasta e cereali/);
     expect(NUTRITION_DISCLAIMER).toMatch(/arricchimento/);
+  });
+});
+
+describe("pasto fuori casa nella nutrizione", () => {
+  /** Colazione e cena registrate, pranzo fuori casa «normale» (800 kcal di riferimento). */
+  function dayWithLunchOut(date: string): AnyEvent[] {
+    return [
+      ...free(date, 7, "breakfast", [{ name: "Latte intero", quantityText: "200 ml" }]),
+      ...buildOutOfHomeMeal({ kind: "lunch", size: "normal", estimate: estimateOutOfHome("lunch", "normal", []) }, { now: at(date, 12), deviceId: "d" }).events,
+      ...free(date, 19, "dinner", [{ name: "Petto di pollo crudo", quantityText: "150 g" }]),
+    ];
+  }
+  const D1 = "2026-11-10";
+  const intake = computeIntake([...dayWithLunchOut(D1), ...completeDay("2026-11-11")], resolverFor());
+
+  it("5. il giorno è completo: l'energia comprende la stima, le proteine sono «almeno»", () => {
+    const view = dayNutritionView(intake.days[0], D1);
+    expect(view.complete).toBe(true);
+    expect(view.partialText).toBeUndefined();
+    // 200 ml latte (120) + 800 fuori casa + 150 g pollo (150)
+    expect(view.energy).toMatchObject({ value: 1070, text: "1070 kcal", prefix: "", partial: false, certainty: "estimated" });
+    const protein = view.macros.find((m) => m.key === "proteinG");
+    expect(protein).toMatchObject({ prefix: "almeno ", partial: true });
+    expect(view.missingText).toMatch(/^Dato mancante per: /);
+    expect(view.missingText).toMatch(/proteine/);
+    expect(view.missingText).not.toMatch(/energia/);
+    // la voce ha un dato (l'energia): non è una voce senza dati
+    expect(view.coverageText).toBeUndefined();
+  });
+
+  it("la stima non è una voce da collegare a un alimento", () => {
+    expect(unresolvedGroups(intake.days)).toEqual([]);
+  });
+
+  it("il giorno conta nelle medie: l'energia come stima, le proteine come minimo", () => {
+    const energy = averageIntake(intake.days, "energyKcal");
+    expect(energy).toMatchObject({ days: 2, partial: false, certainty: "estimated" });
+    expect(energy?.value).toBe((1070 + 550) / 2);
+    expect(averageIntake(intake.days, "proteinG")).toMatchObject({ days: 2, partial: true });
+  });
+
+  it("la schermata dice in quanti giorni completi c'è un pasto fuori casa", () => {
+    expect(outOfHomeDayCount(intake.days)).toBe(1);
+    expect(outOfHomeDayCount(computeIntake(completeDay("2026-11-11"), resolverFor()).days)).toBe(0);
+    expect(outOfHomeDaysText(0)).toBeUndefined();
+    expect(outOfHomeDaysText(1)).toBe(
+      "In 1 di questi giorni c'è un pasto fuori casa: conta con una stima della sola energia, e per gli altri nutrienti il dato manca (i numeri con «almeno» sono un minimo).",
+    );
+    expect(outOfHomeDaysText(3)).toMatch(/^In 3 di questi giorni c'è un pasto fuori casa: /);
+  });
+
+  it("un giorno incompleto con un pasto fuori casa non entra nel conto dei giorni completi", () => {
+    const lunchOnly = buildOutOfHomeMeal({ kind: "lunch", size: "normal", estimate: estimateOutOfHome("lunch", "normal", []) }, { now: at(D1, 12), deviceId: "d" }).events;
+    const days = computeIntake(lunchOnly, resolverFor()).days;
+    expect(days[0].complete).toBe(false);
+    expect(outOfHomeDayCount(days)).toBe(0);
+  });
+
+  it("tra le voci da cui viene l'energia la stima porta il suo segno e non si può cambiare alimento", () => {
+    const top = topContributors(intake.days, "energyKcal");
+    const out = top.find((c) => c.name === "Fuori casa · normale");
+    expect(out).toMatchObject({ outOfHome: true, value: 800, mealRefs: [], pantry: false, stateText: "Stima fuori casa: solo l'energia. Per gli altri nutrienti il dato manca." });
+    expect(out?.ref).toBeUndefined();
+    expect(top.filter((c) => c.outOfHome !== true).every((c) => c.mealRefs.length > 0)).toBe(true);
+    // per le proteine la stima non porta niente
+    expect(topContributors(intake.days, "proteinG").some((c) => c.outOfHome === true)).toBe(false);
+  });
+});
+
+describe("la nota sul dato mancante con un pasto fuori casa", () => {
+  const profile = toEngineProfile({ sex: "female", age: 40, savedOn: "2026-11-01", variants: {} }, "2026-11-16");
+  /** Colazione e cena registrate (270 kcal), pranzo fuori casa da 800 kcal: tre quarti dell'energia del giorno. */
+  const dayOut = (date: string): AnyEvent[] => [
+    ...free(date, 7, "breakfast", [{ name: "Latte intero", quantityText: "200 ml" }]),
+    ...buildOutOfHomeMeal({ kind: "lunch", size: "normal", estimate: estimateOutOfHome("lunch", "normal", []) }, { now: at(date, 12), deviceId: "d" }).events,
+    ...free(date, 19, "dinner", [{ name: "Petto di pollo crudo", quantityText: "150 g" }]),
+  ];
+  const dates = [10, 11, 12, 13, 14, 15].map((n) => `2026-11-${n}`);
+  const intake = computeIntake(dates.flatMap(dayOut), resolverFor());
+
+  it("Oggi: «dato mancante per: proteine 75%», non la quota contata per voci", () => {
+    const view = dayNutritionView(intake.days[0], dates[0]);
+    // per voci sarebbe 1 su 3, cioè il 33%
+    expect(view.missingText).toMatch(/proteine 75%/);
+    expect(view.missingText).not.toMatch(/energia/);
+    expect(view.macros.find((m) => m.key === "proteinG")).toMatchObject({ prefix: "almeno ", partial: true });
+  });
+
+  it("Nutrizione: la riga dei carboidrati dice «almeno» e quanta parte manca", () => {
+    const rows = buildNutritionRows(compareWithReferences(intake.days, REFS, profile), intake.days);
+    const carbs = rows.compared.find((r) => r.nutrient === "carbsG");
+    expect(carbs).toMatchObject({ partial: true, missingShort: "dato mancante 75%" });
+    expect(carbs?.headline).toMatch(/^almeno /);
+    expect(carbs?.missingText).toMatch(/75%/);
+  });
+
+  it("viste dell'assistente: la quota media supera la soglia sotto cui la nota tace", () => {
+    const carbs = compareWithReferences(intake.days, REFS, profile).find((c) => c.nutrient === "carbsG");
+    expect(carbs?.status).toBe("compared");
+    // `core/views` scrive la nota da 0,1 in su
+    expect(carbs?.status === "compared" && carbs.averageMissingShare).toBeGreaterThanOrEqual(0.7);
   });
 });

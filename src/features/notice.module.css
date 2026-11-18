@@ -25,6 +25,32 @@
   pointer-events: auto;
 }
 
+/* Con «Annulla» e un collegamento: il testo usa tutta la larghezza (con la croce in alto a destra) e i due comandi vanno
+   sulla riga sotto, a destra. */
+.twoCommands {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  row-gap: 0;
+}
+
+.twoCommands .message {
+  flex: 1 1 calc(100% - var(--tap-min) - var(--space-4));
+  align-self: center;
+}
+
+.twoCommands .close {
+  order: 1;
+}
+
+.twoCommands .undo {
+  order: 2;
+  margin-left: auto;
+}
+
+.twoCommands .link {
+  order: 3;
+}
+
 .message {
   flex: 1;
   min-width: 0;

@@ -35,6 +35,12 @@ export interface MealItem {
    * al massimo `FOOD_ID_MAX_LENGTH` caratteri; una stringa vuota vale come assente.
    */
   foodId?: string;
+  /**
+   * Energia stimata della voce, in kcal, quando non si conoscono gli alimenti (pasto fuori casa). Tra 0 e
+   * `DIARY_LIMITS.energyKcalMax`; la voce che lo porta è sempre `estimated`. È il numero scritto al momento della
+   * registrazione: non si ricalcola. Degli altri nutrienti la voce non dice niente.
+   */
+  energyKcal?: number;
 }
 
 export const FOOD_ID_MAX_LENGTH = 80;

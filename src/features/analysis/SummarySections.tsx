@@ -3,7 +3,7 @@
 import type { PeriodSummary } from "@/core/analysis";
 import { SectionHeader, Value } from "@/design";
 import ui from "../ui.module.css";
-import { formatDecimal, plural, reliabilityText } from "./present";
+import { formatDecimal, outOfHomeMealsText, plural, reliabilityText } from "./present";
 import { noRecordsView } from "./reportView";
 import { BasisLine, InsufficientBox } from "./shared";
 import {
@@ -22,7 +22,7 @@ import styles from "./analysis.module.css";
 
 /** Cibo entrato e mangiato nel periodo, con gli alimenti più mangiati. Il buttato sta nella sua sezione. */
 export function FoodFlowSection({ summary }: { summary: PeriodSummary }) {
-  const { entered, eaten, topFoods } = summary;
+  const { entered, eaten, topFoods, outOfHomeMeals } = summary;
   return (
     <section className={ui.section}>
       <SectionHeader label="Il cibo del periodo" />
@@ -72,6 +72,7 @@ export function FoodFlowSection({ summary }: { summary: PeriodSummary }) {
             </BasisLine>
           </div>
         ) : null}
+        {outOfHomeMeals > 0 ? <p className={styles.note}>{outOfHomeMealsText(outOfHomeMeals)}</p> : null}
       </div>
     </section>
   );

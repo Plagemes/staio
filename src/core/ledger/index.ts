@@ -44,3 +44,5 @@ export {
   wasteByReason,
 } from "./selectors";
 export type { PantryValue, ProductTotal, WasteEntry, WastePeriod } from "./selectors";
+export { buildLotStory } from "./story";
+export type { LotStoryKind, LotStoryRow } from "./story";

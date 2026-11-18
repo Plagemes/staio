@@ -13,6 +13,7 @@ import {
   formatKgPerWeek,
   formatPercent,
   formatRange,
+  outOfHomeExcludedText,
   reliabilityHint,
   reliabilityText,
   weighIns,
@@ -35,7 +36,8 @@ export function ExpenditureSection({ result, weightSpanDays }: { result: Expendi
     );
   }
   const trend = result.weightTrendInterval;
-  const excluded = result.exclusions.incompleteDays + result.exclusions.partialEnergyDays + result.exclusions.emptyDays;
+  const excluded =
+    result.exclusions.incompleteDays + result.exclusions.partialEnergyDays + result.exclusions.outOfHomeDays + result.exclusions.emptyDays;
   return (
     <div className={styles.card}>
       <div>
@@ -91,6 +93,7 @@ export function ExpenditureSection({ result, weightSpanDays }: { result: Expendi
         <p className={styles.note}>
           Esclusi dal calcolo: {days(result.exclusions.incompleteDays)} non tracciati per intero, {days(result.exclusions.partialEnergyDays)} con
           energia parziale, {days(result.exclusions.emptyDays)} senza alcuna voce.
+          {result.exclusions.outOfHomeDays > 0 ? ` ${outOfHomeExcludedText(result.exclusions.outOfHomeDays)}` : ""}
         </p>
       ) : null}
       <Assumptions

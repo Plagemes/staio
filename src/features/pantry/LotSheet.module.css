@@ -116,6 +116,58 @@
   color: var(--color-graphite);
 }
 
+/* La storia: una riga per voce con i filetti, la data a sinistra in piccolo */
+.story {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: var(--rule-width) solid var(--color-rule);
+}
+
+.storyRow {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: baseline;
+  padding-block: var(--space-5);
+  border-bottom: var(--rule-width) solid var(--color-rule);
+}
+
+/* l'ultima riga si chiude con il filetto della riga richiusa */
+.storyRow:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.storyWhen {
+  font-size: var(--text-caption);
+  line-height: 1.4;
+  color: var(--color-graphite);
+}
+
+.storyText {
+  min-width: 0;
+  font-size: var(--text-body-sm);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.storyLink {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.storyLink:hover {
+  text-decoration: underline;
+}
+
+.storyLink:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
 /* Piede: sotto il pulsante pieno, i due a contorno e «Altro» in fondo alla riga */
 
 .secondary {
@@ -131,6 +183,24 @@
 
 .back {
   align-self: flex-start;
+}
+
+/* i passi con un pulsante che conferma: «Indietro» e il pulsante del passo sulla stessa riga */
+.stepFooter {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-item);
+}
+
+.backInline {
+  flex: none;
+}
+
+.stepAction {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Gli altri passi dello stesso foglio */

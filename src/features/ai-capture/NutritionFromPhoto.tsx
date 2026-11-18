@@ -34,7 +34,7 @@ interface Props {
 }
 
 /**
- * I modi di dare i valori nutrizionali a un prodotto, nella sua scheda dove i valori mancano: «Scrivi i valori a mano»
+ * I modi di dare i valori nutrizionali a un prodotto, nella sua scheda dove i valori mancano: «Scrivi i valori nutrizionali»
  * (sempre) e «Fotografa la tabella nutrizionale» (solo con una chiave per l'intelligenza artificiale). Con i valori già
  * completi resta «Modifica i valori». Entrambe le strade finiscono nello stesso modulo di revisione.
  */
@@ -123,7 +123,7 @@ export function NutritionEntry({ barcode, product, safety, onSaved }: Props) {
                   setManual(true);
                 }}
               >
-                {hasValues ? "Modifica i valori" : "Scrivi i valori a mano"}
+                {hasValues ? "Modifica i valori" : "Scrivi i valori nutrizionali"}
               </Button>
             ) : null}
           </div>

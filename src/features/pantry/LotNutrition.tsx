@@ -158,7 +158,7 @@ export function LotNutrition({ lot }: { lot: Lot }) {
           </Button>
           {code ? (
             <Button variant="outline" onClick={() => setPanel("values")}>
-              Scrivi i valori a mano
+              Scrivi i valori nutrizionali
             </Button>
           ) : null}
         </div>

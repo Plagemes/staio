@@ -188,3 +188,46 @@ describe("estimateExpenditure", () => {
     expect(r.status === "insufficient" && r.reasons).toEqual(["short_weight_span"]);
   });
 });
+
+describe("estimateExpenditure: pasti fuori casa stimati", () => {
+  /** 28 giorni da 2200 kcal con peso in calo regolare; nei giorni indicati il pranzo è una stima fuori casa. */
+  function withMealsOut(outOn: (i: number) => boolean, kcalOut = 800) {
+    const random = rng(7);
+    const events: unknown[] = [];
+    for (let i = 0; i < 28; i++) {
+      events.push(...day(i, { kcal: 2200, ...(outOn(i) ? { outOfHome: { kind: "lunch" as const, kcal: kcalOut } } : {}) }));
+      events.push(weighIn(i, 80 - 0.05 * i + noise(random, 0.2)));
+    }
+    return analyze(events);
+  }
+
+  it("i giorni in cui la stima pesa sull'energia non entrano nel bilancio, e si dice quanti sono", () => {
+    const { diary, intakeDays } = withMealsOut((i) => i % 7 === 5);
+    const r = estimateExpenditure(diary, intakeDays);
+    if (r.status !== "ok") throw new Error("atteso ok");
+    expect(r.exclusions).toMatchObject({ outOfHomeDays: 4, incompleteDays: 0, partialEnergyDays: 0 });
+    expect(r.basis).toMatchObject({ periodDays: 28, usedDays: 24 });
+    expect(r.meanIntakeKcal).toBe(2200);
+  });
+
+  it("una stima piccola rispetto al giorno (entro la quota ammessa) lascia il giorno nel conto", () => {
+    const { diary, intakeDays } = withMealsOut((i) => i % 7 === 5, 200);
+    const r = estimateExpenditure(diary, intakeDays);
+    if (r.status !== "ok") throw new Error("atteso ok");
+    expect(r.exclusions.outOfHomeDays).toBe(0);
+    expect(r.basis.usedDays).toBe(28);
+  });
+
+  it("se i giorni non bastano per quello, il motivo è dichiarato", () => {
+    const { diary, intakeDays } = withMealsOut((i) => i % 2 === 0);
+    const r = estimateExpenditure(diary, intakeDays);
+    expect(r.status).toBe("insufficient");
+    if (r.status !== "insufficient") return;
+    expect(r.reasons).toEqual(expect.arrayContaining(["low_used_share", "out_of_home_energy"]));
+    expect(r.exclusions.outOfHomeDays).toBe(14);
+    const fewer = withMealsOut((i) => i % 2 === 0 || i % 5 === 0);
+    const few = estimateExpenditure(fewer.diary, fewer.intakeDays);
+    expect(few.status === "insufficient" && few.reasons).toEqual(expect.arrayContaining(["few_complete_days", "out_of_home_energy"]));
+    expect(r.message).toMatch(/14 giorni completi hanno un pasto fuori casa stimato/);
+  });
+});

@@ -5,6 +5,11 @@
 // Next integra): il tasto indietro toglie quel passo e il foglio si chiude; una chiusura da codice lo toglie con
 // `history.back()`. A ogni `popstate` il router ripristina la pagina e scarta la navigazione in corso: per questo una
 // navigazione che segue la chiusura parte solo dopo, con `closeSheetThen`.
+//
+// Dentro un passo interno del foglio (`onBack`) l'«indietro» non chiude: torna al passo prima. Sulla prima strada basta
+// impedire la chiusura. Sulla seconda il passo è già stato tolto e va rimesso: si torna avanti sullo stesso passo, che
+// è ancora lì (`history.forward()`). Aggiungerne uno nuovo senza un tocco non regge: Chrome e Safari, tornando
+// indietro, saltano i passi nati senza un gesto di chi usa l'app.
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 const MARKER = "__sheet";
@@ -36,6 +41,25 @@ export function isInternalHref(href: string | null | undefined): boolean {
   return /^\/(?![/\\])/.test(href.trim());
 }
 
+/** Che cosa fa un «indietro» a foglio aperto: lo chiude, torna al passo prima dentro il foglio, o niente. */
+export type BackRequest = "close" | "back" | "stay";
+
+export interface BackRequestContext {
+  /** Il foglio è in un passo interno: chi lo usa ha passato `onBack`. */
+  hasBack: boolean;
+  /** Azione in corso. */
+  busy: boolean;
+  /** L'«indietro» ha portato su un'altra pagina: il foglio non ha più dove stare. */
+  leftPage?: boolean;
+}
+
+/** La scelta per il tasto indietro del telefono, lo scorrimento dal bordo ed Esc. «Chiudi» e il tocco fuori non passano da qui. */
+export function backRequest({ hasBack, busy, leftPage = false }: BackRequestContext): BackRequest {
+  if (leftPage) return "close";
+  if (busy) return "stay";
+  return hasBack ? "back" : "close";
+}
+
 export interface CloseRequestEnvironment {
   hasCloseWatcher: boolean;
   userAgent: string;
@@ -59,18 +83,25 @@ interface MountedSheet {
   id: string;
   /** Chiude il foglio: chi lo usa smette di renderlo. Vale una volta sola. */
   close: () => void;
+  /** Torna al passo prima, dentro il foglio. */
+  back: () => void;
+  /** Lo stato del foglio adesso, per `backRequest`. */
+  context: () => BackRequestContext;
+  /** L'indirizzo della pagina su cui il foglio è aperto, cioè del passo sotto il suo. */
+  href: string;
   /** Falso dove il sistema chiude già il `dialog`: lì il foglio non ha un passo nella cronologia. */
   step: boolean;
-  /** Montato mentre un passo stava tornando indietro: aggiunge il suo quando il browser ha finito. */
+  /** Senza il suo passo in cima finché la cronologia si muove: lo aggiunge, se manca, quando il browser ha finito. */
   waiting: boolean;
 }
 
 /**
  * Uno spostamento nella cronologia chiesto da qui, di cui si aspetta il `popstate`:
  * `unmount` toglie il passo di un foglio chiuso, `skip` salta il passo rimasto di un foglio che non c'è più,
- * `forward` rimedia a un `unmount` arrivato dopo che il router aveva già aggiunto una pagina.
+ * `forward` rimedia a un `unmount` arrivato dopo che il router aveva già aggiunto una pagina,
+ * `restore` torna avanti sul passo di un foglio che resta aperto dopo un «indietro».
  */
-type Flight = "unmount" | "skip" | "forward";
+type Flight = "unmount" | "skip" | "forward" | "restore";
 
 /** Se il browser non si sposta (nessun passo dietro), il `popstate` non arriva: dopo questo tempo non lo si aspetta più. */
 const FLIGHT_TIMEOUT_MS = 800;
@@ -102,15 +133,16 @@ function travel(kind: Flight): void {
     flight = null;
     settle();
   }, FLIGHT_TIMEOUT_MS);
-  if (kind === "forward") window.history.forward();
+  if (kind === "forward" || kind === "restore") window.history.forward();
   else window.history.back();
 }
 
 /** Mette in cima il passo del foglio. Sopra il passo rimasto di un altro foglio lo sostituisce: mai due passi di fogli in fila. */
-function claim(id: string): void {
+function claim(sheet: MountedSheet): void {
   const top = sheetMarkerOf(window.history.state);
-  if (top === id) return;
-  const next = withSheetMarker(window.history.state, id);
+  if (top === sheet.id) return;
+  sheet.href = window.location.href;
+  const next = withSheetMarker(window.history.state, sheet.id);
   if (top === null) window.history.pushState(next, "");
   else window.history.replaceState(next, "");
 }
@@ -131,7 +163,7 @@ function settle(): void {
   for (const sheet of mounted) {
     if (!sheet.waiting) continue;
     sheet.waiting = false;
-    claim(sheet.id);
+    claim(sheet);
   }
   if (afterClose.length > 0 && !removalAhead()) runAfterClose();
 }
@@ -142,7 +174,7 @@ function onPopState(): void {
   clearTimeout(flightTimer);
   const marker = sheetMarkerOf(window.history.state);
 
-  if (done !== null && marker !== null && done !== "forward") {
+  if (done !== null && marker !== null && done !== "forward" && done !== "restore") {
     // `unmount`: tra la richiesta e lo spostamento il router ha aggiunto una pagina, e si è tornati da quella sul passo
     // del foglio: si torna avanti. `skip`: sotto c'era il passo rimasto di un altro foglio.
     travel(done === "unmount" ? "forward" : "skip");
@@ -151,15 +183,39 @@ function onPopState(): void {
   // Il resto parte a evento finito. L'ascoltatore del router sta sulla stessa finestra e può venire dopo questo:
   // il suo ripristino scarterebbe una navigazione fatta partire da qui dentro.
   setTimeout(() => {
-    if (done !== null) settle();
-    else afterTraversal(marker);
+    if (done === null) afterTraversal(marker);
+    // il foglio si è chiuso mentre si tornava sul suo passo: il passo va tolto prima di far partire ciò che aspettava
+    else if (done === "restore" && flight === null && staleStepOnTop()) travel("skip");
+    else settle();
   }, 0);
+}
+
+/** In cima c'è il passo di un foglio che non è più montato. */
+function staleStepOnTop(): boolean {
+  const marker = sheetMarkerOf(window.history.state);
+  return marker !== null && !mounted.some((sheet) => sheet.id === marker);
+}
+
+/**
+ * Il foglio resta aperto dopo un «indietro» che ha tolto il suo passo: si torna avanti su quel passo.
+ * Se il browser non ci torna, `settle` ne aggiunge uno nuovo con lo stesso segno.
+ */
+function restore(sheet: MountedSheet): void {
+  sheet.waiting = true;
+  if (flight === null) travel("restore");
 }
 
 /** Tasto indietro, o avanti, del telefono: `marker` è il segno del passo su cui si è arrivati. */
 function afterTraversal(marker: string | null): void {
   for (const sheet of [...mounted]) {
-    if (sheet.step && !sheet.waiting && sheet.id !== marker) sheet.close();
+    if (!sheet.step || sheet.waiting || sheet.id === marker) continue;
+    const request = backRequest({ ...sheet.context(), leftPage: window.location.href !== sheet.href });
+    if (request === "close") {
+      sheet.close();
+      continue;
+    }
+    restore(sheet);
+    if (request === "back") sheet.back();
   }
   if (flight === null && marker !== null && isOwnEntry(window.history.state, marker) && !mounted.some((sheet) => sheet.id === marker)) travel("skip");
 }
@@ -176,7 +232,7 @@ function attach(sheet: MountedSheet): void {
   mounted.push(sheet);
   if (!sheet.step) return;
   if (flight !== null) sheet.waiting = true;
-  else claim(sheet.id);
+  else claim(sheet);
 }
 
 function detach(sheet: MountedSheet): void {
@@ -227,27 +283,54 @@ if (typeof window !== "undefined") {
 export interface SheetHistory {
   /** Chiude questo foglio e poi fa `run`, quando il suo passo nella cronologia è stato tolto. */
   closeThen: (run: () => void) => void;
+  /** La richiesta di chiusura che arriva dal sistema (evento `cancel`: tasto indietro di Android, Esc): chiude, torna al passo prima o non fa niente. */
+  back: () => void;
+}
+
+export interface SheetInnerStep {
+  /** C'è quando il foglio è in un passo interno: l'«indietro» la chiama e il foglio resta aperto. */
+  onBack?: () => void;
+  /** Azione in corso: l'«indietro» non fa niente. */
+  busy?: boolean;
 }
 
 /**
  * Tiene nella cronologia il passo del foglio finché il componente è montato, dove serve.
- * `close` viene chiamata anche quando il passo è stato tolto da fuori (tasto indietro, scorrimento dal bordo).
+ * Quando il passo è stato tolto da fuori (tasto indietro, scorrimento dal bordo) chiama `close` oppure, dentro un passo
+ * interno, `onBack`: in quel caso il passo torna al suo posto.
  */
-export function useSheetHistory(close: () => void): SheetHistory {
+export function useSheetHistory(close: () => void, { onBack, busy = false }: SheetInnerStep = {}): SheetHistory {
   const idRef = useRef<string | null>(null);
   const closeRef = useRef(close);
+  const onBackRef = useRef(onBack);
+  const busyRef = useRef(busy);
 
   useEffect(() => {
     closeRef.current = close;
-  }, [close]);
+    onBackRef.current = onBack;
+    busyRef.current = busy;
+  }, [close, onBack, busy]);
 
   useEffect(() => {
     const id = (idRef.current ??= newSheetId());
-    const sheet: MountedSheet = { id, close: () => closeRef.current(), step: stepNeeded(), waiting: false };
+    const sheet: MountedSheet = {
+      id,
+      close: () => closeRef.current(),
+      back: () => onBackRef.current?.(),
+      context: () => ({ hasBack: onBackRef.current !== undefined, busy: busyRef.current }),
+      href: window.location.href,
+      step: stepNeeded(),
+      waiting: false,
+    };
     attach(sheet);
     return () => detach(sheet);
   }, []);
 
   const closeThen = useCallback((run: () => void) => closeSheetThen(run), []);
-  return useMemo(() => ({ closeThen }), [closeThen]);
+  const back = useCallback(() => {
+    const request = backRequest({ hasBack: onBackRef.current !== undefined, busy: busyRef.current });
+    if (request === "back") onBackRef.current?.();
+    else if (request === "close") closeRef.current();
+  }, []);
+  return useMemo(() => ({ closeThen, back }), [closeThen, back]);
 }

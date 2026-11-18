@@ -79,15 +79,27 @@ describe("mealsWithPantry", () => {
     expect(ids([...log, v1, v2])).toEqual(["c2", "c3"]);
   });
 
-  it("esclude i pasti annullati e ignora i consume non validi", () => {
+  it("esclude i pasti annullati con i loro consume e ignora i consume non validi", () => {
     const events = [
       ...log,
       voidOf("v1", "2026-03-10T13:00:00Z", "m1"),
+      voidOf("v1c", "2026-03-10T13:00:00Z", "c1"),
       { ...consume("bad", "2026-03-10T12:34:00Z", { lotId: "lot-pasta", quantity: q(5), mealId: "meal-2" }), quantity: q(-5) },
     ];
     const result = mealsWithPantry(deriveDiary(events), events);
     expect(result.map((m) => m.mealId)).toEqual(["meal-2", "meal-3"]);
     expect(result[0].pantryConsumes.map((c) => c.id)).toEqual(["c2", "c3"]);
+  });
+
+  it("un pasto annullato a cui resta un consume valido compare lo stesso, con quel consume e il segno `revived`", () => {
+    const events = [...log, voidOf("v1", "2026-03-10T13:00:00Z", "m1")];
+    const result = mealsWithPantry(deriveDiary(events), events);
+    expect(result.map((m) => [m.mealId, m.revived, m.pantryConsumes.map((c) => c.id)])).toEqual([
+      ["meal-1", true, ["c1"]],
+      ["meal-2", undefined, ["c2", "c3"]],
+      ["meal-3", undefined, []],
+    ]);
+    expect(result[0]).toMatchObject({ kind: "breakfast", at: "2026-03-10T07:30:00Z", date: "2026-03-10", items: [] });
   });
 
   it("è indipendente dall'ordine e dai duplicati", () => {
@@ -116,9 +128,9 @@ describe("consumi orfani", () => {
     expect(report.orphanConsumes.map((c) => [c.id, c.mealId])).toEqual([["c5", "orfano"]]);
   });
 
-  it("un pasto annullato rende orfani i suoi consume; annullare l'annullamento li ripristina", () => {
+  it("un pasto annullato non rende orfani i suoi consume: restano nel diario, nel pasto che torna a comparire", () => {
     const v1 = voidOf("v1", "2026-03-10T13:00:00Z", "m1");
-    expect(orphanIds([...log, v1])).toEqual(["c1", "c5"]);
+    expect(orphanIds([...log, v1])).toEqual(["c5"]);
     expect(orphanIds([...log, v1, voidOf("v2", "2026-03-10T14:00:00Z", "v1")])).toEqual(["c5"]);
   });
 
@@ -136,6 +148,41 @@ describe("consumi orfani", () => {
       "c3",
       "c5",
     ]);
+  });
+});
+
+describe("consumi che citano un evento che non è un consumo", () => {
+  const eaten = (events: unknown[]) => ({
+    pantry: 500 - (derivePantry(events as never[]).lots.find((l) => l.lotId === "lot-pasta")?.remaining ?? 0),
+    diary: mealsWithPantry(deriveDiary(events), events)
+      .flatMap((m) => m.pantryConsumes)
+      .filter((c) => c.lotId === "lot-pasta")
+      .reduce((sum, c) => sum + c.quantity.value, 0),
+  });
+  const citing = (target: string) => [
+    consume("z1", "2026-03-10T12:40:00Z", { lotId: "lot-pasta", quantity: q(10), mealId: "meal-2", replaces: target, recordedAt: "2026-03-10T12:40:00Z" }),
+    consume("z2", "2026-03-10T12:41:00Z", { lotId: "lot-pasta", quantity: q(20), mealId: "meal-2", replaces: target, recordedAt: "2026-03-10T12:41:00Z" }),
+  ];
+
+  it("due consumi che citano un pasto restano due, nella dispensa come nel diario, in qualunque ordine", () => {
+    const events = [...log.filter((e) => e.id !== "c4" && e.id !== "c5"), ...citing("m2")];
+    const random = seededRandom(9);
+    for (let i = 0; i < 20; i++) expect(eaten(shuffled(events, random))).toEqual({ pantry: 110, diary: 110 });
+  });
+
+  it("lo stesso se citano un evento del diario non valido o di un tipo sconosciuto", () => {
+    const broken = { ...water("w9", "2026-03-10T09:00:00Z", { ml: 200 }), ml: -1 };
+    const unknown = { ...water("u9", "2026-03-10T09:00:00Z", { ml: 200 }), type: "futuro" };
+    for (const [extra, target] of [[broken, "w9"], [unknown, "u9"]] as const) {
+      const events = [...log.filter((e) => e.id !== "c4" && e.id !== "c5"), extra, ...citing(target)];
+      const random = seededRandom(10);
+      for (let i = 0; i < 10; i++) expect(eaten(shuffled(events, random))).toEqual({ pantry: 110, diary: 110 });
+    }
+  });
+
+  it("due consumi che citano un consumo non ancora arrivato restano una voce sola, nella dispensa come nel diario", () => {
+    const events = [...log.filter((e) => e.id !== "c4" && e.id !== "c5"), ...citing("non-arrivato")];
+    expect(eaten(events)).toEqual({ pantry: 100, diary: 100 });
   });
 });
 

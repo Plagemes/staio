@@ -1,0 +1,217 @@
+/* Le voci di un pasto aperto, la riga compatta di un momento passato e vuoto, i fogli «Voce» e «Pasto». */
+
+/* Una riga per voce: tutta la riga si tocca, nessun comando sopra */
+.entries {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entries > li {
+  min-width: 0;
+  /* la riga si raggiunge anche da fuori (`?voce=`): portata in vista non resta attaccata al bordo */
+  scroll-margin-block: var(--space-12);
+}
+
+.entries > li + li {
+  border-top: var(--rule-width) solid var(--color-rule);
+}
+
+.entry {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-6);
+  width: 100%;
+  min-height: 48px;
+  padding: var(--space-2) 0;
+  border: none;
+  background: none;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--text-body-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.entry:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* Nome e quantità: se la riga è stretta si tronca il nome, la quantità resta */
+.entryText {
+  display: flex;
+  align-items: baseline;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.entryName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entryAmount {
+  flex: none;
+  margin-inline-start: 0.4em;
+  white-space: nowrap;
+}
+
+/* I nutrienti, a destra: mai a capo sotto il nome */
+.entryNote {
+  flex: none;
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Il pasto registrato si raggiunge anche da fuori (`?voce=`); sotto la sua riga può esserci una nota */
+.mealAnchor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  scroll-margin-block: var(--space-12);
+}
+
+/* Una riga sotto il pasto quando un altro dispositivo l'ha tolto o corretto in un altro modo */
+.mealNote {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.mealNoteText {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: 1.4;
+  color: var(--color-graphite);
+}
+
+.mealNoteActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-4);
+  margin-inline-start: calc(var(--space-4) * -1);
+}
+
+/* sopra `ui.textLink`, qualunque sia l'ordine dei fogli di stile */
+button.mealNoteLink {
+  align-self: flex-start;
+  font-size: var(--text-caption);
+  line-height: 1.4;
+  text-align: left;
+}
+
+/* In fondo a un pasto aperto: un solo comando, «Altro» */
+.mealMore {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Un momento già passato e senza niente: una riga sola, alta quanto un comando */
+li.momentCompact {
+  padding-block: 0;
+}
+
+.compact {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 48px;
+}
+
+.compactText {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compactTitle {
+  font-size: var(--text-body);
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.compactActions {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+
+/* Dentro i fogli */
+
+.sheetStep {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-group);
+  min-width: 0;
+}
+
+/* Una versione del pasto, in sola lettura */
+.version {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.versionItems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-body-sm);
+}
+
+/* «Indietro» da solo nel piede */
+.back {
+  align-self: flex-start;
+}
+
+/* «Indietro» a sinistra e il pulsante che conferma, pieno, a destra */
+.stepFooter {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-item);
+}
+
+.stepFooter > :first-child {
+  flex: none;
+}
+
+.stepFooter > :last-child {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ------------------------------------------------------------------------------------------------
+   Vivo: la riga compatta è una scheda bassa, la voce risponde alla pressione come le righe di «Altro».
+   ------------------------------------------------------------------------------------------------ */
+
+:global([data-palette="vivo"]) li.momentCompact {
+  padding-block: 0;
+}
+
+:global([data-palette="vivo"]) .compactTitle {
+  font-weight: 600;
+}
+
+:global([data-palette="vivo"]) .entry:active {
+  opacity: var(--press-opacity);
+}

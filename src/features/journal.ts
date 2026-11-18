@@ -1,7 +1,7 @@
 // I movimenti della dispensa di un giorno, in ordine di orario, già in parole: la riga «Dispensa» del diario di Oggi.
 import { QUICK_CONSUME_NOTE } from "@/core/diary";
 import { DEFAULT_TIME_ZONE } from "@/core/expiry";
-import { sortEvents, type LotPatch, type PantryState } from "@/core/ledger";
+import { sortEvents, type LedgerEvent, type LotPatch, type PantryState } from "@/core/ledger";
 import { formatQuantity, type Quantity } from "@/core/units";
 import type { AnyEvent } from "@/core/events";
 import { ledgerEventsOf } from "./events";
@@ -93,6 +93,26 @@ export interface JournalOptions {
 }
 
 /**
+ * Perché un movimento della dispensa non si può togliere da solo; `undefined` se si può.
+ * - Un consumo che sta in un pasto si toglie dal diario, insieme al suo pasto.
+ * - L'ingresso di un alimento che ha già altri movimenti non si toglie: resterebbero senza alimento.
+ * `together`: gli eventi che si annullano insieme a questo (un'operazione di «Ultime azioni»). Con esso i consumi di
+ * un pasto non fermano (il pasto si annulla con loro) e i movimenti dell'elenco non contano tra quelli che restano.
+ */
+export function undoBlockOf(event: LedgerEvent, pantry: PantryState, together?: ReadonlySet<string>): string | undefined {
+  if (event.type === "consume" && event.mealId && !together) {
+    return event.note === QUICK_CONSUME_NOTE
+      ? "Sta nel momento in cui l'hai segnato: lo togli o lo sposti da «Diario di oggi»."
+      : "Fa parte di un pasto: togli il pasto da «Diario di oggi», così tornano a posto anche gli altri alimenti.";
+  }
+  if (event.type !== "purchase" && event.type !== "declare") return undefined;
+  // annullare l'ingresso di un alimento lascerebbe senza lotto i movimenti che lo seguono
+  const history = pantry.lots.find((l) => l.lotId === event.lotId)?.history ?? [];
+  const after = together ? history.slice(1).filter((h) => !together.has(h.eventId)).length : history.length - 1;
+  return after > 0 ? "Questo alimento ha già altri movimenti: toglili prima, poi potrai togliere l'ingresso." : undefined;
+}
+
+/**
  * Eventi del giorno `today` (giorno di calendario di Roma). Restano fuori gli eventi annullati
  * e gli annullamenti stessi: il registro racconta ciò che è successo davvero.
  */
@@ -105,7 +125,6 @@ export function buildJournal(
 ): JournalRow[] {
   const voided = new Set(pantry.voidedEventIds);
   const names = new Map(pantry.lots.map((l) => [l.lotId, l.productRef]));
-  const lots = new Map(pantry.lots.map((l) => [l.lotId, l]));
   const rows: RawRow[] = [];
 
   for (const e of sortEvents(ledgerEventsOf(events))) {
@@ -113,16 +132,7 @@ export function buildJournal(
     if (dayOf(e.at, timeZone) !== today) continue;
     if (options.withoutMealConsumes && e.type === "consume" && e.mealId) continue;
     const name = ("lotId" in e ? names.get(e.lotId) : undefined) ?? (e.type === "purchase" || e.type === "declare" ? e.productRef : "alimento");
-    // annullare l'ingresso di un alimento lascerebbe senza lotto i movimenti che lo seguono
-    const isCreation = e.type === "purchase" || e.type === "declare";
-    const blocked =
-      e.type === "consume" && e.mealId && e.note === QUICK_CONSUME_NOTE
-        ? "Sta nel momento in cui l'hai segnato: lo togli o lo sposti da «Diario di oggi»."
-        : e.type === "consume" && e.mealId
-        ? "Fa parte di un pasto: togli il pasto da «Diario di oggi», così tornano a posto anche gli altri alimenti."
-        : isCreation && (lots.get(e.lotId)?.history.length ?? 0) > 1
-          ? "Questo alimento ha già altri movimenti: toglili prima, poi potrai togliere l'ingresso."
-          : undefined;
+    const blocked = undoBlockOf(e, pantry);
     const row = (title: string, value: string, estimated = false, quantity?: Quantity): RawRow => ({
       id: e.id,
       ids: [e.id],

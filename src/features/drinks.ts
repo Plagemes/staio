@@ -37,9 +37,9 @@ export interface DrinkInput {
   sugarsG?: number;
 }
 
-const WORD: Record<MealKind, string> = { breakfast: "colazione", lunch: "pranzo", dinner: "cena", snack: "fuori pasto" };
+const WORD: Record<MealKind, string> = { breakfast: "colazione", lunch: "pranzo", dinner: "cena", snack: "spuntino" };
 
-/** Il momento a cui una bevanda appartiene per orario, a parole: «colazione», «pranzo», «cena», «fuori pasto». */
+/** Il momento a cui una bevanda appartiene per orario, a parole: «colazione», «pranzo», «cena», «spuntino». */
 export function drinkMomentWord(at: string, timeZone: string = DEFAULT_TIME_ZONE): string {
   const m = localMoment(at, timeZone);
   return WORD[m ? momentOfMinutes(m.minutes) : "snack"];
@@ -82,7 +82,7 @@ export function buildDrink(
   const event = createDrink(input, eventOptions(ctx, { certainty: extra.certainty ?? "estimated", ...(ctx.at ? { at: ctx.at } : {}) }));
   return {
     events: [event],
-    message: `${input.name} segnato alle ${shortTime(when, tz)} · ${drinkMomentWord(when, tz)}${ctx.dayLabel ? ` · ${ctx.dayLabel}` : ""}`,
+    message: `Segnato: ${input.name.replace(/^\p{Lu}(?=\p{Ll})/u, (c) => c.toLowerCase())}, alle ${shortTime(when, tz)} · ${drinkMomentWord(when, tz)}${ctx.dayLabel ? ` · ${ctx.dayLabel}` : ""}`,
   };
 }
 

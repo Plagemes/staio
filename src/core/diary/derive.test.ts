@@ -134,13 +134,24 @@ describe("deriveDiary: riduzione per giornata", () => {
     expect(deriveDiary([]).days).toEqual([]);
   });
 
-  it("due pasti con lo stesso mealId: conta il primo", () => {
+  it("due pasti con lo stesso mealId: vale il più recente, e l'altro resta segnalato con le sue voci", () => {
     const state = deriveDiary([
-      meal("m1", "2026-03-10T08:00:00Z", { mealId: "same", kind: "breakfast" }),
+      meal("m1", "2026-03-10T08:00:00Z", { mealId: "same", kind: "breakfast", items: [{ name: "Tè", quantity: { value: 200, unit: "ml" }, certainty: "estimated" }] }),
       meal("m2", "2026-03-10T09:00:00Z", { mealId: "same", kind: "snack" }),
     ]);
-    expect(day(state, "2026-03-10").meals.map((m) => m.eventId)).toEqual(["m1"]);
-    expect(state.anomalies).toEqual([{ code: "duplicate_meal", eventId: "m2", mealId: "same" }]);
+    const meals = day(state, "2026-03-10").meals;
+    expect(meals.map((m) => m.eventId)).toEqual(["m2"]);
+    expect(meals[0].otherVersions).toEqual([
+      {
+        eventId: "m1",
+        recordedAt: "2026-03-10T08:00:00Z",
+        deviceId: "dev-a",
+        at: "2026-03-10T08:00:00Z",
+        kind: "breakfast",
+        items: [{ name: "Tè", quantity: { value: 200, unit: "ml" }, certainty: "estimated" }],
+      },
+    ]);
+    expect(state.anomalies).toEqual([{ code: "duplicate_meal", eventId: "m1", mealId: "same", keptEventId: "m2" }]);
   });
 
   it("stesso id con contenuti diversi: vince la versione valida, poi la più recente", () => {

@@ -21,8 +21,12 @@ import styles from "./health.module.css";
 export const WATER_GOAL_KEY = "waterGoalMl";
 const isGoal = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v > 0;
 
-/** Acqua di oggi con aggiunta rapida e obiettivo modificabile. Serve sia a Oggi sia a Salute. */
-export function WaterCard() {
+/**
+ * Acqua di oggi con aggiunta rapida e obiettivo modificabile. Serve sia a Oggi sia a Salute.
+ * Con `plain` restano solo i comandi, senza scheda, titolo, numero grande e anello: la riga «Acqua» del diario di Oggi
+ * dice già il conto e non vuole una scheda dentro una riga.
+ */
+export function WaterCard({ plain = false }: { plain?: boolean } = {}) {
   const diary = useDiary();
   const now = useNow();
   const goal = useSetting(WATER_GOAL_KEY, isGoal, DEFAULT_WATER_GOAL_ML);
@@ -73,25 +77,8 @@ export function WaterCard() {
     }
   }
 
-  return (
-    <div className={`${styles.card} ${ui.tile} ${ui.tone}`} data-tone="water">
-      <Label>Acqua di oggi</Label>
-      <div className={styles.big}>
-        <span className={styles.bigNumber}>
-          <Value certainty={ml > 0 ? "estimated" : "measured"}>{formatMl(ml)}</Value>
-        </span>
-        <span className={styles.of}>di {formatMl(total)}</span>
-        <ProgressRing value={ml} max={total} tone="water" className={styles.ring} />
-      </div>
-      {fluids.otherMl > 0 || fluids.alcoholicMl > 0 ? (
-        <p className={styles.fluids}>
-          Acqua {formatMl(ml)}
-          {fluids.otherMl > 0 ? ` · altre bevande ${formatMl(fluids.otherMl)}` : ""}
-          {fluids.alcoholicMl > 0 ? ` · bevande alcoliche ${formatMl(fluids.alcoholicMl)}` : ""}. L&apos;obiettivo conta solo l&apos;acqua.
-        </p>
-      ) : null}
-      <ProgressLine value={Math.min(ml, total)} max={total} tone="water" label={`Acqua di oggi: ${formatMl(ml)} su ${formatMl(total)}`} />
-
+  const controls = (
+    <>
       <div className={styles.buttons}>
         {WATER_PRESETS.map((p) => (
           <button key={p.ml} type="button" className={styles.chip} disabled={busy} onClick={() => void add(p.ml)}>
@@ -181,6 +168,31 @@ export function WaterCard() {
           </Button>
         </div>
       )}
+    </>
+  );
+
+  if (plain) return <div className={ui.form}>{controls}</div>;
+
+  return (
+    <div className={`${styles.card} ${ui.tile} ${ui.tone}`} data-tone="water">
+      <Label>Acqua di oggi</Label>
+      <div className={styles.big}>
+        <span className={styles.bigNumber}>
+          <Value certainty={ml > 0 ? "estimated" : "measured"}>{formatMl(ml)}</Value>
+        </span>
+        <span className={styles.of}>di {formatMl(total)}</span>
+        <ProgressRing value={ml} max={total} tone="water" className={styles.ring} />
+      </div>
+      {fluids.otherMl > 0 || fluids.alcoholicMl > 0 ? (
+        <p className={styles.fluids}>
+          Acqua {formatMl(ml)}
+          {fluids.otherMl > 0 ? ` · altre bevande ${formatMl(fluids.otherMl)}` : ""}
+          {fluids.alcoholicMl > 0 ? ` · bevande alcoliche ${formatMl(fluids.alcoholicMl)}` : ""}. L&apos;obiettivo conta solo l&apos;acqua.
+        </p>
+      ) : null}
+      <ProgressLine value={Math.min(ml, total)} max={total} tone="water" label={`Acqua di oggi: ${formatMl(ml)} su ${formatMl(total)}`} />
+
+      {controls}
       {ml > 0 ? <p className={ui.hint}>L&apos;acqua si scrive a occhio: vale come stima.</p> : null}
     </div>
   );

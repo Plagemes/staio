@@ -18,10 +18,10 @@ import { unresolvedGroups } from "../nutrition/prepare";
 import { useIntake } from "../nutrition/useNutrition";
 import { getSetting, setSetting, useSetting } from "../localSettings";
 import { dayOf } from "../format";
+import { reviewNotices } from "./summaries";
 import type { TodayPlan } from "./useTodayPlan";
 
 const NO_DISMISSED: string[] = [];
-const REVIEW_NOTICE_TYPES = new Set(["shopping", "plan"]);
 
 interface Args {
   now: string | null;
@@ -70,7 +70,7 @@ export function useBriefing({ now, viewDate, pantry, log, plan }: Args): Briefin
         log,
         planned: plan.planned,
         missingForPlan: plan.missingToday,
-        otherNotices: (notices ?? []).filter((f) => REVIEW_NOTICE_TYPES.has(f.type)).map((f) => ({ key: f.key, short: f.short, url: f.url })),
+        otherNotices: reviewNotices(notices ?? []).map((f) => ({ key: f.key, short: f.short, url: f.url })),
         unresolvedFoods,
         dismissed: dismissed.value,
       });

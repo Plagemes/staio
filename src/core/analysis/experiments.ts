@@ -4,7 +4,7 @@
 // perché ci sia, e due periodi consecutivi differiscono anche per molto altro.
 
 import { addDays, daysBetween, weightSeries, type DiaryDay, type DiaryState } from "../diary";
-import { nameTokens, type DayIntake } from "../nutrition";
+import { nameTokens, outOfHomeEnergyShare, type DayIntake } from "../nutrition";
 import type { Experiment, ExperimentMeasure } from "./experimentEvents";
 import {
   basisOf,
@@ -218,6 +218,8 @@ function foodsOfDay(date: string, day: DiaryDay | undefined, intake: DayIntake |
   const refs: string[] = [];
   for (const meal of day?.meals ?? []) {
     for (const item of meal.items) {
+      // una stima «fuori casa» non è un alimento: di quel pasto non si sa che cosa c'era
+      if (item.energyKcal !== undefined) continue;
       names.push(item.name);
       if (item.foodId !== undefined && item.foodId !== "") refs.push(item.foodId);
     }
@@ -225,6 +227,7 @@ function foodsOfDay(date: string, day: DiaryDay | undefined, intake: DayIntake |
   if (intake && intake.date === date) {
     const lines = [...intake.meals.flatMap((m) => m.lines), ...intake.standalone];
     for (const line of lines) {
+      if (line.status === "ok" && line.outOfHome === true) continue;
       names.push(line.label);
       if (line.status === "ok") {
         names.push(line.composition.name);
@@ -360,8 +363,10 @@ export function compareExperiment(
     for (const date of dates) {
       const x = daysBetween(periodFrom, date);
       if (measure === "energyIntake") {
-        const energy = intakeByDate.get(date)?.totals.energyKcal;
-        if (energy && energy.missingShare <= maxMissing) out.push({ x, y: energy.value });
+        const intake = intakeByDate.get(date);
+        const energy = intake?.totals.energyKcal;
+        // un pasto fuori casa stimato che pesa più della quota ammessa: l'energia del giorno è un valore generico
+        if (intake && energy && energy.missingShare <= maxMissing && outOfHomeEnergyShare(intake) <= maxMissing) out.push({ x, y: energy.value });
       } else if ((OUTCOME_KEYS as readonly string[]).includes(measure)) {
         const v = dailyOutcome(dayByDate.get(date), measure as OutcomeKey);
         if (v !== undefined) out.push({ x, y: v });
@@ -419,6 +424,29 @@ export function compareExperiment(
     caveats.push("L'aderenza è bassa: la differenza, anche se presente, riguarda un cambiamento seguito solo in parte.");
   }
   if (ongoing) caveats.push("L'esperimento non è concluso: il confronto usa i giorni trascorsi.");
+
+  // Pasti fuori casa stimati: si dice dove pesano, non si tace.
+  const daysText = (n: number): string => (n === 1 ? "1 giorno" : `${n} giorni`);
+  const comparedDates = [...refComplete, ...expComplete];
+  if (experiment.measures.includes("energyIntake")) {
+    const left = comparedDates.filter((d) => {
+      const intake = intakeByDate.get(d);
+      return intake !== undefined && outOfHomeEnergyShare(intake) > maxMissing;
+    }).length;
+    if (left > 0) {
+      caveats.push(
+        `Energia assunta: ${daysText(left)} con un pasto fuori casa stimato non ${left === 1 ? "entra" : "entrano"} nel confronto, perché l'energia di quei giorni è in buona parte un valore generico.`,
+      );
+    }
+  }
+  if (excludedFoods.length > 0) {
+    const unseen = expComplete.filter((d) => intakeByDate.get(d)?.outOfHome !== undefined).length;
+    if (unseen > 0) {
+      caveats.push(
+        `In ${daysText(unseen)} dell'esperimento c'è un pasto fuori casa stimato: di quel pasto non si conoscono gli alimenti, quindi l'aderenza misurata può essere più alta del vero.`,
+      );
+    }
+  }
 
   interface Draft {
     measure: ExperimentMeasure;
