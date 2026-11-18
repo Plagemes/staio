@@ -3,7 +3,7 @@ import { changeConsumeQuantity, deriveDiary, familyConsumes } from "@/core/diary
 import { consume, declaration, drink, meal, purchase, voidOf, water } from "@/core/diary/test-helpers";
 import type { AnyEvent } from "@/core/events";
 import { derivePantry, type LedgerEvent } from "@/core/ledger";
-import { daysBefore, locateEntry } from "./reveal";
+import { ENTRY_GONE_MS, ENTRY_WAIT_MS, daysBefore, entryVerdict, locateEntry } from "./reveal";
 
 const TZ = "Europe/Rome";
 const TODAY = "2026-11-16";
@@ -104,5 +104,52 @@ describe("locateEntry: dove sta nel diario la voce di `?voce=`", () => {
     expect(daysBefore(TODAY, TODAY)).toBe(0);
     expect(daysBefore(TODAY, "2026-11-15")).toBe(1);
     expect(daysBefore(TODAY, "2026-09-17")).toBe(60);
+  });
+});
+
+describe("entryVerdict: che cosa fare di `?voce=` quando la voce non c'è, o non c'è ancora", () => {
+  /** Il verdetto per `id` con il registro che c'è, `waitedMs` dopo l'arrivo sulla pagina. */
+  const verdict = (log: readonly AnyEvent[], id: string, waitedMs: number) => entryVerdict({ found: locate(log, id).found, waitedMs });
+
+  it("9. una voce scritta un attimo prima: con il registro di prima si aspetta senza dire niente; appena arriva quello nuovo si mostra", () => {
+    // «Aggiungi qui»: il pasto riscritto ha un id nuovo, e Oggi ha ancora in mano il registro di prima della scrittura
+    const before = [lot, dinner];
+    const rewritten = meal("m2", "2026-11-15T19:00:00.000Z", { mealId: "meal-1", kind: "dinner", certainty: "estimated", replaces: "m1", recordedAt: "2026-11-16T10:00:00.000Z" });
+    const after = [...before, voidOf("v-m1", "2026-11-16T10:00:00.000Z", "m1"), rewritten];
+    expect(verdict(before, "m2", 0)).toBe("wait");
+    expect(verdict(before, "m2", 1200)).toBe("wait");
+    expect(verdict(after, "m2", 1200)).toBe("show");
+    expect(locate(after, "m2")).toEqual({ found: true, date: "2026-11-15", elementId: "voce-m2" });
+    // trovata subito, o anche dopo l'attesa: si mostra comunque
+    expect(verdict(after, "m2", 0)).toBe("show");
+    expect(verdict(after, "m2", 5000)).toBe("show");
+  });
+
+  it("10. un id che non esiste: dopo 2 secondi lo dice; dopo altri 8 il messaggio se ne va", () => {
+    const log = [lot, dinner];
+    expect(verdict(log, "xxx", 0)).toBe("wait");
+    expect(verdict(log, "xxx", ENTRY_WAIT_MS - 1)).toBe("wait");
+    expect(verdict(log, "xxx", ENTRY_WAIT_MS)).toBe("gone");
+    const said = (forMs: number, logChanged = false, dayChanged = false) => entryVerdict({ found: false, waitedMs: ENTRY_WAIT_MS, said: { forMs, logChanged, dayChanged } });
+    expect(said(0)).toBe("gone");
+    expect(said(ENTRY_GONE_MS - 1)).toBe("gone");
+    expect(said(ENTRY_GONE_MS)).toBe("over");
+    // e se ne va prima alla prima scrittura o al primo cambio di giorno
+    expect(said(100, true)).toBe("over");
+    expect(said(100, false, true)).toBe("over");
+    expect([ENTRY_WAIT_MS, ENTRY_GONE_MS]).toEqual([2000, 8000]);
+  });
+
+  it("11. una voce annullata: come un id che non esiste", () => {
+    const tea = drink("d1", "2026-11-16T09:00:00.000Z", { name: "Tè", ml: 200 });
+    const log = [tea, voidOf("v1", "2026-11-16T09:01:00.000Z", "d1")];
+    expect(verdict(log, "d1", 0)).toBe("wait");
+    expect(verdict(log, "d1", ENTRY_WAIT_MS)).toBe("gone");
+    expect(entryVerdict({ found: false, waitedMs: 4000, said: { forMs: ENTRY_GONE_MS, logChanged: false, dayChanged: false } })).toBe("over");
+  });
+
+  it("una volta detto, il messaggio non torna «mostra» da solo: lo chiude il registro che cambia", () => {
+    expect(entryVerdict({ found: true, waitedMs: 3000, said: { forMs: 500, logChanged: true, dayChanged: false } })).toBe("over");
+    expect(entryVerdict({ found: true, waitedMs: 3000, said: { forMs: 500, logChanged: false, dayChanged: false } })).toBe("gone");
   });
 });

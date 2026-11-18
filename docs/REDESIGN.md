@@ -18,7 +18,7 @@ Questo documento è il progetto definitivo del redesign «utilitario funzionale�
 8. **Ogni azione dice che cosa è successo e dove**, con «Annulla». Nessuna conferma resta nascosta dietro una scheda.
 9. **Le cose si distinguono.** Tre distanze fisse dicono che cosa sta insieme; ogni blocco ha un titolo oppure è una riga che si apre; un solo pulsante pieno per schermata.
 
-**Dopo (ondate 2-5).** Ogni riga del diario si tocca e si corregge. «Ultime azioni» annulla anche dopo ore. Il «+» al centro della barra aggiunge qualunque cosa da qualunque schermata e risponde a «ce l'ho?». Il pasto fuori casa conta, come stima. La spesa entra leggendo i codici di fila. In negozio la lista è viva e lo schermo resta acceso. «Stasera» dice che cosa cucinare e che cosa manca. La cucina non perde il passo né il timer. Le impostazioni dicono come sono impostate e gli allergeni hanno una casa sola. Dopo qualche giorno di pausa l'app aiuta a rimettersi in pari.
+**Dopo (ondate 2-5).** Ogni riga del diario si tocca e si corregge. «Ultime azioni» annulla anche dopo ore. Il «+» al centro della barra aggiunge qualunque cosa da qualunque schermata e risponde a «ce l'ho?». Il pasto fuori casa conta, come stima. Salute sta in una schermata e non ripete Oggi. Lo scontrino lungo si fotografa a pezzi e si rivedono solo le righe dubbie. In negozio la lista è viva e lo schermo resta acceso. I numeri dei nutrienti si aprono e dicono da che cosa sono fatti. «Stasera» dice che cosa cucinare e che cosa manca. La cucina non perde il passo né il timer. Le impostazioni dicono come sono impostate e gli allergeni hanno una casa sola. Dopo qualche giorno di pausa l'app aiuta a rimettersi in pari.
 
 **Che cosa non cambia.** L'aspetto e i temi. I dati stanno sul telefono e l'app funziona senza rete. Il registro non cancella mai nulla: ogni correzione è un evento nuovo. Niente si salva senza che si veda. Il controllo degli allergeni resta prudente. Nessun parere medico.
 
@@ -43,6 +43,18 @@ Questo documento è il progetto definitivo del redesign «utilitario funzionale�
 - **Fuori casa.** Il campo `energyKcal` sta sulla voce del pasto, non sull'evento; per gli altri nutrienti la voce è «senza dato» (9.3).
 - **Aggiungi a mano.** In Vivo i campi in vista all'apertura sono tre, più l'inizio della scadenza: quattro non ci stanno senza cambiare l'aspetto (5.4.5).
 - **Ondata 2 ridisegnata** in dieci mandati su tre passi, con un mandato di correzioni dell'ondata 1 in testa (10.4).
+
+**Dopo la verifica a schermo dell'ondata 2 (18 nov 2026).** L'ondata 2 è pubblicata ed è stata guardata con i suoi 48 controlli: 43 passano, 2 no, 3 non si possono provare qui (l'ora, il tasto indietro vero, il telefono). Ne sono venute queste modifiche al progetto.
+
+- **Operazioni.** Un'operazione non è più «gli eventi scritti entro un secondo»: dall'ondata 2 è l'insieme degli eventi con lo stesso `opId`, che `appendEvents` scrive a ogni chiamata (4.2 corretto). A schermo è emerso un difetto: un evento riscritto partendo da quello di prima eredita il suo `opId`, e due correzioni della stessa cosa diventano una riga sola che non si annulla più. Si corregge per prima cosa nell'ondata 3 (mandato 3Z).
+- **Salute anticipata.** Il compito 4D entra nell'ondata 3 come 3F: a schermo è la schermata più confusa (3.192 px, 49 comandi) e sta sulla barra. Cambia anche il disegno: tre azioni («Peso», «Come sto», «Integratore») al posto di quattro, perché umore, energia, digestione e sonno si segnano insieme in un foglio solo; «Un'altra bevanda» passa nei fogli delle bevande di Oggi e del «+», dove si beve (5.5, 3.4).
+- **Lettura continua dei codici rimandata.** L'ex 3B esce dall'ondata 3: non si può provare senza fotocamera, il lettore riparte già da solo dopo ogni aggiunta, e una seconda strada per la stessa cosa va contro «semplice batte completo». Resta la decisione 12.6, da prendere dopo l'uso; con lei passa all'ondata 4 il codice «da completare» senza rete.
+- **Spesa e negozio restano due indirizzi.** Niente pagina unica con `?negozio=1` e niente rimandi: la lista è una sola e la spesa in corso la segue («lista viva»). Le scorte minime restano una pagina, raggiunta da «Altro» della Spesa. Niente raggruppamento per reparto: il dato non c'è (3.4, 3.5, 5.5).
+- **Scontrino.** Le scadenze dei freschi si scelgono dentro la revisione, prima di salvare: una scrittura e una riga in «Ultime azioni», invece di una schermata in più dopo il salvataggio. Più foto con una sola richiesta (la lettura accettava già più immagini). La bozza che sopravvive alla chiusura passa all'ondata 4 (9.2).
+- **«Da cosa è fatto»** nell'ondata 3 copre energia e nutrienti (Oggi e Nutrizione); valore della dispensa e costi della Spesa passano all'ondata 4, con lo stesso foglio (4.7).
+- **Lettura condivisa.** Corretto un errore di fatto: l'archivio viene già letto una volta sola per scrittura (Dexie mette in comune le letture uguali). Il costo è che ogni gancio riordina tutti gli eventi e rifà la sua derivazione, e che i nutrienti di tutto il registro si calcolano tre volte in Oggi (9.1).
+- **Due azioni in due tempi.** Passati in rassegna i punti di scrittura: lo scontrino (acquisti, poi scadenze) diventa una scrittura sola; la bevanda con «Scala dalla dispensa» resta due tocchi e due righe, con un testo giusto.
+- **Ondata 3 ridisegnata** in sette mandati su tre passi (10.5); l'ondata 4 perde Salute e riceve ciò che è stato rimandato (10.6).
 
 ---
 
@@ -192,15 +204,16 @@ Nell'ondata 5, con le scorciatoie, il campo riconosce un indirizzo incollato («
 | «Da mangiare prima» | Riga richiusa «In scadenza» in Oggi; gruppo «In scadenza» in cima alla Dispensa | 1 |
 | I riquadri in fondo alla Dispensa (controlla le quantità, cosa cucinare, 3D, foto) | «Altro» nell'intestazione della Dispensa | 1 |
 | I cinque collegamenti in cima al modulo a mano | Tre ingressi chiari («Leggi un codice», «Scontrino», «Più alimenti»); gli altri due spariscono da lì | 1 |
-| Spesa e In negozio | Una pagina con la modalità «Sono in negozio» | 3 |
-| Scorte minime; Verifica del piano | Sezioni richiuse di Spesa e di Settimana | 3, 4 |
+| Spesa e In negozio | Due indirizzi, una lista sola: in negozio si vede la lista vera, anche ciò che si aggiunge dopo | 3 |
+| Scorte minime | Resta una pagina, raggiunta da «Altro» della Spesa | 3 |
+| Verifica del piano | Sezione richiusa di Settimana | 4 |
 | Idee con ciò che hai; Con cosa sta bene | Una pagina con due schede | 4 |
 | Allergeni, esclusioni, obiettivi, struttura del piano | Impostazioni > Persona > «Alimentazione» | 4 |
-| Acqua e bevande in Salute | Solo l'andamento; si segnano da Oggi | 4 |
-| Qualità dei prodotti tra i pulsanti di Salute | Si raggiunge dal prodotto, dalla Spesa e dalla ricerca | 4 |
+| Acqua e bevande in Salute | Solo l'andamento; si segnano da Oggi e dal «+». «Un'altra bevanda» (nome e millilitri a mano) passa nei fogli delle bevande | 3 |
+| Qualità dei prodotti tra i pulsanti di Salute | In «Altro» di Salute; si raggiunge anche dal prodotto, dalla Spesa e dalla ricerca | 3 |
 | Scrivi o detta, Foto del piatto | In «Altro» di Registra pasto, solo con la chiave | 2 |
 
-Le pagine non aumentano: ne nasce una («Ultime azioni», `/app/attivita`, ondata 2) e quattro diventano sezioni di un'altra, con il vecchio indirizzo che rimanda (`/app/spesa/negozio`, `/app/spesa/scorte`, `/app/piano/verifica`, `/app/ricette/abbinamenti`); `/app/piano/obiettivi` si sposta in `/app/impostazioni/alimentazione`.
+Le pagine non aumentano: ne nasce una («Ultime azioni», `/app/attivita`, ondata 2) e due diventano sezioni di un'altra, con il vecchio indirizzo che rimanda (`/app/piano/verifica`, `/app/ricette/abbinamenti`); `/app/piano/obiettivi` si sposta in `/app/impostazioni/alimentazione`. `/app/spesa/negozio` e `/app/spesa/scorte` restano pagine (deciso dopo la verifica dell'ondata 2: fonderle non toglieva niente a chi usa l'app e aggiungeva rimandi).
 
 ### 3.5 Collegamenti diretti
 
@@ -212,7 +225,6 @@ Le pagine non aumentano: ne nasce una («Ultime azioni», `/app/attivita`, ondat
 | `?voce=<id evento>` | Oggi | Mostra il giorno di quell'evento, scorre fino alla riga e la evidenzia | 2 |
 | `?pasto=<mealId>` | Registra pasto | Aggiunge voci a un pasto esistente | 2 |
 | `?aggiungi=1` | qualunque | Apre il foglio «+» (serve solo alle scorciatoie dell'icona) | 5 |
-| `?negozio=1` | Spesa | Apre la modalità negozio | 3 |
 
 Una pagina che legge un parametro con `useSearchParams` va avvolta in `<Suspense>` nel suo file `page.tsx`, come fa già `src/app/app/page.tsx`: senza, la build si ferma. Il service worker ignora il testo dopo «?» nella chiave della cache: senza rete ogni collegamento apre la pagina giusta e il parametro lo legge la pagina. Un identificativo che non esiste più dice «Non c'è più» e offre la schermata di partenza.
 
@@ -296,7 +308,7 @@ I testi di oggi che già lo fanno restano come sono (li scrivono `features/actio
 
 **«Ultime azioni»** (`/app/attivita`, ondata 2; codice in `src/features/activity/`).
 
-- Elenco per giorno, ultimi 14 giorni, delle operazioni dell'utente. Un'operazione è l'insieme degli eventi scritti insieme: stesso `deviceId` e `recordedAt` entro un secondo. `correctLot` scrive il suo `updateLot` un millisecondo dopo: la finestra lo tiene insieme. Va scritto un test per ogni costruttore usato da un'azione dell'interfaccia: gli eventi di un'azione formano una sola operazione.
+- Elenco per giorno, ultimi 14 giorni, delle operazioni dell'utente. Un'operazione è l'insieme degli eventi scritti da una sola chiamata di scrittura: `appendEvents` dà a tutti lo stesso identificativo (`opId`, `core/events/operation.ts`), nuovo a ogni chiamata, anche agli eventi copiati da uno di prima (dall'ondata 3). Per gli eventi scritti prima dell'`opId` vale l'istante (stesso dispositivo, `recordedAt` entro 10 ms). Va scritto un test per ogni costruttore usato da un'azione dell'interfaccia: gli eventi di un'azione formano una sola operazione, e due correzioni di seguito ne formano due.
 - Il testo di ogni riga viene da una funzione pura, `describeOperation` (`activity/operations.ts`, con test), e dice che cosa, quando, dove (collegamento alla riga del diario o alla scheda dell'alimento).
 - «Annulla» scrive un `void` per ogni evento dell'operazione non ancora annullato, annullamenti compresi (è la regola dell'avviso). Se dopo sono arrivati eventi che ne dipendono (un acquisto già in parte mangiato), o se l'operazione è stata corretta da una venuta dopo, «Annulla» non c'è e la riga dice perché e che cosa annullare prima (per la dispensa, la regola che usa già `journal.ts`). Un'operazione annullata mostra «Annullata · Rifai». Un gruppo di soli annullamenti non è una riga: cambia lo stato di ciò che ha annullato.
 - Un'azione arrivata dall'altro telefono porta « · dall'altro telefono». Non c'è un avviso dopo l'unione: la schermata di sincronizzazione dice già quanti eventi sono arrivati.
@@ -392,7 +404,7 @@ function MoreActions(props: { items: readonly ActionItem[]; label?: string; titl
 
 ### 4.7 «Da cosa è fatto» (ondata 3)
 
-Oggi nessun numero si apre. Un tocco su un numero calcolato apre un foglio con: il numero e che cosa misura; le parti, una per riga, con valore e segno di certezza, ognuna con il collegamento alla sua origine; una riga di controllo («Somma delle voci: 1.240 kcal. 2 voci senza valori non contano»); e, se è una stima, perché lo è e come renderla certa. Per le medie: i giorni contati e quelli esclusi, con il motivo. Il contenuto viene da funzioni pure accanto al dato (`core/nutrition/breakdown.ts`, `core/ledger`, `core/shopping`). Si usa per energia e nutrienti di Oggi, medie di Nutrizione, valore della dispensa, costi della Spesa, e per ogni segno di stima.
+Oggi nessun numero si apre. Un tocco su un numero calcolato apre un foglio con: il numero e che cosa misura; le parti, una per riga, con valore e segno di certezza, ognuna con il collegamento alla sua origine; una riga di controllo («Somma delle voci: 1.240 kcal. 2 voci senza valori non contano»); e, se è una stima, perché lo è e come renderla certa. Per le medie: i giorni contati e quelli esclusi, con il motivo. Il contenuto viene da funzioni pure accanto al dato (`core/nutrition/breakdown.ts`, poi `core/ledger`, `core/shopping`), che leggono ciò che è già stato calcolato e non lo rifanno; il foglio è un pezzo comune che non sa niente del dato (`features/common/Breakdown.tsx`). Ondata 3: energia e nutrienti di Oggi, medie di Nutrizione, «Giorni contati». Ondata 4: valore della dispensa e costi della Spesa.
 
 ### 4.8 Stati
 
@@ -832,9 +844,10 @@ Stesse regole. Per ognuna: che cosa resta aperto, che cosa si richiude, l'azione
 |---|---|---|---|---|---|
 | Piano (`plan/PlanHome.tsx`) | «Qui vedo che cosa mangio stasera e nei prossimi giorni» | «Stasera e domani» con «Cucina» e «Che cosa manca»; «Questa settimana», una riga per giorno; Ricette · Spesa · Preparazioni nell'intestazione | «Altro»: Proponi la settimana, Copia la settimana scorsa, Verifica del piano | «Proponi la settimana» se è vuota, altrimenti «Cucina» | 4 |
 | Settimana (`plan/Week.tsx`) | «Qui metto i pasti nei giorni» | Si apre su oggi; giorni passati in una riga; ogni voce ha un comando in vista e gli altri al tocco | «Verifica», «Copia», «Tipo di giornata» | «Aggiungi» nel momento, con il foglio che resta aperto | 4 |
-| Spesa (`shopping/Shopping.tsx`) | «Qui tengo la lista e la spunto in negozio» | Campo «Aggiungi alla spesa»; «Da comprare (N)» per reparto, righe compatte con il perché in piccolo | «Costi e prezzi: questo mese 212 €», «Sospese (N)», Scorte minime | Barra fissa «Vado a fare la spesa» | 3 |
-| Salute (`health/Health.tsx`) | «Qui segno le misure e guardo l'andamento» | «Segna»: Peso · Umore · Sintomo · Integratore; Peso (ultimo valore e 30 giorni); Integratori di oggi | Umore, energia e sonno (media); Acqua e bevande (solo andamento); riga «Andamento»: Nutrizione, Analisi, Esperimenti, Rapporto | «Segna» | 4 |
-| Nutrizione (`nutrition/Nutrition.tsx`) | «Qui vedo le medie rispetto ai riferimenti» | Periodo e «Giorni contati: 5 di 7 · perché»; energia e macronutrienti; fino a sei nutrienti | Altri nutrienti; costo per nutriente; «Che cosa significa» | — | 3 |
+| Spesa (`shopping/Shopping.tsx`) | «Qui tengo la lista: aggiungo ciò che manca e vedo che cosa comprare» | Campo «Aggiungi alla spesa»; «Da comprare (N)», righe di due righe (nome e quantità; un motivo in piccolo) che aprono il foglio «Voce» | «Costi e prezzi · questo mese 212 €», «Sospese (N)»; in «Altro»: Conferma tutte, Scorte minime, Confronta sullo scaffale, Qualità dei prodotti, Pianifica la settimana | Barra fissa «Vado a fare la spesa» | 3 |
+| In negozio (`shopping/Store.tsx`) | «Qui spunto quello che metto nel carrello» | Riga di stato (negozio, 3 di 8, totale stimato); campo «Aggiungi»; righe grandi da spuntare, la lista è quella vera; lo schermo resta acceso | «Altro»: Cambia negozio, Confronta sullo scaffale, Torna alla lista, Lascia la spesa. Alla fine «Metti in dispensa (N)», aperte solo le righe a cui manca un dato | Barra fissa «Ho finito (N)», poi «Aggiungi alla dispensa (N)» | 3 |
+| Salute (`health/Health.tsx`) | «Qui segno come sto e guardo come va» | «Segna»: Peso · Come sto · Integratore (tre fogli); «Oggi»: le righe segnate oggi, le stesse della riga «Corpo» di Oggi, toccabili | «Andamento», quattro righe richiuse con il riepilogo: Peso, Come sto (medie di 7 giorni), Acqua e bevande (solo andamento), Integratori; «Nutrizione» dal titolo di «Andamento»; in «Altro»: Analisi, Esperimenti, Rapporto, Qualità dei prodotti | I pulsanti pieni stanno nei fogli («Segna») | 3 |
+| Nutrizione (`nutrition/Nutrition.tsx`) | «Qui vedo le medie rispetto ai riferimenti» | Periodo e «Giorni contati: 5 di 7 · perché»; energia e macronutrienti, ognuno si apre («Da cosa è fatto»); fino a sei nutrienti | Altri nutrienti; proteine nella giornata; varietà vegetale; voci non riconosciute; costo per nutriente; «Che cosa significa» | — | 3 |
 | Scheda di una ricetta (`recipes/RecipeView.tsx`) | «Qui decido se cucinarla» | Titolo e stato («35 min · hai 6 ingredienti su 8»); sicurezza, se ci sono allergeni dichiarati; ingredienti | Passi, valori, storia; «Altro»: Modifica, Con cosa sta bene, Condividi, Elimina | «Cucina»; a contorno «Metti nel piano», «Che cosa manca» | 4 |
 | Impostazioni (`settings/Settings.tsx`) | «Qui vedo come è impostata l'app» | Righe con il valore attuale: Alimentazione («Allergeni: latte»), Aspetto («Vivo»), Dati («ultima copia: 3 giorni fa»), Funzioni («chiave attiva») | Informazioni; «Cancella tutti i dati» in fondo | — | 4 |
 
@@ -1058,9 +1071,9 @@ Solo ciò che serve all'esperienza. Sei cose non devono rompersi mai:
 
 ### 9.1 Lettura condivisa dei dati (ondata 3, da sola)
 
-**Oggi.** Ogni gancio di `src/data/hooks.ts` apre la sua osservazione, che rilegge e riordina tutto il registro (`getAllEvents`). `usePantry` è chiamato in 35 punti, `useEventLog` in 21, `useDiary` in 15. `NotificationRunner` legge quattro famiglie a ogni pagina, anche con gli avvisi spenti. Con pochi eventi non si sente; con migliaia sì.
+**Oggi** (misurato il 18 nov 2026). Ogni gancio di `src/data/hooks.ts` apre la sua osservazione. L'archivio viene letto una volta sola per scrittura (Dexie mette in comune le letture uguali), ma ogni gancio riordina tutti gli eventi e rifà la sua derivazione. `usePantry` è chiamato in 37 punti, `useEventLog` in 23, `useDiary` in 17; in Oggi sono montati insieme circa trenta ganci. I nutrienti di tutto il registro (`useIntake`) si calcolano tre volte per scrittura in Oggi, e ogni calcolo rifà la dispensa. `NotificationRunner` tiene quattro ganci accesi su ogni pagina per un calcolo che fa al massimo una volta al minuto. Con pochi eventi non si sente; con migliaia sì.
 
-**Dopo.** Un solo modulo, `src/data/shared.ts`, tiene un'unica osservazione del registro (`liveEvents`), con il conto di chi la usa. A ogni emissione nasce un nuovo elenco di eventi: le derivazioni (dispensa, diario, piano, ricette, preparazioni) si calcolano una volta per elenco, alla prima richiesta, e restano in memoria finché l'elenco è quello. I ganci mantengono nome e forma: nessuna schermata cambia.
+**Dopo.** Un solo modulo, `src/data/shared.ts`, tiene un'unica osservazione del registro (`liveEvents`), che resta aperta per tutta la vita della pagina. A ogni emissione nasce un nuovo elenco di eventi: le derivazioni (dispensa, diario, piano, ricette, preparazioni) si calcolano una volta per elenco, alla prima richiesta, e restano in memoria finché l'elenco è quello. I ganci mantengono nome e forma: nessuna schermata cambia. Anche i nutrienti si calcolano una volta per elenco, e gli avvisi leggono quando servono, senza ganci accesi. Conseguenza per chi scrive le schermate: i dati dei ganci sono condivisi e non si modificano sul posto. Una schermata appena aperta può vedere per un istante lo stato di prima dell'ultima scrittura: chi decide qualcosa una volta sola all'arrivo (la voce di `?voce=`) deve saper aspettare la lettura seguente (lo fa 3Z, prima).
 
 **Perché così.** La «versione» non è un conteggio: l'unione di due telefoni può sostituire il contenuto di un evento senza cambiare né il numero né l'ultimo identificativo (0.3). L'osservazione di Dexie emette a ogni scrittura della tabella, comprese `importEvents`, il ripristino e le scritture di un'altra scheda del browser.
 
@@ -1072,7 +1085,7 @@ Solo ciò che serve all'esperienza. Sei cose non devono rompersi mai:
 
 - **Fogli:** 4.1.
 - **Cucina (ondata 4):** `recipes/cookSession.ts` salva ricetta, passo, porzioni e timer (istante di partenza e durata) nelle impostazioni locali. Oggi mostra «Stai cucinando: riprendi».
-- **Bozze (ondata 3):** revisione dello scontrino, lettura continua, giro in negozio. Una bozza si propone («Hai una spesa a metà · Riprendi · Scarta»), non si apre da sola; si cancella al salvataggio, con «Scarta», o dopo sette giorni. Nulla di una bozza entra nel registro prima della conferma.
+- **Bozze (ondata 4; il giro in negozio sopravvive già, perché sta nelle impostazioni):** revisione dello scontrino, lettura continua se si farà. Una bozza si propone («Hai una spesa a metà · Riprendi · Scarta»), non si apre da sola; si cancella al salvataggio, con «Scarta», o dopo sette giorni. Nulla di una bozza entra nel registro prima della conferma.
 
 ### 9.3 Il pasto fuori casa (ondata 2)
 
@@ -1162,35 +1175,41 @@ Nelle tabelle delle sezioni 6 e 8 le sigle dell'ondata 2 sono quelle della prima
 
 **Uscito dall'ondata 2:** `buildDayDiary`; l'azione in più sull'avviso; l'avviso dopo l'unione di due telefoni; `?aggiungi=1`, l'indirizzo incollato e la dettatura nel «+» (ondata 5); il segno «senza dato» in Registra pasto.
 
-### 10.5 Ondata 3: la spesa entra da sola
+### 10.5 Ondata 3: Salute, la spesa, i numeri che si aprono
 
-**Che cosa sente l'utente.** Tutta la spesa entra leggendo i codici di fila. Lo scontrino lungo si fotografa in più pezzi. In negozio la lista è viva e lo schermo resta acceso. I numeri si aprono e dicono da che cosa sono fatti. Le pagine si aprono subito anche con mesi di dati.
+**Che cosa sente l'utente.** «Ultime azioni» dice sempre il vero. Salute sta in una schermata e non ripete Oggi. La lista della spesa comincia in cima; in negozio è la lista vera, lo schermo resta acceso e la spesa entra in dispensa in un passo. Lo scontrino lungo si fotografa in più pezzi e si rivedono solo le righe dubbie. I numeri dei nutrienti si aprono e dicono da che cosa sono fatti. Le pagine si aprono subito anche con mesi di dati.
 
-**Ordine.** 3A da solo, con la sua verifica a schermo; poi 3B, 3C, 3D, 3E insieme; poi l'integrazione.
+Il piano è stato rifatto dopo la verifica a schermo dell'ondata 2. I mandati completi, l'ordine, le domande per la revisione e i controlli a schermo stanno nella cartella dei mandati dell'ondata 3 (`ORDINE.md`).
 
-| Compito | Che cosa consegna | File in esclusiva | Difficoltà | Revisione |
+**Ordine.** Passo 1: 3Z da solo. Passo 2: 3A da solo, con la misura e le liste di controlli delle ondate 1 e 2. Passo 3: 3C, 3D, 3E, 3F, 3G insieme. Poi l'integrazione.
+
+| Mandato | Che cosa consegna | File in esclusiva | Difficoltà | Revisione |
 |---|---|---|---|---|
-| **3A** Lettura condivisa (per prima, da sola) | 9.1 | `src/data/hooks.ts`, `derived.ts`, `pantry.ts`, `diary.ts`, `shared.ts` (nuovo), `features/notifications/NotificationRunner.tsx` | Critico | Sì |
-| **3B** Lettura continua dei codici | Fotocamera sempre accesa, una riga per codice, lo stesso codice «×2», «Aggiungi tutti» con un solo «Annulla»; codici «da completare» senza rete; la bozza sopravvive alla chiusura | `features/barcode/`, `features/quality/ShelfScanner.tsx` | Difficile | Sì (codici del negozio, doppioni) |
-| **3C** Scontrino e «Più alimenti» | Più foto; aperte solo le righe incerte; «Salva» fisso; «Appena comprati / Già in casa»; memoria per nome (4.9) | `features/ai/`, `features/quick/`, `features/quickAdd.ts` | Difficile | Sì (dati dedotti) |
-| **3D** Spesa e negozio | Una pagina con «Sono in negozio»; lista viva; schermo acceso; righe compatte; «Registra acquisti» già compilato; Scorte, costi e prezzi richiusi | `features/shopping/`, `core/shopping/`, `features/common/useWakeLock.ts` (nuovo) | Difficile | No |
-| **3E** Nutrizione e «Da cosa è fatto» | 4.7; giorni contati con il motivo; avvertenze dietro «Che cosa significa» | `features/nutrition/`, `core/nutrition/breakdown.ts` (nuovo), `features/common/Breakdown.tsx` (nuovo) | Difficile | Sì (nutrizione) |
-| **Integrazione 3** | Rimandi dei vecchi indirizzi della Spesa | `public/sw.js`, `INTEGRAZIONE.md`, pagine `spesa/negozio` e `spesa/scorte` | Meccanico | — |
+| **3Z** Correzioni dell'ondata 2 (per primo, da solo) | Ogni scrittura ha il suo `opId`, e «Ultime azioni» ricompone ciò che è già scritto; `?voce=` aspetta il registro; testi di «Ultime azioni»; l'ora di una voce spostata; minori | `core/events/operation.ts`, `data/eventStore.ts`, `features/activity/operations.ts` e `describe.ts`, `core/diary/placeConsume.ts` e `editMeal.ts`, cinque file di `features/today/`, `search/searchIndex.ts`, `settings/ThemePreview.tsx` | Critico | Sì |
+| **3A** Lettura condivisa (da sola) | 9.1 | `src/data/shared.ts` (nuovo), `hooks.ts`, `index.ts`; `features/nutrition/useNutrition.ts`; `features/notifications/NotificationRunner.tsx`, `useNotify.ts` | Critico | Sì, obbligatoria |
+| **3F** Salute (ex 4D, anticipata) | 5.5: «Segna» in tre fogli, «Oggi» toccabile, «Andamento» in quattro righe; «Un'altra bevanda» nei fogli delle bevande | `features/health/` (tranne `WaterCard.tsx`, `DrinkPantry.tsx`), `features/health.ts`, `today/BodyRow.tsx`, `today/Now.tsx`, `shell/AddSheet.tsx` | Difficile | Sì, breve |
+| **3D** Lista della spesa | 5.5: campo in cima, righe con il foglio «Voce», «Altro», costi e prezzi richiusi, barra fissa | In `features/shopping/`: `Shopping.tsx`, `Costs.tsx`, `Spending.tsx`, `Prices.tsx`, `shopping.module.css`, `view.ts`, nuovi `ItemSheet.tsx`, `listText.ts` | Ben specificato | No |
+| **3G** In negozio | Lista viva (`syncTrip`), righe grandi, schermo acceso, «Metti in dispensa» in un passo | In `features/shopping/`: `Store.tsx`, `trip.ts`, nuovi `store.module.css`, `storeText.ts`; `core/shopping/trip.ts`; `features/common/useWakeLock.ts` (nuovo) | Difficile | Sì, breve |
+| **3C** Scontrino e «Più alimenti» | Fino a quattro foto in una richiesta; aperte solo le righe dubbie; scadenze dentro la revisione; una sola scrittura; «Appena comprati / Già in casa»; memoria per nome (4.9) | In `features/ai/`: `ReceiptCapture.tsx`, `ReviewRow.tsx`, `ExpiryReview.tsx`, `receiptEvents.ts`, nuovo `receiptReview.ts`; `core/ai/receiptPrompt.ts`, `receiptExpiry.ts`; `features/quick/`, `features/quickAdd.ts` | Difficile | Sì, obbligatoria |
+| **3E** Nutrizione e «Da cosa è fatto» | 4.7 per i nutrienti; giorni contati con il motivo; Nutrizione accorciata; proposte sensate per le voci a mano | `features/nutrition/` (tranne `useNutrition.ts`), `core/nutrition/breakdown.ts` (nuovo), `features/common/Breakdown.tsx` (nuovo) | Difficile | Sì |
+| **Integrazione 3** | Versione della cache, pezzi comuni esportati, mappa, classi di Vivo, README | `public/sw.js`, `common/index.ts`, `INTEGRAZIONE.md`, `vivoScope.test.ts`, `VIVO.md`, `README.md` | Meccanico | — |
 
-Dopo aver usato l'ondata 1 si decide se 3B serve davvero o se il lettore che riparte da solo basta (decisione 12.6).
+Nelle tabelle delle sezioni 6 e 8 le sigle dell'ondata 3 sono quelle della prima stesura: 3B lì vale «rimandato all'ondata 4» (resta fatto il lettore che riparte da solo, 1D); 3D vale 3D e 3G di qui; 4D vale 3F; le righe 23 e 58 (scorte minime, costi e prezzi) si chiudono con «Altro» e con la riga richiusa di 3D.
 
-### 10.6 Ondata 4: cucina, piano, salute, impostazioni
+**Uscito dall'ondata 3:** la lettura continua dei codici e i codici «da completare» senza rete (decisione 12.6, ancora aperta); la pagina unica Spesa e negozio con `?negozio=1` e i rimandi; le scorte minime come sezione della Spesa; il raggruppamento per reparto; la schermata delle scadenze dopo il salvataggio dello scontrino; le bozze che sopravvivono alla chiusura (ondata 4); «Da cosa è fatto» per il valore della dispensa e i costi della Spesa (ondata 4).
 
-**Che cosa sente l'utente.** «Stasera» dice che cosa cucinare e che cosa manca. La cucina non perde il passo né il timer, e alla fine chiede degli avanzi. Salute mostra l'andamento. Le impostazioni dicono come sono impostate. Gli allergeni hanno una casa sola.
+### 10.6 Ondata 4: cucina, piano, impostazioni
 
-**Ordine.** 4A da solo, con la revisione; poi 4B, 4C, 4D, 4E insieme; poi 4F; poi l'integrazione.
+**Che cosa sente l'utente.** «Stasera» dice che cosa cucinare e che cosa manca. La cucina non perde il passo né il timer, e alla fine chiede degli avanzi. Le impostazioni dicono come sono impostate. Gli allergeni hanno una casa sola.
+
+**Ordine.** 4A da solo, con la revisione; poi 4B, 4C, 4E insieme; poi 4F; poi l'integrazione. Salute (4D) è stata anticipata all'ondata 3 (3F): la riga qui sotto resta per memoria. Arrivano dall'ondata 3, da mettere nei mandati quando si scriveranno: la decisione sulla lettura continua dei codici (12.6) e, se si fa, i codici «da completare» senza rete; la bozza della revisione dello scontrino (9.2); «Da cosa è fatto» per il valore della dispensa e i costi della Spesa (4.7); le scorte minime tolte da Piano (riga 23 della sezione 6); la cucina che usa `useWakeLock` di `features/common`.
 
 | Compito | Che cosa consegna | File in esclusiva | Difficoltà | Revisione |
 |---|---|---|---|---|
 | **4A** Allergeni: una casa sola (per primo, da solo) | 9.4 | `features/allergens.ts` (nuovo, con test) e, nei file che oggi leggono o scrivono i due archivi, solo la lettura e la scrittura | Critico | Sì, obbligatoria |
 | **4B** Piano | «Stasera e domani», «Che cosa manca» con «Aggiungi alla spesa», foglio che resta aperto, settimane passate, Verifica come sezione | `features/plan/` (tranne `Goals.tsx`), `core/plan/missing.ts` (nuovo) | Difficile | No |
 | **4C** Ricette e cucina | «Cucina» diretto; stato salvato; timer dal testo; fine con pasto, avanzi e voto; «Metti nel piano»; filtri nell'indirizzo; «Incolla l'indirizzo»; Idee e abbinamenti in una pagina | `features/recipes/`, `features/recipes-video/`, `features/prep/`, `features/taste/`, `features/ai-capture/RecipeIdeas.tsx` | Difficile | Sì (allergeni in cucina; la dispensa si scala solo con la conferma) |
-| **4D** Salute | 5.5: «Segna», peso, integratori con la dose; acqua e bevande solo come andamento | `features/health/` | Ben specificato | No |
+| ~~**4D** Salute~~ | Anticipata: è il mandato 3F dell'ondata 3 | — | — | — |
 | **4E** Impostazioni | Righe con lo stato; pagina «Alimentazione» (allergeni, esclusioni, obiettivi, struttura); «Memorie» | `features/settings/`, `features/plan/Goals.tsx`, `src/app/app/impostazioni/alimentazione/page.tsx` (nuova) | Ben specificato | Sì (tocca la schermata degli allergeni) |
 | **4F** Oggi: «Stasera» e «Riprendi» (dopo 4B e 4C) | Nel momento del diario «Cucina» e «Che cosa manca»; in «Da guardare» «Stai cucinando: riprendi» | `features/today/` | Ben specificato | No |
 | **Integrazione 4** | Pagina nuova e rimandi | `public/sw.js`, `INTEGRAZIONE.md`, pagine `piano/obiettivi`, `piano/verifica`, `ricette/abbinamenti` | Meccanico | — |
@@ -1239,7 +1258,7 @@ Dopo aver usato l'ondata 1 si decide se 3B serve davvero o se il lettore che rip
 | 3 | Dopo «Mangiato» la scheda dell'alimento si chiude e l'avviso dice dove è finito (oggi resta aperta con un riquadro in fondo) | Sì: una regola sola dopo ogni azione | Si chiude |
 | 4 | In Oggi «Da mangiare prima» diventa la riga richiusa «In scadenza» (solo ciò che scade entro tre giorni) | Sì | Si fa |
 | 5 | Il pasto fuori casa, stimato, conta nelle medie di Nutrizione (ondata 2) | Sì, segnato come stima | Conta, come stima |
-| 6 | La lettura continua dei codici (ondata 3) | Si decide dopo aver usato il lettore che riparte da solo | Si fa |
+| 6 | La lettura continua dei codici (rimandata dall'ondata 3 all'ondata 4) | Si decide dopo aver usato il lettore che riparte da solo: oggi è un tocco per prodotto, senza scorrere | Non si fa: resta il lettore che riparte da solo |
 | 7 | Pressione lunga e scorrimento laterale sulle righe | No per ora: prima le azioni a un tocco; si rivaluta dopo l'ondata 2 | Non si fanno |
 | 8 | «Chiedi» esce da Oggi quando c'è la ricerca del «+»; le viste fissate restano | Sì | Si fa |
 

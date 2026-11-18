@@ -5,6 +5,7 @@ import { derivePlan } from "../plan";
 import { derivePreps } from "../prep";
 import { deriveRecipes } from "../recipes";
 import { EVENT_FAMILIES, OPERATION_ID_MAX_LENGTH, familyOf, mergeAllEvents, operationIdOf, validateAnyEvent, withOperationId, type AnyEvent } from "./index";
+import { stampOperationId } from "./operation";
 import { mixedLog } from "./test-helpers";
 
 const log = mixedLog();
@@ -58,5 +59,30 @@ describe("opId: l'identificativo dell'operazione viaggia su ogni tipo di evento"
     expect(operationIdOf("opId")).toBeUndefined();
     // e l'evento resta valido lo stesso: il campo non è della busta
     expect(validateAnyEvent({ ...first, opId: 7 })).toEqual([]);
+  });
+
+  it("stampOperationId: tutti gli eventi escono con l'identificativo dato, anche chi ne portava già uno", () => {
+    const [first, second, third] = log.all;
+    const before = [...withOperationId([first], "op-1"), second, { ...third, opId: 7 } as unknown as AnyEvent];
+    const stamped = stampOperationId(before, "op-2");
+    expect(stamped.map(operationIdOf)).toEqual(["op-2", "op-2", "op-2"]);
+    expect(stamped.map((e) => e.id)).toEqual([first.id, second.id, third.id]);
+    // gli eventi passati non vengono toccati, e il resto dell'evento è identico
+    expect(before.map(operationIdOf)).toEqual(["op-1", undefined, undefined]);
+    for (const [i, e] of stamped.entries()) {
+      expect(validateAnyEvent(e), e.type).toEqual([]);
+      const { opId: _a, ...mine } = e as AnyEvent & { opId?: unknown };
+      const { opId: _b, ...theirs } = before[i] as AnyEvent & { opId?: unknown };
+      void [_a, _b];
+      expect(mine).toEqual(theirs);
+    }
+    expect(stampOperationId([], "op-3")).toEqual([]);
+  });
+
+  it("stampOperationId su un registro intero non cambia niente di ciò che si deriva", () => {
+    const stamped = stampOperationId(withOperationId(log.all.slice(0, 5), "op-vecchio").concat(log.all.slice(5)), "op-nuovo");
+    expect(derivePantry(stamped)).toEqual(derivePantry(log.all));
+    expect(deriveDiary(stamped)).toEqual(deriveDiary(log.all));
+    expect(stamped.every((e) => operationIdOf(e) === "op-nuovo")).toBe(true);
   });
 });

@@ -59,6 +59,47 @@ export function locateEntry(
   return { found: true, date, elementId: entryElementId(event.id) };
 }
 
+/**
+ * Quanto si aspetta una voce che non c'è ancora: chi arriva con `?voce=` subito dopo una scrittura può trovare il
+ * registro di prima, e la voce compare alla lettura dopo.
+ */
+export const ENTRY_WAIT_MS = 2000;
+/** Quanto resta «Questa voce non c'è più.», se prima non si cambia giorno e non si scrive niente. */
+export const ENTRY_GONE_MS = 8000;
+
+export type EntryVerdict =
+  /** La voce c'è: si apre il suo giorno e la si porta in vista. */
+  | "show"
+  /** Non c'è ancora: si riprova alla prossima lettura del registro, senza dire niente. */
+  | "wait"
+  /** Non c'è: lo si dice. */
+  | "gone"
+  /** Il messaggio ha fatto il suo tempo: si toglie. */
+  | "over";
+
+/**
+ * Che cosa fare di una richiesta `?voce=`. Finché non si è detto niente (`said` assente): la voce trovata si mostra,
+ * anche tardi; se manca si aspetta fino a `ENTRY_WAIT_MS` dall'arrivo sulla pagina, poi si dice che non c'è più. Dopo
+ * averlo detto, il messaggio resta finché qui non si scrive qualcosa, non si cambia giorno, o non sono passati
+ * `ENTRY_GONE_MS`. Un registro che arriva dall'altro telefono non lo toglie.
+ */
+export function entryVerdict(input: {
+  /** `locateEntry` l'ha trovata nel registro che c'è adesso. */
+  found: boolean;
+  /** Millisecondi dall'arrivo della richiesta sulla pagina. */
+  waitedMs: number;
+  /**
+   * Si è già detto che non c'è più: da quanti millisecondi, e che cosa è successo nel frattempo. `logChanged`: nel
+   * registro è entrata una scrittura fatta su questo telefono.
+   */
+  said?: { forMs: number; logChanged: boolean; dayChanged: boolean };
+}): EntryVerdict {
+  const { said } = input;
+  if (said) return said.logChanged || said.dayChanged || said.forMs >= ENTRY_GONE_MS ? "over" : "gone";
+  if (input.found) return "show";
+  return input.waitedMs >= ENTRY_WAIT_MS ? "gone" : "wait";
+}
+
 /** Quanti giorni prima di `today` sta `date` (entrambi `YYYY-MM-DD`). */
 export function daysBefore(today: string, date: string): number {
   return Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${date}T12:00:00Z`)) / 86_400_000);

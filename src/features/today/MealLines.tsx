@@ -68,18 +68,20 @@ interface EntryRowProps {
   quantity: Quantity;
   certainty: Certainty;
   line: IntakeLine | undefined;
+  /** La quantità non dice niente e non si mostra: una stima «fuori casa» è «1 pz» per forma, conta la sua energia. */
+  withoutAmount?: boolean;
   onOpen: () => void;
 }
 
 /** Una voce di un pasto: una riga sola, senza comandi. Il tocco apre il foglio «Voce». */
-export function EntryRow({ id, name, quantity, certainty, line, onOpen }: EntryRowProps) {
+export function EntryRow({ id, name, quantity, certainty, line, withoutAmount = false, onOpen }: EntryRowProps) {
   const note = lineNutrientText(line);
   return (
     <li id={id}>
       <button type="button" className={entries.entry} aria-haspopup="dialog" onClick={onOpen}>
         <Value certainty={certainty === "estimated" ? "estimated" : "measured"} className={entries.entryText}>
           <span className={entries.entryName}>{name}</span>
-          <span className={entries.entryAmount}>{formatQuantity(quantity)}</span>
+          {withoutAmount ? null : <span className={entries.entryAmount}>{formatQuantity(quantity)}</span>}
         </Value>
         {note ? <span className={entries.entryNote}>{note}</span> : null}
       </button>

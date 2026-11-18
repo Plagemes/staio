@@ -17,7 +17,8 @@ import {
   type MealKind,
 } from "@/core/diary";
 import { purchase, seededRandom, shuffled } from "@/core/diary/test-helpers";
-import { mergeAllEvents, validateAnyEvent, withOperationId, type AnyEvent } from "@/core/events";
+import { mergeAllEvents, operationIdOf, validateAnyEvent, withOperationId, type AnyEvent } from "@/core/events";
+import { stampOperationId } from "@/core/events/operation";
 import { correctLot, derivePantry, supersededConsumes, type ConsumeEvent, type Lot, type PurchaseEvent, type VoidEvent } from "@/core/ledger";
 import { computeIntake } from "@/core/nutrition";
 import { recipe as plannedRecipe, weekEv } from "@/core/plan/test-helpers";
@@ -197,7 +198,7 @@ function eat(log: readonly AnyEvent[], lotId: string, value: number, now: string
 }
 
 describe("raggruppare: un'azione, una operazione", () => {
-  it("una chiamata di scrittura è un'operazione: gli eventi con lo stesso opId stanno insieme, qualunque sia l'istante", () => {
+  it("una chiamata di scrittura è un'operazione: gli eventi con lo stesso opId stanno insieme, anche se non portano lo stesso istante", () => {
     const at = (ms: number) => new Date(Date.parse(NOON) + ms).toISOString();
     const water = (ms: number, deviceId = "A") => createWater({ ml: 200 }, factory(at(ms), deviceId));
     const first = withOperationId([water(0), water(40)], "op-1");
@@ -1201,6 +1202,461 @@ describe("ciò che l'elenco non mostra e ciò che non lascia a metà", () => {
     const removed = [...base, ...buildUndo([confirm], ctx(LUNCH))];
     expect(opWith(removed, confirm).state).toBe("undone");
     expect(redoOperation(opWith(removed, confirm), removed, derivePantry(removed), ctx(NIGHT))).toEqual({ ok: false, reason: "Le conferme sugli allergeni non si annullano da qui." });
+  });
+});
+
+/**
+ * Come scrive `appendEvents`. «nuovo»: tutti gli eventi della chiamata ricevono lo stesso `opId`, anche chi ne portava
+ * uno. «ereditato»: com'è stato per un periodo, e come resta nei registri già scritti: riceve l'`opId` solo chi non lo
+ * ha, quindi un evento copiato da uno di prima si tiene quello dell'azione di prima.
+ */
+const WRITERS: Record<"nuovo" | "ereditato", (events: readonly AnyEvent[]) => AnyEvent[]> = {
+  nuovo: (events) => stampOperationId(events, nextId()),
+  ereditato: (events) => withOperationId(events, nextId()),
+};
+const MODES = ["nuovo", "ereditato"] as const;
+const idsOf = (events: readonly AnyEvent[]): string[] => events.map((e) => e.id).sort();
+const written = <E extends AnyEvent>(log: readonly AnyEvent[], e: Pick<AnyEvent, "id">): E => log.find((x) => x.id === e.id) as E;
+
+/**
+ * Due correzioni della stessa cosa, una dopo l'altra, ognuna scritta con una chiamata: due operazioni, ognuna con i suoi
+ * eventi e nient'altro; la prima è «corretta dopo», la seconda si annulla; annullata la seconda la prima torna a valere
+ * e si annulla anche lei; rifatte, tutto torna com'era. Dispensa e diario si controllano derivandoli.
+ */
+function expectTwoCorrections(
+  mode: (typeof MODES)[number],
+  log0: readonly AnyEvent[],
+  first: (log: readonly AnyEvent[]) => readonly AnyEvent[],
+  second: (log: readonly AnyEvent[], one: readonly AnyEvent[]) => readonly AnyEvent[],
+): { log2: AnyEvent[]; one: AnyEvent[]; two: AnyEvent[] } {
+  const write = WRITERS[mode];
+  const one = write(first(log0));
+  const log1 = [...log0, ...one];
+  const two = write(second(log1, one));
+  const log2 = [...log1, ...two];
+  const fresh = (events: readonly AnyEvent[]) => events.find((e) => e.type !== "void") as AnyEvent;
+
+  // nel registro di prima un evento copiato porta davvero l'`opId` di un'azione già scritta: è il difetto da leggere bene
+  const earlier = new Set(log0.map(operationIdOf));
+  const copied = [...one, ...two].filter((e) => e.type !== "void" && earlier.has(operationIdOf(e)));
+  if (mode === "ereditato") expect(copied.length, "nessun evento con l'opId ereditato").toBeGreaterThanOrEqual(2);
+  else expect(copied).toEqual([]);
+
+  const [opOne, opTwo] = [opWith(log2, fresh(one)), opWith(log2, fresh(two))];
+  expect(opOne.id).not.toBe(opTwo.id);
+  expect(idsOf(opOne.events)).toEqual(idsOf(one));
+  expect(idsOf(opTwo.events)).toEqual(idsOf(two));
+  expect(opsOf(log2)).toHaveLength(opsOf(log0).length + 2);
+  expect(opsOf(log0).map((o) => idsOf(opWith(log2, o).events))).toEqual(opsOf(log0).map((o) => idsOf(o.events)));
+  expect([opOne.state, opTwo.state]).toEqual(["changed", "active"]);
+  expect(commandBlock(opTwo, log2, derivePantry(log2), { now: NIGHT })).toBeUndefined();
+  expect(commandBlock(opOne, log2, derivePantry(log2), { now: NIGHT })).toMatch(/corretta dopo: annulla prima la correzione/);
+  for (const seed of [1, 2, 3]) {
+    const mixed = shuffled(log2, seededRandom(seed));
+    expect(opsOf(mixed).map((o) => [o.id, o.state, idsOf(o.events)])).toEqual(opsOf(log2).map((o) => [o.id, o.state, idsOf(o.events)]));
+  }
+
+  const at = (minutes: number) => new Date(Date.parse("2026-11-16T22:00:00.000Z") + minutes * 60_000).toISOString();
+  const log3 = [...log2, ...write(undo(log2, opTwo, at(0)))];
+  expect(snapshot(log3)).toEqual(snapshot(log1));
+  expect([opWith(log3, fresh(one)).state, opWith(log3, fresh(two)).state]).toEqual(["active", "undone"]);
+  expect(commandBlock(opWith(log3, fresh(one)), log3, derivePantry(log3), { now: at(1) })).toBeUndefined();
+  const log4 = [...log3, ...write(undo(log3, opWith(log3, fresh(one)), at(10)))];
+  expect(snapshot(log4)).toEqual(snapshot(log0));
+  const log5 = [...log4, ...write(redo(log4, opWith(log4, fresh(one)), at(20)))];
+  expect(snapshot(log5)).toEqual(snapshot(log1));
+  const log6 = [...log5, ...write(redo(log5, opWith(log5, fresh(two)), at(30)))];
+  expect(snapshot(log6)).toEqual(snapshot(log2));
+  expect([opWith(log6, fresh(one)).state, opWith(log6, fresh(two)).state]).toEqual(["changed", "active"]);
+  expect(derivePantry(log6).anomalies).toEqual([]);
+  expect(diaryOf(log6).anomalies).toEqual([]);
+  return { log2, one, two };
+}
+
+describe("ogni scrittura ha il suo identificativo: due correzioni di seguito sono due operazioni", () => {
+  /** Gli acquisti e una cena, scritti ognuno con una chiamata. */
+  function dinnerWritten(mode: (typeof MODES)[number]) {
+    const write = WRITERS[mode];
+    const dinner = withDinner();
+    const log0 = [...write(stock), ...write(dinner.events)];
+    return { log0, mealId: dinner.mealId, pollo: written<ConsumeEvent>(log0, dinner.pollo) };
+  }
+
+  for (const mode of MODES) {
+    describe(mode === "nuovo" ? "scritte da adesso in poi" : "registro già scritto con l'opId ereditato", () => {
+      it("1-2. rewriteMeal: pasto spostato alle 20:30, poi a ieri", () => {
+        const { log0, mealId } = dinnerWritten(mode);
+        const { log2, one, two } = expectTwoCorrections(
+          mode,
+          log0,
+          (log) => ok(rewriteMeal(mealId, { minutes: 20 * 60 + 30 }, log, { ...ctx(LATER), timeZone: TZ })).events,
+          (log) => ok(rewriteMeal(mealId, { date: "2026-11-15" }, log, { ...ctx(NIGHT), timeZone: TZ })).events,
+        );
+        expect([one, two].map((events) => events.map((e) => e.type))).toEqual([["void", "meal"], ["void", "meal"]]);
+        expect(diaryOf(log2).days.map((d) => [d.date, d.meals.length])).toEqual([["2026-11-15", 1]]);
+        expect(mealsOf(log2)[0].pantryConsumes).toHaveLength(3);
+      });
+
+      it("changeItem: una voce libera corretta due volte", () => {
+        const { log0, mealId } = dinnerWritten(mode);
+        expectTwoCorrections(
+          mode,
+          log0,
+          (log) => ok(changeItem(mealId, 0, { quantity: q(60) }, log, ctx(LATER))).events,
+          (log) => ok(changeItem(mealId, 0, { quantity: q(80) }, log, ctx(NIGHT))).events,
+        );
+      });
+
+      it("appendItems: due aggiunte allo stesso pasto", () => {
+        const { log0, mealId } = dinnerWritten(mode);
+        const { log2 } = expectTwoCorrections(
+          mode,
+          log0,
+          (log) => ok(appendItems(mealId, [{ name: "Mela", quantity: q(1, "pz"), certainty: "estimated" }], log, ctx(LATER))).events,
+          (log) => ok(appendItems(mealId, [{ name: "Pizza", quantity: q(1, "pz"), certainty: "estimated" }], log, ctx(NIGHT))).events,
+        );
+        expect(mealsOf(log2)[0].items.map((i) => i.name)).toEqual(["Pane", "Mela", "Pizza"]);
+      });
+
+      it("3. changeConsumeQuantity: la quantità di una voce corretta due volte", () => {
+        const { log0, pollo } = dinnerWritten(mode);
+        const { log2 } = expectTwoCorrections(
+          mode,
+          log0,
+          () => ok(changeConsumeQuantity(pollo, { value: 150, estimated: false }, 1000, ctx(LATER))).events,
+          (_log, one) => ok(changeConsumeQuantity(one.find((e) => e.type === "consume") as ConsumeEvent, { value: 180, estimated: false }, 1000, ctx(NIGHT))).events,
+        );
+        expect(left(log2, "pollo")).toBe(820);
+      });
+
+      it("moveConsumes: una voce spostata a cena e poi tra gli spuntini", () => {
+        const write = WRITERS[mode];
+        const base = write(stock);
+        const log0 = [...base, ...write(eat(base, "yogurt", 100, NOON).events)];
+        const eaten = log0.find((e): e is ConsumeEvent => e.type === "consume") as ConsumeEvent;
+        const { log2 } = expectTwoCorrections(
+          mode,
+          log0,
+          (log) => ok(moveConsumes([eaten], diaryOf(log), { ...ctx(LATER), timeZone: TZ }, { kind: "dinner" })).events,
+          (log, one) => ok(moveConsumes([one.find((e) => e.type === "consume") as ConsumeEvent], diaryOf(log), { ...ctx(NIGHT), timeZone: TZ }, { kind: "snack" })).events,
+        );
+        expect(mealsOf(log2).map((m) => [m.kind, m.pantryConsumes.length])).toEqual([["snack", 1]]);
+        expect(left(log2, "yogurt")).toBe(25);
+      });
+
+      it("4. correctLot: l'ingresso resta una riga sua, e la modifica scritta un millisecondo dopo sta con la sua correzione", () => {
+        const write = WRITERS[mode];
+        const log0 = write(stock);
+        const entry = (log: readonly AnyEvent[]) => log.filter((e): e is PurchaseEvent => e.type === "purchase" && e.lotId === "pollo").at(-1) as PurchaseEvent;
+        const { log2, one } = expectTwoCorrections(
+          mode,
+          log0,
+          (log) => correctLot(entry(log), { quantity: q(1200), productRef: "Pollo intero" }, { lot: lotOf(log, "pollo"), ...factory(LATER) }) as AnyEvent[],
+          (log) => correctLot(entry(log), { quantity: q(900) }, { lot: lotOf(log, "pollo"), ...factory(NIGHT) }) as AnyEvent[],
+        );
+        expect(one.map((e) => [e.type, e.recordedAt])).toEqual([["void", LATER], ["purchase", LATER], ["updateLot", "2026-11-16T20:10:00.001Z"]]);
+        expect(opWith(log2, { id: "p-pollo" }).events.map((e) => e.id).sort()).toEqual(stock.map((e) => e.id).sort());
+        expect([lotOf(log2, "pollo").productRef, left(log2, "pollo")]).toEqual(["Pollo intero", 900]);
+      });
+
+      it("5. retimeDrink: un tè spostato due volte, con ciò che era stato scalato dalla dispensa", () => {
+        const write = WRITERS[mode];
+        const tea = purchase("p-te", BOUGHT, { deviceId: "A", lotId: "te", productRef: "Tè verde", quantity: q(40), location: "dispensa" });
+        const base = write([...stock, tea]);
+        const drink = write(buildDrink({ name: "Tè", ml: 200 }, { ...ctx(LUNCH), timeZone: TZ }).events);
+        const log1 = [...base, ...drink];
+        const dose = { quantity: { value: 2, unit: "g" as const }, certainty: "estimated" as const, text: "circa 2 g" };
+        const log0 = [...log1, ...write(ok(buildDrinkConsume({ lot: lotOf(log1, "te"), dose }, drink[0].id, ctx("2026-11-16T12:12:00.000Z"))).events)];
+        const retime = (log: readonly AnyEvent[], time: string, now: string): AnyEvent[] => {
+          const entry = diaryOf(log).days[0].drinks[0] as DiaryDrink;
+          return ok(retimeDrink(entry, "2026-11-16", time, { ...ctx(now), timeZone: TZ }, linkedConsumes(entry.eventId, log, derivePantry(log).voidedEventIds))).events;
+        };
+        const { log2, one, two } = expectTwoCorrections(mode, log0, (log) => retime(log, "08:15", LATER), (log) => retime(log, "09:30", NIGHT));
+        expect([one, two].map((events) => events.map((e) => e.type))).toEqual([["void", "drink", "void", "consume"], ["void", "drink", "void", "consume"]]);
+        expect(left(log2, "te")).toBe(38);
+        expect(diaryOf(log2).days[0].drinks.map((d) => d.at)).toEqual(["2026-11-16T08:30:00.000Z"]);
+      });
+    });
+  }
+
+  it("2. il registro scritto a mano: annullamento con l'opId nuovo e pasto riscritto con quello di prima, stesso istante", () => {
+    const base = { deviceId: "A", schemaVersion: 1, certainty: "measured", source: "manual" } as const;
+    const meal = (id: string, recordedAt: string, at: string, opId: string, replaces?: string) =>
+      ({ ...base, id, type: "meal", at, recordedAt, mealId: "cena", kind: "dinner", items: [{ name: "Pizza", quantity: q(1, "pz"), certainty: "estimated" }], opId, ...(replaces ? { replaces } : {}) }) as unknown as AnyEvent;
+    const cancel = (id: string, recordedAt: string, targetEventId: string, opId: string) =>
+      ({ ...base, id, type: "void", at: recordedAt, recordedAt, targetEventId, opId }) as unknown as AnyEvent;
+    // gli id dei pasti riscritti vengono una volta dopo e una volta prima di quelli dei loro annullamenti
+    const log = [
+      meal("m1", DINNER, DINNER, "op-A"),
+      cancel("v1", LATER, "m1", "op-B"),
+      meal("m2", LATER, "2026-11-16T19:30:00.000Z", "op-A", "m1"),
+      cancel("w2", NIGHT, "m2", "op-C"),
+      meal("a3", NIGHT, "2026-11-15T19:30:00.000Z", "op-A", "m2"),
+    ];
+    expect(log.every((e) => validateAnyEvent(e).length === 0)).toBe(true);
+    const rows = (events: readonly AnyEvent[]) => opsOf(events).map((o) => [idsOf(o.events), o.state]);
+    expect(rows(log)).toEqual([[["a3", "w2"], "active"], [["m2", "v1"], "changed"], [["m1"], "changed"]]);
+    for (const seed of [1, 2, 3, 4]) expect(rows(shuffled(log, seededRandom(seed)))).toEqual(rows(log));
+    expect(groupWrites(log).map((g) => idsOf(g.events))).toEqual([["m1"], ["m2", "v1"], ["a3", "w2"]]);
+
+    const pantry = derivePantry(log);
+    const [latest, middle, oldest] = opsOf(log);
+    expect(commandBlock(latest, log, pantry, { now: NIGHT })).toBeUndefined();
+    expect(commandBlock(middle, log, pantry, { now: NIGHT })).toBe("È stata corretta dopo: annulla prima la correzione delle 22:00.");
+    expect(commandBlock(oldest, log, pantry, { now: NIGHT })).toBe("È stata corretta dopo: annulla prima la correzione delle 22:00.");
+
+    // annullata la seconda correzione, la prima torna con «Annulla»; e il diario è quello di dopo la prima
+    const undone = [...log, ...stampOperationId(undo(log, latest, "2026-11-16T22:00:00.000Z"), "op-D")];
+    expect(rows(undone)).toEqual([[["a3", "w2"], "undone"], [["m2", "v1"], "active"], [["m1"], "changed"]]);
+    expect(snapshot(undone)).toEqual(snapshot(log.slice(0, 3)));
+    expect(commandBlock(opWith(undone, { id: "m2" }), undone, derivePantry(undone), { now: NIGHT })).toBeUndefined();
+    const back = [...undone, ...stampOperationId(undo(undone, opWith(undone, { id: "m2" }), "2026-11-16T22:10:00.000Z"), "op-E")];
+    expect(snapshot(back)).toEqual(snapshot(log.slice(0, 1)));
+    expect(rows(back).map((r) => r[1])).toEqual(["undone", "undone", "active"]);
+    expect(snapshot([...back, ...redo(back, opWith(back, { id: "m2" }), "2026-11-16T22:20:00.000Z")])).toEqual(snapshot(log.slice(0, 3)));
+  });
+
+  it("un opId ereditato sull'altro telefono: la correzione fatta lì è una riga sua, e dice da dove viene", () => {
+    const dinner = withDinner();
+    const log0 = [...WRITERS.nuovo(stock), ...WRITERS.nuovo(dinner.events)];
+    const theirs = WRITERS.ereditato(ok(rewriteMeal(dinner.mealId, { kind: "lunch", minutes: 13 * 60 }, log0, { ...ctx(DINNER, "B"), timeZone: TZ })).events);
+    // l'orologio dell'altro telefono segna lo stesso istante del pasto: conta il dispositivo, non solo il tempo
+    expect(theirs.map((e) => [e.type, e.deviceId, e.recordedAt])).toEqual([["void", "B", DINNER], ["meal", "B", DINNER]]);
+    expect(operationIdOf(theirs[1])).toBe(operationIdOf(written(log0, dinner.events[0])));
+    const log = [...log0, ...theirs];
+    const op = opWith(log, theirs[1]);
+    expect([idsOf(op.events), op.deviceId, op.state]).toEqual([idsOf(theirs), "B", "active"]);
+    expect(opWith(log, dinner.events[0]).state).toBe("changed");
+    expect(idsOf(opWith(log, dinner.events[0]).events)).toEqual(idsOf(dinner.events));
+    expect(snapshot([...log, ...undo(log, op)])).toEqual(snapshot(log0));
+  });
+
+  it("un opId che torna da solo, molto dopo o da un altro telefono, apre una riga sua; due così, scritti insieme, una sola", () => {
+    const at = (ms: number) => new Date(Date.parse(NOON) + ms).toISOString();
+    const water = (ms: number, deviceId = "A") => createWater({ ml: 200 }, factory(at(ms), deviceId));
+    const [first, near] = stampOperationId([water(0), water(1500)], "op-1");
+    const [far] = stampOperationId([water(2000)], "op-1");
+    const [elsewhere] = stampOperationId([water(5, "B")], "op-1");
+    const pair = stampOperationId([water(60_000), water(60_001)], "op-1");
+    const groups = groupWrites([...pair, elsewhere, far, near, first]);
+    expect(groups.map((g) => idsOf(g.events))).toEqual([idsOf([first, near]), [elsewhere.id], [far.id], idsOf(pair)]);
+    expect(groups.map((g) => g.at)).toEqual([at(0), at(5), at(2000), at(60_000)]);
+  });
+
+  it("8. due azioni vere una dopo l'altra, anche nello stesso istante, hanno identificativi diversi e restano due righe", () => {
+    const at = (ms: number) => new Date(Date.parse(NOON) + ms).toISOString();
+    const tap = (ms: number) => stampOperationId([createWater({ ml: 200 }, factory(at(ms)))], nextId());
+    for (const gap of [0, 3, 300, 1500]) {
+      const [one, two] = [tap(0), tap(gap)];
+      const log = [...one, ...two];
+      expect(opsOf(log).map((o) => o.events.map((e) => e.id)).sort()).toEqual([[one[0].id], [two[0].id]].sort());
+      const undone = [...log, ...undo(log, opWith(log, two[0]))];
+      expect(opsOf(undone).map((o) => [o.id, o.state]).sort()).toEqual([[one[0].id, "active"], [two[0].id, "undone"]].sort());
+    }
+    // e una correzione scritta nello stesso istante di un'altra azione non la porta con sé
+    const dinner = withDinner();
+    const log0 = [...WRITERS.nuovo(stock), ...WRITERS.nuovo(dinner.events)];
+    const moved = WRITERS.nuovo(ok(rewriteMeal(dinner.mealId, { minutes: 20 * 60 + 30 }, log0, { ...ctx(LATER), timeZone: TZ })).events);
+    const glass = WRITERS.nuovo([createWater({ ml: 200 }, factory(LATER))]);
+    const log = [...log0, ...moved, ...glass];
+    expect(idsOf(opWith(log, moved[1]).events)).toEqual(idsOf(moved));
+    expect(idsOf(opWith(log, glass[0]).events)).toEqual(idsOf(glass));
+  });
+});
+
+describe("un opId ereditato si riconosce dall'annullamento scritto con lui, non dall'ordine degli eventi", () => {
+  const shift = (iso: string, ms: number) => new Date(Date.parse(iso) + ms).toISOString();
+  const legacy = WRITERS.ereditato;
+  /** Un generatore di id con un prefisso: per far venire gli id di una scrittura prima o dopo quelli di un'altra. */
+  const idsWith = (prefix: string) => () => `${prefix}-${String(++n).padStart(6, "0")}`;
+  const rows = (log: readonly AnyEvent[]) => opsOf(log).map((o) => [o.id, o.state, idsOf(o.events)]);
+
+  /** Una cena scritta dal telefono A; `withPantry`: con un alimento della dispensa oltre alla voce libera. */
+  function dinnerOf(withPantry: boolean, idGenerator = nextId) {
+    const base = legacy(stock);
+    const built = ok(
+      buildMealEvents(
+        { kind: "dinner", picks: withPantry ? [{ lot: lotOf(base, "pollo"), choice: { kind: "text", text: "200 g" } }] : [], freeItems: [{ name: "Pizza", quantityText: "1 pz" }] },
+        { now: DINNER, deviceId: "A", idGenerator },
+      ),
+    );
+    const meal = legacy(built.events);
+    return { base, mealId: built.mealId, meal, log0: [...base, ...meal] };
+  }
+
+  /**
+   * La correzione è una riga sua, con i suoi due eventi; l'originale è «corretto dopo» e non si annulla; «Annulla»
+   * sulla correzione riporta il pasto com'era (non lo toglie), e da lì l'originale si annulla per intero.
+   */
+  function expectCorrection(log0: readonly AnyEvent[], original: readonly AnyEvent[], correction: readonly AnyEvent[], base: readonly AnyEvent[]) {
+    const log = [...log0, ...correction];
+    expect(correction.map((e) => e.type)).toEqual(["void", "meal"]);
+    expect(operationIdOf(correction[1])).toBe(operationIdOf(original[0]));
+    expect(operationIdOf(correction[0])).not.toBe(operationIdOf(original[0]));
+
+    const [first, second] = [opWith(log, original[0]), opWith(log, correction[1])];
+    expect(idsOf(first.events)).toEqual(idsOf(original));
+    expect(idsOf(second.events)).toEqual(idsOf(correction));
+    expect([first.state, second.state]).toEqual(["changed", "active"]);
+    expect(commandBlock(first, log, derivePantry(log), { now: NIGHT })).toMatch(/corretta dopo: annulla prima la correzione/);
+    expect(commandBlock(second, log, derivePantry(log), { now: NIGHT })).toBeUndefined();
+    for (const seed of [1, 2, 3, 4, 5]) expect(rows(shuffled(log, seededRandom(seed)))).toEqual(rows(log));
+
+    const voids = undo(log, second, "2026-11-16T22:00:00.000Z");
+    expect(voids.map((v) => v.targetEventId).sort()).toEqual(idsOf(correction));
+    const back = [...log, ...stampOperationId(voids, nextId())];
+    expect(snapshot(back)).toEqual(snapshot(log0));
+    expect([opWith(back, original[0]).state, opWith(back, correction[1]).state]).toEqual(["active", "undone"]);
+    const gone = [...back, ...stampOperationId(undo(back, opWith(back, original[0]), "2026-11-16T22:10:00.000Z"), nextId())];
+    expect(snapshot(gone)).toEqual(snapshot(base));
+    const again = [...back, ...stampOperationId(redo(back, opWith(back, correction[1]), "2026-11-16T22:20:00.000Z"), nextId())];
+    expect(snapshot(again)).toEqual(snapshot(log));
+  }
+
+  it.each([false, true])("l'altro telefono ha l'orologio indietro: la sua correzione risulta scritta prima del pasto che corregge (con la dispensa: %s)", (withPantry) => {
+    const { base, mealId, meal, log0 } = dinnerOf(withPantry);
+    const theirs = legacy(ok(rewriteMeal(mealId, { minutes: 21 * 60 }, log0, { ...ctx(shift(DINNER, -300_000), "B"), timeZone: TZ })).events);
+    expect(theirs.every((e) => e.deviceId === "B" && e.recordedAt < DINNER)).toBe(true);
+    expectCorrection(log0, meal, theirs, base);
+  });
+
+  it("stesso istante su due telefoni, con gli id della correzione che vengono prima di quelli del pasto", () => {
+    const { base, mealId, meal, log0 } = dinnerOf(false, idsWith("z"));
+    const theirs = legacy(ok(rewriteMeal(mealId, { minutes: 21 * 60 }, log0, { now: DINNER, deviceId: "B", idGenerator: idsWith("a"), timeZone: TZ })).events);
+    expect(theirs.every((e) => e.id < meal[0].id)).toBe(true);
+    expectCorrection(log0, meal, theirs, base);
+  });
+
+  it("lo stesso telefono con l'orologio portato indietro tra il pasto e la correzione", () => {
+    const { base, mealId, meal, log0 } = dinnerOf(true);
+    const mine = legacy(ok(rewriteMeal(mealId, { minutes: 21 * 60 }, log0, { ...ctx(shift(DINNER, -60_000)), timeZone: TZ })).events);
+    expectCorrection(log0, meal, mine, base);
+  });
+
+  it("una correzione a meno di due secondi dall'originale è una riga sua, e l'originale dice il motivo giusto", () => {
+    const { base, meal, log0 } = dinnerOf(true);
+    const eaten = meal.find((e): e is ConsumeEvent => e.type === "consume") as ConsumeEvent;
+    const one = legacy(ok(changeConsumeQuantity(eaten, { value: 150, estimated: false }, 1000, ctx(shift(DINNER, 1500)))).events);
+    const log1 = [...log0, ...one];
+    expect(rows(log1).map((r) => r[2])).toEqual([idsOf(one), idsOf(meal), idsOf(base)]);
+    expect(opWith(log1, meal[0]).state).toBe("changed");
+    expect(commandBlock(opWith(log1, meal[0]), log1, derivePantry(log1), { now: NIGHT })).toBe("È stata corretta dopo: annulla prima la correzione delle 20:00.");
+    expect(commandBlock(opWith(log1, one[1]), log1, derivePantry(log1), { now: NIGHT })).toBeUndefined();
+
+    const two = legacy(ok(changeConsumeQuantity(one[1] as ConsumeEvent, { value: 180, estimated: false }, 1000, ctx(shift(DINNER, 3000)))).events);
+    const log2 = [...log1, ...two];
+    expect(rows(log2).map((r) => [r[1], r[2]])).toEqual([["active", idsOf(two)], ["changed", idsOf(one)], ["changed", idsOf(meal)], ["active", idsOf(base)]]);
+    for (const seed of [1, 2, 3]) expect(rows(shuffled(log2, seededRandom(seed)))).toEqual(rows(log2));
+    const log3 = [...log2, ...undo(log2, opWith(log2, two[1]), "2026-11-16T22:00:00.000Z")];
+    expect(snapshot(log3)).toEqual(snapshot(log1));
+    const log4 = [...log3, ...undo(log3, opWith(log3, one[1]), "2026-11-16T22:10:00.000Z")];
+    expect(snapshot(log4)).toEqual(snapshot(log0));
+    expect(snapshot([...log4, ...undo(log4, opWith(log4, meal[0]), "2026-11-16T22:20:00.000Z")])).toEqual(snapshot(base));
+  });
+
+  it("la copia arrivata senza il suo annullamento: non si indovina, né l'originale né la copia si annullano; arrivato l'annullamento, sì", () => {
+    const { mealId, meal, log0 } = dinnerOf(false);
+    const theirs = legacy(ok(rewriteMeal(mealId, { minutes: 21 * 60 }, log0, { ...ctx(shift(DINNER, -300_000), "B"), timeZone: TZ })).events);
+    const partial = [...log0, theirs[1]];
+    const reason = "Questa azione è stata corretta su un altro dispositivo: non si annulla da qui.";
+    for (const seed of [0, 1, 2]) {
+      const log = seed === 0 ? partial : shuffled(partial, seededRandom(seed));
+      const pantry = derivePantry(log);
+      for (const e of [meal[0], theirs[1]]) {
+        const op = opWith(log, e);
+        expect(op.events.map((x) => x.id)).toEqual([e.id]);
+        expect(commandBlock(op, log, pantry, { now: NIGHT })).toBe(reason);
+        expect(undoOperation(op, log, pantry, ctx(NIGHT))).toEqual({ ok: false, reason });
+        expect(redoOperation(op, log, pantry, ctx(NIGHT))).toEqual({ ok: false, reason });
+      }
+      // ciò che non c'entra si annulla come sempre
+      expect(commandBlock(opWith(log, { id: "p-pollo" }), log, pantry, { now: NIGHT })).toBeUndefined();
+    }
+    const whole = [...partial, theirs[0]];
+    expect(commandBlock(opWith(whole, theirs[1]), whole, derivePantry(whole), { now: NIGHT })).toBeUndefined();
+    expect(snapshot([...whole, ...undo(whole, opWith(whole, theirs[1]))])).toEqual(snapshot(log0));
+  });
+
+  it("lo stesso opId che torna molto dopo sullo stesso telefono, senza annullamento: due righe, nessuna si annulla", () => {
+    const { meal, log0 } = dinnerOf(false);
+    // come lo scriveva la correzione di un pasto tolto altrove a cui era rimasta una voce: la copia da sola
+    const copy = { ...meal[0], id: "copia", recordedAt: LATER, replaces: meal[0].id } as AnyEvent;
+    const log = [...log0, copy];
+    const reason = "Questa azione è stata corretta in un modo che non riesco a ricostruire: non si annulla da qui.";
+    for (const e of [meal[0], copy]) {
+      const op = opWith(log, e);
+      expect(op.events.map((x) => x.id)).toEqual([e.id]);
+      expect(commandBlock(op, log, derivePantry(log), { now: NIGHT })).toBe(reason);
+      expect(undoOperation(op, log, derivePantry(log), ctx(NIGHT))).toEqual({ ok: false, reason });
+    }
+  });
+
+  it("due telefoni con gli orologi sfasati, scritture di prima e di adesso mescolate: «Annulla» e «Rifai» valgono sempre per una scrittura intera, mai per metà né per due", () => {
+    const tried = { undo: 0, redo: 0, early: 0 };
+    for (const seed of [11, 12, 13, 14, 15, 16]) {
+      const random = seededRandom(seed);
+      const pick = <T,>(list: readonly T[]): T => list[Math.floor(random() * list.length)];
+      const offsets: Record<string, number> = { A: 0, B: pick([-420_000, -1500, 0, 90_000]) };
+      let clock = Date.parse(DINNER);
+      const writes: Set<string>[] = [];
+      let log: AnyEvent[] = [];
+      const write = (events: readonly AnyEvent[]) => {
+        if (events.length === 0) return;
+        const stamped = pick([WRITERS.nuovo, WRITERS.ereditato, WRITERS.ereditato])(events);
+        writes.push(new Set(stamped.map((e) => e.id)));
+        log = [...log, ...stamped];
+      };
+      const here = (deviceId: string) => ({ now: new Date(clock + offsets[deviceId]).toISOString(), deviceId, idGenerator: idsWith(pick(["a", "m", "z"])), timeZone: TZ });
+
+      write(stock);
+      const built = ok(buildMealEvents({ kind: "dinner", picks: [{ lot: lotOf(log, "pollo"), choice: { kind: "text", text: "200 g" } }], freeItems: [{ name: "Pizza", quantityText: "1 pz" }] }, here("A")));
+      write(built.events);
+      let last: readonly AnyEvent[] = [];
+
+      for (let step = 0; step < 14; step++) {
+        // a volte un attimo dopo, a volte minuti; e una volta ogni tanto l'orologio del telefono A torna indietro
+        clock += pick([700, 1500, 40_000, 300_000]);
+        if (random() < 0.1) offsets.A -= 123_457;
+        const c = here(pick(["A", "B"]));
+        const meal = mealsOf(log).find((m) => m.mealId === built.mealId);
+        const roll = random();
+        let edit: { ok: true; events: readonly AnyEvent[] } | { ok: false } = { ok: false };
+        if (roll < 0.15 && last.length > 0) edit = { ok: true, events: buildUndo(last, c) };
+        else if (!meal) continue;
+        else if (roll < 0.4) edit = rewriteMeal(built.mealId, { minutes: 18 * 60 + Math.floor(random() * 240) }, log, c);
+        else if (roll < 0.6) edit = meal.items.length > 0 ? changeItem(built.mealId, 0, { quantity: q(1 + Math.floor(random() * 5), "pz") }, log, c) : { ok: false };
+        else if (roll < 0.8) edit = appendItems(built.mealId, [{ name: pick(["Mela", "Pane", "Riso"]), quantity: q(1, "pz"), certainty: "estimated" }], log, c);
+        else if (meal.pantryConsumes.length > 0) edit = changeConsumeQuantity(written<ConsumeEvent>(log, meal.pantryConsumes[0]), { value: 100 + Math.floor(random() * 200), estimated: false }, 1000, c);
+        if (!edit.ok || edit.events.length === 0) continue;
+        last = edit.events;
+        write(edit.events);
+
+        const seen = random() < 0.5 ? log : shuffled(log, random);
+        const pantry = derivePantry(seen);
+        const writeOf = (id: string) => writes.find((w) => w.has(id)) as Set<string>;
+        for (const op of opsOf(seen)) {
+          // ogni riga è una scrittura intera
+          expect(new Set(op.events.map((e) => e.id)), `seme ${seed}, passo ${step}`).toEqual(writeOf(op.events[0].id));
+          const result = op.state === "undone" ? redoOperation(op, seen, pantry, ctx(NIGHT)) : undoOperation(op, seen, pantry, ctx(NIGHT));
+          if (!result.ok) continue;
+          tried[op.state === "undone" ? "redo" : "undo"]++;
+          // una correzione che per l'orologio viene prima di ciò che corregge
+          if (op.events.some((e) => e.type === "void" && (seen.find((x) => x.id === (e as VoidEvent).targetEventId)?.recordedAt ?? "") > e.recordedAt)) tried.early++;
+          const touched = new Set(result.events.map((v) => v.targetEventId));
+          const whole = writeOf(result.events[0].targetEventId);
+          // ciò che si annulla sta tutto in una scrittura; e di un'azione in vigore si annulla tutto
+          for (const id of touched) expect(whole.has(id), `seme ${seed}, passo ${step}: ${id}`).toBe(true);
+          if (op.state === "active") expect(touched, `seme ${seed}, passo ${step}`).toEqual(whole);
+          const after = [...seen, ...result.events];
+          expect(derivePantry(after).anomalies).toEqual([]);
+          expect(diaryOf(after).anomalies).toEqual([]);
+        }
+      }
+    }
+    // la prova non è a vuoto: si è annullato e rifatto davvero, anche correzioni registrate prima del loro bersaglio
+    expect(tried.undo).toBeGreaterThan(60);
+    expect(tried.redo).toBeGreaterThan(5);
+    expect(tried.early).toBeGreaterThan(5);
   });
 });
 

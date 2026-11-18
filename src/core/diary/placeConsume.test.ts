@@ -265,6 +265,146 @@ describe("cambiare momento", () => {
   });
 });
 
+describe("cambiare momento: l'ora del pasto che nasce", () => {
+  /** Ciò che si vede: i pasti del giorno con la loro ora e i loro consumi, e quanto resta in dispensa. */
+  const seen = (log: unknown[]) => {
+    const state = deriveDiary(log, TZ);
+    return {
+      meals: mealsWithPantry(state, log).map((m) => ({ mealId: m.mealId, date: m.date, kind: m.kind, at: m.at, consumes: m.pantryConsumes.map((c) => [c.id, c.quantity.value, c.at]) })),
+      remaining: derivePantry(log as never[]).lots.map((l) => l.remaining),
+      energy: energyOf(log),
+    };
+  };
+  /** Un consumo segnato a quell'ora, nel pasto nato con lui. */
+  const start = (hhmm: string) => {
+    const first = placeConsumes([eaten("c1", at(hhmm), 170)], deriveDiary([lot], TZ), ctx(at(hhmm)));
+    if (!first.ok) throw new Error("atteso ok");
+    return { first, log: [lot, ...first.events] as unknown[] };
+  };
+  const mealAt = (events: readonly { type: string; at: string }[]) => events.find((e) => e.type === "meal")?.at;
+
+  it("una voce della cena delle 22:40 spostata a pranzo, lo stesso giorno: il pranzo nasce alle 13:00, non alle 22:40", () => {
+    const { first, log } = start("22:40");
+    expect(first.kind).toBe("dinner");
+    const moved = moveConsumes(first.consumes, deriveDiary(log, TZ), ctx(at("22:45")), { kind: "lunch" });
+    if (!moved.ok) throw new Error("atteso ok");
+    expect(moved.events.map((e) => e.type)).toEqual(["meal", "void", "consume"]);
+    expect(mealAt(moved.events)).toBe(at("13:00"));
+    // l'istante del consumo resta quello di prima: è quando l'alimento è uscito dalla dispensa
+    expect(moved.consumes.map((c) => c.at)).toEqual([at("22:40")]);
+    const all = [...log, ...moved.events];
+    expect(seen(all).meals.map((m) => [m.kind, m.at, m.date])).toEqual([["lunch", at("13:00"), D]]);
+    expect(seen(all).remaining).toEqual(seen(log).remaining);
+  });
+
+  it.each([
+    ["breakfast", "08:00"],
+    ["lunch", "13:00"],
+    ["snack", "16:30"],
+  ] as const)("verso un momento vuoto dello stesso giorno (%s): l'ora tipica, la stessa di un altro giorno", (kind, hhmm) => {
+    const { first, log } = start("22:40");
+    const same = moveConsumes(first.consumes, deriveDiary(log, TZ), ctx(at("22:45")), { kind });
+    const other = moveConsumes(first.consumes, deriveDiary(log, TZ), ctx(at("22:45")), { kind, date: dayBefore(D) });
+    if (!same.ok || !other.ok) throw new Error("atteso ok");
+    expect(mealAt(same.events)).toBe(at(hhmm));
+    expect(mealAt(other.events)).toBe(at(hhmm, dayBefore(D)));
+  });
+
+  it("l'ora di partenza cade già nella fascia del momento di arrivo: il pasto la tiene", () => {
+    // uno «spuntino» delle 12:40 che diventa «pranzo»
+    const lunchTime = start("12:40");
+    const toSnack = moveConsumes(lunchTime.first.consumes, deriveDiary(lunchTime.log, TZ), ctx(at("23:00")), { kind: "snack" });
+    if (!toSnack.ok) throw new Error("atteso ok");
+    expect(mealAt(toSnack.events)).toBe(at("16:30"));
+    // rimesso tra gli spuntini all'ora in cui è stato mangiato, e da lì a pranzo
+    const snack = meal("ms", at("12:40"), { mealId: "meal-s", kind: "snack" });
+    const inSnack = consume("cs", at("12:40"), { lotId: "lot-1", quantity: q(170), mealId: "meal-s", note: QUICK_CONSUME_NOTE });
+    const log = [lot, snack, inSnack];
+    const toLunch = moveConsumes([inSnack], deriveDiary(log, TZ), ctx(at("12:45")), { kind: "lunch" });
+    if (!toLunch.ok) throw new Error("atteso ok");
+    expect(mealAt(toLunch.events)).toBe(at("12:40"));
+    expect(seen([...log, ...toLunch.events]).meals.map((m) => [m.kind, m.at])).toEqual([["lunch", at("12:40")]]);
+    // ai bordi della fascia del pranzo (10:30-15:29)
+    for (const [hhmm, expected] of [["10:29", "13:00"], ["10:30", "10:30"], ["15:29", "15:29"], ["15:30", "13:00"]] as const) {
+      const s = meal("mb", at(hhmm), { mealId: "meal-b", kind: "snack" });
+      const c = consume("cb", at(hhmm), { lotId: "lot-1", quantity: q(50), mealId: "meal-b" });
+      const r = moveConsumes([c], deriveDiary([lot, s, c], TZ), ctx(at("23:30")), { kind: "lunch" });
+      if (!r.ok) throw new Error("atteso ok");
+      expect(mealAt(r.events), hhmm).toBe(at(expected));
+    }
+  });
+
+  it("l'ora di partenza è quella del pasto in cui la voce sta, non quella in cui il consumo è stato scritto", () => {
+    // mangiato alle 21:10 e aggiunto alla cena delle 20:00, poi la cena è stata portata alle 12:40 come spuntino
+    const snack = meal("ms", at("12:40"), { mealId: "meal-s", kind: "snack" });
+    const late = consume("cl", at("21:10"), { lotId: "lot-1", quantity: q(170), mealId: "meal-s" });
+    const log = [lot, snack, late];
+    const moved = moveConsumes([late], deriveDiary(log, TZ), ctx(at("21:30")), { kind: "lunch" });
+    if (!moved.ok) throw new Error("atteso ok");
+    expect(mealAt(moved.events)).toBe(at("12:40"));
+    expect(moved.consumes[0].at).toBe(at("21:10"));
+    // senza il diario (ancora da caricare) vale l'ora del consumo
+    const blind = moveConsumes([late], undefined, ctx(at("21:30")), { kind: "dinner" });
+    if (!blind.ok) throw new Error("atteso ok");
+    expect(mealAt(blind.events)).toBe(at("21:10"));
+  });
+
+  it("oggi il pasto nuovo non nasce a un'ora che deve ancora venire: alle 9:00, «a cena» dà una cena delle 9:00", () => {
+    const { first, log } = start("08:30");
+    const now = at("09:00");
+    const toDinner = moveConsumes(first.consumes, deriveDiary(log, TZ), ctx(now), { kind: "dinner" });
+    const toLunch = moveConsumes(first.consumes, deriveDiary(log, TZ), ctx(now), { kind: "lunch" });
+    const toYesterday = moveConsumes(first.consumes, deriveDiary(log, TZ), ctx(now), { kind: "dinner", date: dayBefore(D) });
+    if (!toDinner.ok || !toLunch.ok || !toYesterday.ok) throw new Error("atteso ok");
+    expect(mealAt(toDinner.events)).toBe(now);
+    expect(mealAt(toLunch.events)).toBe(now);
+    // un giorno passato: l'ora tipica, anche se è più tardi dell'ora di adesso
+    expect(mealAt(toYesterday.events)).toBe(at("20:00", dayBefore(D)));
+    expect(toDinner.consumes.map((c) => c.at)).toEqual([at("08:30")]);
+    expect(seen([...log, ...toDinner.events]).meals.map((m) => [m.kind, m.at])).toEqual([["dinner", now]]);
+    const undone = [...log, ...toDinner.events, ...toDinner.events.map((e, i) => voidOf(`cap-${i}`, at("09:01"), e.id))];
+    expect(seen(undone)).toEqual(seen(log));
+  });
+
+  it("12. una voce della cena spostata a colazione, con la colazione già registrata: entra in quella, che tiene la sua ora", () => {
+    const { first, log } = start("22:40");
+    const breakfast = meal("mb", at("07:20"), { mealId: "meal-b", kind: "breakfast", title: "Caffè e biscotti" });
+    const log0 = [...log, breakfast];
+    const moved = moveConsumes(first.consumes, deriveDiary(log0, TZ), ctx(at("22:45")), { kind: "breakfast" });
+    if (!moved.ok) throw new Error("atteso ok");
+    expect(moved.joined).toBe(true);
+    expect(moved.events.map((e) => e.type)).toEqual(["void", "consume"]);
+    expect(moved.consumes.map((c) => [c.mealId, c.at])).toEqual([["meal-b", at("22:40")]]);
+    expect(seen([...log0, ...moved.events]).meals.map((m) => [m.mealId, m.kind, m.at])).toEqual([["meal-b", "breakfast", at("07:20")]]);
+  });
+
+  it("13. spostata a ieri: il pasto nuovo è all'ora tipica di ieri, anche se l'ora di partenza è nella stessa fascia", () => {
+    const { first, log } = start("19:30");
+    const moved = moveConsumes(first.consumes, deriveDiary(log, TZ), ctx(at("22:45")), { kind: "dinner", date: dayBefore(D) });
+    if (!moved.ok) throw new Error("atteso ok");
+    expect(mealAt(moved.events)).toBe(at("20:00", dayBefore(D)));
+    expect(moved.consumes[0].at).toBe(at("19:30"));
+  });
+
+  it("14. annullando tutto ciò che lo spostamento ha scritto, diario e dispensa tornano identici", () => {
+    const { first, log } = start("22:40");
+    const breakfast = meal("mb", at("07:20"), { mealId: "meal-b", kind: "breakfast", items: [{ name: "Caffè", quantity: q(30, "ml"), certainty: "estimated" }] });
+    const cases: [unknown[], { kind: "lunch" | "breakfast"; date?: string }][] = [
+      [log, { kind: "lunch" }],
+      [log, { kind: "lunch", date: dayBefore(D) }],
+      [[...log, breakfast], { kind: "breakfast" }],
+    ];
+    for (const [log0, target] of cases) {
+      const moved = moveConsumes(first.consumes, deriveDiary(log0, TZ), ctx(at("22:45")), target);
+      if (!moved.ok) throw new Error("atteso ok");
+      const undone = [...log0, ...moved.events, ...moved.events.map((e, i) => voidOf(`back-${i}`, at("22:50"), e.id))];
+      expect(seen(undone)).toEqual(seen(log0));
+      expect(deriveDiary(undone, TZ).anomalies).toEqual([]);
+      expect(derivePantry(undone as never[]).anomalies).toEqual([]);
+    }
+  });
+});
+
 describe("due telefoni spostano lo stesso consumo", () => {
   const first = placeConsumes([eaten("c1", at("13:11"), 275)], deriveDiary([lot], TZ), ctx(at("13:11")));
   if (!first.ok) throw new Error("atteso ok");

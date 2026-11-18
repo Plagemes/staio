@@ -184,22 +184,30 @@ describe("search: pagine", () => {
     expect(pagesOf("qualità")).toEqual(["Qualità dei prodotti"]);
   });
 
-  it("se si trovano soltanto pagine, le pagine vengono per prime e sotto restano le azioni, con «Non ne hai in casa.» in una riga", () => {
+  it("se si trovano soltanto pagine, le pagine vengono per prime e sotto restano le due azioni, senza «Non ne hai in casa.»", () => {
     const groups = search("tema", sources());
     expect(titles(groups)).toEqual(["Pagine", "Azioni"]);
     expect(labels(groups[0])).toEqual(["Aspetto"]);
-    expect(groups[1].note).toBe("Non ne hai in casa.");
     expect(labels(groups[1])).toEqual(["Aggiungi “tema” alla spesa", "Aggiungi “tema” alla dispensa"]);
+    expect(JSON.stringify(groups)).not.toContain("Non ne hai in casa");
   });
 
-  it("se c'è anche qualcosa in casa, una ricetta o un pasto abituale, l'ordine resta quello di sempre", () => {
+  it("una pagina trovata e niente in casa: «Non ne hai in casa.» non compare nemmeno con una ricetta o un pasto abituale", () => {
+    const recipe = sources({ recipes: [{ id: "r", title: "Zuppa a tema", href: "/app/ricette/vedi?id=r" }] });
+    expect(titles(search("tema", recipe))).toEqual(["Azioni", "Ricette", "Pagine"]);
+    const habit = sources({ habits: [{ habitId: "h", title: "Cena a tema" }] });
+    expect(titles(search("tema", habit))).toEqual(["Azioni", "Pasti abituali", "Pagine"]);
+    for (const found of [recipe, habit]) expect(JSON.stringify(search("tema", found))).not.toContain("Non ne hai in casa");
+  });
+
+  it("se c'è qualcosa in casa l'ordine resta quello di sempre; e senza nessuna pagina («pane») la riga resta", () => {
     const inHome = sources({ pantry: [{ lotId: "t", name: "Tema di prova", detail: "" }] });
     expect(titles(search("tema", inHome))).toEqual(["In casa", "Azioni", "Pagine"]);
-    const recipe = sources({ recipes: [{ id: "r", title: "Zuppa a tema", href: "/app/ricette/vedi?id=r" }] });
-    expect(titles(search("tema", recipe))).toEqual(["In casa", "Azioni", "Ricette", "Pagine"]);
-    const habit = sources({ habits: [{ habitId: "h", title: "Cena a tema" }] });
-    expect(titles(search("tema", habit))).toEqual(["In casa", "Azioni", "Pasti abituali", "Pagine"]);
-    expect(group(search("tema", habit), "In casa")?.note).toBe("Non ne hai in casa.");
+    expect(group(search("tema", inHome), "In casa")?.note).toBeUndefined();
+    const bread = search("pane", sources());
+    expect(titles(bread)).toEqual(["In casa", "Azioni"]);
+    expect(group(bread, "In casa")).toEqual({ title: "In casa", results: [], note: "Non ne hai in casa." });
+    expect(labels(group(bread, "Azioni"))).toEqual(["Aggiungi “pane” alla spesa", "Aggiungi “pane” alla dispensa"]);
   });
 
   it("una pagina risponde all'inizio di una parola, non a lettere in mezzo", () => {

@@ -100,8 +100,8 @@ const NOT_IN_HOME = "Non ne hai in casa.";
 /**
  * I risultati per ciò che è scritto, in gruppi: In casa, Azioni, Ricette, Pasti abituali, Pagine; al massimo cinque righe
  * per gruppo. Un gruppo vuoto non compare, tranne «In casa», che dice «Non ne hai in casa.»: è la risposta a «ce l'ho?».
- * Se ciò che è scritto trova soltanto pagine («tema») si stava cercando una pagina: le pagine vengono per prime, e sotto
- * restano le due azioni, con «Non ne hai in casa.» in una riga sola.
+ * Quando però ciò che è scritto trova una pagina e nessun alimento in casa («tema»), quella riga non c'entra e non
+ * compare: restano le due azioni. Se trova soltanto pagine si stava cercando una pagina, e le pagine vengono per prime.
  */
 export function search(query: string, sources: SearchSources): SearchGroup[] {
   const words = wordsOf(query);
@@ -127,22 +127,25 @@ export function search(query: string, sources: SearchSources): SearchGroup[] {
   };
 
   const onlyPages = pages.length > 0 && inHome.length === 0 && recipes.length === 0 && habits.length === 0;
-  if (onlyPages) return [pagesGroup, { ...actionsGroup, note: NOT_IN_HOME }];
+  if (onlyPages) return [pagesGroup, actionsGroup];
 
   const hiddenInHome = inHome.length - MAX_PER_GROUP;
-  groups.push({
-    title: "In casa",
-    results: inHome.slice(0, MAX_PER_GROUP).map((item) => ({
-      id: `lot:${item.lotId}`,
-      label: item.name,
-      detail: item.detail,
-      href: `${PANTRY_HREF}?lotto=${encodeURIComponent(item.lotId)}`,
-    })),
-    ...(inHome.length === 0 ? { note: NOT_IN_HOME } : {}),
-    ...(hiddenInHome > 0
-      ? { footnote: hiddenInHome === 1 ? "Ce n'è un altro: cercalo in Dispensa." : `Ce ne sono altri ${hiddenInHome}: cercali in Dispensa.` }
-      : {}),
-  });
+  // con una pagina trovata e niente in casa, «Non ne hai in casa.» risponderebbe a una domanda che nessuno ha fatto
+  if (inHome.length > 0 || pages.length === 0) {
+    groups.push({
+      title: "In casa",
+      results: inHome.slice(0, MAX_PER_GROUP).map((item) => ({
+        id: `lot:${item.lotId}`,
+        label: item.name,
+        detail: item.detail,
+        href: `${PANTRY_HREF}?lotto=${encodeURIComponent(item.lotId)}`,
+      })),
+      ...(inHome.length === 0 ? { note: NOT_IN_HOME } : {}),
+      ...(hiddenInHome > 0
+        ? { footnote: hiddenInHome === 1 ? "Ce n'è un altro: cercalo in Dispensa." : `Ce ne sono altri ${hiddenInHome}: cercali in Dispensa.` }
+        : {}),
+    });
+  }
 
   groups.push(actionsGroup);
 

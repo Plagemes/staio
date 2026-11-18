@@ -1,6 +1,7 @@
 // «Ultime azioni»: il registro letto come elenco di azioni dell'utente, ognuna da annullare o da rifare.
 // Un'azione è una chiamata di scrittura: i suoi eventi portano lo stesso `opId`. Gli eventi scritti prima che l'`opId`
-// esistesse si tengono insieme per istante. Annullare e rifare sono solo eventi `void` nuovi; prima di restituirli si
+// esistesse si tengono insieme per istante; quelli che, per un periodo, hanno ereditato l'`opId` dell'evento da cui
+// sono stati riscritti stanno con l'annullamento scritto insieme a loro. Annullare e rifare sono solo eventi `void` nuovi; prima di restituirli si
 // derivano dispensa e diario sulla parte di registro che l'azione tocca, per controllare che niente resti a metà.
 // Logica pura: gli eventi si restituiscono, li scrive chi chiama.
 import { QUICK_CONSUME_NOTE, deriveDiary, familyConsumes, type MealEvent } from "@/core/diary";
@@ -81,6 +82,13 @@ export interface WriteGroup {
  * l'ultimo evento uno o due millisecondi dopo. Una finestra più larga unirebbe due azioni fatte di fila.
  */
 const LEGACY_WINDOW_MS = 10;
+/**
+ * Quanto possono distare tra loro gli eventi di una scrittura. I costruttori usano un solo istante (o uno o due
+ * millisecondi dopo): se gli eventi di un `opId` distano di più, o vengono da dispositivi diversi, non sono una
+ * scrittura sola, e non si può dire quale sia l'azione: non si annulla da qui. Due azioni vicine hanno `opId` diversi:
+ * questa misura non le unisce mai.
+ */
+const OPERATION_SPAN_MS = 2000;
 /** L'inizio della nota che lega un consumo alla sua bevanda (la scrive `drinks.ts`). */
 const DRINK_LINK = drinkLinkNote("");
 
@@ -93,6 +101,8 @@ const REPAIR = "Le riparazioni delle preparazioni si gestiscono da Preparazioni.
 const ADDED_LATER = "Prima togli ciò che hai aggiunto dopo a questo pasto.";
 const LINKED_TO_DRINK = "Prima annulla ciò che hai scalato dalla dispensa per questa bevanda.";
 const CANNOT_UNDO = "Non riesco ad annullarla da qui.";
+const UNSURE_DEVICE = "Questa azione è stata corretta su un altro dispositivo: non si annulla da qui.";
+const UNSURE_TIME = "Questa azione è stata corretta in un modo che non riesco a ricostruire: non si annulla da qui.";
 const BELOW_ZERO = "Annullarla lascerebbe meno di zero: nel frattempo ne hai mangiato.";
 const CANNOT_REDO = "Non riesco a rifarla da qui.";
 const REDO_NO_FOOD = "Non si può rifare: l'alimento non c'è più.";
@@ -116,6 +126,11 @@ interface Group extends WriteGroup {
   automatic: boolean;
   /** Gli eventi sono già stati ordinati e controllati. */
   ready: boolean;
+  /**
+   * Non si sa se questi eventi siano una scrittura sola: portano un `opId` che compare anche su un altro dispositivo
+   * (`device`) o a distanza di tempo (`time`), senza l'annullamento che lo spiegherebbe. Non si annulla e non si rifà.
+   */
+  unsure?: "device" | "time";
 }
 
 interface Analysis {
@@ -301,6 +316,18 @@ function isLegacyMigration(e: AnyEvent, creations: ReadonlyMap<string, (Purchase
   return (creations.get(e.lotId) ?? []).some((c) => legacyBarcodeOfNote(c.note) === e.patch.barcode);
 }
 
+/** Il primo indice di `events` (in ordine di tempo) registrato non prima di `from`. */
+function firstFrom(events: readonly AnyEvent[], from: number, ms: (e: AnyEvent) => number): number {
+  let lo = 0;
+  let hi = events.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (ms(events[mid]) < from) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
 const cache = new WeakMap<readonly unknown[], Analysis>();
 
 function analyze(log: readonly AnyEvent[]): Analysis {
@@ -322,24 +349,85 @@ function analyze(log: readonly AnyEvent[]): Analysis {
   const groups: Group[] = [];
   const groupOf = new Map<string, Group>();
   const groupById = new Map<string, Group>();
-  const byOperation = new Map<string, Group>();
-  // per gli eventi senza `opId`, un gruppo aperto per dispositivo: quelli dell'altro telefono, in mezzo, non lo spezzano
-  const open = new Map<string, Group>();
-  for (const e of order) {
-    const at = ms(e);
-    const opId = operationIdOf(e);
-    let g = opId !== undefined ? byOperation.get(opId) : open.get(e.deviceId);
-    if (!g || (opId === undefined && at - g.atMs > LEGACY_WINDOW_MS)) {
-      g = { id: e.id, at: e.recordedAt, atMs: at, deviceId: e.deviceId, events: [], hasNew: false, automatic: false, ready: false };
-      if (opId !== undefined) byOperation.set(opId, g);
-      else open.set(e.deviceId, g);
-      groups.push(g);
-      groupById.set(g.id, g);
-    }
+  const start = (e: AnyEvent, at: number): Group => {
+    const g: Group = { id: e.id, at: e.recordedAt, atMs: at, deviceId: e.deviceId, events: [], hasNew: false, automatic: false, ready: false };
+    groups.push(g);
+    groupById.set(g.id, g);
+    return g;
+  };
+  const join = (g: Group, e: AnyEvent): void => {
     g.events.push(e);
     if (!isVoid(e)) g.hasNew = true;
     groupOf.set(e.id, g);
+  };
+
+  // per gli eventi senza `opId`, un gruppo aperto per dispositivo: quelli dell'altro telefono, in mezzo, non lo spezzano
+  const open = new Map<string, Group>();
+  /** Gli eventi di ogni `opId`, in ordine di tempo. */
+  const byOperation = new Map<string, AnyEvent[]>();
+  for (const e of order) {
+    const opId = operationIdOf(e);
+    if (opId !== undefined) {
+      push(byOperation, opId, e);
+      continue;
+    }
+    const at = ms(e);
+    let g = open.get(e.deviceId);
+    if (!g || at - g.atMs > LEGACY_WINDOW_MS) open.set(e.deviceId, (g = start(e, at)));
+    join(g, e);
   }
+
+  // Per un periodo un evento riscritto da uno di prima ne ha ereditato l'`opId` (quei registri non si riscrivono). Una
+  // copia così è nata sempre insieme all'annullamento dell'evento da cui è stata copiata, e l'annullamento ha l'`opId`
+  // giusto. Quindi è ereditato l'evento per cui lo stesso dispositivo, nello stesso istante, ha scritto un annullamento
+  // con un altro `opId` che colpisce un evento con il suo stesso `opId`: sta con quell'annullamento, e l'originale è
+  // l'evento colpito. Non dipende dall'ordine degli eventi né dagli orologi dei due telefoni.
+  const writtenWith = new Map<string, VoidEvent>();
+  for (const [opId, members] of byOperation) {
+    for (const v of members) {
+      if (!isVoid(v)) continue;
+      const target = byId.get(v.targetEventId);
+      const theirs = target ? operationIdOf(target) : undefined;
+      if (theirs === undefined || theirs === opId) continue;
+      const others = byOperation.get(theirs) as AnyEvent[];
+      const at = ms(v);
+      for (let i = firstFrom(others, at - LEGACY_WINDOW_MS, ms); i < others.length && ms(others[i]) <= at + LEGACY_WINDOW_MS; i++) {
+        const e = others[i];
+        if (e === target || isVoid(e) || e.deviceId !== v.deviceId) continue;
+        const known = writtenWith.get(e.id);
+        // tra più annullamenti, il più vicino; a pari distanza il primo per `id`
+        const closer = known === undefined || Math.abs(ms(known) - ms(e)) > Math.abs(at - ms(e)) || (Math.abs(ms(known) - ms(e)) === Math.abs(at - ms(e)) && v.id < known.id);
+        if (closer) writtenWith.set(e.id, v);
+      }
+    }
+  }
+
+  // Ciò che resta di un `opId` è una scrittura sola se viene da un dispositivo e sta in poco tempo. Se no (una copia
+  // arrivata senza il suo annullamento, orologi incoerenti) non si indovina: ogni pezzo è una riga, ma non si annulla.
+  for (const members of byOperation.values()) {
+    const own = members.filter((e) => !writtenWith.has(e.id));
+    if (own.length === 0) continue;
+    const first = own[0];
+    const oneDevice = own.every((e) => e.deviceId === first.deviceId);
+    if (oneDevice && ms(own[own.length - 1]) - ms(first) < OPERATION_SPAN_MS) {
+      const g = start(first, ms(first));
+      for (const e of own) join(g, e);
+      continue;
+    }
+    const pieces = new Map<string, Group>();
+    for (const e of own) {
+      const at = ms(e);
+      let g = pieces.get(e.deviceId);
+      if (!g || at - g.atMs >= OPERATION_SPAN_MS) {
+        g = start(e, at);
+        g.unsure = oneDevice ? "time" : "device";
+        pieces.set(e.deviceId, g);
+      }
+      join(g, e);
+    }
+  }
+  for (const [id, v] of writtenWith) join(groupOf.get(v.id) as Group, byId.get(id) as AnyEvent);
+  groups.sort(laterGroup);
 
   const voids: VoidEvent[] = [];
   const consumes: ConsumeEvent[] = [];
@@ -522,6 +610,21 @@ function changedReason(op: Operation, a: Analysis, ctx: Pick<OperationContext, "
   return `Ne è stata tolta una parte dopo, ${day ? `il ${day} alle ${time}` : `alle ${time}`}: non si annulla più da qui.`;
 }
 
+/**
+ * Perché un'operazione non si tocca: non si sa se i suoi eventi siano una scrittura sola, oppure il suo ultimo
+ * «Annulla» è in un gruppo così. Annullarla o rifarla potrebbe valere per metà di un'azione, o per due insieme.
+ */
+function unsureReason(op: Operation, a: Analysis): string | undefined {
+  const reason = (g: Group | undefined): string | undefined => (g?.unsure === "device" ? UNSURE_DEVICE : g?.unsure === "time" ? UNSURE_TIME : undefined);
+  const own = reason(a.groupById.get(op.id));
+  if (own) return own;
+  for (const v of op.undoneBy ?? []) {
+    const by = reason(a.groupOf.get(v.id));
+    if (by) return by;
+  }
+  return undefined;
+}
+
 /** L'evento in fondo a una catena di annullamenti: quello che, alla fine, torna o smette di valere. */
 function baseOf(id: string, a: Analysis): AnyEvent | undefined {
   const known = a.bases.get(id);
@@ -588,6 +691,8 @@ function undoTargets(
   pantry: PantryState,
   ctx: Pick<OperationContext, "now" | "timeZone">,
 ): { ok: true; targets: Map<string, AnyEvent> } | { ok: false; reason: string } {
+  const unsure = unsureReason(op, a);
+  if (unsure) return no(unsure);
   if (op.state === "undone") return no(ALREADY_UNDONE);
   if (op.state === "changed") return no(changedReason(op, a, ctx));
   if (op.events.some((e) => !isKnownEvent(e))) return no(NEWER_VERSION);
@@ -638,6 +743,8 @@ function undoTargets(
 }
 
 function redoBlock(op: Operation, a: Analysis): string | undefined {
+  const unsure = unsureReason(op, a);
+  if (unsure) return unsure;
   if (op.state !== "undone") return NOT_UNDONE;
   if (op.events.some((e) => !isKnownEvent(e))) return NEWER_VERSION;
   const voids = op.undoneBy ?? [];
@@ -833,7 +940,8 @@ function verify(scope: Scope, a: Analysis, added: readonly VoidEvent[], kind: "u
       if (sb.voided.has(e.id)) continue;
       // ciò che si rifà deve tornare a valere davvero: non coperto da una correzione venuta dopo
       const covering = own.has(e.id) ? (sb.winnerOf.get(e.id) ?? sb.newerByKey.get(e.id)) : undefined;
-      if (covering && sb.groupOf.get(covering.id) !== sb.groupOf.get(e.id)) return REDO_CHANGED;
+      // (i gruppi sono quelli del registro intero: su una sua parte le scritture non si riconoscono allo stesso modo)
+      if (covering && a.groupOf.get(covering.id) !== a.groupOf.get(e.id)) return REDO_CHANGED;
       // e non una seconda volta: dopo l'annullamento lo stesso consumo è stato segnato di nuovo a mano
       if (!isConsume(e) || !sa.voided.has(e.id)) continue;
       const slot = slotOf(e, a, timeZone);

@@ -27,6 +27,7 @@ import { cloneMealItems } from "./items";
 import { familyConsumes, isValidKnownEvent, prepareLog, voidsOfLog } from "./log";
 import { recordedLater, resolveMealVersions } from "./mealVersions";
 import { mealForMoment } from "./placeConsume";
+import { momentOfMinutes } from "./selectors";
 import { DEFAULT_TIME_ZONE, DIARY_LIMITS, type MealEvent, type MealItem, type MealKind } from "./types";
 import { validateDiaryEvent } from "./validate";
 
@@ -57,7 +58,7 @@ const CANNOT_WRITE = "Non riesco a scrivere la correzione.";
 const EPSILON = 1e-9;
 
 /**
- * Ora tipica di ogni momento (minuti), per un pasto che nasce in un giorno diverso da quello di partenza.
+ * Ora tipica di ogni momento (minuti), per un pasto che nasce da una voce spostata in un altro momento o giorno.
  * È la stessa tabella di `placeConsume.ts`, che non la esporta: `editMeal.test.ts` controlla che coincidano.
  */
 const TYPICAL_MINUTES: Record<MealKind, number> = {
@@ -307,7 +308,11 @@ export function removeItem(mealId: string, index: number, log: Iterable<unknown>
   return rewrite(cur, { items }, ctx);
 }
 
-/** Sposta una voce libera in un altro momento (o giorno): la toglie da questo pasto e la aggiunge al pasto di quel momento, o ne crea uno. */
+/**
+ * Sposta una voce libera in un altro momento (o giorno): la toglie da questo pasto e la aggiunge al pasto di quel
+ * momento, o ne crea uno all'ora tipica di quel momento (oggi, mai oltre adesso). Un pasto di arrivo che c'è già tiene
+ * la sua ora.
+ */
 export function moveItem(
   mealId: string,
   index: number,
@@ -354,9 +359,13 @@ export function moveItem(
       ),
     );
   } else {
-    // Lo stesso giorno il pasto nuovo porta l'ora di quello di partenza; un altro giorno, l'ora tipica del momento.
-    const at = date === from.date ? cur.meal.at : instantOfLocal(date, TYPICAL_MINUTES[target.kind], tz);
-    if (at === undefined) return fail(UNREADABLE_TIME);
+    // Il pasto nuovo prende l'ora tipica del momento di arrivo, anche nello stesso giorno (se no nasce un «pranzo delle
+    // 22:40»); tiene l'ora di quello di partenza solo se cade già nella fascia di quel momento. Oggi non va mai oltre
+    // adesso: un pasto non nasce a un'ora che deve ancora venire. Come `moveConsumes`.
+    const keepsTime = date === from.date && momentOfMinutes(from.minutes) === target.kind;
+    const chosen = keepsTime ? cur.meal.at : instantOfLocal(date, TYPICAL_MINUTES[target.kind], tz);
+    if (chosen === undefined) return fail(UNREADABLE_TIME);
+    const at = Date.parse(chosen) > Date.parse(ctx.now) ? ctx.now : chosen;
     try {
       written.push(createMeal({ kind: target.kind, items: [item] }, { ...f, at, certainty: item.certainty }));
     } catch {

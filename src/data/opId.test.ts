@@ -1,6 +1,7 @@
 import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { operationIdOf, withOperationId, type AnyEvent } from "@/core/events";
+import { stampOperationId } from "@/core/events/operation";
 import { water } from "@/core/diary/test-helpers";
 import { purchase, q, voidOf } from "@/core/ledger/test-helpers";
 import { MemoryLocal, MemoryTransport, runSync, unlockKey } from "@/core/sync";
@@ -29,11 +30,55 @@ describe("opId: ogni scrittura è un'operazione", () => {
     expect(operationIdOf(first[0])).toBeUndefined();
   });
 
-  it("un evento che ne porta già uno lo tiene, e riscriverlo non cambia niente", async () => {
-    const [mine] = withOperationId([buy("a", "2026-01-01T10:00:00.000Z")], "op-di-prima");
-    await appendEvents([mine]);
-    expect(await appendEvents([buy("a", "2026-01-01T10:00:00.000Z")])).toMatchObject({ added: 0, duplicates: 1 });
-    expect(operationIdOf((await byId()).get("a"))).toBe("op-di-prima");
+  it("un evento copiato da uno già scritto esce con l'identificativo della chiamata nuova, non con quello che portava", async () => {
+    await appendEvents([buy("a", "2026-01-01T10:00:00.000Z")]);
+    const written = (await byId()).get("a") as AnyEvent;
+    const first = operationIdOf(written);
+    expect(first).toBeTypeOf("string");
+    // come fa chi corregge: tutti i campi dell'evento di prima, `opId` compreso, con un id nuovo
+    const copy = { ...written, id: "a2", recordedAt: "2026-01-01T12:00:00.000Z", replaces: "a" } as AnyEvent;
+    const cancel = voidOf("v", "2026-01-01T12:00:00.000Z", "a") as AnyEvent;
+    expect(await appendEvents([cancel, copy])).toMatchObject({ added: 2, rejected: [] });
+    const stored = await byId();
+    const second = operationIdOf(stored.get("a2"));
+    expect(second).toBeTypeOf("string");
+    expect(second).not.toBe(first);
+    expect(operationIdOf(stored.get("v"))).toBe(second);
+    // l'evento di prima resta com'era, e quello passato da chi chiama non viene toccato
+    expect(stored.get("a")).toEqual(written);
+    expect(operationIdOf(copy)).toBe(first);
+  });
+
+  it("6. eventi che portano identificativi diversi tra loro, o non utilizzabili, escono tutti con lo stesso, nuovo", async () => {
+    const mixed = [
+      ...withOperationId([buy("a", "2026-01-01T10:00:00.000Z")], "op-uno"),
+      ...withOperationId([buy("b", "2026-01-01T10:00:00.000Z")], "op-due"),
+      { ...buy("c", "2026-01-01T10:00:00.000Z"), opId: 7 } as unknown as AnyEvent,
+      buy("d", "2026-01-01T10:00:00.000Z"),
+    ];
+    expect(await appendEvents(mixed)).toMatchObject({ added: 4, rejected: [] });
+    const ids = [...(await byId()).values()].map(operationIdOf);
+    expect(new Set(ids).size).toBe(1);
+    expect(ids[0]).toBeTypeOf("string");
+    expect(["op-uno", "op-due"]).not.toContain(ids[0]);
+  });
+
+  it("riscrivere un evento che c'è già non cambia niente: resta l'identificativo della prima scrittura", async () => {
+    await appendEvents([buy("a", "2026-01-01T10:00:00.000Z")]);
+    const stored = (await byId()).get("a");
+    expect(await appendEvents(withOperationId([buy("a", "2026-01-01T10:00:00.000Z")], "op-dopo"))).toMatchObject({ added: 0, duplicates: 1 });
+    expect((await byId()).get("a")).toEqual(stored);
+  });
+
+  it("7. ciò che arriva da fuori tiene il suo identificativo, anche se è quello ereditato da un evento di prima", async () => {
+    const theirs = stampOperationId([buy("t1", "2026-01-02T10:00:00.000Z")], "op-loro");
+    const copied = { ...theirs[0], id: "t2", recordedAt: "2026-01-02T12:00:00.000Z", replaces: "t1" } as AnyEvent;
+    const cancel = stampOperationId([voidOf("tv", "2026-01-02T12:00:00.000Z", "t1") as AnyEvent], "op-loro-2");
+    expect(await importEvents([...theirs, ...cancel, copied])).toMatchObject({ added: 3, conflicts: [], rejected: [] });
+    const stored = await byId();
+    expect(["t1", "tv", "t2"].map((id) => operationIdOf(stored.get(id)))).toEqual(["op-loro", "op-loro-2", "op-loro"]);
+    // e una seconda unione con gli stessi eventi non trova niente di diverso
+    expect(await importEvents([...theirs, ...cancel, copied])).toMatchObject({ added: 0, conflicts: [] });
   });
 
   it("andata e ritorno con la copia di sicurezza: il campo resta dov'è", async () => {

@@ -25,6 +25,7 @@ import { evaluateLots } from "../lots";
 import { eatOrder } from "../meal/plate";
 import { buildRepeatMeal } from "../mealEdit";
 import { MEAL_KIND_LABELS, energyEstimateText, isOutOfHomeItem, itemText, minutesOfTime } from "../meals";
+import { useNotice } from "../notice";
 import { MOMENT_CHOICES } from "../pantry/eaten";
 import ui from "../ui.module.css";
 import {
@@ -68,6 +69,7 @@ const clock = (minutes: number): string => `${String(Math.floor(minutes / 60)).p
 export function MealSheet({ title, meal: given, initialStep = "main", today, now, diary, log, pantry, lotNames, onClose }: Props) {
   const ids = useId();
   const { write, busy, error, clearError } = useSheetWrite(onClose);
+  const notice = useNotice();
   const [step, setStep] = useState<MealSheetStep>(initialStep);
   // `null`: il campo non è stato toccato e vale ciò che il pasto ha adesso
   const [kindEdit, setKindEdit] = useState<MealKind | null>(null);
@@ -106,12 +108,28 @@ export function MealSheet({ title, meal: given, initialStep = "main", today, now
   ) : null;
 
   function repeat() {
+    // Il pasto nuovo è di oggi. Se la pagina mostra un altro giorno non lo si vede nascere: l'avviso dice dove vederlo.
+    let elsewhere: { events: readonly AnyEvent[]; message: string; mealEventId: string } | undefined;
     void write(({ deviceId, now: at }) => {
       // nell'ordine in cui si mangiano le confezioni, lo stesso di Registra pasto
       const lots = eatOrder(evaluateLots(activeLots(pantry), at)).map((e) => e.lot);
       const kind = momentOfMinutes(localMoment(at, timeZone)?.minutes ?? 0);
       const built = buildRepeatMeal({ meal, names: lotNames, lots, kind }, { deviceId, now: at });
-      return built.events.length > 0 ? { ok: true, events: built.events, message: built.message } : { ok: false, error: built.message };
+      if (built.events.length === 0) return { ok: false, error: built.message };
+      const created = built.events.find((e) => e.type === "meal");
+      return {
+        ok: true,
+        events: built.events,
+        message: built.message,
+        afterWrite: () => {
+          if (created && meal.date !== today) elsewhere = { events: built.events, message: built.message, mealEventId: created.id };
+        },
+      };
+    }).then(() => {
+      // la scrittura è riuscita e il suo avviso è appena nato: lo stesso avviso, con in più il collegamento
+      if (elsewhere) {
+        notice.show({ message: elsewhere.message, undo: elsewhere.events, link: { label: "Vedi in Oggi", href: `/app?voce=${encodeURIComponent(elsewhere.mealEventId)}` } });
+      }
     });
   }
 

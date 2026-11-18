@@ -123,6 +123,21 @@ const lotto = (lotId: string): string => `/app/dispensa?lotto=${encodeURICompone
 const hasReplaces = (e: AnyEvent): boolean => typeof e.replaces === "string" && e.replaces !== "";
 const sum = (values: readonly number[]): number => Math.round(values.reduce((s, v) => s + v, 0) * 1e6) / 1e6;
 
+/** La voce «Fuori casa · normale» di un pasto che ha solo quella (una stima, con la sua energia): «fuori casa, normale». */
+function outOfHomeOf(m: MealEvent): string | undefined {
+  const items = m.items ?? [];
+  if (items.length !== 1 || items[0].energyKcal === undefined) return undefined;
+  return lower(items[0].name.trim()).replace(/\s*·\s*/g, ", ");
+}
+
+/** «il tè», «la birra», «l'acqua tonica», «lo spritz»: l'articolo si sceglie dalla prima parola, come si può. */
+function withArticle(name: string): string {
+  const word = name.split(/\s+/)[0].toLowerCase();
+  if (/^[aeiouàèéìòù]/.test(word)) return `l'${name}`;
+  if (/^(s[^aeiou]|z|gn|ps|x|y)/.test(word)) return `lo ${name}`;
+  return `${word.endsWith("a") ? "la" : "il"} ${name}`;
+}
+
 /** «latte, uova, pane e altri 2»: al massimo tre nomi, senza ripetizioni. */
 function listed(names: readonly string[]): string {
   const unique = [...new Set(names)];
@@ -167,7 +182,15 @@ function describer(ctx: DescribeContext) {
     return undefined;
   }
 
-  function mealPhrase(meals: readonly MealEvent[], consumes: readonly ConsumeEvent[]): Phrase {
+  function mealPhrase(written: readonly MealEvent[], consumes: readonly ConsumeEvent[]): Phrase {
+    // Due versioni dello stesso pasto in una sola operazione non sono uno spostamento: è un registro in cui la seconda
+    // ha ereditato l'`opId` della prima e non si sono potute separare. Vale l'ultima scritta.
+    const latest = new Map<string, MealEvent>();
+    for (const m of written) {
+      const cur = latest.get(m.mealId);
+      if (!cur || later(m, cur)) latest.set(m.mealId, m);
+    }
+    const meals = written.filter((m) => latest.get(m.mealId) === m);
     const fresh = meals.filter((m) => !hasReplaces(m));
     const rewritten = meals.filter(hasReplaces);
 
@@ -177,6 +200,11 @@ function describer(ctx: DescribeContext) {
       const before = ctx.log?.event(m.replaces as string);
       const kept = before?.type === "meal" ? (before.items?.length ?? 0) : undefined;
       const items = m.items ?? [];
+      const away = outOfHomeOf(m);
+      // è cambiata solo la taglia della stima «fuori casa»: momento e ora sono quelli di prima
+      if (away !== undefined && rewritten.length === 1 && added.length === 0 && before?.type === "meal" && outOfHomeOf(before) !== undefined && before.kind === m.kind && before.at === m.at) {
+        return { text: `Corretto: ${kindWord(m.kind)} ${away}`, href: voce(m.id) };
+      }
       const more = kept !== undefined && items.length > kept ? items.slice(kept).map((i) => lower(i.name)) : [];
       if (added.length > 0 || (more.length > 0 && rewritten.length === 1)) {
         return { text: `Aggiunto a ${kindWord(m.kind)}: ${listed([...added.map((c) => lotName(c.lotId)), ...more])}`, href: voce(m.id) };
@@ -187,6 +215,8 @@ function describer(ctx: DescribeContext) {
     const m = fresh[0];
     const items = m.items ?? [];
     const mine = consumes.filter((c) => c.mealId === m.mealId);
+    const away = outOfHomeOf(m);
+    if (away !== undefined && meals.length === 1 && mine.length === 0) return { text: `Registrato: ${kindWord(m.kind)} ${away}`, href: voce(m.id) };
     if (rewritten.length > 0 && items.length > 0 && mine.length === 0) {
       return { text: `Spostato ${AT_MOMENT[m.kind]}: ${listed(items.map((i) => lower(i.name)))}`, href: voce(m.id) };
     }
@@ -217,7 +247,10 @@ function describer(ctx: DescribeContext) {
       return { text: `Preparazione riparata: ${amounts(consumes)}`, href: "/app/preparazioni" };
     }
     if (consumes.every((c) => c.note?.startsWith("drink:"))) {
-      return { text: `Scalato dalla dispensa: ${amounts(consumes)}`, href: lotsHref(consumes.map((c) => c.lotId)) };
+      const drinkIds = new Set(consumes.map((c) => (c.note as string).slice("drink:".length)));
+      const drink = drinkIds.size === 1 ? ctx.log?.event([...drinkIds][0]) : undefined;
+      const why = drink?.type === "drink" ? ` (per ${withArticle(lower(drink.name.trim()))} delle ${formatTime(drink.at, ctx.timeZone)})` : "";
+      return { text: `Scalato dalla dispensa: ${amounts(consumes)}${why}`, href: lotsHref(consumes.map((c) => c.lotId)) };
     }
     return { text: `Mangiato: ${amounts(consumes)}${where ? `, ${AT_MOMENT[where]}` : ""}`, href: voce(first.id) };
   }
@@ -229,6 +262,8 @@ function describer(ctx: DescribeContext) {
       return { text: `Aggiunto alla dispensa: ${lower(c.productRef)}, ${formatQuantity(c.quantity)}`, href: lotto(c.lotId) };
     }
     if (fresh.length > 1) {
+      const names = new Set(fresh.map((c) => lower(c.productRef.trim())));
+      if (names.size === 1) return { text: `Aggiunte alla dispensa: ${fresh.length} confezioni di ${[...names][0]}`, href: "/app/dispensa" };
       return { text: `Aggiunti alla dispensa: ${fresh.length} alimenti (${listed(fresh.map((c) => lower(c.productRef)))})`, href: "/app/dispensa" };
     }
     // l'ingresso riscritto con lo stesso alimento: una correzione

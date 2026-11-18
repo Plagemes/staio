@@ -5,10 +5,11 @@ import {
   OPERATION_ID_FIELD,
   operationIdOf,
   validateAnyEvent,
-  withOperationId,
   type AllMergeConflict,
   type AnyEvent,
 } from "@/core/events";
+// non è ancora tra le esportazioni di `@/core/events`
+import { stampOperationId } from "@/core/events/operation";
 import { getDb, type LedgerDb, type StoredEvent } from "./db";
 
 export interface RejectedEvent {
@@ -59,8 +60,10 @@ function splitValid(events: readonly unknown[]): {
 /**
  * Aggiunge eventi nuovi. Gli eventi non validi sono rifiutati con i loro errori
  * (gli altri vengono comunque scritti); un id già presente è ignorato.
- * Una chiamata è una sola azione: tutti i suoi eventi ricevono lo stesso identificativo di operazione (`opId`), con
- * cui «Ultime azioni» li tiene insieme. Chi importa eventi scritti altrove (`importEvents`) non lo tocca.
+ * Una chiamata è una sola azione: tutti i suoi eventi ricevono lo stesso identificativo di operazione (`opId`), nuovo,
+ * con cui «Ultime azioni» li tiene insieme. Lo riceve anche un evento che ne porta già uno: chi corregge copia i campi
+ * dell'evento di prima, e l'identificativo copiato è dell'azione di prima, non di questa. Chi importa eventi scritti
+ * altrove (`importEvents`) non lo tocca.
  */
 export async function appendEvents(
   events: readonly AnyEvent[],
@@ -69,7 +72,7 @@ export async function appendEvents(
   const db = getDb();
   return db.transaction("rw", db.events, async () => {
     const unique = new Map<string, AnyEvent>();
-    for (const e of withOperationId(valid, generateId())) if (!unique.has(e.id)) unique.set(e.id, e);
+    for (const e of stampOperationId(valid, generateId())) if (!unique.has(e.id)) unique.set(e.id, e);
     const ids = [...unique.keys()];
     const existing = await db.events.bulkGet(ids);
     const fresh = ids

@@ -1,6 +1,7 @@
 // Un consumo di dispensa che nasce da un tocco (un pezzo, mezzo pezzo, «Mangiato») va nel diario del giorno,
 // nel momento giusto: se in quel momento c'è già un pasto vi si aggiunge, altrimenti nasce un pasto con quel solo
-// alimento. Cambiare momento è una correzione: il consumo vecchio si annulla e se ne scrive uno nuovo.
+// alimento. Cambiare momento è una correzione: il consumo vecchio si annulla e se ne scrive uno nuovo; se lo
+// spostamento fa nascere un pasto, quel pasto prende l'ora tipica del momento di arrivo.
 // Logica pura: gli eventi vengono restituiti, non scritti.
 
 import {
@@ -56,7 +57,7 @@ export interface Placement {
 
 export type PlaceResult = ({ ok: true } & Placement) | { ok: false; error: string };
 
-/** Ora tipica di ogni momento (minuti), per un pasto di un giorno che non è quello di adesso. */
+/** Ora tipica di ogni momento (minuti), per un pasto di un giorno che non è quello di adesso o che nasce da uno spostamento. */
 const TYPICAL_MINUTES: Record<MealKind, number> = {
   breakfast: 8 * 60,
   lunch: 13 * 60,
@@ -104,6 +105,17 @@ export function placeConsumes(
   ctx: PlaceContext,
   target: PlaceTarget = {},
 ): PlaceResult {
+  return place(consumes, state, ctx, target);
+}
+
+/** `newMealAt`: l'istante del pasto, se deve nascere, quando non è quello che si ricava dal consumo. */
+function place(
+  consumes: readonly ConsumeEvent[],
+  state: DiaryState | undefined,
+  ctx: PlaceContext,
+  target: PlaceTarget,
+  newMealAt?: string,
+): PlaceResult {
   if (consumes.length === 0) return { ok: false, error: "Non c'è niente da segnare." };
   const tz = ctx.timeZone ?? state?.timeZone ?? DEFAULT_TIME_ZONE;
   const resolved = resolveTarget(consumes[0].at, target, tz);
@@ -119,7 +131,7 @@ export function placeConsumes(
           deviceId: ctx.deviceId,
           now: () => ctx.now,
           ...(ctx.idGenerator ? { idGenerator: ctx.idGenerator } : {}),
-          at: mealAt,
+          at: newMealAt ?? mealAt,
           certainty: worst(consumes),
         },
       );
@@ -136,11 +148,29 @@ export function placeConsumes(
   };
 }
 
+/** L'ora da cui parte uno spostamento: quella del pasto in cui i consumi stanno adesso; senza pasto, quella del primo consumo. */
+function departureOf(consumes: readonly ConsumeEvent[], state: DiaryState | undefined): string {
+  const mealId = consumes[0].mealId;
+  if (typeof mealId === "string" && mealId !== "") {
+    for (const day of state?.days ?? []) {
+      const meal = day.meals.find((m) => m.mealId === mealId);
+      if (meal) return meal.at;
+    }
+  }
+  return consumes[0].at;
+}
+
 /**
  * Cambia il momento di consumi già nel diario: ogni consumo si annulla e se ne scrive uno uguale (stesso lotto,
  * stessa quantità, stesso istante) legato al pasto nuovo o già presente. Niente si conta due volte: il consumo
  * vecchio è annullato. «Annulla» su tutti gli eventi restituiti riporta le cose com'erano. Il pasto da cui i consumi
  * partono, se resta senza voci, sparisce da solo.
+ * Un pasto che nasce dallo spostamento prende l'ora tipica del momento di arrivo, anche nello stesso giorno: con l'ora
+ * di partenza una voce della cena finirebbe in un «pranzo delle 22:40». Tiene l'ora di partenza solo se questa cade
+ * già nella fascia di quel momento (uno spuntino delle 12:40 che diventa pranzo). Oggi l'ora del pasto nuovo non va
+ * mai oltre adesso: alle 9:00, «a cena» dà una cena delle 9:00, non una delle 20:00 che deve ancora venire. Un pasto
+ * di arrivo che c'è già resta com'è, e l'istante dei consumi non cambia mai: è quando l'alimento è uscito dalla
+ * dispensa.
  */
 export function moveConsumes(
   consumes: readonly ConsumeEvent[],
@@ -156,7 +186,13 @@ export function moveConsumes(
   if (existing && consumes.every((c) => c.mealId === existing.mealId)) {
     return { ok: false, error: "È già in questo momento." };
   }
-  const placement = placeConsumes(consumes, state, ctx, target);
+  const from = departureOf(consumes, state);
+  const left = localMoment(from, tz);
+  const keepsTime = left !== undefined && left.date === resolved.date && momentOfMinutes(left.minutes) === resolved.kind;
+  const chosen = keepsTime ? from : instantOfLocal(resolved.date, TYPICAL_MINUTES[resolved.kind], tz);
+  if (chosen === undefined) return { ok: false, error: "Non riesco a leggere l'ora." };
+  const newMealAt = Date.parse(chosen) > Date.parse(ctx.now) ? ctx.now : chosen;
+  const placement = place(consumes, state, ctx, target, newMealAt);
   if (!placement.ok) return placement;
 
   const idGenerator = ctx.idGenerator ?? generateId;

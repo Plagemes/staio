@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { appendItems, changeConsumeQuantity, deriveDiary, rewriteMeal } from "@/core/diary";
+import { appendItems, changeConsumeQuantity, changeItem, deriveDiary, rewriteMeal } from "@/core/diary";
 import { declaration, drink, habit, meal, mood, supplement, symptom, water, weight } from "@/core/diary/test-helpers";
 import { withOperationId, type AnyEvent } from "@/core/events";
+import { stampOperationId } from "@/core/events/operation";
 import { correctLot, derivePantry, type ConsumeEvent, type Lot, type PurchaseEvent } from "@/core/ledger";
 import { adjust, consume, discard, gift, move, open, purchase, updateLot, voidOf } from "@/core/ledger/test-helpers";
 import { buildRemoveMistaken } from "../actions";
@@ -222,6 +223,108 @@ describe("describeOperation: il resto", () => {
     expect(describeOperation(op, { pantry: derivePantry(stock), ownDeviceId: "dev-a", timeZone: TZ })).toEqual({ text: "Modifica fatta con una versione più nuova dell'app", fromOtherDevice: true });
     const broken: Operation = { id: "y", at: NOW, deviceId: "dev-a", events: [envelope("y", "meal", { mealId: "m", kind: "dinner", items: 7 })], state: "active" };
     expect(describeOperation(broken, { pantry: derivePantry(stock), ownDeviceId: "dev-a", timeZone: TZ }).text).not.toBe("");
+  });
+});
+
+describe("describeOperation: i testi corretti dopo la verifica dell'ondata 2", () => {
+  const away = (name: string, energyKcal: number) => ({ name, quantity: q(1, "pz"), certainty: "estimated" as const, energyKcal });
+  const breakfast = meal("m-fuori", NOW, { mealId: "meal-f", kind: "breakfast", certainty: "estimated", items: [away("Fuori casa · normale", 400)] });
+
+  it("un pasto fuori casa registrato: il momento e la taglia, senza parentesi e senza «Spostato»", () => {
+    expect(textOf([breakfast])).toEqual({ text: "Registrato: colazione fuori casa, normale", href: "/app?voce=m-fuori", fromOtherDevice: false });
+    // con altro nel pasto resta l'elenco
+    const mixed = meal("m-misto", NOW, { mealId: "meal-x", kind: "lunch", items: [away("Fuori casa · leggero", 300), { name: "Mela", quantity: q(1, "pz"), certainty: "estimated" }] });
+    expect(textOf([mixed]).text).toBe("Registrato: pranzo (fuori casa · leggero, mela)");
+  });
+
+  it("cambiata solo la taglia della stima: «Corretto», con la taglia nuova; cambiata anche l'ora: «Pasto corretto»", () => {
+    const log = [...stock, breakfast];
+    const resized = changeItem("meal-f", 0, { name: "Fuori casa · abbondante", energyKcal: 600 }, log, ctx(LATER));
+    if (!resized.ok) throw new Error(resized.error);
+    expect(resized.events.map((e) => e.type)).toEqual(["void", "meal"]);
+    expect(textOf([breakfast, ...resized.events])).toEqual({ text: "Corretto: colazione fuori casa, abbondante", href: `/app?voce=${resized.events[1].id}`, fromOtherDevice: false });
+    // la riga di prima resta quella della registrazione
+    expect(textOf([breakfast, ...resized.events], breakfast).text).toBe("Registrato: colazione fuori casa, normale");
+    const retimed = rewriteMeal("meal-f", { minutes: 9 * 60 }, log, { ...ctx(LATER), timeZone: TZ });
+    if (!retimed.ok) throw new Error(retimed.error);
+    expect(textOf([breakfast, ...retimed.events]).text).toBe("Pasto corretto: colazione");
+    // senza il registro non si sa che cosa c'era prima: resta la frase generica della correzione
+    const all = [...log, ...resized.events];
+    const op = groupOperations(all, { since: BOUGHT }).find((o) => o.events.some((e) => e.id === resized.events[1].id)) as Operation;
+    expect(describeOperation(op, { pantry: derivePantry(all), ownDeviceId: "dev-a", timeZone: TZ }).text).toBe("Pasto corretto: colazione");
+  });
+
+  it("una correzione con l'opId ereditato è una riga sua, anche a meno di due secondi dall'originale; mai «Spostato»", () => {
+    const soon = "2026-11-16T19:00:01.200Z";
+    const [first] = stampOperationId([breakfast], "op-A");
+    const second = { ...first, id: "m-fuori-2", recordedAt: soon, replaces: "m-fuori", items: [away("Fuori casa · abbondante", 600)] } as AnyEvent;
+    const [cancel] = stampOperationId([voidOf("v-fuori", soon, "m-fuori") as AnyEvent], "op-B");
+    const events = [first, cancel, second];
+    const log = [...stock, ...events];
+    const op = groupOperations(log, { since: BOUGHT }).find((o) => o.events.some((e) => e.id === "m-fuori-2")) as Operation;
+    expect(op.events.map((e) => e.id).sort()).toEqual(["m-fuori-2", "v-fuori"]);
+    expect(textOf(events, second)).toEqual({ text: "Corretto: colazione fuori casa, abbondante", href: "/app?voce=m-fuori-2", fromOtherDevice: false });
+    expect(textOf(events, first).text).toBe("Registrato: colazione fuori casa, normale");
+  });
+
+  it("due versioni dello stesso pasto nella stessa operazione (l'annullamento che le separa non è ancora arrivato): vale l'ultima, mai «Spostato»", () => {
+    const soon = "2026-11-16T19:00:01.200Z";
+    const [first] = stampOperationId([breakfast], "op-A");
+    const second = { ...first, id: "m-fuori-2", recordedAt: soon, replaces: "m-fuori", items: [away("Fuori casa · abbondante", 600)] } as AnyEvent;
+    const events = [first, second];
+    const log = [...stock, ...events];
+    const op = groupOperations(log, { since: BOUGHT }).find((o) => o.events.some((e) => e.id === "m-fuori-2")) as Operation;
+    expect(op.events.map((e) => e.id).sort()).toEqual(["m-fuori", "m-fuori-2"]);
+    expect(textOf(events, second)).toEqual({ text: "Corretto: colazione fuori casa, abbondante", href: "/app?voce=m-fuori-2", fromOtherDevice: false });
+
+    const dinner = stampOperationId([meal("m-c1", NOW, { mealId: "meal-c", kind: "dinner", items: [{ name: "Pane", quantity: q(40), certainty: "estimated" }] })], "op-C")[0];
+    const moved = { ...dinner, id: "m-c2", recordedAt: soon, at: "2026-11-16T19:30:00.000Z", replaces: "m-c1" } as AnyEvent;
+    expect(textOf([dinner, moved], moved)).toEqual({ text: "Pasto corretto: cena", href: "/app?voce=m-c2", fromOtherDevice: false });
+  });
+
+  it("più confezioni uguali aggiunte insieme: quante, e di che cosa", () => {
+    const packs = [1, 2, 3].map((i) => purchase(`mo-${i}`, NOW, { lotId: `mo-lot-${i}`, productRef: "Mousse cacao protein", quantity: q(170), location: "frigo" }));
+    expect(textOf(packs)).toEqual({ text: "Aggiunte alla dispensa: 3 confezioni di mousse cacao protein", href: "/app/dispensa", fromOtherDevice: false });
+    // un nome diverso tra gli altri: resta l'elenco
+    const other = purchase("mo-4", NOW, { lotId: "mo-lot-4", productRef: "Uova", quantity: q(6, "pz"), location: "frigo" });
+    expect(textOf([...packs, other]).text).toBe("Aggiunti alla dispensa: 4 alimenti (mousse cacao protein, uova)");
+  });
+
+  it("ciò che si scala dalla dispensa per una bevanda dice per quale; se la bevanda non si trova, no", () => {
+    const leaves = purchase("p-te", BOUGHT, { lotId: "te", productRef: "Tè", quantity: q(40), location: "dispensa" });
+    const tea = drink("d-te", "2026-11-16T12:11:00.000Z", { name: "Tè", ml: 200 });
+    const scaled = consume("c-te", NOW, { lotId: "te", quantity: q(2), certainty: "estimated", note: "drink:d-te" });
+    expect(textOf([tea, scaled], scaled, [...stock, leaves])).toEqual({ text: "Scalato dalla dispensa: 2 g di tè (per il tè delle 13:11)", href: "/app/dispensa?lotto=te", fromOtherDevice: false });
+    expect(textOf([scaled], scaled, [...stock, leaves]).text).toBe("Scalato dalla dispensa: 2 g di tè");
+    const log = [...stock, leaves, tea, scaled];
+    const op = groupOperations(log, { since: BOUGHT }).find((o) => o.id === "c-te") as Operation;
+    expect(describeOperation(op, { pantry: derivePantry(log), ownDeviceId: "dev-a", timeZone: TZ }).text).toBe("Scalato dalla dispensa: 2 g di tè");
+
+    const said = (name: string) => {
+      const d = drink("d-x", "2026-11-16T07:05:00.000Z", { name, ml: 200 });
+      return textOf([d, consume("c-x", NOW, { lotId: "te", quantity: q(2), note: "drink:d-x" })], { id: "c-x" }, [...stock, leaves]).text;
+    };
+    expect(said("Caffè espresso")).toBe("Scalato dalla dispensa: 2 g di tè (per il caffè espresso delle 08:05)");
+    expect(said("Tisana")).toBe("Scalato dalla dispensa: 2 g di tè (per la tisana delle 08:05)");
+    expect(said("Infuso")).toBe("Scalato dalla dispensa: 2 g di tè (per l'infuso delle 08:05)");
+  });
+
+  it("5. un tè spostato di ora con il suo consumo della dispensa è una riga sola, «Bevanda spostata»", () => {
+    const leaves = purchase("p-te", BOUGHT, { lotId: "te", productRef: "Tè", quantity: q(40), location: "dispensa" });
+    const base = stampOperationId([...stock, leaves], "op-spesa");
+    const tea = stampOperationId([drink("d-te", "2026-11-16T12:11:00.000Z", { name: "Tè", ml: 200 })], "op-te");
+    const scaled = stampOperationId([consume("c-te", "2026-11-16T12:12:00.000Z", { lotId: "te", quantity: q(2), certainty: "estimated", note: "drink:d-te" })], "op-scalato");
+    const log0 = [...base, ...tea, ...scaled];
+    const retimed = retimeDrink(deriveDiary(log0).days[0].drinks[0], "2026-11-16", "08:15", { ...ctx(LATER), timeZone: TZ }, scaled as ConsumeEvent[]);
+    if (!retimed.ok) throw new Error(retimed.error);
+    expect(retimed.events.map((e) => e.type)).toEqual(["void", "drink", "void", "consume"]);
+    for (const write of [(events: readonly AnyEvent[]) => stampOperationId(events, "op-nuova"), (events: readonly AnyEvent[]) => withOperationId(events, "op-nuova")]) {
+      const log = [...log0, ...write(retimed.events)];
+      const ops = groupOperations(log, { since: LATER });
+      expect(ops).toHaveLength(1);
+      expect(ops[0].events).toHaveLength(4);
+      expect(describeOperation(ops[0], { pantry: derivePantry(log), ownDeviceId: "dev-a", timeZone: TZ, log: indexLog(log) }).text).toBe("Bevanda spostata: tè, alle 08:15");
+    }
   });
 });
 

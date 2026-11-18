@@ -4,9 +4,10 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { addDays } from "@/core/diary";
+import type { AnyEvent } from "@/core/events";
 import { DEFAULT_TIME_ZONE } from "@/core/expiry";
 import { activeLots } from "@/core/ledger";
-import { useDiary, useEventLog, usePantry } from "@/data";
+import { getDeviceId, useDiary, useEventLog, usePantry } from "@/data";
 import { Label, Wordmark } from "@/design";
 import { PinnedViews } from "@/features/assistant";
 import { closeSheetThen } from "../common";
@@ -22,7 +23,7 @@ import { DayBriefing, MISSED_ID } from "./DayBriefing";
 import { Expiring } from "./Expiring";
 import { MissedPlanned } from "./MissedPlanned";
 import { Now } from "./Now";
-import { REVEAL_MAX_DAYS_BACK, daysBefore, entryElementId, locateEntry } from "./reveal";
+import { ENTRY_GONE_MS, ENTRY_WAIT_MS, REVEAL_MAX_DAYS_BACK, daysBefore, entryElementId, entryVerdict, locateEntry } from "./reveal";
 import { TodayDiary } from "./TodayDiary";
 import { useBriefing } from "./useBriefing";
 import { useTodayPlan } from "./useTodayPlan";
@@ -46,6 +47,33 @@ interface RevealRequest {
   fromLink: boolean;
   /** Ogni richiesta è nuova, anche per la stessa riga. */
   serial: number;
+}
+
+/** Una `?voce=` che il registro non ha ancora: resta in attesa, e si riprova a ogni lettura nuova (`entryVerdict`). */
+interface EntryAsk {
+  id: string;
+  /** Millisecondi dall'arrivo sulla pagina, all'ultimo controllo dell'orologio. */
+  waitedMs: number;
+}
+
+/** «Questa voce non c'è più.» è a schermo. */
+interface EntryGone {
+  /** L'ultimo registro guardato da quando è stato detto. `null`: ancora da prendere. */
+  log: readonly AnyEvent[] | null;
+  /** Quanti eventi scritti da questo telefono c'erano in quel registro: se crescono, qui si è scritto qualcosa. */
+  written: number;
+  forMs: number;
+}
+
+/**
+ * Quanti eventi del registro ha scritto questo telefono. Ciò che arriva dall'altro telefono non conta: il messaggio
+ * se ne va a una scrittura fatta qui, non a ogni registro ricevuto. Finché il dispositivo non si conosce, contano tutti.
+ */
+function writtenHere(events: readonly AnyEvent[], deviceId: string | null): number {
+  if (deviceId === null) return events.length;
+  let count = 0;
+  for (const e of events) if (e.deviceId === deviceId) count++;
+  return count;
 }
 
 /** Quanto si aspetta, al massimo, che la riga compaia nel diario (il registro si aggiorna un attimo dopo la scrittura). */
@@ -130,8 +158,10 @@ export function Today() {
   const [waterOpen, setWaterOpen] = useState(false);
   const [waterShown, setWaterShown] = useState(0);
   const [reveal, setReveal] = useState<RevealRequest | null>(null);
-  const [entryGone, setEntryGone] = useState(false);
-  // la `voce` dell'indirizzo già letta: si legge una volta, poi si toglie dall'indirizzo
+  const [ask, setAsk] = useState<EntryAsk | null>(null);
+  const [gone, setGone] = useState<EntryGone | null>(null);
+  const [deviceId, setDeviceId] = useState<string | null>(null);
+  // la `voce` dell'indirizzo già chiusa (mostrata, o data per persa): si toglie dall'indirizzo
   const [handledEntry, setHandledEntry] = useState<string | null>(null);
   // il giorno della voce trovata: l'indirizzo, togliendo `voce`, dice questo giorno e non quello chiesto prima
   const [entryDay, setEntryDay] = useState<string | null>(null);
@@ -151,19 +181,45 @@ export function Today() {
 
   // `?voce=`: vale il giorno della voce, anche se l'indirizzo ne chiede un altro con `?giorno=`
   if (requestedEntry === null && handledEntry !== null) setHandledEntry(null);
-  if (requestedEntry !== null && requestedEntry !== handledEntry && log.data && diary.data && pantry.data && today) {
-    const voided = new Set([...diary.data.voidedEventIds, ...pantry.data.voidedEventIds]);
-    const place = locateEntry(log.data, requestedEntry, { timeZone, today, voided });
-    setHandledEntry(requestedEntry);
-    setEntryDay(place.found ? place.date : null);
-    if (place.found) {
-      setDaysBack(daysBefore(today, place.date));
-      setEntryGone(false);
-      setReveal((r) => ({ elementId: place.elementId, fromLink: true, serial: (r?.serial ?? 0) + 1 }));
+  // il messaggio di una voce che non c'è più se ne va alla prima scrittura fatta qui o quando ha fatto il suo tempo
+  if (gone !== null && log.data) {
+    if (gone.log === null) {
+      setGone({ ...gone, log: log.data, written: writtenHere(log.data, deviceId) });
     } else {
-      setEntryGone(true);
+      const wrote = gone.log !== log.data && writtenHere(log.data, deviceId) > gone.written;
+      if (entryVerdict({ found: false, waitedMs: ENTRY_WAIT_MS, said: { forMs: gone.forMs, logChanged: wrote, dayChanged: false } }) === "over") setGone(null);
+      // un registro arrivato senza una scrittura di qui (l'altro telefono): il messaggio resta
+      else if (gone.log !== log.data) setGone({ ...gone, log: log.data });
     }
   }
+  const openEntry = requestedEntry !== null && requestedEntry !== handledEntry ? requestedEntry : null;
+  if (openEntry === null) {
+    if (ask !== null) setAsk(null);
+  } else if (ask?.id !== openEntry) {
+    setAsk({ id: openEntry, waitedMs: 0 });
+    // una richiesta nuova: ciò che si diceva di quella di prima non vale più
+    if (gone !== null) setGone(null);
+  } else if (log.data && diary.data && pantry.data && today) {
+    // Si rifà a ogni disegno finché la richiesta è aperta: subito dopo una scrittura il registro in mano può essere
+    // ancora quello di prima, e la voce compare alla lettura dopo.
+    const voided = new Set([...diary.data.voidedEventIds, ...pantry.data.voidedEventIds]);
+    const place = locateEntry(log.data, openEntry, { timeZone, today, voided });
+    const verdict = entryVerdict({ found: place.found, waitedMs: ask.waitedMs });
+    if (verdict !== "wait") {
+      setAsk(null);
+      setHandledEntry(openEntry);
+      setEntryDay(place.found ? place.date : null);
+      if (place.found) {
+        setDaysBack(daysBefore(today, place.date));
+        setGone(null);
+        setReveal((r) => ({ elementId: place.elementId, fromLink: true, serial: (r?.serial ?? 0) + 1 }));
+      } else {
+        setGone({ log: log.data, written: writtenHere(log.data, deviceId), forMs: 0 });
+      }
+    }
+  }
+  const entryGone = gone !== null;
+  const askId = ask?.id ?? null;
 
   const daysBack = chosenDaysBack ?? daysBackFromParam(today, requestedDay);
   const viewDate = today ? addDays(today, -daysBack) : "";
@@ -181,7 +237,13 @@ export function Today() {
 
   const goToDay = (next: number) => {
     setDaysBack(next);
-    setEntryGone(false);
+    setGone(null);
+    // chi cambia giorno mentre una voce è attesa ha scelto dove guardare: la richiesta si chiude
+    if (openEntry !== null) {
+      setAsk(null);
+      setHandledEntry(openEntry);
+      setEntryDay(null);
+    }
   };
 
   /** Apre la riga «Acqua» del diario e la porta in vista. */
@@ -202,7 +264,39 @@ export function Today() {
     return () => window.clearTimeout(timer);
   }, [waterShown]);
 
-  // `voce` letta: si toglie dall'indirizzo, tenendo il resto; `giorno` segue il giorno mostrato, se la voce c'è
+  useEffect(() => {
+    let live = true;
+    getDeviceId().then(
+      (id) => {
+        if (live) setDeviceId(id);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  // l'attesa di una voce che non c'è ancora: passato il tempo, l'orologio fa ridisegnare e `entryVerdict` decide
+  useEffect(() => {
+    if (askId === null) return;
+    const started = Date.now();
+    const timer = window.setTimeout(
+      () => setAsk((a) => (a?.id === askId ? { ...a, waitedMs: Math.max(Date.now() - started, ENTRY_WAIT_MS) } : a)),
+      ENTRY_WAIT_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [askId]);
+
+  // «Questa voce non c'è più.» se ne va da solo
+  useEffect(() => {
+    if (!entryGone) return;
+    const started = Date.now();
+    const timer = window.setTimeout(() => setGone((g) => (g ? { ...g, forMs: Math.max(Date.now() - started, ENTRY_GONE_MS) } : g)), ENTRY_GONE_MS);
+    return () => window.clearTimeout(timer);
+  }, [entryGone]);
+
+  // `voce` chiusa: si toglie dall'indirizzo, tenendo il resto; `giorno` segue il giorno mostrato, se la voce c'è
   useEffect(() => {
     if (requestedEntry === null || requestedEntry !== handledEntry) return;
     const params = new URLSearchParams(searchParams.toString());
@@ -227,7 +321,7 @@ export function Today() {
       const el = findEntryElement(reveal.elementId);
       if (!el) {
         if (Date.now() - started < REVEAL_WAIT_MS) later(attempt, REVEAL_POLL_MS);
-        else if (reveal.fromLink) setEntryGone(true);
+        else if (reveal.fromLink) setGone({ log: null, written: 0, forMs: 0 });
         return;
       }
       openEnclosing(el);

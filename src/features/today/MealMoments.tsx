@@ -34,6 +34,7 @@ import {
   MEAL_KIND_LABELS,
   buildMealDeclaration,
   buildOutOfHomeMeal,
+  isOutOfHomeItem,
   momentOffer,
   momentTitle,
   momentsOf,
@@ -298,6 +299,7 @@ export function MealMoments({ date, today, now, diary, day, meals, loose, log, p
                 quantity={i.quantity}
                 certainty={i.certainty}
                 line={freeItemLine(intake, meal.mealId, index)}
+                withoutAmount={isOutOfHomeItem(i)}
                 onOpen={() => setSheet({ type: "item", mealId: meal.mealId, index, title: i.name })}
               />
             ))}
@@ -357,6 +359,16 @@ export function MealMoments({ date, today, now, diary, day, meals, loose, log, p
     <DrinkLines drinks={list} date={date} now={now} actions={drinkActions} log={log} pantry={pantry} scalable={!pastDay} onError={errorIn(key)} />
   );
 
+  /** Dentro un momento si va in ordine di ora: le bevande bevute prima del primo pasto stanno sopra i pasti, le altre sotto. */
+  const aroundMeals = (list: readonly DiaryDrink[], kindMeals: readonly MealWithPantry[]) => {
+    const first = kindMeals.reduce<number | undefined>((min, m) => {
+      const at = Date.parse(m.at);
+      return min === undefined || at < min ? at : min;
+    }, undefined);
+    const before = first === undefined ? [] : list.filter((d) => Date.parse(d.at) < first);
+    return { before, after: before.length === 0 ? list : list.filter((d) => !before.includes(d)) };
+  };
+
   const rows = momentsOf(day).flatMap((moment) => {
     const kindMeals = meals.filter((m) => m.kind === moment.kind);
     const kindDrinks = drinks[moment.kind];
@@ -371,7 +383,10 @@ export function MealMoments({ date, today, now, diary, day, meals, loose, log, p
   const snackLegacy = (day?.untrackedMeals ?? []).filter((u) => u.kind === "snack");
   const hasSnacks = snackMeals.length > 0 || drinks.offMeal.length > 0 || snackLegacy.length > 0 || loose.snack.length > 0;
 
-  const snackTitle = snackBlockTitle({ meals: snackMeals.length, others: drinks.offMeal.length + snackLegacy.length + loose.snack.length });
+  // Con un solo spuntino registrato il blocco non ha titolo, anche se intorno ci sono bevande: la riga del pasto dice
+  // già «Spuntino», e «Spuntini» sopra sarebbero due titoli per una cosa.
+  const snackTitle = snackMeals.length === 1 ? null : snackBlockTitle({ meals: snackMeals.length, others: drinks.offMeal.length + snackLegacy.length + loose.snack.length });
+  const snackDrinks = aroundMeals(drinks.offMeal, snackMeals);
 
   const list =
     rows.length === 0 && !hasSnacks ? null : (
@@ -384,6 +399,7 @@ export function MealMoments({ date, today, now, diary, day, meals, loose, log, p
           const removeId = moment.declarationEventId ?? legacy[0]?.eventId;
           const plannedText = pastDay ? "" : planned.filter((p) => p.meal === kind).map((p) => p.text).join(", ");
           const under = plannedText !== "" ? `nel piano: ${plannedText}` : kindDrinks.length === 0 && kindLoose.length === 0 ? "niente registrato" : "";
+          const momentDrinks = aroundMeals(kindDrinks, kindMeals);
           const compact = isCompactMoment({
             pastDay,
             current: kind === current,
@@ -457,6 +473,8 @@ export function MealMoments({ date, today, now, diary, day, meals, loose, log, p
                 </div>
               ) : null}
 
+              {renderDrinks(momentDrinks.before, kind)}
+
               {kindMeals.map((m) => renderMeal(m, kind))}
 
               {kindLoose.map((c) => renderLoose(c, kind))}
@@ -472,7 +490,7 @@ export function MealMoments({ date, today, now, diary, day, meals, loose, log, p
                   ))
                 : null}
 
-              {renderDrinks(kindDrinks, kind)}
+              {renderDrinks(momentDrinks.after, kind)}
 
               {errorLine(kind)}
             </li>
@@ -486,6 +504,7 @@ export function MealMoments({ date, today, now, diary, day, meals, loose, log, p
                 <span className={styles.mealTitle}>{snackTitle}</span>
               </div>
             ) : null}
+            {renderDrinks(snackDrinks.before, "snack")}
             {snackMeals.map((m) => renderMeal(m, "snack"))}
             {loose.snack.map((c) => renderLoose(c, "snack"))}
             {snackLegacy.map((u) => (
@@ -496,7 +515,7 @@ export function MealMoments({ date, today, now, diary, day, meals, loose, log, p
                 </Button>
               </p>
             ))}
-            {renderDrinks(drinks.offMeal, "snack")}
+            {renderDrinks(snackDrinks.after, "snack")}
             {errorLine("snack")}
           </li>
         ) : null}

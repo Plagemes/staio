@@ -60,8 +60,8 @@ export function ThemePreview({ theme, mode, className }: ThemePreviewProps) {
         </span>
         <span className={styles.capture}>
           <svg {...icon}>
-            <path d="M4 8h3l1.5-2h7L17 8h3v11H4z" />
-            <circle cx="12" cy="13" r="3.5" />
+            <path d="M12 5v14" />
+            <path d="M5 12h14" />
           </svg>
         </span>
         <span className={styles.navItem}>
