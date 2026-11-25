@@ -15,6 +15,7 @@ Regola del proprietario: ogni funzione nasce dove nasce il bisogno, ed è raggiu
 9. Una voce di dispensa si toglie dal diario solo con `removeConsume`; ogni chiamata di scrittura (`appendEvents`) dà a tutti i suoi eventi lo stesso identificativo di operazione (`opId`), sempre nuovo, anche a un evento copiato da uno di prima: è ciò che permette «Annulla» e «Rifai» in «Ultime azioni», e fa sì che due correzioni della stessa cosa siano due operazioni.
 10. Una pagina nuova: scrivere qui da dove si raggiunge, e dove porta il ritorno. Se va usata senza rete, aggiungerla anche a `public/sw.js`.
 11. I dati che arrivano dai ganci (`usePantry`, `useDiary`, `useEventLog`, …) sono condivisi tra tutte le schermate (`src/data/shared.ts`, congelati in sviluppo): non si modificano sul posto; chi ordina o filtra lavora su una copia. Prima di scrivere sulla base di uno stato si rilegge l'archivio, e una schermata non decide una volta sola al montaggio. In caso di errore di lettura `StorageError` offre «Riprova».
+12. Una pagina resta viva tra una visita e l'altra (Next ne tiene fino a tre). Ciò che dipende dall'indirizzo si deriva a ogni disegno o sta dietro una `key` che cambia con i parametri; un modulo «nuova voce» usa `useFormEpoch` (`common/freshForm.ts`) e si azzera dopo il salvataggio; un messaggio di passaggio si chiude uscendo dalla pagina.
 
 ## Mappa delle pagine (`src/app/app/**`)
 

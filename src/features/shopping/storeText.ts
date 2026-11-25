@@ -119,6 +119,12 @@ export function putAwayDoneText(count: number, remembered = true): string {
   return remembered ? done : `${done} Non ho potuto ricordare le categorie.`;
 }
 
+/** Il riepilogo della riga richiusa «Nuova spesa»: quanto è lunga la lista di adesso. */
+export function newTripSummary(listCount: number): string {
+  if (listCount <= 0) return "la lista è vuota";
+  return listCount === 1 ? "la lista ha 1 voce" : `la lista ha ${listCount} voci`;
+}
+
 /** Il riepilogo della riga richiusa «Confronto con la lista». */
 export function compareSummary(view: Pick<ReconcileView, "waiting" | "missing" | "extra">): string {
   if (view.waiting) return "nessun acquisto registrato";

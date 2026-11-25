@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { contrastRatio } from "./contrast";
-import { DEFAULT_MODE, DEFAULT_THEME, THEMES, isThemeId, isThemeMode, normalizeChoice, type ThemeId } from "./themes";
+import { DEFAULT_MODE, DEFAULT_THEME, THEMES, isThemeId, isThemeMode, normalizeChoice, themeAttributes, type ThemeId } from "./themes";
 
 const read = (name: string) => readFileSync(new URL(`./${name}`, import.meta.url), "utf8");
 const CSS = `${read("tokens.css")}\n${read("themes.css")}`;
@@ -48,8 +48,16 @@ function find(selector: string, media: boolean): Record<string, string> {
   return hit[0].vars;
 }
 
+const infoOf = (id: ThemeId) => THEMES.find((t) => t.id === id)!;
+/** Selettore del tema sulla radice: Grano è `[data-palette="vivo"][data-variant="grano"]`, gli altri `[data-palette="id"]`. */
+const selectorOf = (id: ThemeId) => {
+  const t = infoOf(id);
+  return t.variant ? `[data-palette="${t.palette}"][data-variant="${t.variant}"]` : `[data-palette="${t.palette}"]`;
+};
+const usesVivoShape = (id: ThemeId) => infoOf(id).palette === "vivo";
+
 const palette = (id: ThemeId, mode: "light" | "dark") =>
-  mode === "light" ? find(`[data-palette="${id}"]`, false) : find(`[data-palette="${id}"][data-theme="dark"]`, false);
+  mode === "light" ? find(selectorOf(id), false) : find(`${selectorOf(id)}[data-theme="dark"]`, false);
 
 const MODES = ["light", "dark"] as const;
 
@@ -68,7 +76,7 @@ const VIVO_SHAPE = findBlock(['[data-palette="vivo"]'], "--weight-display");
 /** Colori effettivi di un tema: significati predefiniti, poi il blocco del tema, con i rimandi var() risolti. */
 function resolved(id: ThemeId, mode: "light" | "dark"): Record<string, string> {
   const raw: Record<string, string> = { ...SEMANTIC_DEFAULTS, ...palette(id, mode) };
-  if (id === "vivo") for (const [k, v] of Object.entries(VIVO_SHAPE)) if (k.startsWith("--area-current")) raw[k] = v;
+  if (usesVivoShape(id)) for (const [k, v] of Object.entries(VIVO_SHAPE)) if (k.startsWith("--area-current")) raw[k] = v;
   const get = (name: string, depth = 0): string => {
     const v = raw[name];
     if (v === undefined) throw new Error(`missing ${name} in ${id} ${mode}`);
@@ -138,13 +146,15 @@ describe("temi: contrasto", () => {
 });
 
 describe("temi: struttura", () => {
-  it("ogni tema definisce le stesse variabili di Registro, in chiaro e in scuro (Vivo in più ha i colori con significato)", () => {
+  it("ogni tema definisce le stesse variabili di Registro, in chiaro e in scuro (Vivo e Grano in più hanno i colori con significato)", () => {
     const keys = Object.keys(palette("registro", "light")).sort();
-    for (const t of THEMES.filter((t) => t.id !== "vivo")) for (const m of MODES) expect(Object.keys(palette(t.id, m)).sort()).toEqual(keys);
+    for (const t of THEMES.filter((t) => !usesVivoShape(t.id))) for (const m of MODES) expect(Object.keys(palette(t.id, m)).sort()).toEqual(keys);
     const vivo = Object.keys(palette("vivo", "light")).sort();
     expect(vivo).toEqual(expect.arrayContaining(keys));
     expect(Object.keys(palette("vivo", "dark")).sort()).toEqual(vivo);
     for (const v of SEMANTIC) expect(vivo).toEqual(expect.arrayContaining([v, `${v}-tint`]));
+    // Grano ridefinisce tutto ciò che definisce Vivo (niente resta a quello di Vivo per errore) e in più ha il colore del marchio
+    for (const m of MODES) expect(Object.keys(palette("grano", m)).sort()).toEqual([...vivo, "--brand-accent"].sort());
   });
 
   it("fuori da Vivo nessuna regola ridefinisce la forma o i colori con significato", () => {
@@ -158,7 +168,7 @@ describe("temi: struttura", () => {
 
   it("il blocco scuro per «come il dispositivo» è uguale a quello scuro scelto a mano", () => {
     for (const t of THEMES) {
-      expect(find(`[data-palette="${t.id}"]:not([data-theme="light"])`, true)).toEqual(palette(t.id, "dark"));
+      expect(find(`${selectorOf(t.id)}:not([data-theme="light"])`, true)).toEqual(palette(t.id, "dark"));
     }
     expect(find(':root:not([data-palette]):not([data-theme="light"])', true)).toEqual(palette("registro", "dark"));
     expect(find(':root[data-theme="dark"]:not([data-palette])', false)).toEqual(palette("registro", "dark"));
@@ -250,6 +260,7 @@ describe("variabili nuove: nel tema di base hanno i valori che prima erano scrit
       "--tab-indicator": "2px",
       "--tab-selected-fill": "transparent",
       "--tab-selected-shadow": "none",
+      "--tab-selected-text": "var(--color-ink)",
       "--nav-fill": "var(--color-paper)",
       "--nav-rule-width": "var(--rule-width)",
       "--nav-backdrop": "none",
@@ -284,7 +295,7 @@ describe("variabili nuove: nel tema di base hanno i valori che prima erano scrit
   });
 
   it("colori con significato: negli altri temi rimandano all'accento, all'inchiostro o ai colori di stato già in uso", () => {
-    for (const t of THEMES.filter((t) => t.id !== "vivo")) {
+    for (const t of THEMES.filter((t) => !usesVivoShape(t.id))) {
       for (const m of MODES) {
         const p = resolved(t.id, m);
         const base = palette(t.id, m);
@@ -334,10 +345,10 @@ describe("colori con significato: contrasto in tutti i temi", () => {
   }
 });
 
-describe("Vivo", () => {
+describe.each(["vivo", "grano"] as const)("%s (forma di Vivo)", (id) => {
   for (const mode of MODES) {
     describe(mode, () => {
-      const p = resolved("vivo", mode);
+      const p = resolved(id, mode);
       const c = (fg: string, bg: string) => contrastRatio(p[fg], p[bg]);
       it("l'accento di base è il colore di Oggi, il segnale è «scaduto», l'ocra è «in scadenza»", () => {
         expect(p["--color-accent"]).toBe(p["--area-today"]);
@@ -392,11 +403,11 @@ describe("scelte manomesse", () => {
  * Coppie testo/fondo e controllo/fondo aggiunte con le schermate in Vivo. Le altre (colore su carta, superficie e
  * fondo tinto; testo e testo secondario sui fondi tinti e neutri; testo sopra il colore pieno) sono già sopra.
  */
-describe("Vivo: coppie delle schermate", () => {
+describe.each(["vivo", "grano"] as const)("%s: coppie delle schermate", (id) => {
   const TINTS = SEMANTIC.map((v) => `${v}-tint`);
   for (const mode of MODES) {
     describe(mode, () => {
-      const p = resolved("vivo", mode);
+      const p = resolved(id, mode);
       const c = (fg: string, bg: string) => contrastRatio(p[fg], p[bg]);
       it("campi e interruttore spento dentro una scheda tinta: bordo dei controlli su ogni fondo tinto >= 3", () => {
         for (const t of TINTS) expect(c("--color-control-border", t)).toBeGreaterThanOrEqual(3);
@@ -426,6 +437,41 @@ describe("Vivo: coppie delle schermate", () => {
           expect(c("--color-on-fill", v)).toBeGreaterThanOrEqual(4.5);
           expect(c(v, "--color-surface")).toBeGreaterThanOrEqual(4.5);
         }
+      });
+    });
+  }
+});
+
+describe("Grano", () => {
+  it("è salvato come «grano» e sulla radice porta la palette di Vivo più la variante", () => {
+    expect(themeAttributes("grano")).toEqual({ palette: "vivo", variant: "grano" });
+    expect(themeAttributes("vivo")).toEqual({ palette: "vivo", variant: undefined });
+    expect(themeAttributes("registro")).toEqual({ palette: "registro", variant: undefined });
+    expect(isThemeId("grano")).toBe(true);
+    expect(DEFAULT_THEME).toBe("registro");
+    expect(THEMES.filter((t) => t.variant).map((t) => t.id)).toEqual(["grano"]);
+  });
+
+  it("i blocchi di Grano vengono dopo quelli di Vivo, e lo scuro scelto a mano ha un attributo in più", () => {
+    const withPaper = RULES.map((r, i) => ({ r, i })).filter(({ r }) => "--color-paper" in r.vars);
+    const isGrano = (s: string) => s.includes('[data-variant="grano"]');
+    const lastVivo = Math.max(...withPaper.filter(({ r }) => r.selectors.some((s) => s.startsWith('[data-palette="vivo"]') && !isGrano(s))).map(({ i }) => i));
+    const firstGrano = Math.min(...withPaper.filter(({ r }) => r.selectors.some(isGrano)).map(({ i }) => i));
+    expect(firstGrano).toBeGreaterThan(lastVivo);
+    expect(RULES.some((r) => r.selectors.includes('[data-palette="vivo"][data-variant="grano"][data-theme="dark"]'))).toBe(true);
+  });
+
+  for (const mode of MODES) {
+    describe(mode, () => {
+      const p = resolved("grano", mode);
+      const c = (fg: string, bg: string) => contrastRatio(p[fg], p[bg]);
+      it("il punto del marchio (oro del grano) si vede su carta e superficie >= 3 ed è diverso dall'accento", () => {
+        expect(c("--brand-accent", "--color-paper")).toBeGreaterThanOrEqual(3);
+        expect(c("--brand-accent", "--color-surface")).toBeGreaterThanOrEqual(3);
+        expect(p["--brand-accent"]).not.toBe(p["--color-accent"]);
+      });
+      it("il testo della voce scelta in un selettore (sul colore di ogni area) >= 4,5", () => {
+        for (const a of ["today", "pantry", "capture", "plan", "health"]) expect(c("--color-on-fill", `--area-${a}`), a).toBeGreaterThanOrEqual(4.5);
       });
     });
   }

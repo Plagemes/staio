@@ -12,6 +12,7 @@
   letter-spacing: var(--tracking-display);
 }
 
+/* Grano (themes.css) dà al punto l'oro del grano con --brand-accent; negli altri temi la variabile non c'è e vale l'accento */
 .dot {
-  color: var(--color-accent);
+  color: var(--brand-accent, var(--color-accent));
 }

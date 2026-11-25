@@ -85,6 +85,18 @@ describe("script iniziale del tema", () => {
     expect(r.colors).toEqual(["#000000", "#000000"]);
     expect(run(JSON.stringify({ theme: "vivo", mode: "light" })).colors).toEqual(["#f2f2f7", "#f2f2f7"]);
   });
+
+  it("Grano: palette di Vivo più la variante, colore della barra del browser di Grano", () => {
+    const dark = run(JSON.stringify({ theme: "grano", mode: "dark" }));
+    expect(dark.attrs).toEqual({ "data-palette": "vivo", "data-variant": "grano", "data-theme": "dark" });
+    expect(dark.colors).toEqual(["#151a14", "#151a14"]);
+    expect(run(JSON.stringify({ theme: "grano", mode: "light" })).colors).toEqual(["#f3ede3", "#f3ede3"]);
+    expect(run(JSON.stringify({ theme: "grano", mode: "device" }), true).colors[0]).toBe("#151a14");
+  });
+
+  it("gli altri temi non mettono data-variant", () => {
+    for (const theme of ["vivo", "bottega", "ardesia", "netto"]) expect(run(JSON.stringify({ theme, mode: "device" })).attrs).not.toHaveProperty("data-variant");
+  });
 });
 
 describe("script iniziale: attesa della scelta dello stile", () => {

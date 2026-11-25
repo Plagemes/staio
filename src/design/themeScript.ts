@@ -10,12 +10,16 @@ import { DEFAULT_MODE, DEFAULT_THEME, THEMES } from "./themes";
  */
 export function buildThemeScript(): string {
   const colors: Record<string, readonly [string, string]> = {};
-  for (const t of THEMES) colors[t.id] = t.themeColor;
+  const attrs: Record<string, readonly [palette: string, variant: string | null]> = {};
+  for (const t of THEMES) {
+    colors[t.id] = t.themeColor;
+    attrs[t.id] = [t.palette, t.variant ?? null];
+  }
   const j = JSON.stringify;
-  return `(function(){try{var d=document,w=window,r=d.documentElement,C=${j(colors)},s=null;
+  return `(function(){try{var d=document,w=window,r=d.documentElement,C=${j(colors)},A=${j(attrs)},s=null;
 var ok=1;try{s=w.localStorage.getItem(${j(APPEARANCE_STORAGE_KEY)})}catch(e){ok=0}try{s=JSON.parse(s)}catch(e){s=null}
 var t=s&&typeof s.theme==="string"&&Object.prototype.hasOwnProperty.call(C,s.theme)?s.theme:${j(DEFAULT_THEME)},m=s&&(s.mode==="light"||s.mode==="dark")?s.mode:${j(DEFAULT_MODE)};
-if(t!==${j(DEFAULT_THEME)})r.setAttribute("data-palette",t);
+if(t!==${j(DEFAULT_THEME)}){r.setAttribute("data-palette",A[t][0]);if(A[t][1])r.setAttribute("data-variant",A[t][1])}
 if(m!=="device")r.setAttribute("data-theme",m);
 if(ok&&!(s&&s.chosen===true)&&(function(p){return p==="/app"||p==="/app/"})(w.location&&w.location.pathname)){r.setAttribute(${j(STYLE_CHOICE_ATTR)},"pending");
 try{w.setTimeout(function(){r.removeAttribute(${j(STYLE_CHOICE_ATTR)})},${STYLE_CHOICE_MAX_WAIT})}catch(e){r.removeAttribute(${j(STYLE_CHOICE_ATTR)})}}

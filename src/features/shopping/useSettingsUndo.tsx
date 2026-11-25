@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import styles from "./shopping.module.css";
 
 interface Change {
@@ -17,6 +17,9 @@ const VISIBLE_MS = 15_000;
  */
 export function useSettingsUndo(save: (key: string, value: unknown) => Promise<boolean>) {
   const [change, setChange] = useState<Change | null>(null);
+
+  // La pagina resta viva tra una visita e l'altra: l'avviso non deve ricomparire al ritorno.
+  useLayoutEffect(() => () => setChange(null), []);
 
   useEffect(() => {
     if (!change) return;

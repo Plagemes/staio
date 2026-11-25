@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useId, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import type { Certainty } from "@/core/ledger";
 import { Button } from "@/design";
+import { useFormEpoch } from "../common/freshForm";
 import { createFoodSearch } from "../nutrition/candidates";
 import { FoodChoice } from "../nutrition/FoodChoice";
 import { useFoods } from "../nutrition/useNutrition";
@@ -40,7 +41,26 @@ interface RecipeEditorProps {
   saveLabel?: string;
 }
 
-export function RecipeEditor({ initial, recipeId, rating, certainty, title, banner, leftovers = [], saveLabel = "Salva la ricetta" }: RecipeEditorProps) {
+/**
+ * La pagina resta viva tra una visita e l'altra: il modulo riparte da `initial` a ogni arrivo da un collegamento e
+ * dopo ogni salvataggio riuscito; col tasto indietro si ritrova quello lasciato a metà.
+ */
+export function RecipeEditor(props: RecipeEditorProps) {
+  const { epoch, renew } = useFormEpoch();
+  return <RecipeEditorForm key={epoch} {...props} onSaved={renew} />;
+}
+
+function RecipeEditorForm({
+  initial,
+  recipeId,
+  rating,
+  certainty,
+  title,
+  banner,
+  leftovers = [],
+  saveLabel = "Salva la ricetta",
+  onSaved,
+}: RecipeEditorProps & { onSaved: () => void }) {
   const router = useRouter();
   const ids = useId();
   const foods = useFoods();
@@ -94,8 +114,10 @@ export function RecipeEditor({ initial, recipeId, rating, certainty, title, bann
       savedId = res.event.recipeId;
       return { events: [res.event], message: recipeId ? `Ricetta aggiornata: ${built.fields.title}.` : `Ricetta salvata: ${built.fields.title}.` };
     });
-    if (result.ok && savedId) router.push(`/app/ricette/vedi?id=${encodeURIComponent(savedId)}`);
-    else if (!result.ok) setErrors({ ...emptyErrors(), general: result.error });
+    if (result.ok && savedId) {
+      onSaved();
+      router.push(`/app/ricette/vedi?id=${encodeURIComponent(savedId)}`);
+    } else if (!result.ok) setErrors({ ...emptyErrors(), general: result.error });
   }
 
   return (

@@ -145,3 +145,36 @@ I `font-weight: 400` scritti accanto a `--font-display` sono diventati `var(--we
   per `.screen > .form` e `ui.fields`; vale anche per i campi di Spesa, Preparazioni e Qualità.
 
 - Ondata 3 (Salute, Spesa, In negozio, scontrino, Più alimenti, Nutrizione, «Da cosa è fatto»): nessuna classe nuova solo-Vivo. Le regole Vivo di `shopping.module.css` (`.disclosures`, `.lineButton:active`) stanno su classi con resa di base; il blocco «Segna» di Salute non ha regole Vivo proprie. Da `vivoScope.test.ts` è tolta la voce di `health.module.css` (`.ring`, la classe non c'è più).
+
+## Grano
+
+Chiave salvata `grano`, nome «Grano»: carta crema, verde bosco, titoli con grazie, schede e controlli pieni. È Vivo con altri colori e altri titoli, non un tema a parte:
+la radice (e ogni anteprima) porta `data-palette="vivo"` più `data-variant="grano"` (`themeAttributes` in `themes.ts`; li scrivono `applyTheme` e lo script in `<head>`).
+Così le regole `:global([data-palette="vivo"])` di tutte le schermate valgono anche in Grano senza toccare i moduli. I blocchi di Grano (`themes.css`, in fondo)
+hanno un attributo in più e stanno dopo quelli di Vivo, quindi li superano in chiaro, in scuro del dispositivo e in scuro scelto; ridefiniscono ogni variabile di colore di Vivo
+(non ne eredita nessuna) e, della forma, solo ciò che cambia. I modelli 3D leggono `data-palette`, quindi in Grano si disegnano a colori come in Vivo.
+Regola dei colori e garanzie di contrasto sono quelle di Vivo (`themes.test.ts` le verifica anche per Grano, chiaro e scuro). Più aree possono avere verdi vicini ma restano colori diversi: nello stesso livello nessun colore si ripete.
+
+| Significato | Variabile | Chiaro | Scuro |
+|---|---|---|---|
+| Carta / superficie | `--color-paper` / `--color-surface` | crema #f3ede3 / #fbf8f2 | bosco notturno #151a14 / #1e251d |
+| Inchiostro / secondario | `--color-ink` / `--color-graphite` | bruno-verde #262a20 / grigio caldo #625a4b | avorio #ece6d6 / #aca593 |
+| Area Oggi (= accento, pulsanti, barra) | `--area-today` | verde bosco #2f4a35 | #9fcfa8 |
+| Area Dispensa | `--area-pantry` | verde foglia #4b6a24 | #b4d46c |
+| Area Cattura | `--area-capture` | verde salvia scuro #2f6a62 | #6fcfc0 |
+| Area Piano | `--area-plan` | terracotta #9a4a2c | #f0a27e |
+| Area Salute | `--area-health` | melograno #8c3550 | #f19ab4 |
+| Proteine / Carboidrati / Grassi | `--nutrient-protein` / `-carbs` / `-fat` | mattone #a13d2d / grano #87590a / prugna #76407a | #f08a76 / #e9bc55 / #d3a3dc |
+| Fibre / Acqua | `--nutrient-fiber` / `--water` | foglia #3a6e22 / petrolio #1f6a80 | #93d17a / #6cc6df |
+| A posto / In scadenza / Scaduto / Stima | `--state-ok` / `-near` / `-expired` / `-estimate` | #2e6e34 / arancio bruciato #a2440c su pesca #f7dcc4 / #b3261e / #59616e | #8fd68a / #f4a35c / #ff8a7e / #aab3c0 |
+| Punto del marchio | `--brand-accent` (solo Grano) | oro del grano #ad7d1b | #e0b24a |
+
+I fondi `-tint` sono i colori stessi stemperati nella carta (verde chiaro #e1e9d8 per Oggi, ecc.). Barra del browser: carta, #f3ede3 e #151a14.
+
+Forma (solo ciò che differisce da Vivo): titoli e titoli di sezione in Fraunces (`--font-fraunces` da `next/font` in `layout.tsx`, senza preload, `display: swap`, assi SOFT e opsz; `font-variation-settings: "SOFT" 100` sul contenitore),
+peso 600, `--radius-card` 22 px, `--radius-md` 16 px, `--radius-sm` 12 px, ombra morbida e calda, selettori a pillola con la voce scelta piena nel colore dell'area (`--tab-selected-fill`, e il nuovo `--tab-selected-text`,
+che negli altri temi resta `--color-ink`), «+» della barra in verde bosco. Il testo corrente resta Instrument Sans. Il marchio non cambia forma e resta con grazie; solo il suo punto prende `--brand-accent` (in `Wordmark.module.css`, con ritorno all'accento).
+
+Non si ottiene con il solo tema (andrebbe fatto nelle schermate o nei dati): foto degli alimenti e dei piatti nelle righe e nelle schede, la banda «Hai già tutti gli ingredienti» sopra gli ingredienti di una ricetta
+(markup nuovo nel modulo della ricetta, sul fondo `--area-today-tint`), l'icona della barra in basso riempita invece che a tratto per la voce attiva, il titolo con la sottolineatura a mano di «La tua cucina, in ordine.»,
+la spiga accanto al nome nell'intestazione (il marchio ha solo il testo), la scheda «Da usare prima» su fondo pesca (oggi la scheda è bianca con la striscia di stato).

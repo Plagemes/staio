@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useId, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Location } from "@/core/ledger";
 import { checkItem, finishTrip, reconcile, startTrip, syncTrip, tripProgress, uncheckItem, type TripState } from "@/core/shopping";
@@ -32,6 +33,7 @@ import {
   compareSummary,
   finishLabel,
   missingText,
+  newTripSummary,
   NO_WAKE_LOCK_TEXT,
   putAwayDoneText,
   putAwayLabel,
@@ -190,26 +192,37 @@ function Idle({ data }: { data: ShoppingData }) {
     }
   }
 
-  const newTrip = (
-    <section className={ui.section} aria-label="Nuova spesa">
-      <SectionHeader label="Nuova spesa" />
-      <div className={styles.trip}>
-        {listCount === 0 ? <p className={ui.hint}>La lista è vuota: puoi aggiungere le voci mentre giri.</p> : null}
-        <StorePicker stores={view.book.stores} value={store} onChange={setStore} />
-        <div>
-          <Button variant={rows.length > 0 ? "outline" : "primary"} onClick={() => void start()}>
-            Inizia la spesa
-          </Button>
-        </div>
+  const newTripBody = (
+    <div className={styles.trip}>
+      {listCount === 0 ? <p className={ui.hint}>La lista è vuota: puoi aggiungere le voci mentre giri.</p> : null}
+      <StorePicker stores={view.book.stores} value={store} onChange={setStore} />
+      <div>
+        <Button variant={rows.length > 0 ? "outline" : "primary"} onClick={() => void start()}>
+          Inizia la spesa
+        </Button>
       </div>
-    </section>
+    </div>
   );
+  // finché c'è qualcosa da mettere in dispensa, quello è il lavoro di adesso: «Nuova spesa» sta richiusa sotto
+  const newTrip =
+    rows.length > 0 ? (
+      <Disclosure title="Nuova spesa" summary={newTripSummary(listCount)}>
+        {newTripBody}
+      </Disclosure>
+    ) : (
+      <section className={ui.section} aria-label="Nuova spesa">
+        <SectionHeader label="Nuova spesa" />
+        {newTripBody}
+      </section>
+    );
 
   return (
     <div className={ui.screen}>
       <div className={ui.head}>
         <h1 className={ui.title}>In negozio</h1>
-        <Label>Anche senza rete</Label>
+        <Link href="/app/spesa" className={ui.textLink}>
+          Torna alla lista
+        </Link>
       </div>
       {showLast && last ? (
         <LastTrip
@@ -541,6 +554,8 @@ function LastTrip({ trip, pantry, rows: base, already, force, today, onForce, on
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  // si è provato a salvare con un dato che manca: sotto il campo si dice che cosa scrivere
+  const [asked, setAsked] = useState(false);
   const saving = useRef(false);
 
   const rows = base.map((r) => (edits[r.id] ? { ...r, ...edits[r.id] } : r));
@@ -561,7 +576,18 @@ function LastTrip({ trip, pantry, rows: base, already, force, today, onForce, on
 
   async function submit() {
     if (saving.current || rows.length === 0) return;
-    if (blocking !== null) return;
+    if (blocking !== null) {
+      // la riga a cui manca un dato si apre, viene in vista e il fuoco va sul suo campo
+      const first = missing.find((m) => m.missing.length > 0);
+      if (first) {
+        setAsked(true);
+        setToggled((t) => ({ ...t, [first.row.id]: true }));
+        const field = document.getElementById(`${ids}-${first.row.id}-${first.missing.includes("quantity") ? "q" : "c"}`);
+        field?.closest("li")?.scrollIntoView({ block: "center" });
+        field?.focus({ preventScroll: true });
+      }
+      return;
+    }
     saving.current = true;
     setBusy(true);
     try {
@@ -685,6 +711,7 @@ function LastTrip({ trip, pantry, rows: base, already, force, today, onForce, on
                               placeholder="500 g"
                               aria-invalid={lacks.includes("quantity") || undefined}
                             />
+                            {asked && lacks.includes("quantity") ? <p className={ui.error}>Scrivi quanto, per esempio 500 g.</p> : null}
                           </div>
                           <div className={ui.field}>
                             <label className={ui.fieldLabel} htmlFor={`${fid}-c`}>

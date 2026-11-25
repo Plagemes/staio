@@ -1,6 +1,6 @@
 // La lista della spesa pronta per la schermata: voci con le ragioni scritte, costi stimati solo dove c'è un prezzo
 // osservato, confronto tra negozi, tetto di spesa e giorno consigliato. Logica pura.
-import type { PantryState, Unit } from "@/core/ledger";
+import type { Lot, PantryState, Unit } from "@/core/ledger";
 import {
   applyBudget,
   buildPriceBook,
@@ -29,6 +29,7 @@ import {
 import { buildPriceHistories, type PriceHistoryResult } from "@/core/prices";
 import { formatQuantity } from "@/core/units";
 import { formatPrice } from "../format";
+import { normalizeSearch } from "../pantry/filter";
 import { dayHeading, whenText } from "../plan/dates";
 import { isDismissed, manualIdsOf } from "./decisions";
 import type { ManualItem } from "./manual";
@@ -103,9 +104,55 @@ export interface ShoppingView {
   suggestions: MinimumSuggestion[];
 }
 
-function stockTextOf(item: ListItem): string {
+/** Un alimento in casa con un nome vicino a quello della voce: ciò che si legge, mai ciò che si conta. */
+export interface NearFood {
+  name: string;
+  value: number;
+  unit: Unit;
+}
+
+/** Quanti alimenti vicini si nominano al massimo. */
+const NEAR_FOODS_MAX = 2;
+
+const wordsOf = (text: string): string[] => normalizeSearch(text).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+
+/**
+ * Gli alimenti in casa il cui nome contiene, a parole intere, tutte le parole del nome della voce («Latte» trova «Latte
+ * intero» e «Cioccolato al latte», non «Lattuga»). Quelli con lo stesso nome della voce sono già contati nella sua
+ * scorta e non entrano. Al massimo due, in ordine di scadenza; dello stesso alimento si somma ciò che resta.
+ */
+export function nearFoods(pantry: PantryState, item: Pick<ListItem, "key" | "name">, today: string): NearFood[] {
+  const wanted = wordsOf(item.name);
+  if (wanted.length === 0) return [];
+  const found = new Map<string, NearFood & { expiry: string }>();
+  for (const lot of pantry.lots as readonly Lot[]) {
+    if (lot.status !== "active" || !(lot.remaining > 0)) continue;
+    if (lot.expiry && lot.expiry.kind === "use_by" && lot.expiry.date < today) continue;
+    if (normalizeName(lot.productRef) === item.key) continue;
+    const words = new Set(wordsOf(lot.productRef));
+    if (!wanted.every((w) => words.has(w))) continue;
+    const id = `${normalizeSearch(lot.productRef)}|${lot.unit}`;
+    const expiry = lot.expiry?.date ?? "9999-12-31";
+    const hit = found.get(id);
+    if (hit) {
+      hit.value = Math.round((hit.value + lot.remaining) * 1e9) / 1e9;
+      if (expiry < hit.expiry) hit.expiry = expiry;
+    } else found.set(id, { name: lot.productRef.trim(), value: lot.remaining, unit: lot.unit, expiry });
+  }
+  return [...found.values()]
+    .sort((a, b) => (a.expiry < b.expiry ? -1 : a.expiry > b.expiry ? 1 : a.name.localeCompare(b.name)))
+    .slice(0, NEAR_FOODS_MAX)
+    .map(({ name, value, unit }) => ({ name, value, unit }));
+}
+
+/** Senza scorta esatta ma con alimenti dal nome vicino lo dice; sono solo parole: la quantità da comprare non cambia. */
+function stockTextOf(item: ListItem, near: readonly NearFood[] = []): string {
   const parts: string[] = [];
-  parts.push(item.stock > 0 ? `In casa: ${formatQuantity({ value: item.stock, unit: item.unit })}` : "Non ne hai in casa");
+  if (item.stock > 0) parts.push(`In casa: ${formatQuantity({ value: item.stock, unit: item.unit })}`);
+  else if (near.length > 0) {
+    const list = near.map((n) => `${n.name.toLowerCase()}, ${formatQuantity({ value: n.value, unit: n.unit })}`).join("; ");
+    parts.push(`In casa hai: ${list}`);
+  } else parts.push("Non ne hai in casa");
   for (const o of item.stockInOtherUnits) parts.push(`${formatQuantity({ value: o.quantity, unit: o.unit })} in un'altra unità (non confrontabile)`);
   return parts.join(" · ");
 }
@@ -152,7 +199,7 @@ export function buildShoppingView(input: ViewInput): ShoppingView {
       manualIds,
       reasons: item.reasons.map((r) => reasonText(r, today, item.unit)),
       notes: item.notes.map((n) => noteText(n, item.unit)),
-      stockText: stockTextOf(item),
+      stockText: stockTextOf(item, nearFoods(pantry, item, today)),
       ...(note ? { forecastNote: note } : {}),
       costCents: estimate ? estimate.cents : null,
       costText: costText(estimate ? estimate.cents : null),

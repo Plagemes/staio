@@ -1,4 +1,4 @@
-import { ExpiryTag, cx, type ThemeId } from "@/design";
+import { ExpiryTag, cx, themeAttributes, type ThemeId } from "@/design";
 import styles from "./ThemePreview.module.css";
 
 const icon = {
@@ -21,12 +21,13 @@ type ThemePreviewProps = {
 
 /**
  * Piccolo esempio dell'interfaccia (titolo, una scheda con un alimento e la sua scadenza, un pulsante, la barra in basso)
- * reso con le variabili del tema indicato. data-palette e data-theme sul contenitore bastano: più anteprime convivono nella stessa pagina.
+ * reso con le variabili del tema indicato. data-palette, data-variant (Grano) e data-theme sul contenitore bastano: più anteprime convivono nella stessa pagina.
  * Solo elementi in linea e nessun elemento interattivo: può stare dentro l'etichetta di una scelta.
  */
 export function ThemePreview({ theme, mode, className }: ThemePreviewProps) {
+  const { palette, variant } = themeAttributes(theme);
   return (
-    <span className={cx(styles.preview, className)} data-palette={theme} data-theme={mode} aria-hidden="true">
+    <span className={cx(styles.preview, className)} data-palette={palette} data-variant={variant} data-theme={mode} aria-hidden="true">
       <span className={styles.body}>
         <span className={styles.title}>Oggi</span>
         <span className={styles.card}>

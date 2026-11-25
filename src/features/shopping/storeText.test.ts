@@ -15,6 +15,7 @@ import {
   compareSummary,
   finishLabel,
   missingText,
+  newTripSummary,
   putAwayDoneText,
   putAwayLabel,
   putAwayTitle,
@@ -146,5 +147,13 @@ describe("campo «Aggiungi»", () => {
   it("l'avviso è quello del «+»", () => {
     expect(addedToListText(["pane"])).toBe("Aggiunto alla lista della spesa: pane.");
     expect(addedToListText(["latte", "pane"])).toBe("Aggiunti alla lista della spesa: latte, pane.");
+  });
+});
+
+describe("«Nuova spesa» richiusa sotto le righe da mettere via", () => {
+  it("dice quanto è lunga la lista di adesso", () => {
+    expect(newTripSummary(0)).toBe("la lista è vuota");
+    expect(newTripSummary(1)).toBe("la lista ha 1 voce");
+    expect(newTripSummary(7)).toBe("la lista ha 7 voci");
   });
 });

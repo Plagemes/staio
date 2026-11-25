@@ -3,7 +3,7 @@ import { deriveDiary, mealsWithPantry, type DiaryHabit, type MealKind } from "@/
 import { purchase } from "@/core/diary/test-helpers";
 import type { AnyEvent } from "@/core/events";
 import { derivePantry, type Lot } from "@/core/ledger";
-import { buildMealEvents, buildMealFromHabit, type FreeItemInput } from "../meals";
+import { buildMealEvents, buildMealFromHabit, buildOutOfHomeMeal, type FreeItemInput } from "../meals";
 import { habitsFor, lastMealOf, mealFoodsText, usualFoods, withMealAt } from "./usual";
 
 const TODAY = "2026-11-16";
@@ -81,6 +81,17 @@ describe("usualFoods: «Di solito a cena»", () => {
     let log = [...stock];
     for (const name of ["a", "b", "c", "d", "e", "f", "g", "h"]) log = addMeal(log, "2026-11-13", "snack", null, [{ name, quantityText: "10 g" }]);
     expect(usualFoods({ ...args(log), kind: "snack", pantryNames: [] })).toHaveLength(6);
+  });
+
+  it("la stima «Fuori casa» non è un alimento: non compare tra quelli abituali", () => {
+    let log = addMeal(history(), "2026-11-13", "breakfast", null, [{ name: "Yogurt", quantityText: "1 pz" }]);
+    const out = buildOutOfHomeMeal(
+      { kind: "breakfast", size: "large", estimate: { energyKcal: 600, basis: "generic" } },
+      { now: "2026-11-14T08:00:00.000Z", deviceId: "d", idGenerator: () => `id-${++n}` },
+    );
+    log = [...log, ...out.events];
+    const foods = usualFoods({ ...args(log), kind: "breakfast", pantryNames: [] });
+    expect(foods.map((f) => f.name)).toEqual(["Yogurt"]);
   });
 
   it("niente da proporre", () => {

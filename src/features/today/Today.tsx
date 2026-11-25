@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { addDays } from "@/core/diary";
 import type { AnyEvent } from "@/core/events";
 import { DEFAULT_TIME_ZONE } from "@/core/expiry";
@@ -23,7 +23,7 @@ import { DayBriefing, MISSED_ID } from "./DayBriefing";
 import { Expiring } from "./Expiring";
 import { MissedPlanned } from "./MissedPlanned";
 import { Now } from "./Now";
-import { ENTRY_GONE_MS, ENTRY_WAIT_MS, REVEAL_MAX_DAYS_BACK, daysBefore, entryElementId, entryVerdict, locateEntry } from "./reveal";
+import { ENTRY_GONE_MS, ENTRY_WAIT_MS, REVEAL_MAX_DAYS_BACK, entryElementId, entryVerdict, locateEntry, viewedDaysBack } from "./reveal";
 import { TodayDiary } from "./TodayDiary";
 import { useBriefing } from "./useBriefing";
 import { useTodayPlan } from "./useTodayPlan";
@@ -31,15 +31,6 @@ import styles from "./Today.module.css";
 
 /** Fin dove si può tornare indietro con le frecce. */
 const MAX_DAYS_BACK = REVEAL_MAX_DAYS_BACK;
-
-/** Il giorno chiesto nell'indirizzo (`?giorno=YYYY-MM-DD`), come distanza da oggi. Fuori intervallo vale oggi. */
-function daysBackFromParam(today: string, requested: string | null): number {
-  if (!today || !requested || !/^\d{4}-\d{2}-\d{2}$/.test(requested)) return 0;
-  const diff = daysBefore(today, requested);
-  if (!Number.isFinite(diff) || diff < 0 || diff > MAX_DAYS_BACK) return 0;
-  // Un giorno che non esiste (30 febbraio) scivolerebbe sul mese dopo: vale solo se torna uguale a sé stesso
-  return addDays(today, -diff) === requested ? diff : 0;
-}
 
 /** Una riga del diario da portare in vista: `fromLink` se l'ha chiesta l'indirizzo (`?voce=`), che se non la trova lo dice. */
 interface RevealRequest {
@@ -83,6 +74,10 @@ const HIGHLIGHT_MS = 2000;
 const FADE_MS = 500;
 /** Distanza minima tra la riga e i bordi di ciò che la coprirebbe (avviso, barra in basso). */
 const REVEAL_MARGIN_PX = 16;
+/** Dopo quanto si controlla una seconda volta che la riga sia in vista (il router, tornando sulla pagina, può averla riportata in cima). */
+const REVEAL_RECHECK_MS = 400;
+/** Quanto una scelta di giorno fatta con le frecce conta come «in arrivo»: l'indirizzo la raggiunge subito dopo. */
+const DAY_NAV_SETTLE_MS = 1500;
 
 /** L'elemento della riga: `id="voce-<id>"`, altrimenti una voce libera del pasto (`voce-<id>-<posizione>`), altrimenti una riga che racconta più eventi. */
 function findEntryElement(elementId: string): HTMLElement | null {
@@ -112,12 +107,18 @@ function bottomObstruction(): number {
   return limit;
 }
 
+/** La riga sta tutta tra il bordo in alto e ciò che copre il fondo. */
+function fitsInView(el: HTMLElement): boolean {
+  const rect = el.getBoundingClientRect();
+  return rect.top >= REVEAL_MARGIN_PX && rect.bottom <= bottomObstruction() - REVEAL_MARGIN_PX;
+}
+
 /** Scorre quanto basta perché la riga stia tutta tra il bordo in alto e ciò che copre il fondo; se è già in vista non si muove. */
 function bringIntoView(el: HTMLElement): void {
+  if (fitsInView(el)) return;
   const rect = el.getBoundingClientRect();
   const top = REVEAL_MARGIN_PX;
   const bottom = bottomObstruction() - REVEAL_MARGIN_PX;
-  if (rect.top >= top && rect.bottom <= bottom) return;
   // più alta dello spazio libero, o sopra il bordo: si allinea in alto
   const delta = rect.bottom > bottom && rect.height <= bottom - top ? rect.bottom - bottom : rect.top - top;
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -153,8 +154,8 @@ export function Today() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  // null: nessuna scelta con le frecce, vale il giorno chiesto nell'indirizzo
-  const [chosenDaysBack, setDaysBack] = useState<number | null>(null);
+  // l'ultima scelta con le frecce, finché l'indirizzo non l'ha raggiunta: serve a contare giusto con tocchi in fretta
+  const dayNav = useRef<{ daysBack: number; at: number } | null>(null);
   const [waterOpen, setWaterOpen] = useState(false);
   const [waterShown, setWaterShown] = useState(0);
   const [reveal, setReveal] = useState<RevealRequest | null>(null);
@@ -210,7 +211,6 @@ export function Today() {
       setHandledEntry(openEntry);
       setEntryDay(place.found ? place.date : null);
       if (place.found) {
-        setDaysBack(daysBefore(today, place.date));
         setGone(null);
         setReveal((r) => ({ elementId: place.elementId, fromLink: true, serial: (r?.serial ?? 0) + 1 }));
       } else {
@@ -221,7 +221,8 @@ export function Today() {
   const entryGone = gone !== null;
   const askId = ask?.id ?? null;
 
-  const daysBack = chosenDaysBack ?? daysBackFromParam(today, requestedDay);
+  // il giorno è quello dell'indirizzo; la pagina resta viva tra una visita e l'altra, quindi non se ne tiene copia
+  const daysBack = viewedDaysBack({ today, requestedDay, requestedEntry, handledEntry, entryDay });
   const viewDate = today ? addDays(today, -daysBack) : "";
   const isPast = daysBack > 0;
   const todayPlan = useTodayPlan();
@@ -236,7 +237,7 @@ export function Today() {
   const briefing = useBriefing({ now, viewDate, pantry: pantry.data, log: log.data, plan: todayPlan });
 
   const goToDay = (next: number) => {
-    setDaysBack(next);
+    dayNav.current = { daysBack: next, at: Date.now() };
     setGone(null);
     // chi cambia giorno mentre una voce è attesa ha scelto dove guardare: la richiesta si chiude
     if (openEntry !== null) {
@@ -244,6 +245,19 @@ export function Today() {
       setHandledEntry(openEntry);
       setEntryDay(null);
     }
+    // l'indirizzo dice il giorno; gli altri parametri si conservano, `voce` no
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("giorno");
+    params.delete("voce");
+    if (next > 0) params.set("giorno", addDays(today, -next));
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+  /** Un giorno avanti o indietro: parte dall'ultima scelta se l'indirizzo non l'ha ancora raggiunta. */
+  const stepDay = (delta: number) => {
+    const last = dayNav.current;
+    const from = last && Date.now() - last.at < DAY_NAV_SETTLE_MS ? last.daysBack : daysBack;
+    goToDay(Math.min(MAX_DAYS_BACK, Math.max(0, from + delta)));
   };
 
   /** Apre la riga «Acqua» del diario e la porta in vista. */
@@ -299,6 +313,8 @@ export function Today() {
   // `voce` chiusa: si toglie dall'indirizzo, tenendo il resto; `giorno` segue il giorno mostrato, se la voce c'è
   useEffect(() => {
     if (requestedEntry === null || requestedEntry !== handledEntry) return;
+    // chi ha appena scelto un giorno con le frecce ha già riscritto l'indirizzo senza `voce`
+    if (dayNav.current && Date.now() - dayNav.current.at < DAY_NAV_SETTLE_MS) return;
     const params = new URLSearchParams(searchParams.toString());
     params.delete("voce");
     if (entryDay !== null && entryDay === today) params.delete("giorno");
@@ -313,8 +329,30 @@ export function Today() {
     if (!reveal) return;
     let cancelled = false;
     const timers: number[] = [];
+    const cleanups: Array<() => void> = [];
     const later = (run: () => void, ms: number) => timers.push(window.setTimeout(run, ms));
     const started = Date.now();
+
+    // Una sola seconda misura: la pagina, tornando in vista, può essere riportata in cima dal router dopo il primo
+    // scorrimento. Se nel frattempo si è scorso a mano non si tocca niente.
+    const recheck = (el: HTMLElement) => {
+      let byHand = false;
+      const touched = () => {
+        byHand = true;
+      };
+      const kinds = ["wheel", "touchmove", "keydown"] as const;
+      for (const type of kinds) window.addEventListener(type, touched, { passive: true });
+      const stop = () => {
+        for (const type of kinds) window.removeEventListener(type, touched);
+      };
+      cleanups.push(stop);
+      later(() => {
+        stop();
+        if (byHand) return;
+        const current = el.isConnected ? el : findEntryElement(reveal.elementId);
+        if (current && !fitsInView(current)) bringIntoView(current);
+      }, REVEAL_RECHECK_MS);
+    };
 
     const attempt = () => {
       if (cancelled) return;
@@ -331,6 +369,7 @@ export function Today() {
           if (cancelled) return;
           bringIntoView(el);
           highlight(el);
+          recheck(el);
         }),
       );
     };
@@ -339,6 +378,7 @@ export function Today() {
     return () => {
       cancelled = true;
       for (const t of timers) window.clearTimeout(t);
+      for (const stop of cleanups) stop();
     };
   }, [reveal]);
 
@@ -355,12 +395,12 @@ export function Today() {
                 className={styles.dayArrow}
                 aria-label="Giorno prima"
                 disabled={daysBack >= MAX_DAYS_BACK}
-                onClick={() => goToDay(daysBack + 1)}
+                onClick={() => stepDay(1)}
               >
                 ‹
               </button>
               <Label className={styles.dayLabel}>{formatDayLabel(new Date(`${viewDate}T12:00:00Z`))}</Label>
-              <button type="button" className={styles.dayArrow} aria-label="Giorno dopo" disabled={!isPast} onClick={() => goToDay(daysBack - 1)}>
+              <button type="button" className={styles.dayArrow} aria-label="Giorno dopo" disabled={!isPast} onClick={() => stepDay(-1)}>
                 ›
               </button>
               {isPast ? (

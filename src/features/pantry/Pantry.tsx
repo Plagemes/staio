@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useState } from "react";
 import { activeLots, estimatedPantryValue, type Location, type PantryState } from "@/core/ledger";
 import { appendEvents, getDeviceId, useEventLog, usePantry } from "@/data";
 import { Button, Label, PantryRow, Tabs, Value } from "@/design";
@@ -87,6 +87,19 @@ export function Pantry() {
     const timer = window.setTimeout(() => setWanted((w) => (w?.lotId === wantedId ? { ...w, waitedMs: LOT_WAIT_MS } : w)), LOT_WAIT_MS);
     return () => window.clearTimeout(timer);
   }, [wantedId]);
+
+  // La pagina resta viva tra una visita e l'altra: ciò che è solo di passaggio se ne va uscendo. Il luogo scelto resta.
+  useLayoutEffect(
+    () => () => {
+      setMissing(false);
+      setQuery("");
+      setListError(null);
+      setSelecting(false);
+      setPicked(new Set());
+      setRemoveError(null);
+    },
+    [],
+  );
 
   const stopSelecting = () => {
     setSelecting(false);

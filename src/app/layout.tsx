@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Mono, Instrument_Sans, Instrument_Serif } from "next/font/google";
+import { Fraunces, IBM_Plex_Mono, Instrument_Sans, Instrument_Serif } from "next/font/google";
 import { APP_NAME, APP_TAGLINE } from "@/config";
 import { buildThemeScript } from "@/design/themeScript";
 import "@/design/tokens.css";
@@ -15,6 +15,16 @@ const instrumentSerif = Instrument_Serif({
 const instrumentSans = Instrument_Sans({
   variable: "--font-instrument-sans",
   subsets: ["latin", "latin-ext"],
+});
+
+// Titoli del tema Grano. Senza preload e con swap: il file si scarica solo quando un testo lo usa davvero (cioè con Grano scelto),
+// e fino ad allora vale il carattere di riserva con le stesse misure. Gli assi SOFT e opsz servono alla resa morbida e corposa.
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin", "latin-ext"],
+  axes: ["SOFT", "opsz"],
+  display: "swap",
+  preload: false,
 });
 
 const plexMono = IBM_Plex_Mono({
@@ -53,7 +63,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="it"
-      className={`${instrumentSerif.variable} ${instrumentSans.variable} ${plexMono.variable}`}
+      className={`${instrumentSerif.variable} ${instrumentSans.variable} ${fraunces.variable} ${plexMono.variable}`}
       suppressHydrationWarning
     >
       <head>

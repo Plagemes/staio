@@ -40,6 +40,7 @@ export {
   isThemeMode,
   normalizeChoice,
   resolveMode,
+  themeAttributes,
   themeColorOf,
   type ThemeChoice,
   type ThemeId,

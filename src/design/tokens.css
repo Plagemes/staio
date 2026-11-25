@@ -105,6 +105,7 @@
   --tab-indicator: 2px;
   --tab-selected-fill: transparent;
   --tab-selected-shadow: none;
+  --tab-selected-text: var(--color-ink);
 
   --nav-fill: var(--color-paper);
   --nav-rule-width: var(--rule-width);

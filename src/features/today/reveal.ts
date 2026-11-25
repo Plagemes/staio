@@ -129,3 +129,29 @@ export function entryVerdict(input: {
 export function daysBefore(today: string, date: string): number {
   return Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${date}T12:00:00Z`)) / 86_400_000);
 }
+
+/** Il giorno chiesto nell'indirizzo (`?giorno=YYYY-MM-DD`), come distanza da oggi. Un giorno che non c'è o fuori intervallo vale oggi. */
+export function daysBackFromParam(today: string, requested: string | null): number {
+  if (!today || !requested || !/^\d{4}-\d{2}-\d{2}$/.test(requested)) return 0;
+  const diff = daysBefore(today, requested);
+  if (!Number.isFinite(diff) || diff < 0 || diff > REVEAL_MAX_DAYS_BACK) return 0;
+  // Un giorno che non esiste (30 febbraio) scivolerebbe sul mese dopo: vale solo se torna uguale a sé stesso
+  return addDays(today, -diff) === requested ? diff : 0;
+}
+
+/**
+ * Quanti giorni indietro mostra Oggi: l'indirizzo è l'unica fonte. Un'eccezione, solo finché l'indirizzo porta ancora
+ * la `voce` già trovata (`handledEntry`): vale il giorno di quella voce (`entryDay`), che è lo stesso che l'indirizzo
+ * dirà appena la `voce` sarà tolta. Una voce che non c'è non cambia il giorno.
+ */
+export function viewedDaysBack(input: {
+  today: string;
+  requestedDay: string | null;
+  requestedEntry: string | null;
+  handledEntry: string | null;
+  entryDay: string | null;
+}): number {
+  const { today, requestedDay, requestedEntry, handledEntry, entryDay } = input;
+  if (requestedEntry !== null && requestedEntry === handledEntry && entryDay !== null) return daysBackFromParam(today, entryDay);
+  return daysBackFromParam(today, requestedDay);
+}

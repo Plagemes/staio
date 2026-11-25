@@ -1,4 +1,4 @@
-import { DEFAULT_THEME, normalizeChoice, resolveMode, themeColorOf, type ThemeChoice } from "./themes";
+import { DEFAULT_THEME, normalizeChoice, resolveMode, themeAttributes, themeColorOf, type ThemeChoice } from "./themes";
 
 /**
  * Copia sincrona della scelta, leggibile dallo script iniziale prima del primo disegno. La fonte resta l'archivio (`@/data`).
@@ -75,8 +75,11 @@ let revision = 0;
  */
 export function applyTheme(choice: ThemeChoice): "light" | "dark" {
   const root = document.documentElement;
+  const { palette, variant } = themeAttributes(choice.theme);
   if (choice.theme === DEFAULT_THEME) root.removeAttribute("data-palette");
-  else root.setAttribute("data-palette", choice.theme);
+  else root.setAttribute("data-palette", palette);
+  if (variant && choice.theme !== DEFAULT_THEME) root.setAttribute("data-variant", variant);
+  else root.removeAttribute("data-variant");
   if (choice.mode === "device") root.removeAttribute("data-theme");
   else root.setAttribute("data-theme", choice.mode);
 

@@ -14,6 +14,7 @@ import { Button, SectionHeader, cx } from "@/design";
 import { hasUsableKey } from "../ai/settings";
 import { useAiSettings } from "../ai/useAiSettings";
 import { ActionBar, MoreActions, QuantityPicker, type ActionItem, type QuantityValue } from "../common";
+import { useFormEpoch } from "../common/freshForm";
 import { dayOf, formatTime } from "../format";
 import { useSetting } from "../localSettings";
 import { evaluateLots } from "../lots";
@@ -124,7 +125,18 @@ function useWriteLock(): { take: () => boolean; release: () => void } {
 const SAVE_FAILED = "Non sono riuscito a salvare. Riprova.";
 const STORAGE_FAILED = "Non sono riuscito a salvare sul telefono. Riprova.";
 
+/**
+ * La pagina resta viva tra una visita e l'altra: il modulo riparte vuoto a ogni arrivo da un collegamento, quando
+ * cambiano i parametri (`?momento=`, `?giorno=`, `?pasto=`, `?lotto=`) e dopo ogni registrazione riuscita; col tasto
+ * indietro si ritrova il piatto lasciato a metà.
+ */
 export function Meal() {
+  const search = useSearchParams();
+  const { epoch, renew } = useFormEpoch(search.toString());
+  return <MealForm key={epoch} onSaved={renew} />;
+}
+
+function MealForm({ onSaved }: { onSaved: () => void }) {
   const pantry = usePantry();
   const diary = useDiary();
   const log = useEventLog();
@@ -299,6 +311,7 @@ export function Meal() {
       return false;
     }
     notice.show({ message, undo: events });
+    onSaved();
     router.push(todayEntryHref(back, voce));
     return true;
   }

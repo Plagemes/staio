@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { emptyRejections, emptyStockConfig, setMinimum } from "@/core/shopping";
 import { day, ledger, milkLedger } from "@/core/shopping/test-helpers";
 import { confirm, dismiss, forgetRejections, isDismissed, prune, reject, restore, setQuantity } from "./decisions";
-import { buildShoppingView, type ViewInput } from "./view";
+import { buildShoppingView, nearFoods, type ViewInput } from "./view";
 import { emptyDecisions } from "./settings";
 
 const today = day(28);
@@ -109,5 +109,88 @@ describe("vista della lista", () => {
     expect(p.quantities).toEqual({ "a|g": 100 });
     expect(p.dismissed).toEqual({ "c|g": today });
     expect(prune(d, new Set(), day(40)).dismissed).toEqual({});
+  });
+});
+
+describe("alimenti in casa dal nome vicino", () => {
+  const manualMilk = { id: "m1", product: "Latte", quantity: { value: 1000, unit: "ml" as const }, addedAt: `${today}T08:00:00.000Z` };
+
+  function textFor(l: ReturnType<typeof ledger>, name = "Latte"): string | undefined {
+    const v = buildShoppingView(input({ pantry: l.pantry(), manual: [{ ...manualMilk, product: name }] }));
+    return v.items.find((i) => i.name.toLowerCase() === name.toLowerCase())?.stockText;
+  }
+
+  it("«Latte» in lista e «Latte intero» in casa: lo dice, e dice quanto", () => {
+    const l = ledger();
+    l.buy(20, "Latte intero", 1000, "ml");
+    expect(textFor(l)).toBe("In casa hai: latte intero, 1 l");
+  });
+
+  it("con la scorta esatta resta «In casa: …» e i vicini non si nominano", () => {
+    const l = ledger();
+    l.buy(20, "Latte", 1000, "ml");
+    l.buy(20, "Latte intero", 500, "ml");
+    expect(textFor(l)).toBe("In casa: 1 l");
+  });
+
+  it("senza niente di vicino: «Non ne hai in casa»", () => {
+    const l = ledger();
+    l.buy(20, "Lattuga", 300, "g");
+    l.buy(20, "Pane", 500, "g");
+    expect(textFor(l)).toBe("Non ne hai in casa");
+  });
+
+  it("al massimo due, in ordine di scadenza", () => {
+    const l = ledger();
+    l.buy(20, "Latte di soia", 500, "ml", { expiryDay: 60 });
+    l.buy(20, "Latte intero", 1000, "ml", { expiryDay: 30 });
+    l.buy(20, "Latte di avena", 750, "ml", { expiryDay: 90 });
+    expect(textFor(l)).toBe("In casa hai: latte intero, 1 l; latte di soia, 0,5 l");
+  });
+
+  it("la quantità proposta non cambia", () => {
+    const l = ledger();
+    const without = buildShoppingView(input({ pantry: l.pantry(), manual: [manualMilk] })).items.find((i) => i.name === "Latte");
+    l.buy(20, "Latte intero", 1000, "ml");
+    const withNear = buildShoppingView(input({ pantry: l.pantry(), manual: [manualMilk] })).items.find((i) => i.name === "Latte");
+    expect(withNear?.quantity).toBe(without?.quantity);
+    expect(withNear?.reasons).toEqual(without?.reasons);
+  });
+
+  describe("nearFoods", () => {
+    const key = (name: string) => name.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+    const near = (l: ReturnType<typeof ledger>, name: string) => nearFoods(l.pantry(), { key: key(name), name }, today).map((n) => n.name);
+
+    it("maiuscole e accenti non contano", () => {
+      const l = ledger();
+      l.buy(20, "CAFFÈ in grani", 250, "g");
+      expect(near(l, "caffe")).toEqual(["CAFFÈ in grani"]);
+    });
+
+    it("parole intere: «latte» trova «cioccolato al latte», «pane» non trova «panettone»", () => {
+      const l = ledger();
+      l.buy(20, "Cioccolato al latte", 100, "g");
+      l.buy(20, "Panettone", 750, "g");
+      l.buy(20, "Pane integrale", 400, "g");
+      expect(near(l, "Latte")).toEqual(["Cioccolato al latte"]);
+      expect(near(l, "Pane")).toEqual(["Pane integrale"]);
+    });
+
+    it("tutte le parole della voce devono esserci, in qualunque ordine", () => {
+      const l = ledger();
+      l.buy(20, "Latte intero fresco", 1000, "ml");
+      l.buy(20, "Latte di soia", 500, "ml");
+      expect(near(l, "Fresco latte")).toEqual(["Latte intero fresco"]);
+    });
+
+    it("l'alimento finito o scaduto non conta; lo stesso alimento in più confezioni si somma", () => {
+      const l = ledger();
+      const first = l.buy(20, "Latte intero", 1000, "ml");
+      l.use(21, first, 1000, "ml");
+      l.buy(22, "Latte di soia", 500, "ml");
+      l.buy(22, "Latte di soia", 500, "ml");
+      const found = nearFoods(l.pantry(), { key: "latte", name: "Latte" }, today);
+      expect(found).toEqual([{ name: "Latte di soia", value: 1000, unit: "ml" }]);
+    });
   });
 });

@@ -1,12 +1,16 @@
 /** Elenco dei temi e scelta chiaro/scuro. I colori stanno solo nei CSS (tokens.css, themes.css); qui solo ciò che serve prima che il CSS sia disponibile. */
 
-export type ThemeId = "vivo" | "registro" | "bottega" | "ardesia" | "netto";
+export type ThemeId = "vivo" | "grano" | "registro" | "bottega" | "ardesia" | "netto";
 export type ThemeMode = "light" | "dark" | "device";
 
 export interface ThemeInfo {
   id: ThemeId;
   name: string;
   description: string;
+  /** Valore di `data-palette` sulla radice. Grano ha la forma di Vivo e porta "vivo", distinguendosi con `variant`. */
+  palette: string;
+  /** Valore di `data-variant`, se il tema è una variante di un altro (Grano su Vivo). */
+  variant?: string;
   /** Colore della carta (chiaro, scuro) per la barra del browser: la meta tag non legge le variabili CSS. Verificato contro il CSS dal test. */
   themeColor: readonly [light: string, dark: string];
 }
@@ -14,13 +18,14 @@ export interface ThemeInfo {
 export const DEFAULT_THEME: ThemeId = "registro";
 export const DEFAULT_MODE: ThemeMode = "device";
 
-/** In ordine di presentazione: Vivo e Registro per primi. Il predefinito resta Registro (DEFAULT_THEME). */
+/** In ordine di presentazione: Vivo, Registro e Grano per primi. Il predefinito resta Registro (DEFAULT_THEME). */
 export const THEMES: readonly ThemeInfo[] = [
-  { id: "vivo", name: "Vivo", description: "Colori pieni con un significato, schede e controlli pieni.", themeColor: ["#f2f2f7", "#000000"] },
-  { id: "registro", name: "Registro", description: "Carta avorio, inchiostro, verde bosco.", themeColor: ["#f6f5f1", "#101214"] },
-  { id: "bottega", name: "Bottega", description: "Carta calda, inchiostro bruno, ruggine.", themeColor: ["#f5efe4", "#17120e"] },
-  { id: "ardesia", name: "Ardesia", description: "Carta fredda, inchiostro ardesia, blu notte.", themeColor: ["#f1f3f5", "#0f1318"] },
-  { id: "netto", name: "Netto", description: "Bianco e nero puri, alto contrasto.", themeColor: ["#ffffff", "#000000"] },
+  { id: "vivo", name: "Vivo", description: "Colori pieni con un significato, schede e controlli pieni.", palette: "vivo", themeColor: ["#f2f2f7", "#000000"] },
+  { id: "registro", name: "Registro", description: "Carta avorio, inchiostro, verde bosco.", palette: "registro", themeColor: ["#f6f5f1", "#101214"] },
+  { id: "grano", name: "Grano", description: "Carta crema, verde bosco, titoli con grazie.", palette: "vivo", variant: "grano", themeColor: ["#f3ede3", "#151a14"] },
+  { id: "bottega", name: "Bottega", description: "Carta calda, inchiostro bruno, ruggine.", palette: "bottega", themeColor: ["#f5efe4", "#17120e"] },
+  { id: "ardesia", name: "Ardesia", description: "Carta fredda, inchiostro ardesia, blu notte.", palette: "ardesia", themeColor: ["#f1f3f5", "#0f1318"] },
+  { id: "netto", name: "Netto", description: "Bianco e nero puri, alto contrasto.", palette: "netto", themeColor: ["#ffffff", "#000000"] },
 ];
 
 export const MODES: readonly { id: ThemeMode; name: string }[] = [
@@ -51,6 +56,12 @@ export function normalizeChoice(v: unknown): ThemeChoice {
 
 export const resolveMode = (mode: ThemeMode, systemDark: boolean): "light" | "dark" =>
   mode === "device" ? (systemDark ? "dark" : "light") : mode;
+
+/** Attributi `data-palette` e `data-variant` da mettere su un contenitore per vedere il tema (la radice, o un'anteprima). */
+export function themeAttributes(theme: ThemeId): { palette: string; variant?: string } {
+  const info = THEMES.find((t) => t.id === theme) ?? THEMES.find((t) => t.id === DEFAULT_THEME)!;
+  return { palette: info.palette, variant: info.variant };
+}
 
 export function themeColorOf(theme: ThemeId, resolved: "light" | "dark"): string {
   const info = THEMES.find((t) => t.id === theme) ?? THEMES.find((t) => t.id === DEFAULT_THEME)!;

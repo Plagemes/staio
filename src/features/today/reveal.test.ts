@@ -3,7 +3,7 @@ import { changeConsumeQuantity, deriveDiary, familyConsumes } from "@/core/diary
 import { consume, declaration, drink, meal, purchase, voidOf, water } from "@/core/diary/test-helpers";
 import type { AnyEvent } from "@/core/events";
 import { derivePantry, type LedgerEvent } from "@/core/ledger";
-import { ENTRY_GONE_MS, ENTRY_WAIT_MS, daysBefore, entryVerdict, locateEntry } from "./reveal";
+import { ENTRY_GONE_MS, ENTRY_WAIT_MS, daysBackFromParam, daysBefore, entryVerdict, locateEntry, viewedDaysBack } from "./reveal";
 
 const TZ = "Europe/Rome";
 const TODAY = "2026-11-16";
@@ -165,5 +165,67 @@ describe("entryVerdict: che cosa fare di `?voce=` quando la voce non c'è, o non
   it("una volta detto, il messaggio non torna «mostra» da solo: lo chiude il registro che cambia", () => {
     expect(entryVerdict({ found: true, waitedMs: 3000, said: { forMs: 500, logChanged: true, dayChanged: false } })).toBe("over");
     expect(entryVerdict({ found: true, waitedMs: 3000, said: { forMs: 500, logChanged: false, dayChanged: false } })).toBe("gone");
+  });
+});
+
+describe("daysBackFromParam: il giorno chiesto nell'indirizzo", () => {
+  it("un giorno passato, oggi, nessun parametro", () => {
+    expect(daysBackFromParam(TODAY, "2026-11-15")).toBe(1);
+    expect(daysBackFromParam(TODAY, "2026-11-16")).toBe(0);
+    expect(daysBackFromParam(TODAY, null)).toBe(0);
+    expect(daysBackFromParam("", "2026-11-15")).toBe(0);
+  });
+
+  it("un giorno che non c'è, nel futuro, non scritto bene o a più di 60 giorni fa vale oggi", () => {
+    expect(daysBackFromParam(TODAY, "2026-02-30")).toBe(0);
+    expect(daysBackFromParam(TODAY, "2026-11-17")).toBe(0);
+    expect(daysBackFromParam(TODAY, "16-11-2026")).toBe(0);
+    expect(daysBackFromParam(TODAY, "2026-09-16")).toBe(0);
+  });
+
+  it("il limite: 60 giorni fa sì, 61 no", () => {
+    expect(daysBackFromParam(TODAY, "2026-09-17")).toBe(60);
+    expect(daysBackFromParam(TODAY, "2026-09-16")).toBe(0);
+  });
+});
+
+describe("viewedDaysBack: Oggi segue l'indirizzo", () => {
+  const base = { today: TODAY, requestedDay: null, requestedEntry: null, handledEntry: null, entryDay: null };
+
+  it("senza `voce` conta solo `giorno`, qualunque cosa sia successa prima", () => {
+    expect(viewedDaysBack({ ...base, requestedDay: "2026-11-15" })).toBe(1);
+    expect(viewedDaysBack({ ...base, requestedDay: "2026-11-17" })).toBe(0);
+    // un collegamento a un giorno dopo aver guardato un'altra voce
+    expect(viewedDaysBack({ ...base, requestedDay: "2026-11-10", entryDay: "2026-11-15" })).toBe(6);
+    expect(viewedDaysBack(base)).toBe(0);
+  });
+
+  it("`giorno` non valido o fuori intervallo: oggi", () => {
+    expect(viewedDaysBack({ ...base, requestedDay: "2026-02-30" })).toBe(0);
+    expect(viewedDaysBack({ ...base, requestedDay: "2026-01-01" })).toBe(0);
+  });
+
+  it("con `voce` trovata, finché l'indirizzo la porta: il giorno della voce, non quello chiesto", () => {
+    const arrived = { ...base, requestedDay: "2026-11-10", requestedEntry: "e1", handledEntry: "e1", entryDay: "2026-11-15" };
+    expect(viewedDaysBack(arrived)).toBe(1);
+    // una voce di oggi, con un `giorno` vecchio nell'indirizzo
+    expect(viewedDaysBack({ ...arrived, entryDay: TODAY })).toBe(0);
+  });
+
+  it("tolta la `voce`, l'indirizzo dice lo stesso giorno: nessun salto", () => {
+    const before = viewedDaysBack({ ...base, requestedDay: null, requestedEntry: "e1", handledEntry: "e1", entryDay: "2026-11-15" });
+    const after = viewedDaysBack({ ...base, requestedDay: "2026-11-15", requestedEntry: null, handledEntry: null, entryDay: "2026-11-15" });
+    expect(before).toBe(1);
+    expect(after).toBe(1);
+  });
+
+  it("la `voce` che non c'è: il giorno resta quello dell'indirizzo", () => {
+    expect(viewedDaysBack({ ...base, requestedDay: "2026-11-14", requestedEntry: "zzz", handledEntry: "zzz", entryDay: null })).toBe(2);
+    // ancora in attesa: nemmeno allora cambia
+    expect(viewedDaysBack({ ...base, requestedDay: "2026-11-14", requestedEntry: "zzz", handledEntry: null, entryDay: null })).toBe(2);
+  });
+
+  it("un'altra `voce` ancora da cercare non usa il giorno della precedente", () => {
+    expect(viewedDaysBack({ ...base, requestedDay: "2026-11-14", requestedEntry: "e2", handledEntry: "e1", entryDay: "2026-11-15" })).toBe(2);
   });
 });

@@ -59,6 +59,7 @@ Il progetto è in costruzione. Questa tabella dice cosa c'è davvero.
 | Redesign funzionale, ondate 1, 2 e 3 di 5: Oggi, scheda dell'alimento, Dispensa con ricerca, aggiunta a mano, scheda del codice; l'ondata 2 aggiunge il «+» al centro della barra con il foglio «Aggiungi» e la ricerca, il diario di Oggi con voci toccabili, «Ultime azioni» con «Annulla» e «Rifai», «Registra pasto» rifatta con i pasti abituali, «Fuori casa» in tre taglie; l'ondata 3 aggiunge la lettura condivisa dei dati, Salute in una schermata (si segna in due tocchi, si guarda l'andamento), la lista della spesa con il campo in cima e «In negozio» con la lista viva e «Metti in dispensa», lo scontrino con più foto e revisione delle sole righe dubbie, «Più alimenti» e «Da cosa è fatto» per i nutrienti ([progetto](docs/REDESIGN.md)) | Fatto, con revisione indipendente; da provare sui telefoni |
 | Sincronizzazione con file e con Drive | Scritto; Drive in attesa delle credenziali |
 | Tema Vivo a colori, modelli 3D a colori | In costruzione |
+| Tema Grano (forma di Vivo, carta crema, verde bosco, titoli con grazie), scelta in Aspetto | Prima versione; da guardare a schermo |
 
 ## Com'è
 

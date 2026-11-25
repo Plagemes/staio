@@ -31,5 +31,5 @@
   background: var(--tab-selected-fill);
   box-shadow: var(--tab-selected-shadow);
   font-weight: 600;
-  color: var(--color-ink);
+  color: var(--tab-selected-text);
 }

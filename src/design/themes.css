@@ -463,3 +463,199 @@
   --area-current: var(--area-health);
   --area-current-tint: var(--area-health-tint);
 }
+
+
+/* Grano: la forma di Vivo (schede e controlli pieni) con carta crema, verde bosco e titoli con grazie. Non è una palette a sé:
+   la radice porta data-palette="vivo" e data-variant="grano", così le regole di ogni schermata scritte per Vivo valgono anche qui.
+   Questi blocchi vengono DOPO quelli di Vivo e hanno un attributo in più, quindi li superano (chiaro, scuro del dispositivo, scuro scelto).
+   Mappa dei colori in VIVO.md, sezione «Grano». */
+[data-palette="vivo"][data-variant="grano"] {
+  color-scheme: light;
+
+  --color-paper: #f3ede3;
+  --color-surface: #fbf8f2;
+  --color-ink: #262a20;
+  --color-graphite: #625a4b;
+  --color-rule: #e3dccd;
+  --color-rule-strong: #d2c9b4;
+  --color-control-border: #7f7665;
+  --color-accent: #2f4a35;
+  --color-signal: #b3261e;
+  --color-ochre: #a2440c;
+  --color-on-ink: #fbf8f2;
+  --color-bar-track: #e6dfd0;
+  --color-bar-fill: #4b6a24;
+  --color-focus: #2f4a35;
+  --color-fill: #e8e0d0;
+  --color-raised: #fffdf9;
+  --color-on-fill: #fbf8f2;
+  --area-today: #2f4a35;
+  --area-today-tint: #e1e9d8;
+  --area-pantry: #4b6a24;
+  --area-pantry-tint: #e6ecd2;
+  --area-capture: #2f6a62;
+  --area-capture-tint: #dcebe6;
+  --area-plan: #9a4a2c;
+  --area-plan-tint: #f4e0d3;
+  --area-health: #8c3550;
+  --area-health-tint: #f3dfe3;
+  --nutrient-protein: #a13d2d;
+  --nutrient-protein-tint: #f5e0d8;
+  --nutrient-carbs: #87590a;
+  --nutrient-carbs-tint: #f3e8cd;
+  --nutrient-fat: #76407a;
+  --nutrient-fat-tint: #eddff0;
+  --nutrient-fiber: #3a6e22;
+  --nutrient-fiber-tint: #e2ecd5;
+  --water: #1f6a80;
+  --water-tint: #d9eaee;
+  --state-ok: #2e6e34;
+  --state-ok-tint: #e0ecd8;
+  --state-near: #a2440c;
+  --state-near-tint: #f7dcc4;
+  --state-expired: #b3261e;
+  --state-expired-tint: #f6dcd8;
+  --state-estimate: #59616e;
+  --state-estimate-tint: #e6e6e1;
+  --brand-accent: #ad7d1b;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-palette="vivo"][data-variant="grano"]:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --color-paper: #151a14;
+    --color-surface: #1e251d;
+    --color-ink: #ece6d6;
+    --color-graphite: #aca593;
+    --color-rule: #2e372b;
+    --color-rule-strong: #3f4a3b;
+    --color-control-border: #7d8271;
+    --color-accent: #9fcfa8;
+    --color-signal: #ff8a7e;
+    --color-ochre: #f4a35c;
+    --color-on-ink: #151a14;
+    --color-bar-track: #2a3228;
+    --color-bar-fill: #b4d46c;
+    --color-focus: #9fcfa8;
+    --color-fill: #283026;
+    --color-raised: #313b2e;
+    --color-on-fill: #151a14;
+    --area-today: #9fcfa8;
+    --area-today-tint: #26382a;
+    --area-pantry: #b4d46c;
+    --area-pantry-tint: #2f3a1f;
+    --area-capture: #6fcfc0;
+    --area-capture-tint: #1f3a36;
+    --area-plan: #f0a27e;
+    --area-plan-tint: #42291f;
+    --area-health: #f19ab4;
+    --area-health-tint: #42262f;
+    --nutrient-protein: #f08a76;
+    --nutrient-protein-tint: #42261f;
+    --nutrient-carbs: #e9bc55;
+    --nutrient-carbs-tint: #3b3015;
+    --nutrient-fat: #d3a3dc;
+    --nutrient-fat-tint: #392640;
+    --nutrient-fiber: #93d17a;
+    --nutrient-fiber-tint: #273a1f;
+    --water: #6cc6df;
+    --water-tint: #1d3640;
+    --state-ok: #8fd68a;
+    --state-ok-tint: #25391f;
+    --state-near: #f4a35c;
+    --state-near-tint: #442c18;
+    --state-expired: #ff8a7e;
+    --state-expired-tint: #472622;
+    --state-estimate: #aab3c0;
+    --state-estimate-tint: #2e322f;
+    --brand-accent: #e0b24a;
+  }
+}
+
+[data-palette="vivo"][data-variant="grano"][data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-paper: #151a14;
+  --color-surface: #1e251d;
+  --color-ink: #ece6d6;
+  --color-graphite: #aca593;
+  --color-rule: #2e372b;
+  --color-rule-strong: #3f4a3b;
+  --color-control-border: #7d8271;
+  --color-accent: #9fcfa8;
+  --color-signal: #ff8a7e;
+  --color-ochre: #f4a35c;
+  --color-on-ink: #151a14;
+  --color-bar-track: #2a3228;
+  --color-bar-fill: #b4d46c;
+  --color-focus: #9fcfa8;
+  --color-fill: #283026;
+  --color-raised: #313b2e;
+  --color-on-fill: #151a14;
+  --area-today: #9fcfa8;
+  --area-today-tint: #26382a;
+  --area-pantry: #b4d46c;
+  --area-pantry-tint: #2f3a1f;
+  --area-capture: #6fcfc0;
+  --area-capture-tint: #1f3a36;
+  --area-plan: #f0a27e;
+  --area-plan-tint: #42291f;
+  --area-health: #f19ab4;
+  --area-health-tint: #42262f;
+  --nutrient-protein: #f08a76;
+  --nutrient-protein-tint: #42261f;
+  --nutrient-carbs: #e9bc55;
+  --nutrient-carbs-tint: #3b3015;
+  --nutrient-fat: #d3a3dc;
+  --nutrient-fat-tint: #392640;
+  --nutrient-fiber: #93d17a;
+  --nutrient-fiber-tint: #273a1f;
+  --water: #6cc6df;
+  --water-tint: #1d3640;
+  --state-ok: #8fd68a;
+  --state-ok-tint: #25391f;
+  --state-near: #f4a35c;
+  --state-near-tint: #442c18;
+  --state-expired: #ff8a7e;
+  --state-expired-tint: #472622;
+  --state-estimate: #aab3c0;
+  --state-estimate-tint: #2e322f;
+  --brand-accent: #e0b24a;
+}
+
+/* Grano: forma. Parte da quella di Vivo e cambia solo ciò che serve: titoli con grazie (Fraunces, caricato in layout.tsx), angoli più
+   larghi, ombra morbida e calda, selettori a pillola con la voce scelta piena. L'asse SOFT di Fraunces rende morbide le terminazioni;
+   lo ignorano i caratteri che non lo hanno (testo, cifre), quindi si può mettere su tutto il contenitore. */
+[data-palette="vivo"][data-variant="grano"] {
+  font-variation-settings: "SOFT" 100;
+
+  --font-display: var(--font-fraunces), "Iowan Old Style", Georgia, serif;
+  --weight-display: 600;
+  --tracking-title: -0.015em;
+  --tracking-display: -0.025em;
+  --radius-sm: 12px;
+  --radius-md: 16px;
+
+  --section-font: var(--font-display);
+  --section-size: var(--text-figure);
+  --section-tracking: -0.005em;
+  --section-weight: var(--weight-display);
+
+  --card-shadow: 0 1px 2px rgb(60 45 20 / 0.06), 0 8px 22px -10px rgb(60 45 20 / 0.2);
+  --radius-card: 22px;
+
+  --tabs-radius: 999px;
+  --tab-radius: 999px;
+  --tab-selected-fill: var(--area-current);
+  --tab-selected-text: var(--color-on-fill);
+  --tab-selected-shadow: none;
+
+  --capture-fill: var(--area-today);
+}
+
+/* Come per Vivo: un rimando all'area si risolve dove è dichiarato, quindi va ripetuto sugli elementi con data-area. */
+[data-palette="vivo"][data-variant="grano"] [data-area],
+[data-palette="vivo"][data-variant="grano"][data-area] {
+  --tab-selected-fill: var(--area-current);
+}

@@ -9,6 +9,7 @@ import { compareWithPantry, stockFromLots, type Recipe, type Substitution } from
 import { usePantry, useRecipes } from "@/data";
 import { Button, Label, Value } from "@/design";
 import { formatCalendarDate, formatPrice, relativeDay, dayOf } from "../format";
+import { useFormEpoch } from "../common/freshForm";
 import { LOCATION_LABELS } from "../labels";
 import { evaluateLots, type PantryEntry } from "../lots";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
@@ -28,9 +29,14 @@ import styles from "./prep.module.css";
 import { useStartProposal } from "./startProposal";
 import { resolvePrepSubstitutions } from "./substitution";
 
-/** `/app/preparazioni/nuova`, con `?ricetta=ID&porzioni=N` per partire da una ricetta. */
+/**
+ * `/app/preparazioni/nuova`, con `?ricetta=ID&porzioni=N` per partire da una ricetta. La pagina resta viva tra una
+ * visita e l'altra: il modulo riparte a ogni arrivo da un collegamento, quando cambiano i parametri e dopo ogni
+ * salvataggio riuscito; col tasto indietro si ritrova quello lasciato a metà.
+ */
 export function NewPrep() {
   const params = useSearchParams();
+  const { epoch, renew } = useFormEpoch(params.toString());
   const recipeId = params.get("ricetta");
   const requested = Number(params.get("porzioni"));
   const pantry = usePantry();
@@ -69,9 +75,9 @@ export function NewPrep() {
   const servings = recipe && Number.isFinite(requested) && requested > 0 ? requested : recipe?.servings;
   if (recipe && servings !== undefined) {
     const chosen = parseSubstitutions(params.getAll(SUBSTITUTION_PARAM), recipe.ingredients.length);
-    return <Checked key={recipe.recipeId} recipe={recipe} chosen={chosen} servings={servings} entries={entries} now={now} />;
+    return <Checked key={`${recipe.recipeId}|${epoch}`} recipe={recipe} chosen={chosen} servings={servings} entries={entries} now={now} onSaved={renew} />;
   }
-  return <Form key="libera" recipe={undefined} substitutions={[]} unapplied={undefined} servings={undefined} entries={entries} now={now} />;
+  return <Form key={`libera|${epoch}`} recipe={undefined} substitutions={[]} unapplied={undefined} servings={undefined} entries={entries} now={now} onSaved={renew} />;
 }
 
 /**
@@ -84,12 +90,14 @@ function Checked({
   servings,
   entries,
   now,
+  onSaved,
 }: {
   recipe: Recipe;
   chosen: Substitution[];
   servings: number;
   entries: PantryEntry[];
   now: string;
+  onSaved: () => void;
 }) {
   const missing = useMemo(() => {
     const cmp = compareWithPantry(written, stockFromLots(entries.map((e) => e.lot)), { servings });
@@ -105,7 +113,7 @@ function Checked({
     );
   }
   const { recipe, applied, unapplied } = resolvePrepSubstitutions(written, chosen, substitutes.options, { missing, failed: substitutes.failed });
-  return <Form recipe={recipe} written={written} substitutions={applied} unapplied={unapplied} servings={servings} entries={entries} now={now} />;
+  return <Form recipe={recipe} written={written} substitutions={applied} unapplied={unapplied} servings={servings} entries={entries} now={now} onSaved={onSaved} />;
 }
 
 interface FormProps {
@@ -118,9 +126,11 @@ interface FormProps {
   servings: number | undefined;
   entries: PantryEntry[];
   now: string;
+  /** Dopo il salvataggio riuscito, prima di lasciare la pagina: il modulo riparte da zero. */
+  onSaved: () => void;
 }
 
-function Form({ recipe, written, substitutions, unapplied, servings, entries, now }: FormProps) {
+function Form({ recipe, written, substitutions, unapplied, servings, entries, now, onSaved }: FormProps) {
   const router = useRouter();
   const ids = useId();
   const foods = useFoods();
@@ -205,8 +215,10 @@ function Form({ recipe, written, substitutions, unapplied, servings, entries, no
       }
       return { events: composed.composed.events as AnyEvent[], message: prepMessage(title, Number(portionsText), location) };
     });
-    if (result.ok) router.push("/app/preparazioni");
-    else setErrors(failed ?? { picks: {}, general: result.error });
+    if (result.ok) {
+      onSaved();
+      router.push("/app/preparazioni");
+    } else setErrors(failed ?? { picks: {}, general: result.error });
   }
 
   const expiry = preview.ok ? preview.composed.expiry : undefined;

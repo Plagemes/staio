@@ -3,6 +3,7 @@
 import { addDays, type DiaryHabit, type MealKind, type MealWithPantry } from "@/core/diary";
 import type { AnyEvent } from "@/core/events";
 import type { Quantity } from "@/core/ledger";
+import { isOutOfHomeItem } from "../meals";
 import { normalizeSearch } from "../pantry/filter";
 import { readPortion, type RememberedPortion } from "../portions";
 
@@ -18,8 +19,11 @@ export interface UsualFood {
 export const USUAL_DAYS = 30;
 export const USUAL_MAX = 6;
 
-/** Le voci di un pasto, una per nome: i consumi della dispensa (con il nome del loro alimento) e le voci libere. */
-function mealFoods(meal: MealWithPantry, names: ReadonlyMap<string, string>): Map<string, { name: string; quantity?: Quantity }> {
+/**
+ * Le voci di un pasto, una per nome: i consumi della dispensa (con il nome del loro alimento) e le voci libere.
+ * Con `foodsOnly` la stima «Fuori casa» (una voce con la sola energia) non entra: non è un alimento.
+ */
+function mealFoods(meal: MealWithPantry, names: ReadonlyMap<string, string>, foodsOnly = false): Map<string, { name: string; quantity?: Quantity }> {
   const out = new Map<string, { name: string; quantity?: Quantity }>();
   const add = (name: string, quantity: Quantity) => {
     const key = normalizeSearch(name);
@@ -32,7 +36,7 @@ function mealFoods(meal: MealWithPantry, names: ReadonlyMap<string, string>): Ma
     const name = names.get(c.lotId);
     if (name) add(name, c.quantity);
   }
-  for (const item of meal.items) add(item.name, item.quantity);
+  for (const item of meal.items) if (!foodsOnly || !isOutOfHomeItem(item)) add(item.name, item.quantity);
   return out;
 }
 
@@ -55,7 +59,7 @@ export function usualFoods(args: {
   const stats = new Map<string, { name: string; count: number; lastAt: string; last?: Quantity }>();
   for (const meal of args.meals) {
     if (meal.kind !== args.kind || meal.date < from || meal.date > args.today) continue;
-    for (const [key, food] of mealFoods(meal, args.names)) {
+    for (const [key, food] of mealFoods(meal, args.names, true)) {
       const found = stats.get(key);
       if (!found) stats.set(key, { name: food.name, count: 1, lastAt: meal.at, last: food.quantity });
       else {
