@@ -1,147 +1,308 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { ALLERGEN_CHECK_NOTICE, deriveConfirmations } from "@/core/allergens";
 import type { MealKind } from "@/core/diary";
-import {
-  checkPlanWeek,
-  dayTypeOf,
-  derivePlan,
-  getWeek,
-  weekDates,
-  type PlannedEntry,
-  type Slot,
-  type PlannedItem,
-} from "@/core/plan";
-import { DEFAULT_TIME_ZONE } from "@/core/expiry";
+import { addDays } from "@/core/diary";
+import { checkPlanWeek, dayTypeOf, derivePlan, getWeek, weekDates, weekStartOf, type PlannedEntry } from "@/core/plan";
 import { getAllEvents } from "@/data";
 import { Button, Label, Tabs } from "@/design";
-import { readQuantity } from "../capture";
-import { MEAL_KIND_LABELS, MEAL_KIND_ORDER } from "../meals";
+import { DIET_HREF, useDietDeclarations } from "../allergens";
+import { Disclosure, MoreActions, type ActionItem } from "../common";
+import { MEAL_KIND_ORDER } from "../meals";
+import { IncompleteDeclarations } from "../recipes/SafetyPanel";
 import { useDeclared } from "../recipes/useRecipeSafety";
-import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
+import { LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
-import { AddEntry } from "./AddEntry";
-import { WEEK_LABELS, dayHeading, dayMonth, weekChoices, weekRangeText, type WeekChoice } from "./dates";
-import { itemLabel } from "./describe";
-import {
-  buildClearDayType,
-  buildDayType,
-  buildWeek,
-  copyDay,
-  copyWeek,
-  entryOf,
-  withAmount,
-  withEntry,
-  withItem,
-  withoutEntry,
-} from "./edit";
+import { AddEntrySheet } from "./AddEntry";
+import { CopyWeekSheet } from "./CopyWeekSheet";
+import { DaySection, type DayItem } from "./DaySection";
+import { WEEK_LABELS, dayFromParam, dayMonth, nextMonday, shortDayLower, weekChoices, weekRangeText, type WeekChoice, type WeekId } from "./dates";
+import { buildClearDayType, buildDayType, buildWeek, copyDay } from "./edit";
 import { EatSheet } from "./EatSheet";
-import { MoveSheet } from "./MoveSheet";
+import { entryRefs } from "./entryKey";
+import { ItemSheet } from "./ItemSheet";
+import { mealCount, mealsText } from "./tonight";
 import { ProposalCard } from "./ProposalCard";
-import { buildMoveMeal, slotsToMoveTo } from "./moveMeal";
-import { Sheet } from "./Sheet";
-import { UNCERTAIN_WARNING, reasonLine } from "./proposal";
-import { parseAmount } from "./targets";
-import { usePlanData, type PlanData } from "./usePlanData";
-import { useProposal } from "./useProposal";
-import { useWriter } from "./useWriter";
 import { checkWeekConstraints } from "./safety";
-import { constraintLines, dayCheckView, daySummaryText } from "./verify";
+import { usePlanData, type PlanData } from "./usePlanData";
+import { PROPOSAL_UNAVAILABLE_TEXT, useProposal } from "./useProposal";
+import { useWeekEditor } from "./useWeekEditor";
+import { useWriter } from "./useWriter";
+import { VerifyBody } from "./VerifyBody";
+import { constraintLines, dayCheckView, daySummaryText, verifySummary } from "./verify";
+import { CopyDaySheet, DayTypeSheet } from "./WeekSheets";
+import { itemCommand } from "./itemCommand";
+import { itemName } from "./describe";
 import styles from "./plan.module.css";
 
 type SheetState =
   | { type: "add"; date: string }
+  | { type: "item"; item: DayItem }
   | { type: "eat"; entry: PlannedEntry }
-  | { type: "move"; from: Slot }
-  | { type: "amount"; index: number }
   | { type: "copyDay"; date: string }
   | { type: "copyWeek" }
   | { type: "dayType"; date: string };
 
-const SHOWN_WEEKS = ["current", "next"] as const;
+const PROPOSAL_EMPTY = "Non ho scritto niente: i posti sono stati occupati o il controllo di allergeni ed esclusioni ha fermato le proposte.";
 
-export function Week() {
+/**
+ * Settimana. `?giorno=AAAA-MM-GG` dice quale giorno mostrare (e quindi quale settimana; senza, oggi), `?proponi=1` avvia la
+ * proposta, `?verifica=1` apre la verifica in fondo (come `openVerify`, per l'indirizzo della verifica).
+ */
+export function Week({ openVerify = false }: { openVerify?: boolean }) {
+  return (
+    <Suspense fallback={<WeekLoading />}>
+      <WeekRoute openVerify={openVerify} />
+    </Suspense>
+  );
+}
+
+function WeekLoading() {
+  return (
+    <div className={ui.screen}>
+      <h1 className={ui.title}>Settimana</h1>
+      <LoadingLine />
+    </div>
+  );
+}
+
+function WeekRoute({ openVerify }: { openVerify: boolean }) {
   const data = usePlanData();
-  const [weekId, setWeekId] = useState<(typeof SHOWN_WEEKS)[number]>("current");
-  const [sheet, setSheet] = useState<SheetState | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const stripParams = useCallback(
+    (...names: string[]) => {
+      const params = new URLSearchParams(searchParams.toString());
+      let changed = false;
+      for (const name of names) {
+        if (params.has(name)) {
+          params.delete(name);
+          changed = true;
+        }
+      }
+      if (!changed) return;
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    },
+    [searchParams, router, pathname],
+  );
 
   if (data.error) return <StorageError />;
-  if (!data.ready || !data.plan) {
-    return (
-      <div className={ui.screen}>
-        <h1 className={ui.title}>Settimana</h1>
-        <LoadingLine />
-      </div>
-    );
-  }
+  if (!data.ready || !data.plan) return <WeekLoading />;
+
+  // il giorno è quello dell'indirizzo; la pagina resta viva tra una visita e l'altra, quindi non se ne tiene copia
+  const requestedDay = searchParams.get("giorno");
+  const day = dayFromParam(requestedDay, data.today);
+  const weekStart = weekStartOf(day);
   const weeks = weekChoices(data.today);
-  const week = weeks.find((w) => w.id === weekId) as WeekChoice;
-  return <WeekView key={week.start} data={data} weeks={weeks} week={week} weekId={weekId} setWeekId={setWeekId} sheet={sheet} setSheet={setSheet} />;
+  const shown: WeekChoice = weeks.find((w) => w.start === weekStart) ?? { id: weekStart < weeks[1].start ? "previous" : "next", start: weekStart, label: weekRangeText(weekStart) };
+
+  const goTo = (id: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("giorno");
+    if (id === "next") params.set("giorno", nextMonday(data.today));
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+
+  return (
+    <WeekView
+      key={weekStart}
+      data={data}
+      weeks={weeks}
+      week={shown}
+      day={day}
+      requestedDay={requestedDay}
+      wantProposal={searchParams.get("proponi") === "1"}
+      verifyParam={searchParams.get("verifica") === "1"}
+      openVerify={openVerify}
+      stripParams={stripParams}
+      onWeek={goTo}
+    />
+  );
 }
 
 interface ViewProps {
   data: PlanData;
   weeks: WeekChoice[];
   week: WeekChoice;
-  weekId: (typeof SHOWN_WEEKS)[number];
-  setWeekId: (id: (typeof SHOWN_WEEKS)[number]) => void;
-  sheet: SheetState | null;
-  setSheet: (s: SheetState | null) => void;
+  /** Il giorno da portare in vista. */
+  day: string;
+  requestedDay: string | null;
+  wantProposal: boolean;
+  verifyParam: boolean;
+  openVerify: boolean;
+  stripParams: (...names: string[]) => void;
+  onWeek: (id: string) => void;
 }
 
-function WeekView({ data, weeks, week, weekId, setWeekId, sheet, setSheet }: ViewProps) {
+function WeekView({ data, weeks, week, day, requestedDay, wantProposal, verifyParam, openVerify, stripParams, onWeek }: ViewProps) {
   const plan = data.plan!;
   const write = useWriter();
+  const edit = useWeekEditor();
   const [error, setError] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<SheetState | null>(null);
+  const [using, setUsing] = useState(false);
   const state = getWeek(plan, week.start);
   const entries = useMemo(() => state?.entries ?? [], [state]);
+  const refs = useMemo(() => entryRefs(entries), [entries]);
   const dates = useMemo(() => weekDates(week.start), [week.start]);
-  const mealOrder: MealKind[] = plan.structure ? plan.structure.meals.map((m) => m.kind) : [...MEAL_KIND_ORDER];
-  const mealTime = new Map((plan.structure?.meals ?? []).map((m) => [m.kind, m.time]));
+  const isCurrent = week.start === weekStartOf(data.today);
+  const nextStart = addDays(week.start, 7);
+  const structureMeals: MealKind[] = plan.structure ? plan.structure.meals.map((m) => m.kind) : [];
+  const mealOrder: MealKind[] = structureMeals.length > 0 ? structureMeals : [...MEAL_KIND_ORDER];
+  const mealTime = useMemo(() => new Map((plan.structure?.meals ?? []).map((m) => [m.kind, m.time])), [plan.structure]);
   const nameOfRef = (via: { kind: "recipe" | "prep"; id: string }) =>
-    via.kind === "recipe" ? (data.recipes.find((r) => r.recipeId === via.id)?.title ?? "una ricetta") : (data.preps.find((p) => p.prepId === via.id)?.title ?? "una preparazione");
+    itemName(via.kind === "recipe" ? { kind: "recipe", recipeId: via.id, servings: 1 } : { kind: "prep", prepId: via.id, servings: 1 }, data.catalog);
 
   const check = useMemo(() => (data.nutrientsOf ? checkPlanWeek(plan, week.start, data.nutrientsOf) : undefined), [plan, week.start, data.nutrientsOf]);
   const confirmations = useMemo(() => deriveConfirmations(data.log ?? []).byKey, [data.log]);
-  const constraints = useMemo(
-    () => checkWeekConstraints(plan.structure, state, { expandForChecks: data.expandForChecks, linkOf: data.linkOf, confirmations }),
-    [plan.structure, state, data.expandForChecks, data.linkOf, confirmations],
-  );
+  // allergeni ed esclusioni dalla lettura unica, non solo dal piano
   const { declared, ready: declaredReady } = useDeclared();
+  const { state: declarations } = useDietDeclarations();
+  // finché allergeni ed esclusioni non sono letti non c'è esito: mai una settimana «pulita» per liste ancora vuote
+  const constraints = useMemo(
+    () => (declaredReady ? checkWeekConstraints(declared, state, { expandForChecks: data.expandForChecks, linkOf: data.linkOf, confirmations }) : undefined),
+    [declaredReady, declared, state, data.expandForChecks, data.linkOf, confirmations],
+  );
   const proposal = useProposal({ data, weekStart: week.start, weekDates: dates, entries, declared, declaredReady, confirmations });
-  const [using, setUsing] = useState(false);
-  const constraintItems = constraintLines(constraints, nameOfRef);
+  const constraintItems = constraints ? constraintLines(constraints, nameOfRef) : [];
   const violations = constraintItems.filter((l) => l.kind === "violation");
   const unverified = constraintItems.filter((l) => l.kind === "unverified");
   const confirmedItems = constraintItems.filter((l) => l.kind === "confirmed");
 
-  async function save(next: readonly PlannedEntry[], message: string, weekStart = week.start): Promise<string | null> {
-    const failure = await write((ctx) => buildWeek(weekStart, next, ctx, message));
-    setError(failure);
-    return failure;
+  // --- giorni passati, verifica: aperti da chi arriva con un indirizzo che li chiede ---
+  const pastDates = isCurrent ? dates.filter((d) => d < data.today) : [];
+  const dayIsPast = pastDates.includes(day);
+  const wantVerify = openVerify || verifyParam;
+  const [pastOpen, setPastOpen] = useState(dayIsPast && requestedDay !== null);
+  const [seenDay, setSeenDay] = useState(day);
+  const [verifyOpen, setVerifyOpen] = useState(wantVerify);
+  const [seenVerify, setSeenVerify] = useState(wantVerify);
+  const [verifyNudge, setVerifyNudge] = useState(0);
+  if (seenDay !== day) {
+    setSeenDay(day);
+    if (dayIsPast) setPastOpen(true);
+  }
+  if (seenVerify !== wantVerify) {
+    setSeenVerify(wantVerify);
+    if (wantVerify) setVerifyOpen(true);
   }
 
-  async function applyProposal() {
-    // le voci della settimana si rileggono dall'archivio del telefono: quelle aggiunte nel frattempo non si perdono
-    const fresh = getWeek(derivePlan(await getAllEvents()), week.start)?.entries ?? entries;
-    const done = proposal.finalize(fresh);
-    if (!done) return;
-    if (done.added === 0) {
-      proposal.discard();
-      setError("Non ho scritto niente: i posti sono stati occupati o il controllo di allergeni ed esclusioni ha fermato le proposte.");
-      return;
+  // il giorno si porta in vista una volta per valore dell'indirizzo, e solo se sta in fondo allo schermo: ciò che sta sopra (avvisi) resta in vista
+  useEffect(() => {
+    const el = document.getElementById(`giorno-${day}`);
+    if (el && el.getBoundingClientRect().top > window.innerHeight * 0.5) el.scrollIntoView({ block: "start" });
+  }, [day, requestedDay]);
+
+  const scrollToVerify = () => {
+    // la riga si apre e prende posto prima di scorrere
+    window.setTimeout(() => document.getElementById("verifica")?.scrollIntoView({ block: "start" }), 60);
+  };
+  useEffect(() => {
+    if (wantVerify) scrollToVerify();
+  }, [wantVerify]);
+  useEffect(() => {
+    if (verifyNudge > 0) scrollToVerify();
+  }, [verifyNudge]);
+  useEffect(() => {
+    if (verifyParam) stripParams("verifica");
+  }, [verifyParam, stripParams]);
+
+  // --- proposta: `?proponi=1` la avvia all'arrivo ---
+  useEffect(() => {
+    if (!wantProposal) return;
+    if (proposal.active) {
+      stripParams("proponi");
+    } else if (proposal.available && !proposal.unavailable) {
+      proposal.start();
+      stripParams("proponi");
+    } else if (proposal.unavailable) {
+      stripParams("proponi");
     }
-    const held = done.dropped > 0 ? ` ${done.dropped} ${done.dropped === 1 ? "non è stata scritta" : "non sono state scritte"}: posto occupato o fermata dal controllo di allergeni.` : "";
+  }, [wantProposal, proposal, stripParams]);
+
+  const canPropose = proposal.available && !proposal.unavailable;
+  const weekEmpty = entries.length === 0;
+  const nothingAhead = entries.every((e) => e.date < data.today);
+  const weekHasToday = dates.includes(data.today);
+  const fullPropose = canPropose && !proposal.active && nothingAhead && !weekEmpty;
+  const unavailableText = proposal.unavailable ? PROPOSAL_UNAVAILABLE_TEXT[proposal.unavailable] : null;
+
+  async function applyProposal() {
     setUsing(true);
-    const failure = await save(done.entries, `Aggiunti al piano ${done.added} ${done.added === 1 ? "pasto proposto" : "pasti proposti"}.${held}`);
+    setError(null);
+    let zero = false;
+    const failure = await edit((read, ctx) => {
+      // le voci della settimana si rileggono dall'archivio: quelle aggiunte nel frattempo non si perdono
+      const done = proposal.finalize(read(week.start));
+      if (!done) return { ok: false, error: PROPOSAL_EMPTY };
+      if (done.added === 0) {
+        zero = true;
+        return { ok: false, error: PROPOSAL_EMPTY };
+      }
+      const held = done.dropped > 0 ? ` ${done.dropped} ${done.dropped === 1 ? "non è stata scritta" : "non sono state scritte"}: posto occupato o fermata dal controllo di allergeni.` : "";
+      return buildWeek(week.start, done.entries, ctx, `Aggiunti al piano ${done.added} ${done.added === 1 ? "pasto proposto" : "pasti proposti"}.${held}`);
+    });
     setUsing(false);
-    if (!failure) proposal.discard();
+    if (zero) proposal.discard();
+    if (failure) setError(failure);
+    else proposal.discard();
   }
 
   const close = () => setSheet(null);
-  const sheetEntry = sheet?.type === "amount" ? entries[sheet.index] : undefined;
+
+  const pageActions: ActionItem[] = [
+    ...(!fullPropose && !proposal.active && !weekEmpty
+      ? [{ id: "propose", label: "Proponi la settimana", disabled: !canPropose, ...(unavailableText ? { hint: unavailableText } : {}), onSelect: proposal.start }]
+      : []),
+    { id: "copyWeek", label: "Copia un'altra settimana qui", onSelect: () => setSheet({ type: "copyWeek" }) },
+    {
+      id: "verify",
+      label: "Verifica del piano",
+      onSelect: () => {
+        setVerifyOpen(true);
+        setVerifyNudge((n) => n + 1);
+      },
+    },
+  ];
+
+  function daySection(date: string) {
+    const items: DayItem[] = entries.flatMap((entry, i) => (entry.date === date ? [{ entry, ref: refs[i] }] : []));
+    const dayType = dayTypeOf(plan, date);
+    const fromDefault = !plan.dayTypes.some((d) => d.date === date);
+    const view = check ? dayCheckView(check.days.find((d) => d.date === date)!) : undefined;
+    return (
+      <DaySection
+        key={date}
+        date={date}
+        data={data}
+        items={items}
+        proposed={proposal.proposal?.meals.filter((m) => m.slot.date === date) ?? []}
+        proposal={proposal}
+        mealOrder={mealOrder}
+        mealTime={mealTime}
+        summary={view && view.checked ? daySummaryText(view) : ""}
+        dayTypeText={dayType ? `${dayType}${fromDefault ? " (predefinita)" : ""}` : undefined}
+        onOpen={(item) => setSheet({ type: "item", item })}
+        onEat={(entry) => setSheet({ type: "eat", entry })}
+        onAdd={() => setSheet({ type: "add", date })}
+        onCopyDay={() => setSheet({ type: "copyDay", date })}
+        onDayType={() => setSheet({ type: "dayType", date })}
+      />
+    );
+  }
+
+  const pastEntries = entries.filter((e) => e.date < data.today);
+  const pastSummary =
+    pastDates.length > 0 ? `${shortDayLower(pastDates[0])}${pastDates.length > 1 ? ` – ${shortDayLower(pastDates[pastDates.length - 1])}` : ""} · ${mealsText(mealCount(pastEntries))}` : "";
+  const firstDay = weekHasToday ? data.today : week.start;
+  const verifyWeek: WeekId = week.start === weeks[0].start ? "previous" : week.start === weeks[2].start ? "next" : "current";
 
   return (
     <div className={ui.screen}>
@@ -152,24 +313,34 @@ function WeekView({ data, weeks, week, weekId, setWeekId, sheet, setSheet }: Vie
 
       <Tabs
         label="Settimana"
-        items={SHOWN_WEEKS.map((id) => ({ id, label: WEEK_LABELS[id] }))}
-        value={weekId}
-        onChange={(id) => setWeekId(id as (typeof SHOWN_WEEKS)[number])}
+        items={[
+          ...(week.start !== weeks[1].start && week.start !== weeks[2].start ? [{ id: "shown", label: weekRangeText(week.start) }] : []),
+          { id: "current", label: WEEK_LABELS.current },
+          { id: "next", label: WEEK_LABELS.next },
+        ]}
+        value={week.start === weeks[1].start ? "current" : week.start === weeks[2].start ? "next" : "shown"}
+        onChange={(id) => {
+          if (id !== "shown") onWeek(id);
+        }}
       />
 
-      <div className={ui.row}>
-        <Button variant="outline" onClick={() => setSheet({ type: "copyWeek" })}>
-          Copia un&apos;altra settimana qui
-        </Button>
-        <Link href="/app/piano/verifica" className={ui.textLink}>
-          Verifica e confronto
-        </Link>
-      </div>
-      {proposal.available && !proposal.active ? <Button onClick={proposal.start}>Proponi una settimana</Button> : null}
+      {!proposal.active ? (
+        <div className={ui.row}>
+          {fullPropose ? <Button onClick={proposal.start}>Proponi la settimana</Button> : null}
+          <MoreActions items={pageActions} />
+        </div>
+      ) : null}
+      {unavailableText && nothingAhead && !weekEmpty && !proposal.active ? <p className={ui.hint}>{unavailableText}</p> : null}
       {proposal.active ? (
         <ProposalCard view={proposal} weekDates={dates} today={data.today} structureMeals={plan.structure?.meals.map((m) => m.kind)} onUse={() => void applyProposal()} busy={using} />
       ) : null}
 
+      {!declaredReady ? (
+        <p className={ui.hint} role="status">
+          Leggo allergeni ed esclusioni per controllare la settimana…
+        </p>
+      ) : null}
+      {declarations && !declarations.complete ? <IncompleteDeclarations /> : null}
       {violations.length > 0 ? (
         <div className={styles.alert} role="alert">
           <strong>Nel piano c&apos;è qualcosa che hai escluso</strong>
@@ -204,7 +375,11 @@ function WeekView({ data, weeks, week, weekId, setWeekId, sheet, setSheet }: Vie
               </li>
             ))}
           </ul>
-          <p className={ui.hint}>Puoi revocare le conferme in «Obiettivi», dove dichiari gli allergeni.</p>
+          <p className={ui.hint}>
+            <Link href={`${DIET_HREF}?sezione=conferme`} className={ui.textLink}>
+              Le conferme si ritirano in Alimentazione.
+            </Link>
+          </p>
         </div>
       ) : null}
       {violations.length + unverified.length + confirmedItems.length > 0 ? <p className={ui.hint}>{ALLERGEN_CHECK_NOTICE}</p> : null}
@@ -214,159 +389,53 @@ function WeekView({ data, weeks, week, weekId, setWeekId, sheet, setSheet }: Vie
         </p>
       ) : null}
 
-      {entries.length === 0 && !proposal.active ? (
-        <EmptyState
-          title="Niente di pianificato"
-          text="Aggiungi alimenti, ricette o preparazioni ai pasti di ogni giorno: qui compariranno giorno per giorno, e da qui si registrano come mangiati."
-          actionLabel="Aggiungi un pasto"
-          actionHref="#giorni"
-        />
+      {weekEmpty && !proposal.active ? (
+        <div className={ui.empty}>
+          <h3 className={ui.emptyTitle}>Niente di pianificato</h3>
+          <p className={ui.emptyText}>Metti i pasti nei giorni: li ritrovi qui e in Oggi, e la spesa sa che cosa serve.</p>
+          {unavailableText ? <p className={ui.hint}>{unavailableText}</p> : null}
+          {canPropose ? <Button onClick={proposal.start}>Proponi la settimana</Button> : null}
+          <Button variant={canPropose ? "outline" : "primary"} onClick={() => setSheet({ type: "add", date: firstDay })}>
+            Aggiungi un pasto
+          </Button>
+        </div>
       ) : null}
 
-      <ol className={styles.days} id="giorni">
-        {dates.map((date) => {
-          const dayEntries = entries.map((entry, index) => ({ entry, index })).filter((x) => x.entry.date === date);
-          const dayType = dayTypeOf(plan, date);
-          const fromDefault = !plan.dayTypes.some((d) => d.date === date);
-          const view = check ? dayCheckView(check.days.find((d) => d.date === date)!) : undefined;
-          const summary = view && view.checked ? daySummaryText(view) : "";
-          const proposedOn = proposal.proposal?.meals.filter((m) => m.slot.date === date) ?? [];
-          return (
-            <li key={date} className={styles.day}>
-              <div className={styles.dayHead}>
-                <h2 className={styles.dayTitle}>{dayHeading(date, data.today)}</h2>
-                <button type="button" className={styles.action} onClick={() => setSheet({ type: "dayType", date })}>
-                  {dayType ? `Giornata: ${dayType}${dayType && fromDefault ? " (predefinita)" : ""}` : "Tipo di giornata"}
-                </button>
-              </div>
-              {summary ? <p className={styles.dayNote}>{summary}. Sono stime sui dati che ci sono.</p> : null}
+      <div className={styles.daysArea}>
+        {pastDates.length > 0 ? (
+          <Disclosure title="Giorni passati" summary={pastSummary} open={pastOpen} onOpenChange={setPastOpen}>
+            <ol className={styles.days}>{pastDates.map(daySection)}</ol>
+          </Disclosure>
+        ) : null}
+        <ol className={styles.days} id="giorni">
+          {dates.filter((d) => !pastDates.includes(d)).map(daySection)}
+        </ol>
+      </div>
 
-              {dayEntries.length === 0 && proposedOn.length === 0 ? <p className={styles.dayNote}>Niente di pianificato.</p> : null}
-              {mealOrder.concat(MEAL_KIND_ORDER.filter((k) => !mealOrder.includes(k))).map((meal) => {
-                const here = dayEntries.filter((x) => x.entry.meal === meal);
-                const suggested = proposedOn.filter((m) => m.slot.meal === meal);
-                if (here.length === 0 && suggested.length === 0) return null;
-                return (
-                  <div key={meal} className={styles.mealBlock}>
-                    <Label>
-                      {MEAL_KIND_LABELS[meal]}
-                      {mealTime.get(meal) ? ` · ${mealTime.get(meal)}` : ""}
-                    </Label>
-                    <ul className={styles.entries}>
-                      {here.map(({ entry, index }) => (
-                        <li key={index} className={styles.entry}>
-                          <span className={styles.entryName}>{itemLabel(entry.item, data.catalog)}</span>
-                          {entry.note ? <span className={styles.entryNote}>{entry.note}</span> : null}
-                          <div className={styles.actions}>
-                            <button type="button" className={styles.action} onClick={() => setSheet({ type: "eat", entry })}>
-                              Registralo come mangiato
-                            </button>
-                            <button type="button" className={styles.action} onClick={() => setSheet({ type: "move", from: { date: entry.date, meal: entry.meal } })}>
-                              Sposta
-                            </button>
-                            <button type="button" className={styles.action} onClick={() => setSheet({ type: "amount", index })}>
-                              Quantità
-                            </button>
-                            <button type="button" className={styles.actionDanger} onClick={() => void save(withoutEntry(entries, index), `Tolto dal piano: ${itemLabel(entry.item, data.catalog)}.`)}>
-                              Togli
-                            </button>
-                          </div>
-                        </li>
-                      ))}
-                      {suggested.map((m) => (
-                        <li key={`proposta-${m.slot.meal}`} className={styles.proposed}>
-                          <span className={styles.proposedTag}>Proposta</span>
-                          <span className={styles.entryName}>{itemLabel({ kind: "recipe", recipeId: m.recipeId, servings: m.servings }, data.catalog)}</span>
-                          <span className={styles.entryNote}>{reasonLine(m, data.today)}</span>
-                          {m.warning ? <span className={styles.entryNote}>{UNCERTAIN_WARNING}</span> : null}
-                          <div className={styles.actions}>
-                            <button type="button" className={styles.action} onClick={() => proposal.swap(m.slot)}>
-                              Un&apos;altra
-                            </button>
-                            <button type="button" className={styles.actionDanger} onClick={() => proposal.drop(m.slot)}>
-                              Togli
-                            </button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                );
-              })}
-              <div className={styles.actions}>
-                <button type="button" className={styles.action} onClick={() => setSheet({ type: "add", date })}>
-                  Aggiungi
-                </button>
-                {dayEntries.length > 0 ? (
-                  <button type="button" className={styles.action} onClick={() => setSheet({ type: "copyDay", date })}>
-                    Copia il giorno
-                  </button>
-                ) : null}
-              </div>
-            </li>
-          );
-        })}
-      </ol>
+      <div id="verifica" className={styles.verifyAnchor}>
+        <Disclosure title="Verifica del piano" summary={verifySummary(check)} open={verifyOpen} onOpenChange={setVerifyOpen}>
+          {verifyOpen ? <VerifyBody data={data} initialWeek={verifyWeek} /> : null}
+        </Disclosure>
+      </div>
 
       {sheet?.type === "add" ? (
-        <Sheet title={`Aggiungi, ${dayMonth(sheet.date)}`} onClose={close}>
-          <AddEntry
-            data={data}
-            date={sheet.date}
-            meals={mealOrder}
-            defaultMeal={mealOrder[0] ?? "lunch"}
-            onAdd={async (meal: MealKind, item: PlannedItem) => {
-              const date = sheet.date;
-              const failure = await save(withEntry(entries, entryOf(date, meal, item)), `Aggiunto al piano: ${itemLabel(item, data.catalog)}.`);
-              if (!failure) close();
-              return failure;
-            }}
-          />
-        </Sheet>
+        <AddEntrySheet data={data} date={sheet.date} weekStart={week.start} entries={entries} meals={mealOrder} structureMeals={structureMeals} onClose={close} />
       ) : null}
 
-      {sheet?.type === "move" && data.diary && data.now ? (
-        <MoveSheet
-          what={entries
-            .filter((e) => e.date === sheet.from.date && e.meal === sheet.from.meal)
-            .map((e) => itemLabel(e.item, data.catalog))
-            .join(", ")}
-          from={sheet.from}
-          today={data.today}
-          options={slotsToMoveTo({
-            weekEntries: entries,
-            diary: data.diary,
-            now: data.now,
-            timeZone: data.diary.timeZone ?? DEFAULT_TIME_ZONE,
-            today: data.today,
-            weekStart: week.start,
-            kinds: plan.structure?.meals.map((m) => m.kind),
-            from: sheet.from,
-          })}
+      {sheet?.type === "item" ? (
+        <ItemSheet
+          data={data}
+          entry={sheet.item.entry}
+          entryRef={sheet.item.ref}
+          weekStart={week.start}
+          nextWeekStart={nextStart}
+          entries={entries}
+          eatShown={itemCommand(sheet.item.entry.item, sheet.item.entry.date, data.today, true) === "eat"}
           onClose={close}
-          onMove={async (to) => {
-            const failure = await write((ctx) => buildMoveMeal(week.start, entries, sheet.from, to, ctx));
-            setError(failure);
-            if (!failure) close();
-            return failure;
-          }}
         />
       ) : null}
 
       {sheet?.type === "eat" ? <EatSheet data={data} entry={sheet.entry} onClose={close} /> : null}
-
-      {sheet?.type === "amount" && sheetEntry ? (
-        <AmountSheet
-          entry={sheetEntry}
-          data={data}
-          onClose={close}
-          onSave={async (item) => {
-            const failure = await save(item.kind === "food" ? withItem(entries, sheet.index, item) : withAmount(entries, sheet.index, item.servings), `Piano aggiornato: ${itemLabel(item, data.catalog)}.`);
-            if (!failure) close();
-            return failure;
-          }}
-        />
-      ) : null}
 
       {sheet?.type === "copyDay" ? (
         <CopyDaySheet
@@ -374,266 +443,48 @@ function WeekView({ data, weeks, week, weekId, setWeekId, sheet, setSheet }: Vie
           today={data.today}
           weeks={weeks}
           onClose={close}
-          onCopy={async (to) => {
-            const target = weeks.find((w) => to >= w.start && to <= weekDates(w.start)[6]) as WeekChoice;
-            const sourceEntries = entries;
-            const targetEntries = target.start === week.start ? entries : (getWeek(plan, target.start)?.entries ?? []);
-            const failure = await save(copyDay(sourceEntries, targetEntries, sheet.date, to), `Copiato il ${dayMonth(sheet.date)} sul ${dayMonth(to)}.`, target.start);
-            if (!failure) close();
-            return failure;
+          onCopy={(to) => {
+            const from = sheet.date;
+            const sourceStart = weekStartOf(from);
+            const targetStart = weekStartOf(to);
+            return edit(
+              (read, ctx) => {
+                const source = read(sourceStart);
+                if (!source.some((e) => e.date === from)) return { ok: false, error: "Questo giorno non ha più pasti da copiare." };
+                return buildWeek(targetStart, copyDay(source, read(targetStart), from, to), ctx, `Copiato il ${dayMonth(from)} sul ${dayMonth(to)}.`);
+              },
+              { beforeNotice: close },
+            );
           }}
         />
       ) : null}
 
-      {sheet?.type === "copyWeek" ? (
-        <CopyWeekSheet
-          weeks={weeks.filter((w) => w.start !== week.start)}
-          plan={plan}
-          target={week}
-          onClose={close}
-          onCopy={async (from) => {
-            const source = getWeek(plan, from.start)?.entries ?? [];
-            const failure = await save(copyWeek(source, from.start, week.start), `Copiata la settimana ${weekRangeText(from.start)}.`);
-            if (!failure) close();
-            return failure;
-          }}
-        />
-      ) : null}
+      {sheet?.type === "copyWeek" ? <CopyWeekSheet data={data} target={week} onClose={close} /> : null}
 
       {sheet?.type === "dayType" ? (
         <DayTypeSheet
           date={sheet.date}
           data={data}
           onClose={close}
-          onSet={async (name) => {
-            const failure = await write((ctx) => buildDayType(sheet.date, name, ctx));
-            if (!failure) close();
-            return failure;
-          }}
+          onSet={(name) => write((ctx) => buildDayType(sheet.date, name, ctx), { beforeNotice: close })}
           onClear={async () => {
-            const current = plan.dayTypes.find((d) => d.date === sheet.date);
-            if (!current) return null;
-            const failure = await write((ctx) => buildClearDayType(current.eventId, sheet.date, ctx));
-            if (!failure) close();
-            return failure;
+            const date = sheet.date;
+            // l'evento che dà il tipo a questo giorno si rilegge dall'archivio
+            let current;
+            try {
+              current = derivePlan(await getAllEvents()).dayTypes.find((d) => d.date === date);
+            } catch {
+              return "Non sono riuscito a leggere i dati del telefono. Riprova.";
+            }
+            if (!current) {
+              close();
+              return null;
+            }
+            const eventId = current.eventId;
+            return write((ctx) => buildClearDayType(eventId, date, ctx), { beforeNotice: close });
           }}
         />
       ) : null}
     </div>
-  );
-}
-
-function AmountSheet({
-  entry,
-  data,
-  onClose,
-  onSave,
-}: {
-  entry: PlannedEntry;
-  data: PlanData;
-  onClose: () => void;
-  onSave: (item: PlannedItem) => Promise<string | null>;
-}) {
-  const id = useId();
-  const item = entry.item;
-  const [text, setText] = useState(item.kind === "food" ? `${item.quantity.value} ${item.quantity.unit}` : String(item.servings).replace(".", ","));
-  const [error, setError] = useState<string | null>(null);
-
-  async function submit() {
-    setError(null);
-    let next: PlannedItem;
-    if (item.kind === "food") {
-      const q = readQuantity(text);
-      if (!q.ok) return setError(q.error);
-      next = { ...item, quantity: q.quantity };
-    } else {
-      const n = parseAmount(text);
-      if (n === null || n <= 0) return setError("Scrivi quante porzioni, per esempio 2.");
-      next = { ...item, servings: n };
-    }
-    const failure = await onSave(next);
-    if (failure) setError(failure);
-  }
-
-  return (
-    <Sheet title="Quantità" onClose={onClose}>
-      <p className={ui.lead}>{itemLabel(item, data.catalog)}</p>
-      <div className={ui.field}>
-        <label className={ui.fieldLabel} htmlFor={id}>
-          {item.kind === "food" ? "Quantità" : "Porzioni"}
-        </label>
-        <input id={id} className={ui.input} value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" inputMode={item.kind === "food" ? "text" : "decimal"} />
-      </div>
-      {error ? (
-        <p className={ui.error} role="alert">
-          {error}
-        </p>
-      ) : null}
-      <Button onClick={() => void submit()}>Salva</Button>
-    </Sheet>
-  );
-}
-
-function CopyDaySheet({
-  from,
-  today,
-  weeks,
-  onClose,
-  onCopy,
-}: {
-  from: string;
-  today: string;
-  weeks: WeekChoice[];
-  onClose: () => void;
-  onCopy: (to: string) => Promise<string | null>;
-}) {
-  const ids = useId();
-  const [to, setTo] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const options = weeks.filter((w) => w.id !== "previous").flatMap((w) => weekDates(w.start)).filter((d) => d !== from && d >= today);
-  return (
-    <Sheet title={`Copia il ${dayMonth(from)}`} onClose={onClose}>
-      <fieldset className={ui.field}>
-        <legend className={ui.fieldLabel}>Su quale giorno</legend>
-        <div className={ui.choices}>
-          {options.map((d) => (
-            <label key={d} className={ui.choice}>
-              <input type="radio" name={`${ids}-to`} checked={to === d} onChange={() => setTo(d)} />
-              <span>{dayHeading(d, today).replace(/, (oggi|domani)$/, "")}</span>
-            </label>
-          ))}
-        </div>
-        <p className={ui.hint}>I pasti già pianificati nel giorno scelto vengono sostituiti. Con «Annulla» tornano.</p>
-      </fieldset>
-      {error ? (
-        <p className={ui.error} role="alert">
-          {error}
-        </p>
-      ) : null}
-      <Button
-        disabled={to === null}
-        onClick={async () => {
-          if (to) setError(await onCopy(to));
-        }}
-      >
-        Copia
-      </Button>
-    </Sheet>
-  );
-}
-
-function CopyWeekSheet({
-  weeks,
-  plan,
-  target,
-  onClose,
-  onCopy,
-}: {
-  weeks: WeekChoice[];
-  plan: NonNullable<PlanData["plan"]>;
-  target: WeekChoice;
-  onClose: () => void;
-  onCopy: (from: WeekChoice) => Promise<string | null>;
-}) {
-  const ids = useId();
-  const [from, setFrom] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const usable = weeks.filter((w) => (getWeek(plan, w.start)?.entries.length ?? 0) > 0);
-  const chosen = usable.find((w) => w.start === from);
-  return (
-    <Sheet title="Copia una settimana" onClose={onClose}>
-      {usable.length === 0 ? (
-        <p className={ui.lead}>Nelle altre settimane non c&apos;è ancora niente di pianificato da copiare.</p>
-      ) : (
-        <fieldset className={ui.field}>
-          <legend className={ui.fieldLabel}>Quale settimana copio su {weekRangeText(target.start)}</legend>
-          <div className={ui.choices}>
-            {usable.map((w) => (
-              <label key={w.start} className={ui.choice}>
-                <input type="radio" name={`${ids}-from`} checked={from === w.start} onChange={() => setFrom(w.start)} />
-                <span>
-                  {WEEK_LABELS[w.id]}, {weekRangeText(w.start)}
-                </span>
-              </label>
-            ))}
-          </div>
-          <p className={ui.hint}>Sostituisce tutto ciò che è pianificato in questa settimana. Con «Annulla» torna com&apos;era.</p>
-        </fieldset>
-      )}
-      {error ? (
-        <p className={ui.error} role="alert">
-          {error}
-        </p>
-      ) : null}
-      <Button
-        disabled={!chosen}
-        onClick={async () => {
-          if (chosen) setError(await onCopy(chosen));
-        }}
-      >
-        Copia la settimana
-      </Button>
-    </Sheet>
-  );
-}
-
-function DayTypeSheet({
-  date,
-  data,
-  onClose,
-  onSet,
-  onClear,
-}: {
-  date: string;
-  data: PlanData;
-  onClose: () => void;
-  onSet: (name: string) => Promise<string | null>;
-  onClear: () => Promise<string | null>;
-}) {
-  const ids = useId();
-  const plan = data.plan!;
-  const known = [...new Set([...plan.targets.map((t) => t.dayType), ...plan.dayTypes.map((d) => d.dayType), ...(plan.structure?.defaultDayType ? [plan.structure.defaultDayType] : [])])].sort();
-  const current = plan.dayTypes.find((d) => d.date === date);
-  const [choice, setChoice] = useState<string>(current?.dayType ?? "");
-  const [custom, setCustom] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const name = choice === "__new" ? custom : choice;
-  return (
-    <Sheet title={`Tipo di giornata, ${dayMonth(date)}`} onClose={onClose}>
-      <p className={ui.lead}>Per esempio «allenamento» o «riposo»: i nomi li scegli tu, e gli obiettivi si scrivono per ogni tipo.</p>
-      <fieldset className={ui.field}>
-        <legend className={ui.srOnly}>Tipo di giornata</legend>
-        <div className={ui.choices}>
-          {known.map((k) => (
-            <label key={k} className={ui.choice}>
-              <input type="radio" name={`${ids}-t`} checked={choice === k} onChange={() => setChoice(k)} />
-              <span>{k}</span>
-            </label>
-          ))}
-          <label className={ui.choice}>
-            <input type="radio" name={`${ids}-t`} checked={choice === "__new"} onChange={() => setChoice("__new")} />
-            <span>Un altro</span>
-          </label>
-        </div>
-        {choice === "__new" ? (
-          <input className={ui.input} value={custom} onChange={(e) => setCustom(e.target.value)} aria-label="Nome del tipo di giornata" placeholder="allenamento" autoComplete="off" />
-        ) : null}
-      </fieldset>
-      {error ? (
-        <p className={ui.error} role="alert">
-          {error}
-        </p>
-      ) : null}
-      <div className={ui.row}>
-        <Button disabled={name.trim() === ""} onClick={async () => setError(await onSet(name))}>
-          Salva
-        </Button>
-        {current ? (
-          <Button variant="outline" onClick={async () => setError(await onClear())}>
-            Togli
-          </Button>
-        ) : null}
-      </div>
-    </Sheet>
   );
 }

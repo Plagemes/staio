@@ -55,7 +55,7 @@ describe("famiglie di eventi", () => {
 
   it("l'elenco delle altre famiglie nel diario non è andato fuori sincrono", () => {
     expect([...OTHER_FAMILY_EVENT_TYPES].sort()).toEqual(
-      [...PLAN_EVENT_TYPES, ...PREP_EVENT_TYPES, ...RECIPE_EVENT_TYPES, "experiment", "allergenConfirmation"].sort(),
+      [...PLAN_EVENT_TYPES, ...PREP_EVENT_TYPES, ...RECIPE_EVENT_TYPES, "experiment", "allergenConfirmation", "allergenDeclaration"].sort(),
     );
   });
 
@@ -216,5 +216,33 @@ describe("mergeAllEvents su registri misti", () => {
     expect(merged.filter((e) => e.type === "void")).toHaveLength(log.voids.length);
     expect(ownVoided(deriveDiary(merged).voidedEventIds, "diary")).toEqual(["w-gone"]);
     expect(deriveDiary(merged).days[0].waterMl).toBe(250);
+  });
+});
+
+describe("allergenDeclaration", () => {
+  const declaration = {
+    id: "ad-1",
+    type: "allergenDeclaration",
+    at: "2026-03-01T08:00:00.000Z",
+    recordedAt: "2026-03-01T08:00:00.000Z",
+    deviceId: "dev-a",
+    schemaVersion: 1,
+    certainty: "measured",
+    source: "manual",
+    action: "add",
+    list: "allergens",
+    text: "latte",
+  } as AnyEvent;
+
+  it("è un tipo conosciuto, nella famiglia delle conferme sugli allergeni", () => {
+    expect(ALL_EVENT_TYPES).toContain("allergenDeclaration");
+    expect(familyOf(declaration)).toBe("allergenConfirmations");
+    expect(isKnownEvent(declaration)).toBe(true);
+    expect(validateAnyEvent(declaration)).toEqual([]);
+  });
+
+  it("un evento non valido è respinto", () => {
+    expect(validateAnyEvent({ ...declaration, list: "altro" } as unknown as AnyEvent).length).toBeGreaterThan(0);
+    expect(validateAnyEvent({ ...declaration, text: "" } as unknown as AnyEvent).length).toBeGreaterThan(0);
   });
 });

@@ -5,7 +5,7 @@ import { isStorageAvailable } from "@/design";
 import { useEventLog, useSetting } from "@/data";
 import { isStyleChoicePath } from "../settings/firstRunStyle";
 import { PROFILE_SETTING_KEY, isNutritionProfile } from "../nutrition/profile";
-import { RECIPE_PREFS_KEY, readPrefs } from "../recipes/prefs";
+import { useDietDeclarations } from "../allergens";
 import { decideOnboarding } from "./logic";
 import { markOnboardingDone, readOnboardingRaw, subscribeOnboarding } from "./store";
 
@@ -22,22 +22,19 @@ const readStorageOk = () => (storageOkCache ??= isStorageAvailable());
 export function useOnboardingGate(pathname: string): { show: boolean; close: () => void } {
   const log = useEventLog();
   const profile = useSetting<unknown>(PROFILE_SETTING_KEY);
-  const prefs = useSetting<unknown>(RECIPE_PREFS_KEY);
+  const diet = useDietDeclarations();
   const raw = useSyncExternalStore<string | null | undefined>(subscribeOnboarding, readOnboardingRaw, readOnServer);
   const storageOk = useSyncExternalStore(subscribeNothing, readStorageOk, () => false);
   const [latched, setLatched] = useState(false);
 
-  const saved = readPrefs(prefs.data);
-  const hasData =
-    (log.data?.length ?? 0) > 0 ||
-    isNutritionProfile(profile.data) ||
-    saved.allergens.length + saved.excludedFoods.length > 0;
+  const declared = diet.state ? diet.state.allergens.length + diet.state.excludedFoods.length : 0;
+  const hasData = (log.data?.length ?? 0) > 0 || isNutritionProfile(profile.data) || declared > 0;
 
   const decision = decideOnboarding({
     pathname,
     raw,
     storageOk,
-    existing: { loading: log.loading || profile.loading || prefs.loading, error: log.error ?? profile.error ?? prefs.error, hasData },
+    existing: { loading: log.loading || profile.loading || (!diet.ready && diet.error === undefined), error: log.error ?? profile.error ?? diet.error ?? (diet.state && !diet.state.complete ? "incomplete" : undefined), hasData },
   });
 
   if (decision === "offer" && !latched) setLatched(true);

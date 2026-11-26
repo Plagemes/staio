@@ -2,17 +2,26 @@
 
 import { useId, useMemo, useState } from "react";
 import type { MealKind } from "@/core/diary";
-import type { PlannedItem } from "@/core/plan";
-import { Button, Tabs } from "@/design";
+import type { AnyEvent } from "@/core/events";
+import { buildWeek, entryOf, withoutEntry } from "./edit";
+import type { PlannedEntry, PlannedItem } from "@/core/plan";
+import { Button, Label, Tabs } from "@/design";
 import { readQuantity } from "../capture";
 import { MEAL_KIND_LABELS } from "../meals";
 import { createFoodSearch, resolveFreeItems } from "../nutrition/candidates";
 import { FoodChoice } from "../nutrition/FoodChoice";
 import { loadFoods, useFoods } from "../nutrition/useNutrition";
+import { useNotice } from "../notice";
 import ui from "../ui.module.css";
-import { KIND_LABELS, servingsText } from "./describe";
-import type { PlanData } from "./usePlanData";
+import { dayMonth } from "./dates";
+import { KIND_LABELS, itemLabel, servingsText } from "./describe";
+import { ENTRY_CHANGED, addBuilder, useWeekEditor } from "./useWeekEditor";
+import { entryKey, findLastEntry } from "./entryKey";
+import { Sheet } from "./Sheet";
+import { startMeal } from "./startMeal";
 import { parseAmount } from "./targets";
+import type { PlanData } from "./usePlanData";
+import { localMinutes } from "./localMinutes";
 import styles from "./plan.module.css";
 
 type Kind = PlannedItem["kind"];
@@ -25,23 +34,26 @@ interface PickRow {
 }
 
 const TABS = (Object.keys(KIND_LABELS) as Kind[]).map((id) => ({ id, label: KIND_LABELS[id] }));
+const lower = (meal: MealKind) => MEAL_KIND_LABELS[meal].toLowerCase();
 
 interface AddEntryProps {
   data: PlanData;
-  date: string;
   /** Pasti tra cui scegliere, nell'ordine della struttura del piano. */
   meals: readonly MealKind[];
-  defaultMeal: MealKind;
+  meal: MealKind;
+  onMeal: (meal: MealKind) => void;
+  formId: string;
+  onBusy: (busy: boolean) => void;
+  /** Scrive la voce. Restituisce il testo dell'errore, oppure `null` se è andata bene (allora i campi si azzerano). */
   onAdd: (meal: MealKind, item: PlannedItem) => Promise<string | null>;
 }
 
-/** Aggiunta di una voce a un pasto: un alimento (con la stessa scelta esplicita della registrazione), una ricetta o una preparazione. */
-export function AddEntry({ data, meals, defaultMeal, onAdd }: AddEntryProps) {
+/** I campi di «Aggiungi»: un alimento (con la stessa scelta esplicita della registrazione), una ricetta o una preparazione. */
+export function AddEntry({ data, meals, meal, onMeal, formId, onBusy, onAdd }: AddEntryProps) {
   const ids = useId();
   const foods = useFoods();
   const search = useMemo(() => (foods ? createFoodSearch(foods) : undefined), [foods]);
   const [kind, setKind] = useState<Kind>("food");
-  const [meal, setMeal] = useState<MealKind>(defaultMeal);
   const [name, setName] = useState("");
   const [quantityText, setQuantityText] = useState("");
   const [foodId, setFoodId] = useState<string | undefined>();
@@ -50,7 +62,6 @@ export function AddEntry({ data, meals, defaultMeal, onAdd }: AddEntryProps) {
   const [refId, setRefId] = useState<string | null>(null);
   const [servingsTextValue, setServingsText] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   const list: PickRow[] =
     kind === "recipe"
@@ -68,30 +79,43 @@ export function AddEntry({ data, meals, defaultMeal, onAdd }: AddEntryProps) {
     setError(null);
   }
 
+  /** Dopo un'aggiunta riuscita: i campi si azzerano; il tipo e il pasto restano, per la voce dopo. */
+  function clear() {
+    setName("");
+    setQuantityText("");
+    setFoodId(undefined);
+    setNone(false);
+    setFilter("");
+    setRefId(null);
+    setServingsText("");
+  }
+
   async function submit() {
     setError(null);
     let item: PlannedItem;
     if (kind === "food") {
       if (name.trim() === "") return setError("Scrivi come si chiama l'alimento.");
-      const q = readQuantity(quantityText);
-      if (!q.ok) return setError(q.error);
+      const parsed = readQuantity(quantityText);
+      if (!parsed.ok) return setError(parsed.error);
       const resolved = resolveFreeItems([{ name, quantityText, foodId, none }], search ?? createFoodSearch(await loadFoods()));
       if (resolved.errors[0]) return setError(resolved.errors[0]);
-      item = { kind: "food", name: name.trim().replace(/\s+/g, " "), ...(foodId ? { foodId } : {}), quantity: q.quantity };
+      item = { kind: "food", name: name.trim().replace(/\s+/g, " "), ...(foodId ? { foodId } : {}), quantity: parsed.quantity };
     } else {
       if (!refId) return setError(kind === "recipe" ? "Scegli una ricetta." : "Scegli una preparazione.");
       const servings = parseAmount(servingsTextValue);
       if (servings === null || servings <= 0) return setError("Scrivi quante porzioni, per esempio 2.");
       item = kind === "recipe" ? { kind: "recipe", recipeId: refId, servings } : { kind: "prep", prepId: refId, servings };
     }
-    setBusy(true);
+    onBusy(true);
     const result = await onAdd(meal, item);
-    setBusy(false);
+    onBusy(false);
     if (result) setError(result);
+    else clear();
   }
 
   return (
     <form
+      id={formId}
       className={ui.form}
       onSubmit={(e) => {
         e.preventDefault();
@@ -104,7 +128,7 @@ export function AddEntry({ data, meals, defaultMeal, onAdd }: AddEntryProps) {
         <div className={ui.choices}>
           {meals.map((m) => (
             <label key={m} className={ui.choice}>
-              <input type="radio" name={`${ids}-meal`} value={m} checked={meal === m} onChange={() => setMeal(m)} />
+              <input type="radio" name={`${ids}-meal`} value={m} checked={meal === m} onChange={() => onMeal(m)} />
               <span>{MEAL_KIND_LABELS[m]}</span>
             </label>
           ))}
@@ -117,6 +141,10 @@ export function AddEntry({ data, meals, defaultMeal, onAdd }: AddEntryProps) {
         value={kind}
         onChange={(id) => {
           setKind(id as Kind);
+          // la scelta di una ricetta non vale per una preparazione, e viceversa
+          setRefId(null);
+          setServingsText("");
+          setFilter("");
           setError(null);
         }}
       />
@@ -207,9 +235,7 @@ export function AddEntry({ data, meals, defaultMeal, onAdd }: AddEntryProps) {
                     Porzioni
                   </label>
                   <input id={`${ids}-serv`} className={ui.input} inputMode="decimal" value={servingsTextValue} onChange={(e) => setServingsText(e.target.value)} autoComplete="off" />
-                  {kind === "prep" ? (
-                    <p className={ui.hint}>Le porzioni già pronte non chiedono ingredienti nella lista della spesa; per le altre sì.</p>
-                  ) : null}
+                  {kind === "prep" ? <p className={ui.hint}>Le porzioni già pronte non chiedono ingredienti nella lista della spesa; per le altre sì.</p> : null}
                 </div>
               ) : null}
             </>
@@ -222,9 +248,120 @@ export function AddEntry({ data, meals, defaultMeal, onAdd }: AddEntryProps) {
           {error}
         </p>
       ) : null}
-      <Button type="submit" disabled={busy}>
-        {busy ? "Aggiungo…" : `Aggiungi a ${MEAL_KIND_LABELS[meal].toLowerCase()}`}
-      </Button>
     </form>
+  );
+}
+
+interface Added {
+  key: string;
+  label: string;
+  meal: MealKind;
+}
+
+interface SheetProps {
+  data: PlanData;
+  date: string;
+  weekStart: string;
+  /** Le voci della settimana (per scegliere il pasto di partenza). */
+  entries: readonly PlannedEntry[];
+  /** I pasti da offrire, nell'ordine; tutti e quattro se il piano non ha una struttura. */
+  meals: readonly MealKind[];
+  /** I pasti della struttura del piano; vuoto se non c'è. */
+  structureMeals: readonly MealKind[];
+  onClose: () => void;
+}
+
+/**
+ * Il foglio «Aggiungi»: resta aperto dopo ogni aggiunta, per la voce dopo. Ogni aggiunta è una scrittura (una riga in
+ * «Ultime azioni») e non dà avvisi; alla chiusura un solo avviso, con «Annulla» per tutte quelle di questa apertura.
+ */
+export function AddEntrySheet({ data, date, weekStart, entries, meals, structureMeals, onClose }: SheetProps) {
+  const formId = useId();
+  const edit = useWeekEditor();
+  const notice = useNotice();
+  const [meal, setMeal] = useState<MealKind>(() =>
+    startMeal({ date, today: data.today, nowMinutes: localMinutes(data.now, data.diary?.timeZone), meals: structureMeals, entries }),
+  );
+  const [busy, setBusy] = useState(false);
+  const [added, setAdded] = useState<Added[]>([]);
+  const [events, setEvents] = useState<AnyEvent[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  async function add(m: MealKind, item: PlannedItem): Promise<string | null> {
+    const entry = entryOf(date, m, item);
+    return edit(addBuilder(weekStart, entry, data.catalog), {
+      silent: true,
+      onWritten: (written) => {
+        setEvents((all) => [...all, ...written]);
+        setAdded((all) => [...all, { key: entryKey(entry), label: itemLabel(item, data.catalog), meal: m }]);
+      },
+    });
+  }
+
+  async function take(index: number) {
+    const row = added[index];
+    setError(null);
+    const failure = await edit(
+      (read, ctx) => {
+        const current = read(weekStart);
+        const at = findLastEntry(current, row.key);
+        if (at < 0) return { ok: false, error: ENTRY_CHANGED };
+        return buildWeek(weekStart, withoutEntry(current, at), ctx, `Tolto dal piano: ${row.label}.`);
+      },
+      {
+        silent: true,
+        onWritten: (written) => {
+          setEvents((all) => [...all, ...written]);
+          setAdded((all) => all.filter((_, i) => i !== index));
+        },
+      },
+    );
+    if (failure) setError(failure);
+  }
+
+  function close() {
+    onClose();
+    if (added.length === 0) return;
+    notice.show({
+      message: added.length === 1 ? `Aggiunto al piano: ${added[0].label}.` : `Aggiunti al piano: ${added.length} voci.`,
+      undo: events,
+    });
+  }
+
+  return (
+    <Sheet
+      title={`Aggiungi, ${dayMonth(date)}`}
+      onClose={close}
+      busy={busy}
+      footer={
+        <Button type="submit" form={formId} disabled={busy}>
+          {busy ? "Aggiungo…" : `Aggiungi a ${lower(meal)}`}
+        </Button>
+      }
+    >
+      {added.length > 0 ? (
+        <div className={ui.field}>
+          <Label>Aggiunti:</Label>
+          <ul className={styles.addedList}>
+            {added.map((a, i) => (
+              <li key={`${a.key}-${i}`} className={styles.added}>
+                <span className={styles.addedText}>
+                  {a.label} a {lower(a.meal)}
+                </span>
+                <Button variant="text" disabled={busy} onClick={() => void take(i)}>
+                  Togli
+                </Button>
+              </li>
+            ))}
+          </ul>
+          {error ? (
+            <p className={ui.error} role="alert">
+              {error}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      <AddEntry data={data} meals={meals} meal={meal} onMeal={setMeal} formId={formId} onBusy={setBusy} onAdd={add} />
+    </Sheet>
   );
 }

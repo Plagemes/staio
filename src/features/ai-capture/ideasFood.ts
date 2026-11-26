@@ -2,7 +2,8 @@
 // Prima le ricette salvate che lo usano (senza intelligenza artificiale), poi le idee del modello. Logica pura.
 import type { CheckedIdea } from "@/core/ai/recipeIdeasCheck";
 import { fold } from "../recipes/common";
-import type { RecipeRow } from "../recipes/list";
+import type { Recipe } from "@/core/recipes";
+import { applyFilters, buildRows, sortRows, type FilterOutcome, type ListFilters, type PantryView, type RecipeRow } from "../recipes/list";
 
 export const FOOD_PARAM = "alimento";
 const MAX_FOOD = 80;
@@ -62,4 +63,37 @@ export function ideaUsesFood(checked: Pick<CheckedIdea, "usedFromPantry" | "idea
 export function ideasFoodFirst<T extends Pick<CheckedIdea, "usedFromPantry" | "idea">>(accepted: readonly T[], food: string): T[] {
   const uses = (c: T) => ideaUsesFood(c, food);
   return [...accepted.filter(uses), ...accepted.filter((c) => !uses(c))];
+}
+
+/** Senza la chiave: al massimo sei ricette salvate, le prime di «Per usare ciò che scade». */
+export const SAVED_LIMIT = 6;
+
+/** L'indirizzo per cucinare una ricetta salvata, con le sue porzioni. */
+export const cookHref = (recipeId: string, servings: number): string => `/app/ricette/cucina?id=${encodeURIComponent(recipeId)}&porzioni=${servings}`;
+
+/**
+ * Le ricette salvate da proporre senza la chiave. Prima il controllo del ricettario (allergeni, esclusioni, conferme: le
+ * ricette tolte si contano in `outcome`), poi l'ordine «Per usare ciò che scade» e il tetto di sei.
+ */
+export function savedForExpiring(
+  recipes: readonly Recipe[],
+  view: PantryView,
+  filters: ListFilters,
+): { picks: RecipeRow[]; outcome: FilterOutcome } {
+  const outcome = applyFilters(buildRows(recipes, view), filters);
+  return { picks: sortRows(outcome.rows, "expiring").slice(0, SAVED_LIMIT), outcome };
+}
+
+interface DeclaredLists {
+  allergens: readonly string[];
+  excludedFoods: readonly string[];
+}
+
+/**
+ * Vero se ogni allergene e ogni esclusione di `current` c'era già in `used`. Serve prima di salvare un'idea: una voce
+ * dichiarata dopo la risposta del modello non si può ignorare.
+ */
+export function declaredCoveredBy(current: DeclaredLists, used: DeclaredLists): boolean {
+  const has = (list: readonly string[], item: string) => list.some((x) => fold(x) === fold(item));
+  return current.allergens.every((a) => has(used.allergens, a)) && current.excludedFoods.every((f) => has(used.excludedFoods, f));
 }

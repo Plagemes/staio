@@ -17,6 +17,7 @@ import type {
 } from "@/core/ledger";
 import { PREP_REPAIR_ID_PREFIX, type PrepEvent } from "@/core/prep";
 import { formatQuantity } from "@/core/units";
+import { DIET_HREF } from "../allergens";
 import { formatTime } from "../format";
 import { SYMPTOM_LABELS, formatKg, formatMl } from "../health";
 import { DISCARD_REASON_LABELS, LOCATION_LABELS } from "../labels";
@@ -308,7 +309,7 @@ function describer(ctx: DescribeContext) {
       case "planWeek":
         return { text: "Piano: settimana cambiata", href: "/app/piano/settimana" };
       case "planTargets":
-        return { text: "Piano: obiettivi cambiati", href: "/app/piano/obiettivi" };
+        return { text: "Piano: obiettivi cambiati", href: `${DIET_HREF}?sezione=obiettivi` };
       case "planStructure":
         return { text: "Piano: pasti, allergeni o esclusioni cambiati", href: "/app/piano" };
       case "dayType":
@@ -323,6 +324,10 @@ function describer(ctx: DescribeContext) {
         return { text: "startDate" in e ? `Esperimento salvato: ${lower(e.title)}` : "Modifica: esperimenti", href: "/app/salute/esperimenti" };
       case "allergenConfirmation":
         return { text: `${e.action === "confirm" ? "Conferma sugli allergeni" : "Conferma sugli allergeni ritirata"}: ${lower(e.ingredient)}` };
+      case "allergenDeclaration": {
+        const what = e.list === "allergens" ? (e.action === "add" ? "Allergene aggiunto" : "Allergene tolto") : e.action === "add" ? "Alimento escluso aggiunto" : "Alimento escluso tolto";
+        return { text: `${what}: ${lower(e.text)}`, href: "/app/impostazioni/alimentazione" };
+      }
       default: {
         const family = familyOf(e);
         return family ? { text: `Modifica: ${FAMILY_NAMES[family]}`, href: FAMILY_PAGES[family] } : { text: GENERIC };

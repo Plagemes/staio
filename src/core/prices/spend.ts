@@ -24,6 +24,22 @@ export interface CategorySpend {
   unpricedCount: number;
 }
 
+/** Un acquisto del periodo: la parte di cui è fatto il totale. */
+export interface SpendPurchase {
+  lotId: string;
+  /** L'evento che ha creato il lotto: da lì si arriva alla riga di Oggi. */
+  eventId: string;
+  name: string;
+  /** Giorno dell'acquisto, `YYYY-MM-DD`. */
+  date: string;
+  store?: string;
+  category: string | null;
+  /** Assente se l'acquisto non ha prezzo. */
+  cents?: number;
+  /** Certezza del prezzo; assente senza prezzo. */
+  certainty?: Certainty;
+}
+
 export interface SpendSummary {
   range: SpendRange;
   /** Somma dei soli acquisti con prezzo, in centesimi interi. */
@@ -38,6 +54,8 @@ export interface SpendSummary {
   byCategory: CategorySpend[];
   /** Certezza peggiore tra i prezzi contati; assente senza prezzi. */
   certainty?: Certainty;
+  /** Gli acquisti del periodo, nello stesso ciclo dei totali: la somma dei `cents` è `totalCents`. */
+  purchases: SpendPurchase[];
 }
 
 /** Ultimi 7 giorni (oggi compreso), ultimi 30 e mese in corso dal primo del mese. */
@@ -59,6 +77,7 @@ export function summarizeSpend(
   let pricedCount = 0;
   let unpricedCount = 0;
   let certainty: Certainty | undefined;
+  const purchases: SpendPurchase[] = [];
   for (const lot of pantry.lots) {
     if (lot.origin !== "purchase") continue;
     const date = calendarDateOf(lot.createdAt, timeZone);
@@ -70,9 +89,18 @@ export function summarizeSpend(
       c = { category: label, cents: 0, pricedCount: 0, unpricedCount: 0 };
       byCat.set(key, c);
     }
+    const part: SpendPurchase = {
+      lotId: lot.lotId,
+      eventId: lot.history[0]?.eventId ?? lot.lotId,
+      name: lot.productRef,
+      date,
+      ...(lot.store ? { store: lot.store } : {}),
+      category: label,
+    };
     if (lot.priceCents === undefined) {
       unpricedCount += 1;
       c.unpricedCount += 1;
+      purchases.push(part);
       continue;
     }
     totalCents += lot.priceCents;
@@ -81,6 +109,7 @@ export function summarizeSpend(
     c.pricedCount += 1;
     const lc = lot.priceCertainty ?? "estimated";
     certainty = certainty === undefined ? lc : worseCertainty(certainty, lc);
+    purchases.push({ ...part, cents: lot.priceCents, certainty: lc });
   }
   const byCategory = [...byCat.values()].sort(
     (a, b) => b.cents - a.cents || cmp(a.category ?? "￿", b.category ?? "￿"),
@@ -93,6 +122,7 @@ export function summarizeSpend(
     purchaseCount: pricedCount + unpricedCount,
     isMinimum: unpricedCount > 0,
     byCategory,
+    purchases,
     ...(certainty !== undefined ? { certainty } : {}),
   };
 }

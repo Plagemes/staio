@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { PantryRow } from "@/design";
+import { ideasHref } from "../ai-capture/ideasFood";
 import { Disclosure } from "../common";
 import { LOCATION_LABELS } from "../labels";
 import { expiryTagView, isExpiring, levelPercent, type PantryEntry } from "../lots";
@@ -52,7 +53,7 @@ export function Expiring({ entries, today }: { entries: readonly PantryEntry[]; 
         })}
       </ul>
       <div className={ui.row}>
-        <Link href="/app/ricette/idee" className={ui.textLink}>
+        <Link href={groups.length === 1 ? ideasHref(groupName(groups[0])) : "/app/ricette/idee"} className={ui.textLink}>
           Cosa cucinare
         </Link>
         <Link href="/app/dispensa" className={ui.textLink}>

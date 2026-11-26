@@ -5,6 +5,13 @@ import { getDb } from "./db";
 const RESERVED_KEYS = new Set(["deviceId"]);
 /** Prefisso delle chiavi segrete (fornitore AI): mai esportate né importate. */
 export const SECRET_PREFIX = "ai.";
+/** Chiavi segrete con il nome intero: il servizio dei video porta con sé un token, mai esportato né importato. */
+export const SECRET_KEYS: ReadonlySet<string> = new Set(["video.service"]);
+/**
+ * Stato di un solo telefono: una copia che arriva da fuori non deve cambiarlo (la data dell'ultima copia) e non deve
+ * far ricomparire su un altro telefono una bozza di scontrino o una cucina a metà.
+ */
+const LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set(["backup.lastExportAt", "receipt.draft", "recipes.cookSession"]);
 
 export const SETTINGS_FORMAT = "ledger-settings";
 export const SETTINGS_VERSION = 1;
@@ -21,8 +28,9 @@ function assertWritable(key: string): void {
   if (RESERVED_KEYS.has(key)) throw new Error("reserved_setting_key");
 }
 
+/** Una sola regola per l'esportazione e per l'importazione. */
 const isExportable = (key: string): boolean =>
-  !key.startsWith(SECRET_PREFIX) && !RESERVED_KEYS.has(key) && key.length > 0;
+  key.length > 0 && !key.startsWith(SECRET_PREFIX) && !SECRET_KEYS.has(key) && !RESERVED_KEYS.has(key) && !LOCAL_ONLY_KEYS.has(key);
 
 export async function getSetting<T = unknown>(key: string): Promise<T | undefined> {
   if (RESERVED_KEYS.has(key)) return undefined;
@@ -43,7 +51,7 @@ export function liveSetting<T = unknown>(key: string): Observable<T | undefined>
   return liveQuery(() => getSetting<T>(key));
 }
 
-/** Impostazioni non sensibili: esclude `ai.*` e l'identità del dispositivo. */
+/** Impostazioni non sensibili: esclude `ai.*`, `video.service` (indirizzo e token) e l'identità del dispositivo. */
 export async function exportSettings(): Promise<SettingsExport> {
   const rows = await getDb().settings.toArray();
   const settings: Record<string, unknown> = {};
@@ -62,7 +70,7 @@ export type ImportSettingsResult =
   | { ok: true; imported: number; skipped: number }
   | { ok: false; error: string };
 
-/** Le chiavi `ai.*` e riservate presenti nel file sono ignorate. */
+/** Le chiavi segrete (`ai.*`, `video.service`) e quelle riservate presenti nel file sono ignorate. */
 export async function importSettings(json: unknown): Promise<ImportSettingsResult> {
   let data = json;
   if (typeof json === "string") {

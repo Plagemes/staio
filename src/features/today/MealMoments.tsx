@@ -50,6 +50,9 @@ import { OTHER_VERSION_NOTE, isCompactMoment, mealSheetTitle, momentChoices, rep
 import { EntrySheet, type EntryTarget } from "./EntrySheet";
 import { EntryRow, LooseLine, freeItemLine, type DayIntakeLookup } from "./MealLines";
 import { MealSheet } from "./MealSheet";
+import { PlannedLines } from "./PlannedLines";
+import { nextPlannedHidden } from "./plannedMoment";
+import type { TodayPlan } from "./useTodayPlan";
 import { inSentence, mealSummary } from "./summaries";
 import { useRemove } from "./useRemove";
 import entries from "./MealEntries.module.css";
@@ -72,6 +75,8 @@ interface Props {
   pantry: PantryState;
   /** Ciò che il piano prevede per oggi: si legge nella riga del momento ancora vuoto. */
   planned: readonly { meal: MealKind; text: string }[];
+  /** Il piano di oggi per intero: le voci sotto il momento e «Che cosa manca». Assente, il momento mostra solo il suo titolo. */
+  plan?: TodayPlan;
   intake: DayIntakeLookup;
   /** Un giorno già passato: tutti i momenti compaiono. */
   pastDay: boolean;
@@ -118,7 +123,7 @@ function MomentMore({ title, items }: { title: string; items: () => ActionItem[]
  * niente, sta in una riga sola. Un pasto registrato è una riga richiusa che dice che cosa contiene: dentro, ogni voce è
  * una riga che si tocca (foglio «Voce») e in fondo c'è «Altro» (foglio «Pasto»). Una bevanda non vale un pasto.
  */
-export function MealMoments({ date, today, now, diary, day, meals, loose, log, pantry, planned, intake, pastDay }: Props) {
+export function MealMoments({ date, today, now, diary, day, meals, loose, log, pantry, planned, plan, intake, pastDay }: Props) {
   const timeZone = diary.timeZone;
   const { recordWith, busy: recording } = useRecord();
   const { remove, busy: removing } = useRemove();
@@ -370,15 +375,21 @@ export function MealMoments({ date, today, now, diary, day, meals, loose, log, p
     return { before, after: before.length === 0 ? list : list.filter((d) => !before.includes(d)) };
   };
 
+  // Il primo momento ancora nascosto che ha voci nel piano si mostra lo stesso (la cena alle 16:00), senza «Registra».
+  const promoted = pastDay || !plan ? undefined : nextPlannedHidden(
+    momentsOf(day).map((m) => ({ kind: m.kind, empty: m.status === "none" && drinks[m.kind].length === 0 && loose[m.kind].length === 0 })),
+    planned,
+    (kind) => momentOffer(kind, nowMinutes, { pastDay }),
+  );
   const rows = momentsOf(day).flatMap((moment) => {
     const kindMeals = meals.filter((m) => m.kind === moment.kind);
     const kindDrinks = drinks[moment.kind];
     const kindLoose = loose[moment.kind];
-    // Un momento con qualcosa dentro o dichiarato si mostra sempre; uno non ancora cominciato, no.
+    // Un momento con qualcosa dentro o dichiarato si mostra sempre; uno non ancora cominciato, no (salvo `promoted`).
     const hidden = momentOffer(moment.kind, nowMinutes, { pastDay }) === "hidden";
-    if (hidden && moment.status === "none" && kindDrinks.length === 0 && kindLoose.length === 0) return [];
+    if (hidden && moment.status === "none" && kindDrinks.length === 0 && kindLoose.length === 0 && moment.kind !== promoted) return [];
     const legacy = (day?.untrackedMeals ?? []).filter((u) => u.kind === moment.kind);
-    return [{ moment, kindMeals, kindDrinks, kindLoose, legacy }];
+    return [{ moment, kindMeals, kindDrinks, kindLoose, legacy, early: hidden && moment.kind === promoted }];
   });
   const snackMeals = meals.filter((m) => m.kind === "snack");
   const snackLegacy = (day?.untrackedMeals ?? []).filter((u) => u.kind === "snack");
@@ -392,14 +403,15 @@ export function MealMoments({ date, today, now, diary, day, meals, loose, log, p
   const list =
     rows.length === 0 && !hasSnacks ? null : (
       <ul className={`${styles.list} ${styles.momentList}`}>
-        {rows.map(({ moment, kindMeals, kindDrinks, kindLoose, legacy }) => {
+        {rows.map(({ moment, kindMeals, kindDrinks, kindLoose, legacy, early }) => {
           const { kind, status } = moment;
           const declared = status === "skipped" || status === "untracked";
           const recorded = status === "recorded";
           const name = MEAL_KIND_LABELS[kind].toLowerCase();
           const removeId = moment.declarationEventId ?? legacy[0]?.eventId;
           const plannedText = pastDay ? "" : planned.filter((p) => p.meal === kind).map((p) => p.text).join(", ");
-          const under = plannedText !== "" ? `nel piano: ${plannedText}` : kindDrinks.length === 0 && kindLoose.length === 0 ? "niente registrato" : "";
+          const under = plannedText === "" && kindDrinks.length === 0 && kindLoose.length === 0 ? "niente registrato" : "";
+          const plannedLines = plan && status === "none" && plannedText !== "" ? <PlannedLines plan={plan} meal={kind} /> : null;
           const momentDrinks = aroundMeals(kindDrinks, kindMeals);
           const compact = isCompactMoment({
             pastDay,
@@ -409,6 +421,23 @@ export function MealMoments({ date, today, now, diary, day, meals, loose, log, p
             loose: kindLoose.length,
             planned: plannedText !== "",
           });
+          if (early) {
+            // non ancora cominciato: niente «Registra», solo che cosa c'è nel piano
+            return (
+              <li key={kind} className={cx(styles.moment, entries.momentCompact)} data-status={status}>
+                <div className={entries.compact}>
+                  <span className={entries.compactText}>
+                    <span className={entries.compactTitle}>{MEAL_KIND_LABELS[kind]}</span> · nel piano
+                  </span>
+                  <span className={entries.compactActions}>
+                    <MomentMore title={MEAL_KIND_LABELS[kind]} items={() => moreItems(kind)} />
+                  </span>
+                </div>
+                {plannedLines}
+                {errorLine(kind)}
+              </li>
+            );
+          }
           if (compact) {
             return (
               <li key={kind} className={cx(styles.moment, entries.momentCompact)} data-status={status}>
@@ -456,6 +485,8 @@ export function MealMoments({ date, today, now, diary, day, meals, loose, log, p
                   )}
                 </div>
               )}
+
+              {plannedLines}
 
               {declared && changing === kind ? (
                 <div className={styles.momentChoices} role="group" aria-label={`Cambia ${name}`}>

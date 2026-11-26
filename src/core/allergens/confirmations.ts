@@ -256,8 +256,8 @@ export function revokeConfirmation(
 export function restoredConfirmationsNotice(count: number): string | undefined {
   if (!(count > 0)) return undefined;
   return count === 1
-    ? "Questa copia contiene 1 conferma di allergeni data in precedenza: controllala in Obiettivi."
-    : `Questa copia contiene ${count} conferme di allergeni date in precedenza: controllale in Obiettivi.`;
+    ? "Questa copia contiene 1 conferma di allergeni data in precedenza: controllala in Impostazioni › Alimentazione."
+    : `Questa copia contiene ${count} conferme di allergeni date in precedenza: controllale in Impostazioni › Alimentazione.`;
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -5,9 +5,9 @@ describe("esito del ripristino con conferme di allergeni", () => {
   it("lo dice, anche quando non c'è nient'altro di nuovo", () => {
     const base = { ok: true as const, added: 0, conflicts: [], rejected: [] };
     expect(describeImport({ ...base, allergenConfirmations: 2 }).text).toContain(
-      "Questa copia contiene 2 conferme di allergeni date in precedenza: controllale in Obiettivi.",
+      "Questa copia contiene 2 conferme di allergeni date in precedenza: controllale in Impostazioni › Alimentazione.",
     );
-    expect(describeImport({ ...base, added: 5, allergenConfirmations: 1 }).text).toMatch(/5 eventi nuovi importati.*1 conferma di allergeni data in precedenza: controllala in Obiettivi/);
+    expect(describeImport({ ...base, added: 5, allergenConfirmations: 1 }).text).toMatch(/5 eventi nuovi importati.*1 conferma di allergeni data in precedenza: controllala in Impostazioni › Alimentazione/);
   });
 
   it("senza conferme il testo è quello di prima", () => {

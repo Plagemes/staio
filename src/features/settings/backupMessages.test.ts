@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeImport, describeSettingsImport } from "./backupMessages";
+import { describeImport, describeSettingsExport, describeSettingsImport } from "./backupMessages";
 
 describe("describeImport", () => {
   it("errori di formato", () => {
@@ -26,7 +26,14 @@ describe("describeImport", () => {
     const done = describeSettingsImport({ ok: true, imported: 3, skipped: 1 });
     expect(done.ok).toBe(true);
     expect(done.text).toContain("3 impostazioni importate");
-    expect(done.text).toMatch(/intelligenza artificiale/);
+    expect(done.text).toContain("le chiavi e i token non si importano mai.");
+    expect(done.text).not.toMatch(/intelligenza artificiale/);
     expect(describeSettingsImport({ ok: true, imported: 1, skipped: 0 }).text).toBe("1 impostazione importata.");
+  });
+
+  it("esportazione: il numero e la frase sulle chiavi", () => {
+    expect(describeSettingsExport(12)).toBe("Copia pronta: 12 impostazioni, senza chiavi né token.");
+    expect(describeSettingsExport(1)).toBe("Copia pronta: 1 impostazione, senza chiavi né token.");
+    expect(describeSettingsExport(0)).toBe("Copia pronta: 0 impostazioni, senza chiavi né token.");
   });
 });

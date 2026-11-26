@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AdherenceWeek, DayCheck, NutrientCheck } from "@/core/plan";
-import { adherenceView, dayCheckView, daySummaryText, nutrientLine, targetText } from "./verify";
+import { adherenceView, dayCheckView, daySummaryText, nutrientLine, targetText, verifySummary } from "./verify";
 
 const n = (o: Partial<NutrientCheck>): NutrientCheck => ({
   nutrient: "proteinG",
@@ -81,5 +81,29 @@ describe("pianificato contro reale", () => {
     expect(v.excludedText).toMatch(/3 giorni esclusi/);
     expect(v.excludedText).toMatch(/Un vuoto non vuol dire/);
     expect(v.days[0].rows.map((r) => r.status)).toEqual(["respected", "skipped", "extra"]);
+  });
+});
+
+describe("verifySummary", () => {
+  const day = (date: string, status: DayCheck["status"], nutrients: NutrientCheck[] = []): DayCheck => ({ date, status, entries: 2, notComputableEntries: 0, nutrients });
+  const week = (days: DayCheck[]) => ({ weekStart: "2026-11-16", days, summary: { met: 0, below: 0, above: 0, undetermined: 0, not_computable: 0 } });
+
+  it("senza confronto possibile invita ad aprire", () => {
+    expect(verifySummary(undefined)).toBe("Apri per vedere il confronto");
+    expect(verifySummary(week([day("2026-11-16", "no_targets"), day("2026-11-17", "no_plan")]))).toBe("Apri per vedere il confronto");
+  });
+
+  it("niente fuori dagli obiettivi: niente da segnalare", () => {
+    expect(verifySummary(week([day("2026-11-16", "checked", [n({ status: "met" })])]))).toBe("Niente da segnalare");
+  });
+
+  it("giorni sotto il minimo di un nutriente", () => {
+    const below = [n({ status: "below" })];
+    expect(verifySummary(week([day("2026-11-16", "checked", below), day("2026-11-17", "checked", below), day("2026-11-18", "checked", [n({ status: "met" })])]))).toBe("2 giorni sotto il minimo: proteine");
+    expect(verifySummary(week([day("2026-11-16", "checked", below)]))).toMatch(/^1 giorno sotto il minimo/);
+  });
+
+  it("più nutrienti o direzioni diverse: da rivedere", () => {
+    expect(verifySummary(week([day("2026-11-16", "checked", [n({ status: "below" }), n({ nutrient: "energyKcal", status: "above" })])]))).toBe("1 giorno da rivedere");
   });
 });

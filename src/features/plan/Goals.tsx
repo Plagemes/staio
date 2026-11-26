@@ -5,58 +5,31 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { MEAL_KINDS, type MealKind } from "@/core/diary";
 import { resolveReferences } from "@/core/nutrition";
 import { dayTypeOf, type PlanState } from "@/core/plan";
-import { ALLERGEN_CHECK_NOTICE, allergenLabels, confirmationLapse } from "@/core/allergens";
-import { ALLERGEN_STEMS } from "@/core/recipes";
-import { getDeviceId, usePlan } from "@/data";
-import { Button, SectionHeader } from "@/design";
+import { allergenLabels, confirmationLapse } from "@/core/allergens";
+import { getDeviceId } from "@/data";
+import { Button } from "@/design";
+import { declaredForStructure, declaredLists, useDietDeclarations } from "../allergens";
 import { MEAL_KIND_LABELS } from "../meals";
 import { NUTRIENT_INFO } from "../nutrition/labels";
 import { toEngineProfile } from "../nutrition/profile";
 import { useNutritionProfile, useReferences } from "../nutrition/useNutrition";
-import { useRecipePrefs } from "../recipes/prefs";
-import { confirmedText, unionDeclared } from "../recipes/safety";
+import { confirmedText } from "../recipes/safety";
 import { CONFIRMATION_NOTICE } from "../recipes/SafetyPanel";
 import { useConfirmationActions, useConfirmations } from "../recipes/useConfirmations";
-import { LoadingLine, StorageError } from "../shell/EmptyState";
+import { LoadingLine } from "../shell/EmptyState";
 import ui from "../ui.module.css";
-import { useNow } from "../useNow";
-import { dayOf } from "../format";
+import { DietView } from "../settings/DietScreen";
 import { buildClearTargets, buildStructure, buildTargets } from "./edit";
 import { TARGET_NUTRIENTS, formFromTargets, referenceHint, targetsFromForm, type TargetForm } from "./targets";
 import { useWriter } from "./useWriter";
 import styles from "./plan.module.css";
 
+/**
+ * L'indirizzo di prima (`/app/piano/obiettivi`): la stessa schermata di Alimentazione, con «Obiettivi» aperto. Niente
+ * reindirizzamento: la pagina resta statica e senza rete si apre com'era.
+ */
 export function Goals() {
-  const plan = usePlan();
-  const now = useNow();
-  if (plan.error) return <StorageError />;
-  if (!plan.data || !now) {
-    return (
-      <div className={ui.screen}>
-        <h1 className={ui.title}>Obiettivi e struttura</h1>
-        <LoadingLine />
-      </div>
-    );
-  }
-  return (
-    <div className={ui.screen}>
-      <div className={ui.head}>
-        <h1 className={ui.title}>Obiettivi e struttura</h1>
-        <Link href="/app/piano" className={ui.textLink}>
-          Torna al piano
-        </Link>
-      </div>
-      <p className={ui.lead}>
-        Gli obiettivi sono quelli che scrivi tu, per ogni tipo di giornata: Staio non ne propone e non dà pareri medici. Servono a confrontare il piano con ciò che hai deciso.
-      </p>
-      <TargetsSection plan={plan.data} today={dayOf(now)} />
-      <StructureSection key={plan.data.structure?.eventId ?? "none"} plan={plan.data} />
-      <ConfirmationsSection plan={plan.data} />
-      <Link href="/app/piano/verifica" className={ui.textLink}>
-        Vai alla verifica del piano
-      </Link>
-    </div>
-  );
+  return <DietView initial="obiettivi" />;
 }
 
 function knownTypes(plan: PlanState): string[] {
@@ -65,17 +38,18 @@ function knownTypes(plan: PlanState): string[] {
   ].sort();
 }
 
-function TargetsSection({ plan, today }: { plan: PlanState; today: string }) {
+/** I tipi di giornata che hanno degli obiettivi, in ordine alfabetico. */
+export const typesWithTargets = (plan: PlanState): string[] => plan.targets.map((t) => t.dayType);
+
+/** Dentro la riga «Obiettivi per tipo di giornata». */
+export function TargetsSection({ plan, today }: { plan: PlanState; today: string }) {
   const ids = useId();
   const types = knownTypes(plan);
   const [selected, setSelected] = useState<string>(types[0] ?? "__new");
   const [custom, setCustom] = useState("");
   const name = selected === "__new" ? custom.trim() : selected;
   return (
-    <section className={ui.section} aria-labelledby={`${ids}-h`}>
-      <div id={`${ids}-h`}>
-        <SectionHeader label="Obiettivi per tipo di giornata" />
-      </div>
+    <>
       <fieldset className={ui.field}>
         <legend className={ui.srOnly}>Tipo di giornata</legend>
         <div className={ui.choices}>
@@ -98,7 +72,7 @@ function TargetsSection({ plan, today }: { plan: PlanState; today: string }) {
         ) : null}
       </fieldset>
       {name !== "" ? <TargetsForm key={name} plan={plan} dayType={name} today={today} /> : null}
-    </section>
+    </>
   );
 }
 
@@ -135,7 +109,7 @@ function TargetsForm({ plan, dayType, today }: { plan: PlanState; dayType: strin
       }}
       noValidate
     >
-      <p className={ui.hint}>Lascia vuoto ciò che non vuoi controllare. Scrivi un minimo, un massimo o tutti e due.</p>
+      <p className={ui.hint}>Gli obiettivi sono quelli che scrivi tu: non ne propongo. Lascia vuoto ciò che non vuoi controllare; scrivi un minimo, un massimo o tutti e due.</p>
       {ready && !profile ? (
         <p className={ui.hint}>
           Per vedere accanto ai campi i valori di riferimento per te, <Link href="/app/impostazioni/profilo">compila il profilo</Link>.
@@ -210,7 +184,8 @@ function TargetsForm({ plan, dayType, today }: { plan: PlanState; dayType: strin
   );
 }
 
-function StructureSection({ plan }: { plan: PlanState }) {
+/** Dentro la riga «Pasti e orari». */
+export function StructureSection({ plan }: { plan: PlanState }) {
   const ids = useId();
   const write = useWriter();
   const s = plan.structure;
@@ -221,23 +196,30 @@ function StructureSection({ plan }: { plan: PlanState }) {
   });
   const [from, setFrom] = useState(s?.eatingWindow?.from ?? "");
   const [to, setTo] = useState(s?.eatingWindow?.to ?? "");
-  const [excluded, setExcluded] = useState((s?.excludedFoods ?? []).join("\n"));
-  const [allergens, setAllergens] = useState<Set<string>>(() => new Set(s?.allergens ?? []));
   const [defaultType, setDefaultType] = useState(s?.defaultDayType ?? "");
   const [message, setMessage] = useState<string | null>(null);
   const types = knownTypes(plan);
-  const allergenKeys = Object.keys(ALLERGEN_STEMS);
-  // allergeni scritti in passato che l'elenco non conosce: restano visibili
-  const extraAllergens = [...allergens].filter((a) => !allergenKeys.includes(a));
 
   async function save() {
+    // allergeni ed esclusioni si portano avanti come sono adesso (riletti), così i telefoni non aggiornati li vedono ancora
+    let declared: { allergens: string[]; excludedFoods: string[] } | undefined;
+    try {
+      declared = await declaredForStructure();
+    } catch {
+      declared = undefined;
+    }
+    if (!declared) {
+      setMessage("Non riesco a leggere tutti gli allergeni che hai indicato: la struttura non si salva, per non perderli. Riprova.");
+      return;
+    }
+    const lists = declared;
     const failure = await write((ctx) =>
       buildStructure(
         {
           meals: MEAL_KINDS.filter((k) => meals[k].on).map((k) => ({ kind: k, ...(meals[k].time ? { time: meals[k].time } : {}) })),
           ...(from || to ? { eatingFrom: from, eatingTo: to } : {}),
-          excludedFoods: excluded.split(/[\n,;]+/),
-          allergens: [...allergens],
+          excludedFoods: lists.excludedFoods,
+          allergens: lists.allergens,
           ...(defaultType.trim() ? { defaultDayType: defaultType } : {}),
         },
         ctx,
@@ -247,101 +229,64 @@ function StructureSection({ plan }: { plan: PlanState }) {
   }
 
   return (
-    <section className={ui.section} aria-labelledby={`${ids}-h`}>
-      <div id={`${ids}-h`}>
-        <SectionHeader label="Struttura del piano" />
-      </div>
-      <form
-        className={ui.form}
-        onSubmit={(e) => {
-          e.preventDefault();
-          void save();
-        }}
-        noValidate
-      >
-        <fieldset className={ui.field}>
-          <legend className={ui.fieldLabel}>Quanti pasti, e a che ora circa</legend>
-          {MEAL_KINDS.map((k) => (
-            <div key={k} className={styles.twoCols}>
-              <label className={styles.check}>
-                <input type="checkbox" checked={meals[k].on} onChange={(e) => setMeals((m) => ({ ...m, [k]: { ...m[k], on: e.target.checked } }))} />
-                {MEAL_KIND_LABELS[k]}
-              </label>
-              <input
-                className={ui.input}
-                type="time"
-                value={meals[k].time}
-                disabled={!meals[k].on}
-                onChange={(e) => setMeals((m) => ({ ...m, [k]: { ...m[k], time: e.target.value } }))}
-                aria-label={`Orario indicativo, ${MEAL_KIND_LABELS[k].toLowerCase()}`}
-              />
-            </div>
+    <form
+      className={ui.form}
+      onSubmit={(e) => {
+        e.preventDefault();
+        void save();
+      }}
+      noValidate
+    >
+      <fieldset className={ui.field}>
+        <legend className={ui.fieldLabel}>Quanti pasti, e a che ora circa</legend>
+        {MEAL_KINDS.map((k) => (
+          <div key={k} className={styles.twoCols}>
+            <label className={styles.check}>
+              <input type="checkbox" checked={meals[k].on} onChange={(e) => setMeals((m) => ({ ...m, [k]: { ...m[k], on: e.target.checked } }))} />
+              {MEAL_KIND_LABELS[k]}
+            </label>
+            <input
+              className={ui.input}
+              type="time"
+              value={meals[k].time}
+              disabled={!meals[k].on}
+              onChange={(e) => setMeals((m) => ({ ...m, [k]: { ...m[k], time: e.target.value } }))}
+              aria-label={`Orario indicativo, ${MEAL_KIND_LABELS[k].toLowerCase()}`}
+            />
+          </div>
+        ))}
+        <p className={ui.hint}>Gli orari sono indicativi: servono a ordinare i pasti, non a controllarti.</p>
+      </fieldset>
+
+      <fieldset className={ui.field}>
+        <legend className={ui.fieldLabel}>
+          Finestra in cui mangi <span className={ui.optional}>(facoltativa)</span>
+        </legend>
+        <div className={styles.twoCols}>
+          <input className={ui.input} type="time" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Dalle" />
+          <input className={ui.input} type="time" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Alle" />
+        </div>
+      </fieldset>
+
+      <div className={ui.field}>
+        <label className={ui.fieldLabel} htmlFor={`${ids}-def`}>
+          Tipo di giornata predefinito <span className={ui.optional}>(per i giorni senza una scelta)</span>
+        </label>
+        <input id={`${ids}-def`} className={ui.input} list={`${ids}-types`} value={defaultType} onChange={(e) => setDefaultType(e.target.value)} autoComplete="off" placeholder="riposo" />
+        <datalist id={`${ids}-types`}>
+          {types.map((t) => (
+            <option key={t} value={t} />
           ))}
-          <p className={ui.hint}>Gli orari sono indicativi: servono a ordinare i pasti, non a controllarti.</p>
-        </fieldset>
+        </datalist>
+      </div>
 
-        <fieldset className={ui.field}>
-          <legend className={ui.fieldLabel}>
-            Finestra in cui mangi <span className={ui.optional}>(facoltativa)</span>
-          </legend>
-          <div className={styles.twoCols}>
-            <input className={ui.input} type="time" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Dalle" />
-            <input className={ui.input} type="time" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Alle" />
-          </div>
-        </fieldset>
-
-        <div className={ui.field}>
-          <label className={ui.fieldLabel} htmlFor={`${ids}-def`}>
-            Tipo di giornata predefinito <span className={ui.optional}>(per i giorni senza una scelta)</span>
-          </label>
-          <input id={`${ids}-def`} className={ui.input} list={`${ids}-types`} value={defaultType} onChange={(e) => setDefaultType(e.target.value)} autoComplete="off" placeholder="riposo" />
-          <datalist id={`${ids}-types`}>
-            {types.map((t) => (
-              <option key={t} value={t} />
-            ))}
-          </datalist>
-        </div>
-
-        <div className={ui.field}>
-          <label className={ui.fieldLabel} htmlFor={`${ids}-exc`}>
-            Alimenti esclusi <span className={ui.optional}>(uno per riga)</span>
-          </label>
-          <textarea id={`${ids}-exc`} className={ui.input} rows={3} value={excluded} onChange={(e) => setExcluded(e.target.value)} placeholder={"olive\ncoriandolo"} style={{ paddingBlock: "var(--space-5)" }} />
-          <p className={ui.hint}>Il piano ti avvisa se un alimento escluso compare in un pasto, anche tra gli ingredienti di una ricetta.</p>
-        </div>
-
-        <fieldset className={ui.field}>
-          <legend className={ui.fieldLabel}>Allergeni da evitare</legend>
-          <div className={styles.checkGrid}>
-            {[...allergenKeys, ...extraAllergens].map((a) => (
-              <label key={a} className={styles.check}>
-                <input
-                  type="checkbox"
-                  checked={allergens.has(a)}
-                  onChange={(e) =>
-                    setAllergens((set) => {
-                      const next = new Set(set);
-                      if (e.target.checked) next.add(a);
-                      else next.delete(a);
-                      return next;
-                    })
-                  }
-                />
-                {a}
-              </label>
-            ))}
-          </div>
-          <p className={ui.hint}>{ALLERGEN_CHECK_NOTICE}</p>
-        </fieldset>
-
-        {message ? (
-          <p className={ui.error} role="alert">
-            {message}
-          </p>
-        ) : null}
-        <Button type="submit">Salva la struttura</Button>
-      </form>
-    </section>
+      {message ? (
+        <p className={ui.error} role="alert">
+          {message}
+        </p>
+      ) : null}
+      <Button type="submit">Salva i pasti</Button>
+    </form>
   );
 }
 
@@ -349,14 +294,14 @@ function StructureSection({ plan }: { plan: PlanState }) {
 const shortDevice = (id: string): string => id.slice(0, 6);
 
 /**
- * Gli ingredienti che hai confermato («ho letto l'etichetta, per me va bene»), con la data e gli allergeni coperti, e il
- * modo di revocare ogni conferma. Una conferma copre solo ciò che era dichiarato quando l'hai data.
+ * Dentro la riga «Ingredienti che hai confermato» («ho letto l'etichetta, per me va bene»): ognuno con la data e gli
+ * allergeni coperti, e il modo di togliere la conferma. Una conferma copre solo ciò che era dichiarato quando l'hai data.
  */
-function ConfirmationsSection({ plan }: { plan: PlanState }) {
-  const ids = useId();
+export function ConfirmationsSection() {
   const { state } = useConfirmations();
   const actions = useConfirmationActions();
-  const { prefs, ready } = useRecipePrefs();
+  const diet = useDietDeclarations();
+  const ready = diet.state !== undefined;
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [thisDevice, setThisDevice] = useState<string | undefined>(undefined);
@@ -370,13 +315,7 @@ function ConfirmationsSection({ plan }: { plan: PlanState }) {
       alive = false;
     };
   }, []);
-  const declared = useMemo(
-    () => ({
-      allergens: unionDeclared(prefs.allergens, plan.structure?.allergens ?? []),
-      excludedFoods: unionDeclared(prefs.excludedFoods, plan.structure?.excludedFoods ?? []),
-    }),
-    [prefs.allergens, prefs.excludedFoods, plan.structure],
-  );
+  const declared = useMemo(() => (diet.state ? declaredLists(diet.state) : { allergens: [], excludedFoods: [] }), [diet.state]);
   const labels = useMemo(() => allergenLabels(declared.allergens), [declared.allergens]);
 
   async function revoke(key: string, name: string) {
@@ -388,11 +327,12 @@ function ConfirmationsSection({ plan }: { plan: PlanState }) {
   }
 
   return (
-    <section className={ui.section} aria-labelledby={`${ids}-h`}>
-      <div id={`${ids}-h`}>
-        <SectionHeader label="Ingredienti che hai confermato" />
-      </div>
-      {!state || !ready ? (
+    <>
+      {diet.error !== undefined ? (
+        <p className={ui.error} role="alert">
+          Non riesco a leggere le conferme. Chiudi e riapri l&apos;app.
+        </p>
+      ) : !state || !ready ? (
         <LoadingLine />
       ) : state.active.length === 0 ? (
         <p className={ui.paragraph}>
@@ -412,7 +352,7 @@ function ConfirmationsSection({ plan }: { plan: PlanState }) {
                   <> Non copre {lapse.allergens.join(", ")}, che hai dichiarato dopo: per quello l&apos;ingrediente torna da verificare.</>
                 ) : null}{" "}
                 <Button variant="text" disabled={busy !== null} onClick={() => void revoke(c.key, c.ingredient)}>
-                  Revoca la conferma di «{c.ingredient}»
+                  Togli la conferma di «{c.ingredient}»
                 </Button>
               </li>
             );
@@ -425,6 +365,6 @@ function ConfirmationsSection({ plan }: { plan: PlanState }) {
         </p>
       ) : null}
       <p className={ui.hint}>{CONFIRMATION_NOTICE}</p>
-    </section>
+    </>
   );
 }

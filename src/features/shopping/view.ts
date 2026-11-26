@@ -15,6 +15,7 @@ import {
   type BudgetAdjustment,
   type BudgetLine,
   type ConsumptionForecast,
+  type CostEstimate,
   type ExpiringPair,
   type ListItem,
   type ListIssue,
@@ -71,6 +72,8 @@ export interface ViewItem {
   forecastNote?: string;
   /** Costo stimato dall'ultimo prezzo osservato; `null` = nessun prezzo osservato. */
   costCents: number | null;
+  /** Il conto dietro `costCents`: data, negozio e prezzo unitario dell'ultimo acquisto. Assente senza prezzo osservato. */
+  estimate?: CostEstimate;
   costText: string;
   /** «L'ultima volta 1,89 €/l, di solito 1,75 €/l»: solo con almeno due acquisti con prezzo. */
   priceNote?: string;
@@ -202,6 +205,7 @@ export function buildShoppingView(input: ViewInput): ShoppingView {
       stockText: stockTextOf(item, nearFoods(pantry, item, today)),
       ...(note ? { forecastNote: note } : {}),
       costCents: estimate ? estimate.cents : null,
+      ...(estimate ? { estimate } : {}),
       costText: costText(estimate ? estimate.cents : null),
       ...(history ? { priceNote: priceNote(history) } : {}),
     };

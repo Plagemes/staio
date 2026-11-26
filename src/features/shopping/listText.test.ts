@@ -10,6 +10,8 @@ import {
   itemSubline,
   leftInField,
   notReadText,
+  stockLine,
+  suggestedText,
   quantityChangedText,
   readEntries,
   removedText,
@@ -166,5 +168,19 @@ describe("avvisi", () => {
   it("togli: una voce tua e una proposta", () => {
     expect(removedText("Latte", false)).toBe("Tolto dalla lista: latte.");
     expect(removedText("Latte", true)).toBe(`Tolto dalla lista: latte. Non lo propongo per ${DISMISS_DAYS} giorni.`);
+  });
+});
+
+describe("scorte minime", () => {
+  it("la riga dice il minimo e quanto c'è in casa", () => {
+    expect(stockLine({ minimumText: "2 pz", stockText: "In casa: 1 pz" })).toBe("minimo 2 pz · in casa 1 pz");
+    expect(stockLine({ stockText: "In casa: 500 g" })).toBe("nessun minimo · in casa 500 g");
+    expect(stockLine({ minimumText: "1 l", stockText: "Non ne hai in casa" })).toBe("minimo 1 l · non ne hai in casa");
+  });
+
+  it("il suggerimento c'è solo se c'è", () => {
+    const suggestion = { suggested: 3 } as never;
+    expect(suggestedText({ suggestion, unit: "pz" })).toBe("Suggerito: 3 pz");
+    expect(suggestedText({ unit: "pz" })).toBeUndefined();
   });
 });

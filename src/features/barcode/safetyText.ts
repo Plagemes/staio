@@ -20,8 +20,8 @@ export const SAFETY_FLAGS: Record<ProductVerdict, string> = {
 /** Dopo un «contiene» l'aggiunta resta possibile: in casa possono mangiarlo altri. */
 export const SAFETY_ADD_NOTE = "Puoi aggiungerlo lo stesso: l'avviso non blocca niente.";
 
-/** Il piano contiene altri allergeni dichiarati: se non si legge, il controllo guarda solo quelli del ricettario. */
-export const PLAN_UNREADABLE_NOTE = "Controllo incompleto: non riesco a leggere il piano, quindi non conto gli allergeni che vi hai dichiarato.";
+/** Un posto delle dichiarazioni non si legge: il controllo guarda solo ciò che si legge, e lo dice. */
+export const DECLARATIONS_UNREADABLE_NOTE = "Controllo incompleto: non riesco a leggere tutti gli allergeni che hai indicato, quindi non li conto tutti.";
 
 /** Prima i più gravi. */
 const ORDER: Record<ProductVerdict, number> = { contains: 0, traces: 1, uncertain: 2, not_found: 3 };

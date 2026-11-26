@@ -7,7 +7,7 @@ import { MEAL_KIND_LABELS } from "../meals";
 import ui from "../ui.module.css";
 import { dayHeading } from "./dates";
 import { slotText } from "./moveMeal";
-import { Sheet } from "./Sheet";
+import { StepFrame } from "./Sheet";
 
 interface Props {
   /** I pasti che si spostano, a parole. */
@@ -19,10 +19,12 @@ interface Props {
   /** Restituisce il testo dell'errore, oppure `null` se è andata bene. */
   onMove: (to: Slot) => Promise<string | null>;
   onClose: () => void;
+  /** Un passo di un foglio più grande (la voce del piano), non un foglio suo. */
+  embedded?: boolean;
 }
 
-/** «Sposta»: si sceglie un momento libero della settimana. Gli ingredienti vanno con il pasto. */
-export function MoveSheet({ what, from, options, today, onMove, onClose }: Props) {
+/** «Sposta»: si sceglie un momento libero della settimana o della prossima. Gli ingredienti vanno con il pasto. */
+export function MoveSheet({ what, from, options, today, onMove, onClose, embedded = false }: Props) {
   const ids = useId();
   const [to, setTo] = useState<Slot | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +40,17 @@ export function MoveSheet({ what, from, options, today, onMove, onClose }: Props
   }
 
   return (
-    <Sheet title="Sposta il pasto" onClose={onClose}>
+    <StepFrame
+      embedded={embedded}
+      title="Sposta il pasto"
+      onClose={onClose}
+      busy={busy}
+      footer={
+        <Button disabled={busy || to === null} onClick={() => void submit()}>
+          Sposta
+        </Button>
+      }
+    >
       <p className={ui.lead}>
         {what} · {slotText(from)}
       </p>
@@ -65,9 +77,6 @@ export function MoveSheet({ what, from, options, today, onMove, onClose }: Props
           {error}
         </p>
       ) : null}
-      <Button disabled={busy || to === null} onClick={() => void submit()}>
-        Sposta
-      </Button>
-    </Sheet>
+    </StepFrame>
   );
 }

@@ -95,6 +95,7 @@ export function TodayDiary({ now, today, date, diary, pantry, log, plan, waterOp
         log={log}
         pantry={pantry}
         planned={plan.planned}
+        plan={plan}
         intake={intake}
         pastDay={pastDay}
       />

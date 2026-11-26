@@ -1,6 +1,6 @@
 // Dai risultati della verifica del piano ai testi per le schermate. Assunzioni contro obiettivi scelti
 // dall'utente: nessun parere, il dato mancante è sempre dichiarato, "non determinabile" quando non basta.
-import type { AdherenceWeek, ConstraintsResult, DayCheck, EntryResult, NutrientCheck, PlannedItem, TargetRange, UnverifiedItem } from "@/core/plan";
+import type { AdherenceWeek, ConstraintsResult, DayCheck, EntryResult, NutrientCheck, PlannedItem, TargetRange, UnverifiedItem, WeekCheck } from "@/core/plan";
 import { formatNutrient, nutrientLabel } from "../nutrition/labels";
 import { missingPercentText } from "../nutrition/prepare";
 import { confirmedText } from "../recipes/safety";
@@ -115,6 +115,24 @@ export function daySummaryText(view: DayCheckView): string {
   if (attention > 0) parts.push(`${attention} da rivedere`);
   if (unknown > 0) parts.push(`${unknown} non determinabil${unknown === 1 ? "e" : "i"}`);
   return parts.join(", ");
+}
+
+/**
+ * La riga della verifica richiusa, per la settimana mostrata: dice se c'è qualcosa da vedere senza aprirla. Solo gli
+ * obiettivi dei giorni che si sono potuti confrontare; senza, invita ad aprire.
+ */
+export function verifySummary(check: WeekCheck | undefined): string {
+  const checked = check?.days.filter((d) => d.status === "checked") ?? [];
+  if (checked.length === 0) return "Apri per vedere il confronto";
+  const off = checked.filter((d) => d.nutrients.some((n) => n.status === "below" || n.status === "above"));
+  if (off.length === 0) return "Niente da segnalare";
+  const days = `${off.length} ${off.length === 1 ? "giorno" : "giorni"}`;
+  const named = (status: "below" | "above") => [...new Set(off.flatMap((d) => d.nutrients.filter((n) => n.status === status).map((n) => n.nutrient)))];
+  const below = named("below");
+  const above = named("above");
+  if (above.length === 0 && below.length === 1) return `${days} sotto il minimo: ${nutrientLabel(below[0]).toLowerCase()}`;
+  if (below.length === 0 && above.length === 1) return `${days} sopra il massimo: ${nutrientLabel(above[0]).toLowerCase()}`;
+  return `${days} da rivedere`;
 }
 
 export interface ConstraintLine {

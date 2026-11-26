@@ -1,7 +1,7 @@
 /* Service worker scritto a mano. Per alzare la versione vedi src/pwa/README.md. */
 "use strict";
 
-const CACHE_VERSION = "v4";
+const CACHE_VERSION = "v5";
 const PREFIX = "staio-";
 const CACHES = {
   pages: PREFIX + "pages-" + CACHE_VERSION, // HTML delle navigazioni
@@ -21,6 +21,7 @@ const PRECACHE_PAGES = [
   "/app/dispensa/riallinea",
   "/app/impostazioni",
   "/app/impostazioni/profilo",
+  "/app/impostazioni/alimentazione",
   "/app/impostazioni/ai",
   "/app/cattura/scontrino",
   "/app/salute/nutrizione",
@@ -65,7 +66,7 @@ const PRECACHE_PAGES = [
 ];
 const NAVIGATION_TIMEOUT_MS = 4000;
 const RSC_MAX_ENTRIES = 80;
-const PAGES_MAX_ENTRIES = 40;
+const PAGES_MAX_ENTRIES = 60;
 
 self.addEventListener("install", (event) => {
   // Niente skipWaiting automatico: l'attivazione avviene su richiesta (messaggio SKIP_WAITING).

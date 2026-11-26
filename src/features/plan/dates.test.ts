@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dayHeading, dayMonth, weekChoices, weekRangeText, whenText } from "./dates";
+import { dayFromParam, dayHeading, dayMonth, nextMonday, shortDayLower, shortDayNumber, weekChoices, weekRangeText, whenText } from "./dates";
 
 describe("dates", () => {
   it("dà le tre settimane a partire da oggi, sempre di lunedì", () => {
@@ -21,5 +21,25 @@ describe("dates", () => {
     expect(whenText("2026-11-17", "2026-11-16")).toBe("domani");
     expect(whenText("2026-11-19", "2026-11-16")).toBe("giovedì");
     expect(whenText("2026-11-30", "2026-11-16")).toBe("il 30 nov");
+  });
+});
+
+describe("dates: indirizzo e righe corte", () => {
+  it("righe corte", () => {
+    expect(shortDayNumber("2026-11-17")).toBe("Mar 17");
+    expect(shortDayLower("2026-11-16")).toBe("lun 16");
+  });
+
+  it("il giorno dell'indirizzo: una data valida, altrimenti oggi", () => {
+    expect(dayFromParam("2026-11-29", "2026-11-18")).toBe("2026-11-29");
+    expect(dayFromParam("pippo", "2026-11-18")).toBe("2026-11-18");
+    expect(dayFromParam("2026-13-40", "2026-11-18")).toBe("2026-11-18");
+    expect(dayFromParam(null, "2026-11-18")).toBe("2026-11-18");
+  });
+
+  it("il lunedì dopo", () => {
+    expect(nextMonday("2026-11-18")).toBe("2026-11-23");
+    expect(nextMonday("2026-11-22")).toBe("2026-11-23");
+    expect(nextMonday("2026-11-23")).toBe("2026-11-30");
   });
 });

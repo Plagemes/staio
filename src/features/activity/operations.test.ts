@@ -17,6 +17,7 @@ import {
   type MealKind,
 } from "@/core/diary";
 import { purchase, seededRandom, shuffled } from "@/core/diary/test-helpers";
+import { declareVoice, deriveDeclarations, planDeclarationChanges, removeVoice } from "@/core/allergens";
 import { mergeAllEvents, operationIdOf, validateAnyEvent, withOperationId, type AnyEvent } from "@/core/events";
 import { stampOperationId } from "@/core/events/operation";
 import { correctLot, derivePantry, supersededConsumes, type ConsumeEvent, type Lot, type PurchaseEvent, type VoidEvent } from "@/core/ledger";
@@ -736,11 +737,60 @@ describe("quando non si può, lo dice e non scrive", () => {
     const widened = structure("s-2", LUNCH, ["latte", "arachidi"]);
     expect(validateAnyEvent(widened)).toEqual([]);
     const log = [...stock, before, widened];
-    expect(undoOperation(opWith(log, widened), log, derivePantry(log), ctx(NIGHT))).toEqual({ ok: false, reason: "Toglierebbe un allergene o un'esclusione: cambiali dal Piano." });
+    expect(undoOperation(opWith(log, widened), log, derivePantry(log), ctx(NIGHT))).toEqual({ ok: false, reason: "Toglierebbe un allergene o un'esclusione: cambiali in Alimentazione." });
     // una struttura che ne toglie uno, invece, si annulla: gli allergeni tornano di più
     const narrowed = structure("s-3", LATER, []);
     const log2 = [...log, narrowed];
     expect(undoOperation(opWith(log2, narrowed), log2, derivePantry(log2), ctx(NIGHT)).ok).toBe(true);
+  });
+
+  it("una voce che resta negli allergeni dichiarati non blocca; una che sta solo nel piano sì", () => {
+    const structure = (id: string, at: string, allergens: string[]) =>
+      ({ id, type: "planStructure", at, recordedAt: at, deviceId: "A", schemaVersion: 1, certainty: "measured", source: "manual", meals: [{ kind: "lunch" }], allergens }) as AnyEvent;
+    const latte = declareVoice("allergens", "latte", { deviceId: "A", idGenerator: nextId, now: () => BOUGHT });
+    if (!latte) throw new Error("latte");
+    const before = structure("s-10", NOON, []);
+    const widened = structure("s-11", LUNCH, ["latte"]);
+    const log = [...stock, latte, before, widened];
+    expect(undoOperation(opWith(log, widened), log, derivePantry(log), ctx(NIGHT)).ok).toBe(true);
+    const only = [...stock, before, widened];
+    expect(undoOperation(opWith(only, widened), only, derivePantry(only), ctx(NIGHT))).toEqual({
+      ok: false,
+      reason: "Toglierebbe un allergene o un'esclusione: cambiali in Alimentazione.",
+    });
+    // nel ricettario di questo telefono: resta, quindi si annulla
+    expect(undoOperation(opWith(only, widened), only, derivePantry(only), { ...ctx(NIGHT), recipePrefs: { allergens: ["Latte"], excludedFoods: [] } }).ok).toBe(true);
+  });
+
+  it("latte solo nel ricettario, tolto da Alimentazione e annullato da qui: il latte torna", () => {
+    const withLatte = { recipePrefs: { allergens: ["latte"], excludedFoods: [] }, planStructure: undefined };
+    const plan = planDeclarationChanges(stock, withLatte, [{ action: "remove", list: "allergens", text: "latte" }], {
+      deviceId: "A",
+      idGenerator: nextId,
+      now: () => LUNCH,
+      automaticNote: AUTOMATIC_NOTE,
+    });
+    if (!plan.ok) throw new Error(plan.reason);
+    // due scritture, come fa l'app: l'aggiunta automatica e poi l'azione dell'utente
+    const log = [...stock, ...withOperationId(plan.prelude, "op-auto"), ...withOperationId(plan.events, "op-user")];
+    const cleaned = { recipePrefs: { allergens: [], excludedFoods: [] }, planStructure: undefined };
+    expect(deriveDeclarations(log, cleaned).allergens).toEqual([]);
+    const op = opWith(log, plan.events[0]);
+    expect(op.events.map((e) => e.id)).toEqual(plan.events.map((e) => e.id));
+    const back = [...log, ...undo(log, op)];
+    expect(deriveDeclarations(back, cleaned).allergens.map((v) => v.text)).toEqual(["latte"]);
+  });
+
+  it("aggiungere o togliere una voce si annulla e si rifà da qui", () => {
+    const soia = declareVoice("allergens", "soia", { deviceId: "A", idGenerator: nextId, now: () => NOON });
+    if (!soia) throw new Error("soia");
+    const log = [...stock, soia];
+    const undone = undoOperation(opWith(log, soia), log, derivePantry(log), ctx(NIGHT));
+    expect(undone.ok).toBe(true);
+    const removed = removeVoice("allergens", "soia", [soia.id], { deviceId: "A", idGenerator: nextId, now: () => LUNCH });
+    if (!removed) throw new Error("removed");
+    const log2 = [...log, removed];
+    expect(undoOperation(opWith(log2, removed), log2, derivePantry(log2), ctx(NIGHT)).ok).toBe(true);
   });
 });
 

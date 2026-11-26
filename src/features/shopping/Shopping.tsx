@@ -4,14 +4,15 @@ import Link from "next/link";
 import { useId, useMemo, useRef, useState } from "react";
 import { Button, SectionHeader, cx } from "@/design";
 import { generateId } from "@/core/ledger";
-import { spendRanges, summarizeSpend } from "@/core/prices";
+import { monthlyBudgetProgress, spendRanges, summarizeSpend, type SpendPeriodId } from "@/core/prices";
 import { emptyRejections, type RejectionMemory } from "@/core/shopping";
 import { formatQuantity } from "@/core/units";
 import { getSetting } from "@/data";
-import { ActionBar, Disclosure, MoreActions, type ActionItem } from "../common";
+import { ActionBar, BreakdownSheet, Disclosure, MoreActions, type ActionItem } from "../common";
 import { LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { Costs } from "./Costs";
+import { shoppingCostContent, spendContent } from "./costBreakdown";
 import { Prices } from "./Prices";
 import { Spending } from "./Spending";
 import { ItemSheet, type ItemActions, type SheetTarget } from "./ItemSheet";
@@ -42,6 +43,9 @@ import type { ViewItem } from "./view";
 import styles from "./shopping.module.css";
 
 type Undo = ReturnType<typeof useSettingsUndo>;
+
+/** Un solo foglio alla volta: la voce o uno dei fogli «Da cosa è fatto» dei costi. */
+type OpenSheet = { kind: "item"; id: string } | { kind: "cost" } | { kind: "spend"; period: SpendPeriodId };
 
 export function Shopping() {
   const data = useShoppingData();
@@ -105,17 +109,28 @@ async function guarded(write: () => Promise<boolean>): Promise<boolean | undefin
 
 function ShoppingView({ data, undo }: { data: ShoppingData; undo: Undo }) {
   const view = data.view!;
-  const [sheetId, setSheetId] = useState<string | null>(null);
+  const [open, setOpen] = useState<OpenSheet | null>(null);
+  const sheetId = open?.kind === "item" ? open.id : null;
+  const setSheetId = (id: string | null) => setOpen(id === null ? null : { kind: "item", id });
   const run = guarded;
 
   const unconfirmed = view.items.filter((i) => !i.confirmed);
   const sospese = [...view.dismissed, ...view.suppressed];
   const listCount = view.items.length + view.noQuantity.length;
-  const month = useMemo(() => {
+  // la spesa dei tre periodi si calcola una volta, qui: la riga «Costi e prezzi», la sezione e i fogli leggono lo stesso risultato
+  const summaries = useMemo(() => {
     const pantry = data.plan.pantry;
-    const range = spendRanges(view.today).find((r) => r.id === "month");
-    return pantry && range ? summarizeSpend(pantry, range) : null;
+    return pantry ? spendRanges(view.today).map((r) => summarizeSpend(pantry, r)) : [];
   }, [data.plan.pantry, view.today]);
+  const month = summaries.find((s) => s.range.id === "month") ?? null;
+  const costSheet = useMemo(() => {
+    if (open?.kind === "cost") return shoppingCostContent(view);
+    if (open?.kind !== "spend") return null;
+    const summary = summaries.find((s) => s.range.id === open.period);
+    const cap = data.monthlyBudgetCents;
+    const progress = month && cap !== null && open.period === "month" ? monthlyBudgetProgress(month, cap) : null;
+    return summary ? spendContent(summary, summary.range, progress) : null;
+  }, [open, view, summaries, month, data.monthlyBudgetCents]);
 
   async function removeManual(name: string, manualIds: readonly string[]): Promise<boolean> {
     const stored = await readManual();
@@ -239,8 +254,8 @@ function ShoppingView({ data, undo }: { data: ShoppingData; undo: Undo }) {
 
       <div className={styles.disclosures}>
         <Disclosure title="Costi e prezzi" summary={month ? costsSummary(month) : undefined}>
-          <Costs data={data} undo={undo} />
-          <Spending data={data} undo={undo} />
+          <Costs data={data} undo={undo} onOpenCost={() => setOpen({ kind: "cost" })} />
+          <Spending data={data} undo={undo} summaries={summaries} onOpen={(period) => setOpen({ kind: "spend", period })} />
           <Prices view={view} />
           <Link href="/app/salute/nutrizione" className={ui.textLink}>
             Costo per nutriente
@@ -291,6 +306,7 @@ function ShoppingView({ data, undo }: { data: ShoppingData; undo: Undo }) {
       </div>
 
       {target ? <ItemSheet key={sheetId} target={target} actions={actionsFor(target)} onClose={() => setSheetId(null)} /> : null}
+      {costSheet ? <BreakdownSheet {...costSheet} onClose={() => setOpen(null)} /> : null}
 
       {undo.node}
 

@@ -12,6 +12,7 @@ export const OTHER_FAMILY_EVENT_TYPES = [
   "dishRating",
   "experiment",
   "allergenConfirmation",
+  "allergenDeclaration",
 ] as const;
 
 /** Il tipo dichiarato è di una delle altre famiglie note (non della dispensa né del diario). */

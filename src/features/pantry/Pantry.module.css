@@ -80,6 +80,28 @@
   color: var(--color-graphite);
 }
 
+/* «Da cosa è fatto»: la cifra che si tocca resta la cifra; il filetto puntinato dice che si apre */
+.valueTap {
+  margin: 0;
+  padding: var(--space-3) 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: var(--color-rule-strong);
+  text-decoration-thickness: var(--rule-width);
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.valueTap:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
 .headTools {
   display: flex;
   align-items: center;

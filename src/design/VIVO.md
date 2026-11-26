@@ -145,6 +145,7 @@ I `font-weight: 400` scritti accanto a `--font-display` sono diventati `var(--we
   per `.screen > .form` e `ui.fields`; vale anche per i campi di Spesa, Preparazioni e Qualità.
 
 - Ondata 3 (Salute, Spesa, In negozio, scontrino, Più alimenti, Nutrizione, «Da cosa è fatto»): nessuna classe nuova solo-Vivo. Le regole Vivo di `shopping.module.css` (`.disclosures`, `.lineButton:active`) stanno su classi con resa di base; il blocco «Segna» di Salute non ha regole Vivo proprie. Da `vivoScope.test.ts` è tolta la voce di `health.module.css` (`.ring`, la classe non c'è più).
+- Ondata 4 (Alimentazione, Settimana e Stasera, Cosa cucinare e cucina, Impostazioni, bozza dello scontrino): nessuna classe nuova solo-Vivo, quindi `vivoScope.test.ts` non ha voci nuove. La regola Vivo di `.disclosures` (in `Settings.module.css` e in `shopping.module.css`) sta su una classe con resa di base. Tolte le classi senza uso di `shopping.module.css` (`.items`, `.item*`, `.reasons`, `.meta`, `.big*`, `.totalBar`, `.actionDanger`) e di `recipes.module.css` (`.filters`, `.pasteBox`, `.summaryNote`, `.pairBody`, `.pairList`), con le loro regole Vivo.
 
 ## Grano
 

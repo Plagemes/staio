@@ -1,23 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useMemo, useState } from "react";
-import { removeMinimum, setMinimum } from "@/core/shopping";
-import { Button, Label } from "@/design";
-import { parseQuantityInUnit } from "../actions";
+import { useMemo, useState } from "react";
+import { emptyStockConfig, removeMinimum, setMinimum, type StockConfig } from "@/core/shopping";
+import { Label, cx } from "@/design";
+import { getSetting } from "@/data";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
-import { SETTING_KEYS } from "./settings";
+import { stockLine, suggestedText } from "./listText";
+import { SETTING_KEYS, isStockConfig } from "./settings";
+import { StockSheet, type StockActions } from "./StockSheet";
 import { stockRows, type StockRow } from "./stockView";
-import { useShoppingData, type ShoppingData } from "./useShoppingData";
+import { useShoppingData } from "./useShoppingData";
 import { useSettingsUndo } from "./useSettingsUndo";
 import styles from "./shopping.module.css";
 
-type Undo = ReturnType<typeof useSettingsUndo>;
+/** Prima di scrivere, la scorta si rilegge dall'archivio: ciò che è a schermo può essere di un istante fa. */
+async function readStock(): Promise<StockConfig> {
+  const stored = await getSetting<unknown>(SETTING_KEYS.stock);
+  return isStockConfig(stored) ? stored : emptyStockConfig();
+}
 
 export function Stock() {
   const data = useShoppingData();
   const undo = useSettingsUndo(data.save);
+  const [openId, setOpenId] = useState<string | null>(null);
   const rows = useMemo(() => (data.plan.pantry && data.plan.today ? stockRows(data.plan.pantry, data.stock, data.plan.today) : []), [data.plan.pantry, data.plan.today, data.stock]);
   if (data.error) return <StorageError />;
   if (!data.ready) {
@@ -28,15 +35,31 @@ export function Stock() {
       </div>
     );
   }
+
+  const open = openId === null ? undefined : rows.find((r) => r.id === openId);
+  // il prodotto non c'è più (la scorta è stata tolta e non è abituale): il foglio non ha più di cui parlare
+  if (openId !== null && !open) setOpenId(null);
+
+  /** Scrittura, chiusura del foglio, avviso: il foglio si chiude prima che l'avviso nasca. */
+  function actionsFor(row: StockRow): StockActions {
+    const run = async (message: string, change: (stock: StockConfig) => StockConfig) => {
+      setOpenId(null);
+      const stock = await readStock();
+      await undo.apply(message, { [SETTING_KEYS.stock]: change(stock) }, { [SETTING_KEYS.stock]: stock });
+    };
+    return {
+      set: (value) => void run(`Scorta minima di ${row.name}: ${value} ${row.unit}.`, (stock) => setMinimum(stock, row.name, row.unit, value)),
+      remove: () => void run(`Tolta la scorta minima di ${row.name}.`, (stock) => removeMinimum(stock, row.name, row.unit)),
+    };
+  }
+
   return (
     <div className={ui.screen}>
       <div className={ui.head}>
         <h1 className={ui.title}>Scorte minime</h1>
         <Label>Scelte da te</Label>
       </div>
-      <p className={ui.lead}>
-        Sotto la scorta minima, un prodotto finisce nella lista della spesa. Il suggerimento viene dai tuoi consumi ed è una stima: non lo applico mai da solo, lo confermi tu.
-      </p>
+      <p className={ui.lead}>Sotto la scorta minima un prodotto va nella lista della spesa. Il suggerimento viene dai tuoi consumi: lo confermi tu.</p>
       {rows.length === 0 ? (
         <EmptyState
           title="Ancora nessun prodotto abituale"
@@ -44,74 +67,25 @@ export function Stock() {
           actionLabel="Aggiungi un acquisto"
         />
       ) : (
-        <ul className={styles.items}>
+        <ul className={cx(styles.list, ui.group)}>
           {rows.map((r) => (
-            <StockCard key={`${r.id}-${r.minimum ?? "none"}`} row={r} data={data} undo={undo} />
+            <li key={r.id} className={styles.line}>
+              <button type="button" className={styles.lineButton} aria-haspopup="dialog" onClick={() => setOpenId(r.id)}>
+                <span className={styles.lineName}>{r.name}</span>
+                <span className={styles.lineNote}>{stockLine(r)}</span>
+                {suggestedText(r) ? <span className={styles.lineNote}>{suggestedText(r)}</span> : null}
+              </button>
+            </li>
           ))}
         </ul>
       )}
       <Link href="/app/spesa" className={ui.textLink}>
         Torna alla lista della spesa
       </Link>
+
+      {open ? <StockSheet key={open.id} row={open} actions={actionsFor(open)} onClose={() => setOpenId(null)} /> : null}
+
       {undo.node}
     </div>
-  );
-}
-
-function StockCard({ row, data, undo }: { row: StockRow; data: ShoppingData; undo: Undo }) {
-  const id = useId();
-  const [text, setText] = useState(row.minimumText ?? "");
-  const [error, setError] = useState<string | null>(null);
-  const prev = { [SETTING_KEYS.stock]: data.stock };
-
-  async function apply(value: number) {
-    await undo.apply(`Scorta minima di ${row.name}: ${value} ${row.unit}.`, { [SETTING_KEYS.stock]: setMinimum(data.stock, row.name, row.unit, value) }, prev);
-  }
-
-  async function submit() {
-    const r = parseQuantityInUnit(text, row.unit);
-    if (!r.ok) return setError(r.error);
-    setError(null);
-    await apply(r.quantity.value);
-  }
-
-  return (
-    <li className={styles.item}>
-      <div className={styles.itemHead}>
-        <h2 className={styles.itemName}>{row.name}</h2>
-        <span className={styles.itemQty}>{row.minimumText ? `minimo ${row.minimumText}` : "nessun minimo"}</span>
-      </div>
-      <p className={styles.meta}>{row.stockText}.</p>
-      {row.suggestionText ? <p className={styles.meta}>{row.suggestionText}.</p> : <p className={styles.meta}>{row.noSuggestionText}</p>}
-      <div className={ui.field}>
-        <label className={ui.fieldLabel} htmlFor={id}>
-          Scorta minima
-        </label>
-        <div className={styles.inline}>
-          <input id={id} className={ui.input} value={text} onChange={(e) => setText(e.target.value)} placeholder={row.unit === "pz" ? "2" : row.unit === "ml" ? "1 l" : "500 g"} autoComplete="off" aria-invalid={error ? true : undefined} />
-          <Button onClick={() => void submit()}>Salva</Button>
-        </div>
-        {error ? <p className={ui.error}>{error}</p> : null}
-      </div>
-      <div className={styles.actions}>
-        {row.suggestion ? (
-          <button type="button" className={styles.action} onClick={() => void apply(row.suggestion!.suggested)}>
-            Conferma il suggerimento
-          </button>
-        ) : null}
-        {row.minimum !== undefined ? (
-          <button
-            type="button"
-            className={styles.actionDanger}
-            onClick={async () => {
-              setText("");
-              await undo.apply(`Tolta la scorta minima di ${row.name}.`, { [SETTING_KEYS.stock]: removeMinimum(data.stock, row.name, row.unit) }, prev);
-            }}
-          >
-            Togli la scorta
-          </button>
-        ) : null}
-      </div>
-    </li>
   );
 }

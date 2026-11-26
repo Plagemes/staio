@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import type { Lot } from "@/core/ledger";
-import type { PrepRepairResult } from "@/core/prep";
-import { appendEvents } from "@/data";
+import { proposePrepRepair, type PrepRepairResult } from "@/core/prep";
+import { appendEvents, getAllEvents, getDeviceId } from "@/data";
 import { Button, Label } from "@/design";
+import { Sheet, closeSheetThen } from "../common";
 import { useNotice } from "../notice";
 import ui from "../ui.module.css";
-import styles from "./prep.module.css";
-import { describeRepair, repairItemText, type RepairItem } from "./view";
+import { describeRepair, repairItemText, repairSignature, type RepairItem } from "./view";
 
 interface RepairProps {
   item: RepairItem;
@@ -20,42 +20,41 @@ interface RepairProps {
 /** Mostra la correzione proposta e la scrive solo dopo la conferma, con «Annulla». */
 export function RepairSheet({ item, result, lots, onClose }: RepairProps) {
   const title = item.title;
-  const ref = useRef<HTMLDialogElement>(null);
-  const titleId = useId();
   const notice = useNotice();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const view = useMemo(() => describeRepair(result, lots), [result, lots]);
 
-  useEffect(() => {
-    const dialog = ref.current;
-    if (dialog && !dialog.open) dialog.showModal();
-    return () => {
-      if (dialog?.open) dialog.close();
-    };
-  }, []);
-  const close = () => ref.current?.close();
-
-  const writes = [...result.events, ...result.voids];
-
   async function confirm() {
-    if (busy || writes.length === 0) return;
+    if (busy || result.events.length + result.voids.length === 0) return;
     setBusy(true);
     setError(null);
     try {
+      // la correzione si ricalcola dall'archivio al tocco; se non è più quella mostrata non si scrive
+      const fresh = proposePrepRepair(item.prepId, await getAllEvents(), { deviceId: await getDeviceId() });
+      if (!fresh.ok) {
+        setError("Non c'è più niente da sistemare per questa preparazione. Chiudi e guarda di nuovo.");
+        return;
+      }
+      // si confrontano lotti e quantità, non solo quante voci: una quantità cambiata nel frattempo non si scrive
+      if (repairSignature(fresh) !== repairSignature(result)) {
+        setError("Nel frattempo qualcosa è cambiato. Chiudi e riapri «Sistema» per vedere la correzione aggiornata.");
+        return;
+      }
+      const writes = [...fresh.events, ...fresh.voids];
       const written = await appendEvents(writes);
       if (written.rejected.length > 0) {
         setError("Non sono riuscito a salvare. Riprova.");
         return;
       }
-      close();
-      const n = result.events.length;
-      const v = result.voids.length;
+      const n = fresh.events.length;
+      const v = fresh.voids.length;
       const parts = [
         n > 0 ? `${n === 1 ? "1 ingrediente scalato" : `${n} ingredienti scalati`} (stima)` : "",
         v > 0 ? `${v === 1 ? "1 correzione doppia annullata" : `${v} correzioni doppie annullate`}` : "",
       ].filter(Boolean);
-      notice.show({ message: `Dispensa sistemata per «${title}»: ${parts.join(", ")}.`, undo: writes });
+      // foglio chiuso prima dell'avviso
+      closeSheetThen(() => notice.show({ message: `Dispensa sistemata per «${title}»: ${parts.join(", ")}.`, undo: writes }));
     } catch {
       setError("Non sono riuscito a salvare sul telefono. Riprova.");
     } finally {
@@ -64,21 +63,17 @@ export function RepairSheet({ item, result, lots, onClose }: RepairProps) {
   }
 
   return (
-    <dialog
-      ref={ref}
-      className={styles.sheet}
-      aria-labelledby={titleId}
-      onClose={(e) => {
-        if (!e.currentTarget.open) onClose();
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) close();
-      }}
+    <Sheet
+      title={`Sistema «${title}»`}
+      onClose={onClose}
+      busy={busy}
+      footer={
+        <Button disabled={busy || result.events.length + result.voids.length === 0} onClick={() => void confirm()}>
+          Scrivi la correzione
+        </Button>
+      }
     >
-      <div className={styles.sheetBody}>
-        <h2 id={titleId} className={styles.sheetTitle}>
-          Sistema «{title}»
-        </h2>
+      <>
         <p className={ui.paragraph}>{repairItemText(item)}</p>
         <p className={ui.paragraph}>{view.explanation}</p>
         {view.lines.length > 0 ? (
@@ -131,16 +126,8 @@ export function RepairSheet({ item, result, lots, onClose }: RepairProps) {
             {error}
           </p>
         ) : null}
-        <div className={styles.menu}>
-          <Button disabled={busy || writes.length === 0} onClick={() => void confirm()}>
-            Scrivi la correzione
-          </Button>
-          <Button variant="text" onClick={close}>
-            Non ora
-          </Button>
-        </div>
         <p className={ui.hint}>Non scrivo niente finché non confermi. Dopo, «Annulla» toglie la correzione.</p>
-      </div>
-    </dialog>
+      </>
+    </Sheet>
   );
 }

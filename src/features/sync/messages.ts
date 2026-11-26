@@ -172,7 +172,7 @@ const FAMILY_LABELS = {
   prep: "preparazioni",
   recipes: "ricette",
   experiments: "esperimenti",
-  allergenConfirmations: "conferme sugli allergeni",
+  allergenConfirmations: "allergeni e conferme",
 } satisfies Record<EventFamily, string>;
 
 export function familyLabel(family: EventFamily | string): string {

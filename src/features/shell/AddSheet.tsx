@@ -8,7 +8,7 @@ import { createWater, localMoment, type DiaryHabit } from "@/core/diary";
 import type { AnyEvent } from "@/core/events";
 import { DEFAULT_TIME_ZONE } from "@/core/expiry";
 import { activeLots } from "@/core/ledger";
-import { appendEvents, getDeviceId, useDiary, usePantry, usePlan, useRecipes } from "@/data";
+import { appendEvents, getDeviceId, useDiary, usePantry, useRecipes } from "@/data";
 import { Button, Label, cx } from "@/design";
 import { buildUndo } from "../actions";
 import { ActionList, Sheet, type ActionItem } from "../common";
@@ -16,11 +16,12 @@ import { formatMl } from "../health";
 import { CustomDrinkForm, DrinkPresetChips, useDrinkActions } from "../health/Drinks";
 import { evaluateLots } from "../lots";
 import { useNotice } from "../notice";
+import { declarationsView, useDietDeclarations } from "../allergens";
 import { useProducts } from "../nutrition/useNutrition";
 import { makeLinkOf, pantryFoods } from "../recipes/allergenLinks";
 import { NO_FILTERS, applyFilters, buildRows, confirmedRowText, pantryView, sortRows } from "../recipes/list";
 import { useRecipePrefs, type RecipePrefs } from "../recipes/prefs";
-import { unionDeclared } from "../recipes/safety";
+import { IncompleteDeclarations } from "../recipes/SafetyPanel";
 import { useConfirmations } from "../recipes/useConfirmations";
 import { SEARCH_PAGES } from "../search/pages";
 import { SearchResults } from "../search/SearchResults";
@@ -97,30 +98,31 @@ function useKeyboardInset(): number {
    I dati della ricerca. Si leggono solo quando si comincia a scrivere.
    ------------------------------------------------------------------------------------------------ */
 
-type RecipeSources = Pick<SearchSources, "recipes" | "recipesNote">;
+/** `incomplete`: allergeni ed esclusioni letti solo in parte; l'elenco va mostrato con l'avviso. */
+type RecipeSources = Pick<SearchSources, "recipes" | "recipesNote"> & { incomplete?: boolean };
 
 const NO_RECIPES: RecipeSources = { recipes: [] };
 
 /**
  * Le ricette che il ricettario mostra, con il suo stesso controllo: stesse funzioni, stessi dati (ciò che è dichiarato
- * nel ricettario e nel piano, dispensa, prodotti, conferme, attrezzatura). Finché uno di questi non è letto non c'è
+ * (lettura unica di allergeni ed esclusioni), dispensa, prodotti, conferme, attrezzatura). Finché uno di questi non è letto non c'è
  * nessuna ricetta: mai una ricetta che non è passata dal controllo.
  */
 function useShownRecipes(lots: ReturnType<typeof activeLots> | undefined, now: string | null): RecipeSources {
   const recipes = useRecipes();
-  const plan = usePlan();
+  const diet = useDietDeclarations();
   const products = useProducts();
   const { prefs, ready } = useRecipePrefs();
   const { byKey: confirmations } = useConfirmations();
   // le preferenze si rileggono a ogni disegno in un oggetto nuovo: conta il loro contenuto
   const prefsKey = JSON.stringify(prefs);
-  const structure = plan.data?.structure;
+  const dietState = diet.state;
 
   return useMemo(() => {
-    if (!recipes.data || !plan.data || !lots || !now || !products || !ready || !confirmations) return NO_RECIPES;
+    const view = declarationsView(dietState);
+    if (!recipes.data || view.status !== "ready" || !lots || !now || !products || !ready || !confirmations) return NO_RECIPES;
     const declared = JSON.parse(prefsKey) as RecipePrefs;
-    const allergens = unionDeclared(declared.allergens, structure?.allergens ?? []);
-    const excludedFoods = unionDeclared(declared.excludedFoods, structure?.excludedFoods ?? []);
+    const { allergens, excludedFoods } = view.lists;
     const filtered = applyFilters(buildRows(recipes.data.recipes, pantryView(lots, now)), {
       ...NO_FILTERS,
       ...(declared.limitToEquipment ? { ownedEquipment: declared.ownedEquipment } : {}),
@@ -140,8 +142,9 @@ function useShownRecipes(lots: ReturnType<typeof activeLots> | undefined, now: s
         };
       }),
       ...(allergens.length > 0 || excludedFoods.length > 0 ? { recipesNote: RECIPES_NOTE } : {}),
+      ...(view.incomplete ? { incomplete: true } : {}),
     };
-  }, [recipes.data, plan.data, structure, lots, now, products, ready, confirmations, prefsKey]);
+  }, [recipes.data, dietState, lots, now, products, ready, confirmations, prefsKey]);
 }
 
 function SearchPanel({
@@ -172,7 +175,12 @@ function SearchPanel({
 
   if (pantry.error) return <StorageError />;
   if (!groups) return <LoadingLine />;
-  return <SearchResults groups={groups} onAction={onAction} disabled={disabled} />;
+  return (
+    <>
+      {shownRecipes.incomplete && shownRecipes.recipes.length > 0 ? <IncompleteDeclarations /> : null}
+      <SearchResults groups={groups} onAction={onAction} disabled={disabled} />
+    </>
+  );
 }
 
 /* ------------------------------------------------------------------------------------------------

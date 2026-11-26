@@ -234,7 +234,7 @@ describe("esclusioni obbligatorie con le conferme", () => {
 describe("avviso dopo il ripristino di una copia", () => {
   it("dice quante conferme contiene e dove guardarle; con zero non dice niente", () => {
     expect(restoredConfirmationsNotice(0)).toBeUndefined();
-    expect(restoredConfirmationsNotice(1)).toBe("Questa copia contiene 1 conferma di allergeni data in precedenza: controllala in Obiettivi.");
-    expect(restoredConfirmationsNotice(3)).toBe("Questa copia contiene 3 conferme di allergeni date in precedenza: controllale in Obiettivi.");
+    expect(restoredConfirmationsNotice(1)).toBe("Questa copia contiene 1 conferma di allergeni data in precedenza: controllala in Impostazioni › Alimentazione.");
+    expect(restoredConfirmationsNotice(3)).toBe("Questa copia contiene 3 conferme di allergeni date in precedenza: controllale in Impostazioni › Alimentazione.");
   });
 });

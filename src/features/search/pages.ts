@@ -13,6 +13,7 @@ export const SEARCH_PAGES: readonly SearchPage[] = [
   { label: "Scorte minime", href: "/app/spesa/scorte", keywords: [] },
   { label: "Settimana", href: "/app/piano/settimana", keywords: ["piano", "menu"] },
   { label: "Ricettario", href: "/app/ricette", keywords: ["ricette"] },
+  { label: "Cosa cucinare", href: "/app/ricette/idee", keywords: ["cucinare", "idee", "abbinamenti", "abbinare"] },
   { label: "Preparazioni", href: "/app/preparazioni", keywords: [] },
   { label: "Salute", href: "/app/salute", keywords: ["peso", "umore"] },
   { label: "Nutrizione", href: "/app/salute/nutrizione", keywords: ["calorie", "proteine"] },
@@ -25,6 +26,13 @@ export const SEARCH_PAGES: readonly SearchPage[] = [
   { label: "Avvisi", href: "/app/impostazioni/avvisi", keywords: ["notifiche"] },
   { label: "Sincronizzazione", href: "/app/impostazioni/sincronizzazione", keywords: ["copia", "telefono nuovo"] },
   { label: "Profilo", href: "/app/impostazioni/profilo", keywords: [] },
+  {
+    label: "Alimentazione",
+    href: "/app/impostazioni/alimentazione",
+    keywords: ["allergeni", "allergie", "intolleranze", "esclusioni", "obiettivi", "pasti", "orari", "conferme"],
+  },
+  { label: "Intelligenza artificiale", href: "/app/impostazioni/ai", keywords: ["chiave", "modello"] },
+  { label: "Ricette da video", href: "/app/impostazioni/video", keywords: ["video", "tiktok", "instagram"] },
   { label: "Qualità dei prodotti", href: "/app/qualita", keywords: [] },
   { label: "Controlla le quantità", href: "/app/dispensa/riallinea", keywords: [] },
 ];

@@ -14,6 +14,7 @@ import { evaluateLots } from "../lots";
 import { buildMealFromHabit, itemText } from "../meals";
 import ui from "../ui.module.css";
 import { useRecord } from "../useRecord";
+import { CookingNow } from "./CookingNow";
 import { HABIT_WINDOW_MINUTES, nowAction, nowActionHref, nowActionLabel } from "./nowModel";
 import { useWaterGoal } from "./useWaterGoal";
 import styles from "./Now.module.css";
@@ -29,6 +30,8 @@ interface Props {
   onShowWater?: () => void;
   /** Dopo una bevanda segnata (pastiglia o foglio «Bevande»): la schermata porta in vista la sua riga nel diario. */
   onDrinkAdded?: (drinkEventId: string) => void;
+  /** Mostra «Stai cucinando» in testa, se c'è una cucina a metà. Non al primo avvio. */
+  withCooking?: boolean;
 }
 
 const drinkIdOf = (events: readonly AnyEvent[]): string | undefined => events.find((e) => e.type === "drink")?.id;
@@ -41,7 +44,7 @@ const TEA = DRINK_PRESETS.find((p) => p.id === "tea");
  * Il blocco d'azione di Oggi: che cosa registrare adesso. Un pulsante per il pasto del momento (con il pasto abituale,
  * se c'è, già pronto), quattro pastiglie per ciò che si beve, e sotto il conto del giorno, che cambia a ogni tocco.
  */
-export function Now({ now, today, diary, pantry, onShowWater, onDrinkAdded }: Props) {
+export function Now({ now, today, diary, pantry, onShowWater, onDrinkAdded, withCooking = false }: Props) {
   const timeZone = diary.timeZone;
   const { record, recordWith, busy: recording } = useRecord();
   const drinkActions = useDrinkActions(timeZone);
@@ -129,6 +132,8 @@ export function Now({ now, today, diary, pantry, onShowWater, onDrinkAdded }: Pr
     <>
       <div className={`${styles.now} ${ui.tile} ${ui.tone}`} data-tone="today">
         <Label>Adesso</Label>
+
+        {withCooking ? <CookingNow now={now} /> : null}
 
         {action.kind === "habit" ? (
           <>

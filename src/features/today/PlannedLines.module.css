@@ -1,0 +1,67 @@
+/* Le voci del piano sotto un momento di oggi, «Che cosa manca» e «Stai cucinando». Nessuna scheda propria: stanno nel momento. */
+
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-item);
+  min-width: 0;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: var(--tap-min);
+  padding: var(--space-2) 0;
+}
+
+.row + .row {
+  border-top: var(--rule-width) solid var(--color-rule);
+}
+
+.text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: var(--text-body-sm);
+}
+
+.note {
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+}
+
+.missing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-item);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+}
+
+.cooking {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-item);
+  min-width: 0;
+}
+
+.cookingTitle {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: 600;
+}

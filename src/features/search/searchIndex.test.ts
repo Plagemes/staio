@@ -219,6 +219,38 @@ describe("search: pagine", () => {
   });
 });
 
+describe("search: pagine di Impostazioni e cucina", () => {
+  const pagesOf = (query: string) => labels(group(search(query, sources()), "Pagine"));
+
+  it("allergeni, esclusioni, obiettivi, orari e conferme portano ad Alimentazione", () => {
+    for (const word of ["allergeni", "allergie", "intolleranze", "esclusioni", "obiettivi", "orari", "conferme", "alimentazione"]) {
+      expect(pagesOf(word), word).toContain("Alimentazione");
+    }
+    expect(SEARCH_PAGES.find((p) => p.label === "Alimentazione")?.href).toBe("/app/impostazioni/alimentazione");
+  });
+
+  it("«chiave» e «modello» portano all'intelligenza artificiale", () => {
+    expect(pagesOf("chiave")).toEqual(["Intelligenza artificiale"]);
+    expect(pagesOf("modello")).toEqual(["Intelligenza artificiale"]);
+    expect(pagesOf("intelligenza")).toEqual(["Intelligenza artificiale"]);
+  });
+
+  it("video, TikTok e Instagram portano a Ricette da video", () => {
+    for (const word of ["video", "TikTok", "instagram"]) expect(pagesOf(word), word).toEqual(["Ricette da video"]);
+    expect(SEARCH_PAGES.find((p) => p.label === "Ricette da video")?.href).toBe("/app/impostazioni/video");
+  });
+
+  it("idee, abbinamenti e «cucinare» portano a Cosa cucinare", () => {
+    for (const word of ["idee", "abbinamenti", "cucinare", "abbinare"]) expect(pagesOf(word), word).toEqual(["Cosa cucinare"]);
+    expect(SEARCH_PAGES.find((p) => p.label === "Cosa cucinare")?.href).toBe("/app/ricette/idee");
+  });
+
+  it("nessuna pagina porta più a Obiettivi e struttura", () => {
+    expect(SEARCH_PAGES.some((p) => p.href.includes("/piano/obiettivi"))).toBe(false);
+    expect(SEARCH_PAGES.some((p) => /obiettivi e struttura/i.test(p.label))).toBe(false);
+  });
+});
+
 describe("SEARCH_PAGES", () => {
   it("ogni indirizzo comincia per /app/", () => {
     for (const page of SEARCH_PAGES) expect(page.href, page.label).toMatch(/^\/app\/[a-z]/);
@@ -235,6 +267,7 @@ describe("SEARCH_PAGES", () => {
       "Scorte minime",
       "Settimana",
       "Ricettario",
+      "Cosa cucinare",
       "Preparazioni",
       "Salute",
       "Nutrizione",
@@ -247,6 +280,9 @@ describe("SEARCH_PAGES", () => {
       "Avvisi",
       "Sincronizzazione",
       "Profilo",
+      "Alimentazione",
+      "Intelligenza artificiale",
+      "Ricette da video",
       "Qualità dei prodotti",
       "Controlla le quantità",
     ]);

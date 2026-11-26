@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { APP_NAME } from "@/config";
 import { Button, Tabs } from "@/design";
 import ui from "../ui.module.css";
 import { formFromDraft } from "./form";
@@ -24,7 +26,9 @@ const TABS = [
   { id: "media", label: "Foto o video" },
 ];
 
-const PERSONAL_USE = "Una ricetta importata resta sul tuo telefono, per uso personale: Staio non la ripubblica né la condivide.";
+const PERSONAL_USE = `Una ricetta importata resta sul tuo telefono, per uso personale: ${APP_NAME} non la ripubblica né la condivide.`;
+
+const CLIPBOARD_ERROR = "Non riesco a leggere gli appunti: tieni premuto nel campo e scegli Incolla.";
 
 /** Pagina senza dati strutturati: testo ripulito da far leggere alla lettura da testo. */
 interface PageText {
@@ -34,6 +38,13 @@ interface PageText {
 }
 
 export function Import() {
+  const params = useSearchParams();
+  const shared = params.get("url") ?? "";
+  // un altro indirizzo in arrivo ricomincia da zero: lo stato non resta quello della visita prima
+  return <ImportBody key={shared} sharedUrl={shared} />;
+}
+
+function ImportBody({ sharedUrl }: { sharedUrl: string }) {
   const [via, setVia] = useState<Via>("url");
   const [draft, setDraft] = useState<{ value: ImportDraft; key: number } | null>(null);
   const counter = useRef(0);
@@ -88,7 +99,7 @@ export function Import() {
       <div>
         <Tabs label="Da dove" items={TABS} value={via} onChange={(id) => setVia(id as Via)} />
         <div role="tabpanel" aria-label={TABS.find((t) => t.id === via)?.label} className={ui.section}>
-          {via === "url" ? <FromUrl onDraft={openDraft} /> : via === "text" ? <FromText onDraft={openDraft} /> : <FromMedia />}
+          {via === "url" ? <FromUrl initialUrl={sharedUrl} onDraft={openDraft} /> : via === "text" ? <FromText onDraft={openDraft} /> : <FromMedia />}
         </div>
       </div>
 
@@ -100,15 +111,30 @@ export function Import() {
   );
 }
 
-function FromUrl({ onDraft }: { onDraft: (d: ImportDraft) => void }) {
+function FromUrl({ initialUrl, onDraft }: { initialUrl: string; onDraft: (d: ImportDraft) => void }) {
   const ids = useId();
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState(initialUrl);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState<PageText | null>(null);
   const controller = useRef<AbortController | null>(null);
 
   useEffect(() => () => controller.current?.abort(), []);
+
+  async function pasteAddress() {
+    let pasted = "";
+    try {
+      pasted = (await navigator.clipboard.readText()).trim();
+    } catch {
+      pasted = "";
+    }
+    if (pasted === "") {
+      setError(CLIPBOARD_ERROR);
+      return;
+    }
+    setUrl(pasted);
+    setError(null);
+  }
 
   async function submit() {
     if (busy) return;
@@ -156,6 +182,11 @@ function FromUrl({ onDraft }: { onDraft: (d: ImportDraft) => void }) {
           autoComplete="off"
           aria-invalid={error ? true : undefined}
         />
+        <div>
+          <Button variant="outline" onClick={() => void pasteAddress()}>
+            Incolla l&apos;indirizzo
+          </Button>
+        </div>
         <p className={ui.hint}>
           La pagina viene letta dal nostro servizio, che non salva niente. Servono la rete e un indirizzo che comincia con https.
         </p>
@@ -165,7 +196,7 @@ function FromUrl({ onDraft }: { onDraft: (d: ImportDraft) => void }) {
       </Button>
       {busy ? (
         <Button variant="text" onClick={() => controller.current?.abort()}>
-          Annulla
+          Ferma
         </Button>
       ) : null}
       {error ? (
@@ -292,7 +323,7 @@ function FromMedia() {
         Dalla foto non ancora: per ora puoi scrivere o incollare il testo della ricetta, oppure importarla da un indirizzo.
       </p>
       <p className={ui.emptyText}>
-        Un video si può condividere all&apos;app dal telefono: scegli «Condividi» e poi Staio. Qui compare ciò che arriva, e puoi
+        Un video si può condividere all&apos;app dal telefono: scegli «Condividi» e poi {APP_NAME}. Qui compare ciò che arriva, e puoi
         anche <Link href="/app/ricette/condivisa" className={ui.textLink}>aprire la pagina dei contenuti condivisi</Link>.
       </p>
       <p className={ui.emptyText}>

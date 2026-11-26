@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useId, useLayoutEffect, useMemo, useState } from "react";
-import { activeLots, estimatedPantryValue, type Location, type PantryState } from "@/core/ledger";
+import { activeLots, estimatedPantryValue, pantryValueParts, type Location, type PantryState } from "@/core/ledger";
 import { appendEvents, getDeviceId, useEventLog, usePantry } from "@/data";
 import { Button, Label, PantryRow, Tabs, Value } from "@/design";
 import { buildRemoveMany, type RemoveManyKind } from "../actions";
-import { MoreActions, type ActionItem } from "../common";
+import { configIssue } from "../ai/settings";
+import { useAiSettings } from "../ai/useAiSettings";
+import { useReceiptDraft } from "../ai/receiptDraft";
+import { BreakdownSheet, MoreActions, type ActionItem } from "../common";
 import { dayOf, formatPrice } from "../format";
 import { LOCATION_LABELS } from "../labels";
 import { useNotice } from "../notice";
@@ -21,6 +24,7 @@ import { useNow } from "../useNow";
 import { filterEntries, normalizeSearch, splitByExpiry } from "./filter";
 import { breakdownText, groupEntries, groupName, type LotGroup } from "./groups";
 import { LotSheet } from "./LotSheet";
+import { pantryValueContent } from "./valueBreakdown";
 import { LOT_WAIT_MS, lotLinkVerdict } from "./lotLink";
 import { entryDetail, entryExpiry } from "./rows";
 import { SelectionBar } from "./SelectionBar";
@@ -68,6 +72,13 @@ export function Pantry() {
     [pantry.data, now],
   );
   const value = useMemo(() => (pantry.data ? estimatedPantryValue(pantry.data) : undefined), [pantry.data]);
+  // «Da cosa è fatto»: il contenuto nasce dalle parti dello stesso stato, solo quando il foglio è aperto
+  const [valueOpen, setValueOpen] = useState(false);
+  const valueSheet = useMemo(() => (valueOpen && pantry.data && now ? pantryValueContent(pantryValueParts(pantry.data), now) : null), [valueOpen, pantry.data, now]);
+  // uno scontrino lasciato a metà si propone qui; si riprende solo con un tocco
+  const receiptDraft = useReceiptDraft(now);
+  const ai = useAiSettings();
+  const canResume = receiptDraft.draft !== undefined && ai.ready && configIssue(ai.settings) === null;
 
   // `?lotto=` si legge una volta e si toglie subito dall'indirizzo, prima che la scheda si apra (`replaceState`, che il
   // router integra: indirizzo e router restano d'accordo). Così la scheda si apre come con un tocco e chiuderla è un
@@ -97,6 +108,7 @@ export function Pantry() {
       setSelecting(false);
       setPicked(new Set());
       setRemoveError(null);
+      setValueOpen(false);
     },
     [],
   );
@@ -302,6 +314,15 @@ export function Pantry() {
         </div>
       ) : null}
 
+      {canResume ? (
+        <div className={`${ui.callout} ${styles.checkRow}`}>
+          <span>Hai uno scontrino a metà</span>
+          <Link href="/app/cattura/scontrino?riprendi=1" className={styles.checkLink}>
+            Riprendi
+          </Link>
+        </div>
+      ) : null}
+
       {missing ? <p className={ui.callout}>Questo alimento non c&apos;è più.</p> : null}
 
       {entries.length === 0 ? (
@@ -379,7 +400,10 @@ export function Pantry() {
           </div>
           {value && value.lotsWithPrice > 0 ? (
             <p className={styles.value}>
-              Valore stimato: <Value certainty={value.certainty === "estimated" ? "estimated" : "measured"}>{formatPrice(value.cents)}</Value>
+              <button type="button" className={styles.valueTap} aria-haspopup="dialog" onClick={() => setValueOpen(true)}>
+                Valore stimato: {value.lotsWithoutPrice > 0 ? "almeno " : ""}
+                <Value certainty={value.certainty === "estimated" ? "estimated" : "measured"}>{formatPrice(value.cents)}</Value>
+              </button>
             </p>
           ) : null}
         </>
@@ -398,6 +422,8 @@ export function Pantry() {
           />
         </>
       ) : null}
+
+      {valueSheet ? <BreakdownSheet {...valueSheet} onClose={() => setValueOpen(false)} /> : null}
 
       {selectedGroup ? (
         <LotSheet

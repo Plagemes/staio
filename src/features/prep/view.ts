@@ -56,14 +56,14 @@ export function portionsText(prep: Pick<PrepRecord, "remaining" | "portions" | "
   return `${prep.remaining} porzioni su ${prep.portions}`;
 }
 
-/** Spiegazione del rifiuto di annullare una preparazione le cui porzioni sono già state usate. */
+/** Spiegazione del rifiuto di togliere una preparazione le cui porzioni sono già state usate. */
 export function portionsUsedExplanation(prep: Pick<PrepRecord, "eaten" | "discarded" | "gifted">): string {
   const parts: string[] = [];
   if (prep.eaten > 0) parts.push(`${prep.eaten} ${prep.eaten === 1 ? "mangiata" : "mangiate"}`);
   if (prep.discarded > 0) parts.push(`${prep.discarded} ${prep.discarded === 1 ? "buttata" : "buttate"}`);
   if (prep.gifted > 0) parts.push(`${prep.gifted} ${prep.gifted === 1 ? "regalata" : "regalate"}`);
   const used = parts.length > 0 ? parts.join(", ") : "alcune porzioni sono già state usate";
-  return `Non posso annullare questa preparazione: ${used}. Annullarla toglierebbe anche quegli usi dal registro. Se vuoi correggere, annulla prima quegli usi, oppure segna le porzioni rimaste come buttate.`;
+  return `Non posso togliere questa preparazione: ${used}. Se la togliessi, sparirebbero anche quegli usi dal registro. Se vuoi correggere, togli prima quegli usi, oppure segna le porzioni rimaste come buttate.`;
 }
 
 /* ---------- programma ---------- */
@@ -283,4 +283,17 @@ export function describeRepair(
     skipped: repair.skipped.map((s) => `${name(s.lotId)}: ${SKIP_TEXT[s.reason]}`),
     explanation,
   };
+}
+
+/**
+ * Che cosa scriverebbe una correzione, senza gli identificativi nuovi a ogni calcolo: per ogni consumo il lotto e la quantità,
+ * per ogni annullamento l'evento annullato. Due correzioni con la stessa firma scrivono la stessa cosa.
+ */
+export function repairSignature(result: Extract<PrepRepairResult, { ok: true }>): string {
+  const events = result.events.map((e) => {
+    const rec = e as unknown as { type?: string; lotId?: string; quantity?: { value?: number; unit?: string } };
+    return `${rec.type ?? ""}|${rec.lotId ?? ""}|${rec.quantity?.value ?? ""}${rec.quantity?.unit ?? ""}`;
+  });
+  const voids = result.voids.map((e) => `void|${(e as unknown as { targetEventId?: string }).targetEventId ?? ""}`);
+  return JSON.stringify([events.sort(), voids.sort()]);
 }

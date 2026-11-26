@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { PlanStructureState, PlanWeekState } from "@/core/plan";
+import type { PlanWeekState } from "@/core/plan";
 import { recipeOf } from "../prep/test-helpers";
 import { makeLinkOf } from "../recipes/allergenLinks";
 import { makeExpandForChecks } from "./expand";
 import { checkWeekConstraints } from "./safety";
 import { constraintLines } from "./verify";
 
-const structure = (allergens: string[]): PlanStructureState => ({ meals: [], excludedFoods: [], allergens, eventId: "s", recordedAt: "2026-11-10T00:00:00.000Z" });
+const declared = (allergens: string[], excludedFoods: string[] = []) => ({ allergens, excludedFoods });
 const week = (recipeId: string): PlanWeekState => ({
   weekStart: "2026-11-16",
   entries: [{ date: "2026-11-17", meal: "dinner", item: { kind: "recipe", recipeId, servings: 2 } }],
@@ -26,7 +26,7 @@ const none = makeLinkOf([]);
 describe("controllo del piano", () => {
   it("controlla anche gli ingredienti senza quantità e nomina piatto e ingrediente", () => {
     const expandForChecks = makeExpandForChecks({ recipes: [pasta], preps: [] });
-    const r = checkWeekConstraints(structure(["latte"]), week("pasta"), { expandForChecks, linkOf: none });
+    const r = checkWeekConstraints(declared(["latte"]), week("pasta"), { expandForChecks, linkOf: none });
     expect(r.verified).toBe(false);
     const [line] = constraintLines(r, nameOf);
     expect(line?.kind).toBe("unverified");
@@ -36,7 +36,7 @@ describe("controllo del piano", () => {
   it("legge l'etichetta del prodotto collegato a un ingrediente", () => {
     const expandForChecks = makeExpandForChecks({ recipes: [pasta], preps: [] });
     const linkOf = makeLinkOf([{ name: "Pasta", productName: "Pasta fresca", allergens: ["en:milk"] }]);
-    const r = checkWeekConstraints(structure(["latte"]), week("pasta"), { expandForChecks, linkOf });
+    const r = checkWeekConstraints(declared(["latte"]), week("pasta"), { expandForChecks, linkOf });
     expect(r.ok).toBe(false);
   });
 });

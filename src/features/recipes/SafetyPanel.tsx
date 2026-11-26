@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { ALLERGEN_CHECK_NOTICE } from "@/core/allergens";
+import Link from "next/link";
 import { Button } from "@/design";
+import { DIET_HREF, INCOMPLETE_DECLARATIONS } from "../allergens";
 import ui from "../ui.module.css";
 import styles from "./recipes.module.css";
-import { blockedStillNote, clearText, confirmButtonText, type ConfirmableDoubt, type IngredientFlag } from "./safety";
+import { blockedStillNote, clearText, confirmButtonText, hasDeclared, type ConfirmableDoubt, type IngredientFlag } from "./safety";
 import { useConfirmationActions } from "./useConfirmations";
 import type { RecipeSafetyState } from "./useRecipeSafety";
 
@@ -43,7 +45,7 @@ export function SafetyPanel({
       </section>
     );
   }
-  const { safety, declared } = state;
+  const { safety, declared, incomplete } = state;
 
   async function run(id: string, action: () => Promise<string | null>) {
     setBusy(id);
@@ -57,6 +59,7 @@ export function SafetyPanel({
   return (
     <section className={ui.section} aria-label={title}>
       {head}
+      {incomplete ? <IncompleteDeclarations /> : null}
       {safety.contains.length > 0 ? (
         <div role="alert" className={styles.safetyContains}>
           <strong>Contiene qualcosa che hai dichiarato</strong>
@@ -106,7 +109,7 @@ export function SafetyPanel({
                   disabled={busy !== null}
                   onClick={() => void run(`r${c.key}`, () => actions.revoke(c.key, c.name))}
                 >
-                  Revoca la conferma di «{c.name}»
+                  Togli la conferma di «{c.name}»
                 </Button>
               </div>
             </div>
@@ -120,10 +123,22 @@ export function SafetyPanel({
           {error}
         </p>
       ) : null}
-      {safety.verdict === "clear" ? <p className={ui.paragraph}>{clearText(declared, safety.confirmed.length)}</p> : null}
+      {safety.verdict === "clear" && hasDeclared(declared) ? <p className={ui.paragraph}>{clearText(declared, safety.confirmed.length)}</p> : null}
       {notice ? <p className={ui.hint}>{ALLERGEN_CHECK_NOTICE}</p> : null}
       {safety.doubts.length > 0 && safety.confirmed.length === 0 ? <p className={ui.hint}>{CONFIRMATION_NOTICE}</p> : null}
     </section>
+  );
+}
+
+/** In testa a ogni controllo quando un posto delle dichiarazioni non si legge: mai nascosto. */
+export function IncompleteDeclarations() {
+  return (
+    <p className={ui.error} role="alert">
+      {INCOMPLETE_DECLARATIONS}{" "}
+      <Link href={DIET_HREF} className={ui.textLink}>
+        Apri Alimentazione
+      </Link>
+    </p>
   );
 }
 

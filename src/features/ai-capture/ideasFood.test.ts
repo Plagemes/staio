@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildRows, pantryView } from "../recipes/list";
+import { NO_FILTERS, buildRows, pantryView } from "../recipes/list";
 import { lotsOf, recipeOf } from "../prep/test-helpers";
-import { foodFirst, ideaUsesFood, ideasFoodFirst, ideasHref, parseFood, rowsUsing, sameFood } from "./ideasFood";
+import { SAVED_LIMIT, cookHref, declaredCoveredBy, foodFirst, ideaUsesFood, ideasFoodFirst, ideasHref, parseFood, rowsUsing, sameFood, savedForExpiring } from "./ideasFood";
 
 describe("alimento nell'indirizzo", () => {
   it("si legge con prudenza", () => {
@@ -53,5 +53,55 @@ describe("verso il modello", () => {
     const c = { usedFromPantry: [{ name: "Zucchine" }], idea: { ingredients: [] } };
     expect(ideaUsesFood(a as never, "Zucchine")).toBe(false);
     expect(ideasFoodFirst([a, b, c] as never[], "Zucchine")).toEqual([b, c, a]);
+  });
+});
+
+describe("senza la chiave: le tue ricette per ciò che scade", () => {
+  const now = "2026-11-16T09:00:00.000Z";
+  const { lots } = lotsOf([
+    { id: "y", name: "Yogurt", value: 500, expiry: "2026-11-17" },
+    { id: "r", name: "Riso", value: 500 },
+  ]);
+  const view = pantryView(lots, now);
+  const yogurt = recipeOf("y", { title: "Tzatziki", servings: 2, ingredients: [{ name: "Yogurt", quantity: { value: 200, unit: "g" } }] });
+  const riso = recipeOf("r", { title: "Riso in bianco", servings: 2, ingredients: [{ name: "Riso", quantity: { value: 160, unit: "g" } }] });
+  const torta = recipeOf("t", { title: "Torta", servings: 4, ingredients: [{ name: "Farina", quantity: { value: 200, unit: "g" } }, { name: "Latte", quantity: { value: 200, unit: "ml" } }] });
+
+  it("prima chi usa ciò che scade", () => {
+    const { picks } = savedForExpiring([torta, riso, yogurt], view, NO_FILTERS);
+    expect(picks[0]?.recipe.recipeId).toBe("y");
+  });
+
+  it("gli allergeni e le esclusioni tolgono le ricette, come nel ricettario, e si contano", () => {
+    const { picks, outcome } = savedForExpiring([torta, riso, yogurt], view, { ...NO_FILTERS, allergens: ["latte"] });
+    expect(picks.map((p) => p.recipe.recipeId)).not.toContain("t");
+    expect(outcome.hidden).toBeGreaterThan(0);
+    const excluded = savedForExpiring([torta, riso, yogurt], view, { ...NO_FILTERS, excludedFoods: ["riso"] });
+    expect(excluded.picks.map((p) => p.recipe.recipeId)).not.toContain("r");
+  });
+
+  it("al massimo sei", () => {
+    const many = Array.from({ length: 9 }, (_, i) => recipeOf(`m${i}`, { title: `Ricetta ${i}`, servings: 2, ingredients: [{ name: "Riso", quantity: { value: 100, unit: "g" } }] }));
+    expect(savedForExpiring(many, view, NO_FILTERS).picks).toHaveLength(SAVED_LIMIT);
+  });
+
+  it("nessuna ricetta salvata: nessuna proposta", () => {
+    expect(savedForExpiring([], view, NO_FILTERS).picks).toEqual([]);
+  });
+
+  it("l'indirizzo di cucina porta l'id e le porzioni", () => {
+    expect(cookHref("a b", 3)).toBe("/app/ricette/cucina?id=a%20b&porzioni=3");
+  });
+});
+
+describe("dichiarazioni cambiate dopo la risposta", () => {
+  const used = { allergens: ["latte"], excludedFoods: ["Basilico"] };
+  it("uguali o meno: si può salvare", () => {
+    expect(declaredCoveredBy({ allergens: ["latte"], excludedFoods: ["basilico"] }, used)).toBe(true);
+    expect(declaredCoveredBy({ allergens: [], excludedFoods: [] }, used)).toBe(true);
+  });
+  it("una voce nuova: no", () => {
+    expect(declaredCoveredBy({ allergens: ["latte", "glutine"], excludedFoods: ["basilico"] }, used)).toBe(false);
+    expect(declaredCoveredBy({ allergens: ["latte"], excludedFoods: ["basilico", "aglio"] }, used)).toBe(false);
   });
 });

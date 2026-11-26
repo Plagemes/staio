@@ -37,9 +37,19 @@ interface Snapshot {
   deps: readonly unknown[];
 }
 
+/** Perché non si può proporre: senza ricette salvate, o senza posti liberi da oggi in poi. */
+export type ProposalUnavailable = "no_recipes" | "no_slots";
+
+export const PROPOSAL_UNAVAILABLE_TEXT: Record<ProposalUnavailable, string> = {
+  no_recipes: "Per proporre servono ricette salvate.",
+  no_slots: "Non ci sono posti liberi da oggi in poi.",
+};
+
 export interface ProposalView {
   /** Ci sono posti vuoti da riempire (con i momenti di partenza) e ciò che serve è letto. */
   available: boolean;
+  /** Quando non si può proporre, il perché; null se si può o se ciò che serve non è ancora letto. */
+  unavailable: ProposalUnavailable | null;
   active: boolean;
   settings: ProposalSettings | undefined;
   proposal: WeekProposal | undefined;
@@ -79,10 +89,12 @@ export function useProposal({ data, weekStart, weekDates, entries, declared, dec
     [data.diary, data.now, data.today, entries, timeZone, weekStart],
   );
 
-  const available = useMemo(
-    () => Boolean(plan && declaredReady && data.ready && slotsFor(defaultMoments(plan.structure?.meals.map((m) => m.kind))).length > 0),
+  const freeSlots = useMemo(
+    () => (plan && declaredReady && data.ready ? slotsFor(defaultMoments(plan.structure?.meals.map((m) => m.kind))).length : undefined),
     [plan, declaredReady, data.ready, slotsFor],
   );
+  const available = freeSlots !== undefined && freeSlots > 0;
+  const unavailable: ProposalUnavailable | null = freeSlots === undefined ? null : data.recipes.length === 0 ? "no_recipes" : freeSlots === 0 ? "no_slots" : null;
 
   const buildInput = useCallback(
     (settings: ProposalSettings) => {
@@ -179,7 +191,6 @@ export function useProposal({ data, weekStart, weekDates, entries, declared, dec
       activeRecipeIds: new Set(data.recipes.map((r) => r.recipeId)),
       meals: proposal.meals,
       weekStart,
-      structure: plan.structure,
       declared,
       expandForChecks: data.expandForChecks,
       linkOf: data.linkOf,
@@ -192,6 +203,7 @@ export function useProposal({ data, weekStart, weekDates, entries, declared, dec
 
   return {
     available,
+    unavailable,
     active: snap !== null,
     settings: snap?.settings,
     proposal,

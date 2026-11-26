@@ -27,6 +27,8 @@ export { batchPrepUses, coverPrepUses } from "./batching";
 export type { CoveredUse, ExistingPortions, PrepBatch, PrepCoverage, PrepUse } from "./batching";
 export { computeNeeds } from "./needs";
 export type { NeedLine, NeedSource, NeedsOptions, NeedsResult, UnresolvedNeed } from "./needs";
+export { missingFor } from "./missing";
+export type { MissingLine, MissingOptions, MissingResult, QuantityUnit, StockLine } from "./missing";
 export { compareDayEntries, compareWeek, getAdherenceDay } from "./adherence";
 export type {
   ActualItem,

@@ -447,6 +447,7 @@ export function Today() {
               pantry={pantry.data}
               onShowWater={firstTime ? undefined : showWater}
               onDrinkAdded={firstTime ? undefined : showDrink}
+              withCooking={!firstTime}
             />
 
             {firstTime ? null : (

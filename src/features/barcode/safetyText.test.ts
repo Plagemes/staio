@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { assessProduct } from "@/core/allergens";
-import { NEED_INGREDIENTS_TEXT, PLAN_UNREADABLE_NOTE, RESTRICTED_SAFETY_TEXT, SAFETY_FLAGS, SAFETY_HEADINGS, assessForCard, safetySourceNote, sortOutcomes, storeCodeQuestion } from "./safetyText";
+import { NEED_INGREDIENTS_TEXT, DECLARATIONS_UNREADABLE_NOTE, RESTRICTED_SAFETY_TEXT, SAFETY_FLAGS, SAFETY_HEADINGS, assessForCard, safetySourceNote, sortOutcomes, storeCodeQuestion } from "./safetyText";
 
 describe("testi del controllo sulla scheda", () => {
   it("dice che il controllo è incompleto se il piano non si legge", () => {
-    expect(PLAN_UNREADABLE_NOTE).toMatch(/incompleto/);
-    expect(PLAN_UNREADABLE_NOTE).toMatch(/piano/);
+    expect(DECLARATIONS_UNREADABLE_NOTE).toMatch(/incompleto/);
+    expect(DECLARATIONS_UNREADABLE_NOTE).toMatch(/allergeni che hai indicato/);
   });
 
   it("nessun titolo suona come un via libera", () => {

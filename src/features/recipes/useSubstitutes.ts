@@ -21,6 +21,8 @@ export interface SubstitutesState {
   options: ReadonlyMap<number, readonly Substitute[]>;
   /** I dati di gusto non si sono potuti caricare. */
   failed: boolean;
+  /** Allergeni ed esclusioni letti solo in parte: accanto alle proposte va l'avviso «Controllo incompleto». */
+  incomplete: boolean;
 }
 
 const NONE: ReadonlyMap<number, readonly Substitute[]> = new Map();
@@ -41,7 +43,7 @@ export function useSubstitutes(recipe: Recipe, missing: readonly number[]): Subs
   const pantry = usePantry();
   const products = useProducts();
   const foods = useFoods();
-  const { declared, ready } = useDeclared();
+  const { declared, ready, incomplete } = useDeclared();
   const { byKey: confirmations } = useConfirmations();
   const lots = useMemo(() => (pantry.data ? activeLots(pantry.data) : []), [pantry.data]);
   const wanted = missing.length > 0 && lots.length > 0;
@@ -79,6 +81,6 @@ export function useSubstitutes(recipe: Recipe, missing: readonly number[]): Subs
   }, [wanted, taste, foods, products, ready, confirmations, lots, recipe, declared, missingKey]);
 
   // senza i dati (rete assente) non si propone nulla, e chi aspetta non resta in attesa
-  if (!wanted || failed) return { status: "idle", options: NONE, failed };
-  return options ? { status: "ready", options, failed } : { status: "loading", options: NONE, failed };
+  if (!wanted || failed) return { status: "idle", options: NONE, failed, incomplete };
+  return options ? { status: "ready", options, failed, incomplete } : { status: "loading", options: NONE, failed, incomplete };
 }

@@ -2,22 +2,22 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type RefObject } from "react";
-import { ALLERGEN_CHECK_NOTICE } from "@/core/allergens";
+import { ALLERGEN_CHECK_NOTICE, foldVoice } from "@/core/allergens";
 import { getSetting, setSetting, useSetting } from "@/data";
 import { Button, Label } from "@/design";
 import { hasUsableKey } from "../ai/settings";
 import { useAiSettings } from "../ai/useAiSettings";
 import { dayOf } from "../format";
 import { MIN_PROFILE_AGE, PROFILE_SETTING_KEY, isNutritionProfile, parseAge, type NutritionProfile } from "../nutrition/profile";
-import { splitList } from "../recipes/common";
 import { ALLERGEN_NAMES } from "../recipes/list";
-import { RECIPE_PREFS_KEY, readPrefs, type RecipePrefs } from "../recipes/prefs";
+import { declaredLists, readDietDeclarations, useDietDeclarations, writeDeclarationChanges } from "../allergens";
 import ui from "../ui.module.css";
-import { applyDiff, type StartChoice } from "./logic";
+import { declarationDiff, splitVoices, type StartChoice } from "./logic";
 import styles from "./Onboarding.module.css";
 
 const STEPS = 3;
 const READ_ERROR = "Non riesco a leggere ciò che hai già dichiarato: riprova.";
+const SAVE_ERROR = "Non sono riuscito a salvare. Riprova, o salta.";
 
 interface OnboardingProps {
   /** Chiude il percorso (fatto o saltato) e ricorda dove si voleva cominciare. */
@@ -26,7 +26,7 @@ interface OnboardingProps {
 
 /**
  * Dopo lo stile: tre domande, tutte saltabili, ognuna con il suo perché. Scrive negli stessi posti dove leggono
- * le ricette, il codice a barre e la Nutrizione (`recipes.prefs`, `nutritionProfile`): nessun secondo archivio.
+ * le ricette, il codice a barre e la Nutrizione (allergeni ed esclusioni, `nutritionProfile`): nessun secondo archivio.
  */
 export function Onboarding({ onDone }: OnboardingProps) {
   const [step, setStep] = useState(0);
@@ -61,39 +61,48 @@ interface StepProps {
 
 function AvoidStep({ headingRef, onNext }: StepProps & { onNext: () => void }) {
   const ids = useId();
-  const live = useSetting<unknown>(RECIPE_PREFS_KEY);
-  const readFailed = live.error !== undefined && live.error !== null;
-  const ready = !live.loading && !readFailed;
+  const diet = useDietDeclarations();
+  const readFailed = diet.error !== undefined || (diet.state !== undefined && !diet.state.complete);
+  const ready = diet.ready && !readFailed;
   // ciò che c'era all'apertura: serve a sapere che cosa si è cambiato qui
-  const [baseline, setBaseline] = useState<RecipePrefs | null>(null);
-  if (ready && baseline === null) setBaseline(readPrefs(live.data));
-  const prefs = baseline ?? readPrefs(live.data);
+  const [baseline, setBaseline] = useState<{ allergens: string[]; excludedFoods: string[] } | null>(null);
+  if (ready && baseline === null && diet.state) setBaseline(declaredLists(diet.state));
+  const declared = baseline ?? (diet.state ? declaredLists(diet.state) : { allergens: [], excludedFoods: [] });
   const [allergens, setAllergens] = useState<string[] | null>(null);
   const [foods, setFoods] = useState<string | null>(null);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const chosen = allergens ?? prefs.allergens;
-  const foodsText = foods ?? prefs.excludedFoods.join(", ");
+  const chosen = allergens ?? declared.allergens;
+  const chosenKeys = new Set(chosen.map(foldVoice));
+  const foodsText = foods ?? declared.excludedFoods.join(", ");
 
-  const toggle = (name: string) => setAllergens(chosen.includes(name) ? chosen.filter((a) => a !== name) : [...chosen, name]);
+  const toggle = (name: string) =>
+    setAllergens(chosenKeys.has(foldVoice(name)) ? chosen.filter((a) => foldVoice(a) !== foldVoice(name)) : [...chosen, name]);
 
   async function onSubmit() {
     if (!ready) return;
     setBusy(true);
-    setError(false);
+    setError(null);
     try {
       if (allergens !== null || foods !== null) {
-        // si rilegge e si applicano solo le differenze fatte qui; il resto delle preferenze (attrezzatura) non si tocca
-        const fresh = readPrefs(await getSetting<unknown>(RECIPE_PREFS_KEY));
-        await setSetting(RECIPE_PREFS_KEY, {
-          ...fresh,
-          allergens: applyDiff(fresh.allergens, prefs.allergens, chosen),
-          excludedFoods: applyDiff(fresh.excludedFoods, prefs.excludedFoods, splitList(foodsText)),
-        });
+        // si rilegge e si applicano solo le differenze fatte qui
+        const fresh = declaredLists(await readDietDeclarations());
+        const changes = [
+          ...declarationDiff("allergens", fresh.allergens, declared.allergens, chosen),
+          ...declarationDiff("excludedFoods", fresh.excludedFoods, declared.excludedFoods, splitVoices(foodsText, declared.excludedFoods)),
+        ];
+        if (changes.length > 0) {
+          const result = await writeDeclarationChanges(changes, "onboarding");
+          if (!result.ok) {
+            setError(result.message || SAVE_ERROR);
+            setBusy(false);
+            return;
+          }
+        }
       }
       onNext();
     } catch {
-      setError(true);
+      setError(SAVE_ERROR);
       setBusy(false);
     }
   }
@@ -104,14 +113,16 @@ function AvoidStep({ headingRef, onNext }: StepProps & { onNext: () => void }) {
         <h1 className={ui.title} ref={headingRef} tabIndex={-1}>
           C&apos;è qualcosa che non puoi o non vuoi mangiare?
         </h1>
-        <p className={ui.lead}>Lo uso per avvisarti nelle ricette e quando leggi un codice a barre.</p>
+        <p className={ui.lead}>
+          Lo uso per avvisarti nelle ricette e quando leggi un codice a barre. Le cambi quando vuoi in Impostazioni › Alimentazione.
+        </p>
       </div>
       <fieldset className={styles.fieldset}>
         <legend className={ui.fieldLabel}>Allergeni</legend>
         <div className={ui.choices}>
           {ALLERGEN_NAMES.map((a) => (
             <label key={a} className={ui.choice}>
-              <input type="checkbox" checked={chosen.includes(a)} onChange={() => toggle(a)} disabled={!ready} />
+              <input type="checkbox" checked={chosenKeys.has(foldVoice(a))} onChange={() => toggle(a)} disabled={!ready} />
               <span>{a}</span>
             </label>
           ))}
@@ -133,9 +144,9 @@ function AvoidStep({ headingRef, onNext }: StepProps & { onNext: () => void }) {
         />
         <p className={ui.hint}>{ALLERGEN_CHECK_NOTICE}</p>
       </div>
-      {error || readFailed ? (
+      {error !== null || readFailed ? (
         <p className={ui.error} role="alert">
-          {readFailed ? READ_ERROR : "Non sono riuscito a salvare. Riprova, o salta."}
+          {readFailed ? READ_ERROR : error}
         </p>
       ) : null}
       <div className={styles.actions}>

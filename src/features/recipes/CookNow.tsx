@@ -2,14 +2,19 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useId, useMemo, useState, type FormEvent } from "react";
+import { useId, useMemo, useRef, useState, type FormEvent } from "react";
 import type { MealKind } from "@/core/diary";
-import { activeLots } from "@/core/ledger";
+import { activeLots, type Lot } from "@/core/ledger";
+import { portionsExpiry } from "@/core/prep";
 import { applySubstitutions, compareWithPantry, scaleRecipe, stockFromLots, type Quantity, type Recipe, type Substitution } from "@/core/recipes";
 import { formatQuantity } from "@/core/units";
-import { usePantry, useRecipes } from "@/data";
-import { Button, Label } from "@/design";
+import { getPantry, usePantry, useRecipes } from "@/data";
+import { Button } from "@/design";
+import { ActionBar, Disclosure } from "../common";
+import { useFormEpoch } from "../common/freshForm";
+import { dayOf } from "../format";
 import { evaluateLots, type PantryEntry } from "../lots";
+import { dayMonth } from "../plan/dates";
 import { MEAL_KIND_LABELS, MEAL_KIND_ORDER, buildMealEvents, suggestMealKind, type MealErrors } from "../meals";
 import { useFoodOverrides, useFoods } from "../nutrition/useNutrition";
 import { picksFromProposal, proposeFromRecipe, unmatchedText, type Unmatched } from "../prep/fromRecipe";
@@ -21,11 +26,14 @@ import { useNow } from "../useNow";
 import { useRecord } from "../useRecord";
 import { DishRatingRow } from "./DishRatingRow";
 import { dishRatingEvent, type DishVote } from "./dishRating";
+import { clearCookSessionOf } from "./cookSession";
+import { LEFTOVER_PLACES, NEEDS_PANTRY_ITEM, leftoverEvents, leftoverSummary, shortageText, type LeftoverPlace } from "./leftovers";
 import { makeContextFor, makeLookup } from "./facts";
 import { FlagText, SafetyPanel } from "./SafetyPanel";
 import { SUBSTITUTE_NOTICE, SUBSTITUTION_PARAM, chosenText, missingIndices, parseSubstitutions, recipeHref, unappliedNote, validSubstitutions } from "./substitutes";
 import { useRecipeSafety } from "./useRecipeSafety";
 import { useSubstitutes } from "./useSubstitutes";
+import styles from "./recipes.module.css";
 
 interface FreeRow {
   id: number;
@@ -33,6 +41,16 @@ interface FreeRow {
   quantityText: string;
   foodId?: string;
   use: boolean;
+}
+
+/** Mentre si carica il titolo è già quello definitivo («Registra pranzo»), senza passare da un altro: prima dell'ora non c'è titolo. */
+function Loading({ now }: { now: string | null }) {
+  return (
+    <div className={ui.screen}>
+      {now ? <h1 className={ui.title}>{`Registra ${MEAL_KIND_LABELS[suggestMealKind(now)].toLowerCase()}`}</h1> : null}
+      <LoadingLine />
+    </div>
+  );
 }
 
 /** `/app/ricette/cucinata?id=…&porzioni=…`: ciò che hai usato per cucinare la ricetta, registrato come pasto. */
@@ -44,20 +62,15 @@ export function CookNow() {
   const pantry = usePantry();
   const now = useNow();
   const foods = useFoods();
+  // dopo il salvataggio il modulo riparte da zero: tornando indietro non si registra due volte
+  const { epoch, renew } = useFormEpoch(params.toString());
   const entries = useMemo(
     () => (pantry.data && now ? evaluateLots(activeLots(pantry.data), now) : []),
     [pantry.data, now],
   );
 
   if (recipes.error || pantry.error) return <StorageError />;
-  if (!recipes.data || !pantry.data || !now || !foods) {
-    return (
-      <div className={ui.screen}>
-        <h1 className={ui.title}>Registra il pasto</h1>
-        <LoadingLine />
-      </div>
-    );
-  }
+  if (!recipes.data || !pantry.data || !now || !foods) return <Loading now={now} />;
   const recipe = id ? recipes.data.recipes.find((r) => r.recipeId === id) : undefined;
   if (!recipe) {
     return (
@@ -68,7 +81,7 @@ export function CookNow() {
   }
   const servings = Number.isFinite(requested) && requested > 0 && requested <= 1000 ? requested : recipe.servings;
   const chosen = parseSubstitutions(params.getAll(SUBSTITUTION_PARAM), recipe.ingredients.length);
-  return <Checked key={recipe.recipeId} recipe={recipe} chosen={chosen} servings={servings} entries={entries} now={now} />;
+  return <Checked key={`${recipe.recipeId}|${epoch}`} recipe={recipe} chosen={chosen} servings={servings} entries={entries} now={now} onSaved={renew} />;
 }
 
 /**
@@ -81,12 +94,14 @@ function Checked({
   servings,
   entries,
   now,
+  onSaved,
 }: {
   recipe: Recipe;
   chosen: Substitution[];
   servings: number;
   entries: PantryEntry[];
   now: string;
+  onSaved: () => void;
 }) {
   const missing = useMemo(() => {
     const cmp = compareWithPantry(recipe, stockFromLots(entries.map((e) => e.lot)), { servings });
@@ -94,16 +109,9 @@ function Checked({
   }, [recipe, entries, servings]);
   const substitutes = useSubstitutes(recipe, missing);
   const substitutions = useMemo(() => validSubstitutions(chosen, substitutes.options), [chosen, substitutes.options]);
-  if (chosen.length > 0 && substitutes.status === "loading") {
-    return (
-      <div className={ui.screen}>
-        <h1 className={ui.title}>Registra il pasto</h1>
-        <LoadingLine />
-      </div>
-    );
-  }
+  if (chosen.length > 0 && substitutes.status === "loading") return <Loading now={now} />;
   const unapplied = unappliedNote(chosen, substitutions, { missing, failed: substitutes.failed, originalName: (i) => recipe.ingredients[i]?.name ?? "" });
-  return <Form recipe={recipe} substitutions={substitutions} unapplied={unapplied} servings={servings} entries={entries} now={now} />;
+  return <Form recipe={recipe} substitutions={substitutions} unapplied={unapplied} servings={servings} entries={entries} now={now} onSaved={onSaved} />;
 }
 
 function Form({
@@ -113,6 +121,7 @@ function Form({
   servings,
   entries,
   now,
+  onSaved,
 }: {
   recipe: Recipe;
   substitutions: Substitution[];
@@ -120,6 +129,7 @@ function Form({
   servings: number;
   entries: PantryEntry[];
   now: string;
+  onSaved: () => void;
 }) {
   const router = useRouter();
   const ids = useId();
@@ -167,47 +177,96 @@ function Form({
   const [errors, setErrors] = useState<MealErrors | null>(null);
   const [vote, setVote] = useState<DishVote>({});
   const effectiveKind = kind ?? suggestMealKind(now);
-  const byId = useMemo(() => new Map(entries.map((e) => [e.lot.lotId, e.lot])), [entries]);
 
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    if (busy) return;
-    let failed: MealErrors | null = null;
-    const used = free.filter((f) => f.use);
-    const result = await recordWith((deviceId) => {
-      const built = buildMealEvents(
-        {
-          kind: effectiveKind,
-          title: recipe.title,
-          picks: picks.flatMap((p) => {
-            const lot = byId.get(p.lotId);
-            return lot ? [{ lot, choice: { kind: "text" as const, text: p.quantityText } }] : [];
-          }),
-          freeItems: used.map((f) => ({ name: f.name, quantityText: f.quantityText, ...(f.foodId ? { foodId: f.foodId } : {}) })),
-        },
-        { now: new Date().toISOString(), deviceId },
-      );
-      if (!built.ok) {
-        failed = built.errors;
-        throw new Error("invalid");
+  // gli avanzi: K porzioni mangiate adesso su N cotte, le altre in frigo o in freezer, tutto in una scrittura
+  const [leftoverOpen, setLeftoverOpen] = useState(false);
+  const [eaten, setEaten] = useState(1);
+  const [place, setPlace] = useState<LeftoverPlace>("frigo");
+  const [submitting, setSubmitting] = useState(false);
+  // un secondo tocco prima che il disegno si aggiorni non deve scrivere due volte
+  const inFlight = useRef(false);
+  const whole = Number.isInteger(servings) && servings >= 2;
+  const canKeep = whole && picks.length > 0;
+  const keepLeftovers = canKeep && leftoverOpen;
+  const kept = servings - eaten;
+  const expiryDate = useMemo(() => {
+    try {
+      return portionsExpiry({ location: place, cookedOn: dayOf(now) }).date;
+    } catch {
+      return undefined;
+    }
+  }, [place, now]);
+
+  async function onSubmit(event?: FormEvent) {
+    event?.preventDefault();
+    if (busy || submitting || inFlight.current) return;
+    inFlight.current = true;
+    setSubmitting(true);
+    setErrors(null);
+    try {
+      // la dispensa si rilegge dall'archivio: un lotto può essere cambiato dopo che la schermata si è aperta
+      const fresh = await getPantry();
+      const lotsNow = new Map<string, Lot>(fresh.lots.map((l) => [l.lotId, l]));
+      const gone: Record<string, string> = {};
+      const pickLots = picks.flatMap((p) => {
+        const lot = lotsNow.get(p.lotId);
+        if (!lot || lot.remaining <= 0) {
+          gone[p.lotId] = "Di questo alimento non resta niente: toglilo dall'elenco.";
+          return [];
+        }
+        return [{ lot, quantityText: p.quantityText }];
+      });
+      if (Object.keys(gone).length > 0) {
+        setErrors({ picks: gone, free: {} });
+        return;
       }
-      // il pasto è sempre legato alla ricetta: così conta come «cucinata», col voto se l'hai dato
-      const meal = built.events.find((e) => e.type === "meal");
-      const rated = meal && "mealId" in meal ? dishRatingEvent(meal.mealId, written.recipeId, vote, { now: new Date().toISOString(), deviceId }) : undefined;
-      return { events: rated?.ok ? [...built.events, rated.event] : built.events, message: built.message };
-    });
-    if (result.ok) router.push("/app");
-    else setErrors(failed ?? { picks: {}, free: {}, general: result.error });
+      const used = free.filter((f) => f.use).map((f) => ({ name: f.name, quantityText: f.quantityText, ...(f.foodId ? { foodId: f.foodId } : {}) }));
+      const outcome: { errors?: MealErrors } = {};
+      const result = await recordWith((deviceId) => {
+        const ctx = { now: new Date().toISOString(), deviceId };
+        if (keepLeftovers) {
+          const r = leftoverEvents({ kind: effectiveKind, recipeId: written.recipeId, title: recipe.title, servings, eaten, place, picks: pickLots, freeItems: used, vote }, ctx);
+          if (!r.ok) {
+            outcome.errors = r.errors;
+            throw new Error("invalid");
+          }
+          return { events: r.events, message: r.message };
+        }
+        const built = buildMealEvents(
+          { kind: effectiveKind, title: recipe.title, picks: pickLots.map((p) => ({ lot: p.lot, choice: { kind: "text" as const, text: p.quantityText } })), freeItems: used },
+          ctx,
+        );
+        if (!built.ok) {
+          outcome.errors = { ...built.errors, picks: Object.fromEntries(Object.entries(built.errors.picks).map(([id, text]) => [id, shortageText(text)])) };
+          throw new Error("invalid");
+        }
+        // il pasto è sempre legato alla ricetta: così conta come «cucinata», col voto se l'hai dato
+        const meal = built.events.find((e) => e.type === "meal");
+        const rated = meal && "mealId" in meal ? dishRatingEvent(meal.mealId, written.recipeId, vote, ctx) : undefined;
+        return { events: rated?.ok ? [...built.events, rated.event] : built.events, message: built.message };
+      });
+      if (result.ok) {
+        // la cottura è registrata: la sessione di cucina non serve più
+        await clearCookSessionOf(written.recipeId);
+        onSaved();
+        router.push("/app");
+      } else setErrors(outcome.errors ?? { picks: {}, free: {}, general: result.error });
+    } finally {
+      inFlight.current = false;
+      setSubmitting(false);
+    }
   }
+
+  const busyNow = busy || submitting;
+  const buttonText = `Registra ${MEAL_KIND_LABELS[effectiveKind].toLowerCase()}`;
 
   return (
     <div className={ui.screen}>
       <div className={ui.head}>
-        <h1 className={ui.title}>Registra il pasto</h1>
-        <Label>{MEAL_KIND_LABELS[effectiveKind]}</Label>
+        <h1 className={ui.title}>{buttonText}</h1>
       </div>
       <p className={ui.lead}>
-        «{recipe.title}» per {servings === 1 ? "1 porzione" : `${servings} porzioni`}, mangiate adesso. Ho proposto dalla dispensa ciò che serve, prima ciò che scade: controlla le quantità.
+        «{recipe.title}», {servings === 1 ? "1 porzione" : `${servings} porzioni`}. Ho proposto dalla dispensa ciò che serve, prima ciò che scade: controlla le quantità.
       </p>
 
       {substitutions.length > 0 ? (
@@ -305,20 +364,72 @@ function Form({
           </p>
         ) : null}
 
-        <DishRatingRow value={vote} onChange={setVote} disabled={busy} />
-        <p className={ui.hint}>Si salta: la ritrovi nella scheda della ricetta e la puoi cambiare quando vuoi.</p>
+        {whole ? (
+          canKeep ? (
+            <Disclosure title="È avanzato qualcosa?" summary={leftoverSummary(leftoverOpen, kept, place)} open={leftoverOpen} onOpenChange={(open) => {
+              setLeftoverOpen(open);
+              if (open) setEaten(1);
+            }}>
+              <div className={ui.form}>
+                <div className={ui.field}>
+                  <label className={ui.fieldLabel} htmlFor={`${ids}-eaten`}>
+                    Porzioni mangiate adesso
+                  </label>
+                  <div className={styles.servings}>
+                    <button type="button" className={styles.step} aria-label="Una porzione in meno" disabled={eaten <= 1} onClick={() => setEaten((n) => Math.max(1, n - 1))}>
+                      −
+                    </button>
+                    <input
+                      id={`${ids}-eaten`}
+                      className={`${ui.input} ${styles.servingsInput}`}
+                      inputMode="numeric"
+                      value={String(eaten)}
+                      onChange={(e) => {
+                        const n = Math.round(Number(e.target.value.replace(",", ".")));
+                        if (Number.isFinite(n)) setEaten(Math.min(servings - 1, Math.max(1, n)));
+                      }}
+                    />
+                    <button type="button" className={styles.step} aria-label="Una porzione in più" disabled={eaten >= servings - 1} onClick={() => setEaten((n) => Math.min(servings - 1, n + 1))}>
+                      +
+                    </button>
+                  </div>
+                  <p className={ui.hint}>Su {servings} cotte: {kept === 1 ? "1 resta" : `${kept} restano`}.</p>
+                </div>
+                <fieldset className={ui.field}>
+                  <legend className={ui.fieldLabel}>Le altre vanno in</legend>
+                  <div className={ui.choices}>
+                    {LEFTOVER_PLACES.map((p) => (
+                      <label key={p.id} className={ui.choice}>
+                        <input type="radio" name={`${ids}-place`} value={p.id} checked={place === p.id} onChange={() => setPlace(p.id)} />
+                        <span>{p.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+                {expiryDate ? <p className={ui.hint}>Si conservano fino al {dayMonth(expiryDate)} (stima).</p> : null}
+              </div>
+            </Disclosure>
+          ) : (
+            <div className={ui.field}>
+              <h2 className={ui.fieldLabel}>È avanzato qualcosa?</h2>
+              <p className={ui.hint}>{NEEDS_PANTRY_ITEM}</p>
+            </div>
+          )
+        ) : null}
 
-        <Button type="submit" disabled={busy}>
-          {busy ? "Salvo…" : "Registra il pasto"}
-        </Button>
-        <p className={ui.hint}>
-          Se ne cucini di più per i giorni dopo, usa invece «Preparane più porzioni»: le porzioni restano in dispensa con la loro scadenza.
-        </p>
+        <DishRatingRow value={vote} onChange={setVote} disabled={busyNow} />
+        <p className={ui.hint}>Si salta: la ritrovi nella scheda della ricetta e la puoi cambiare quando vuoi.</p>
       </form>
 
-      <Link href={recipeHref("/app/ricette/vedi", written.recipeId, substitutions)} className={ui.textLink}>
+      <Link href={recipeHref("/app/ricette/vedi", written.recipeId, substitutions, servings)} className={ui.textLink}>
         Torna alla ricetta
       </Link>
+
+      <ActionBar>
+        <Button disabled={busyNow} onClick={() => void onSubmit()}>
+          {busyNow ? "Salvo…" : buttonText}
+        </Button>
+      </ActionBar>
     </div>
   );
 }

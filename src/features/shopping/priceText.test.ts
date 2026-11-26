@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { monthlyBudgetProgress, spendRanges, type ProductPriceHistory, type SpendSummary } from "@/core/prices";
 import { FOOD_CATEGORY_LABELS } from "../labels";
-import { budgetText, categoryLabel, changeText, priceNote, spendText } from "./priceText";
+import { budgetText, categoryLabel, changeText, priceNote, shortDayText, spendText } from "./priceText";
 
 const hist = (over: Partial<ProductPriceHistory> = {}): ProductPriceHistory => ({
   id: "latte|ml",
@@ -28,6 +28,7 @@ const summary = (over: Partial<SpendSummary> = {}): SpendSummary => ({
   purchaseCount: 40,
   isMinimum: true,
   byCategory: [],
+  purchases: [],
   ...over,
 });
 
@@ -58,5 +59,13 @@ describe("frasi sui prezzi", () => {
     expect(categoryLabel("eggs")).toBe("Uova");
     expect(categoryLabel("leafy_vegetables")).toBe(FOOD_CATEGORY_LABELS.leafy_vegetables);
     expect(categoryLabel("leafy_vegetables")).not.toContain("_");
+  });
+});
+
+describe("shortDayText", () => {
+  it("giorno e mese; l'anno solo se è diverso da quello di oggi", () => {
+    expect(shortDayText("2026-11-12", "2026-11-20")).toBe("12 nov");
+    expect(shortDayText("2026-03-01", "2026-11-20")).toBe("1 mar");
+    expect(shortDayText("2025-11-12", "2026-01-05")).toBe("12 nov 2025");
   });
 });

@@ -1,21 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useId, useMemo, useState } from "react";
 import { ALLERGEN_CHECK_NOTICE } from "@/core/allergens";
 import { activeLots } from "@/core/ledger";
 import type { Recipe } from "@/core/recipes";
-import { usePantry, usePlan, useRecipes } from "@/data";
+import { getRecipes, usePantry, useRecipes } from "@/data";
 import { Button, Label } from "@/design";
+import { DIET_HREF, declaredLists, declaredSummary, useDietDeclarations } from "../allergens";
+import { Disclosure, MoreActions } from "../common";
 import { useProducts } from "../nutrition/useNutrition";
-import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
+import { LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
 import { useRecord } from "../useRecord";
 import { makeLinkOf, pantryFoods } from "./allergenLinks";
-import { formatMinutes, formatServings, splitList } from "./common";
+import { formatMinutes, formatServings } from "./common";
 import {
-  ALLERGEN_NAMES,
   SORT_LABELS,
   allEquipment,
   allTags,
@@ -24,7 +26,6 @@ import {
   confirmedRowText,
   countsText,
   expiringText,
-  filtersActive,
   hiddenText,
   missingText,
   pantryView,
@@ -35,29 +36,85 @@ import {
 } from "./list";
 import { rateRecipe } from "./model";
 import { useRecipePrefs, type RecipePrefs } from "./prefs";
-import { reasonLines, unionDeclared } from "./safety";
+import { TIME_OPTIONS, parseRecipesQuery, recipesQueryString, sortFilterSummary, type RecipesQuery } from "./recipesQuery";
+import { reasonLines } from "./safety";
+import { IncompleteDeclarations } from "./SafetyPanel";
 import { historyText, SORT_FAVORITES_HINT } from "./dishRating";
 import { useConfirmations } from "./useConfirmations";
 import { useDishHistory } from "./useDishHistory";
 import styles from "./recipes.module.css";
 
 const SORTS: SortKey[] = ["title", "pantry", "expiring", "favorites"];
-const TIME_OPTIONS = [20, 30, 45, 60];
+/** Quanto si aspetta, dopo l'ultima battuta, prima di scrivere la ricerca nell'indirizzo. */
+const SEARCH_DELAY_MS = 300;
+
+const MORE_LINKS = [
+  { id: "ideas", label: "Cosa cucinare", href: "/app/ricette/idee" },
+  { id: "pairings", label: "Con cosa sta bene", href: "/app/ricette/abbinamenti" },
+  { id: "preps", label: "Preparazioni", href: "/app/preparazioni" },
+];
 
 export function Recipes() {
+  return (
+    <Suspense
+      fallback={
+        <div className={ui.screen}>
+          <h1 className={ui.title}>Ricettario</h1>
+          <LoadingLine />
+        </div>
+      }
+    >
+      <RecipesScreen />
+    </Suspense>
+  );
+}
+
+function RecipesScreen() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const search = useSearchParams();
   const recipes = useRecipes();
   const pantry = usePantry();
-  const plan = usePlan();
+  const diet = useDietDeclarations();
   const products = useProducts();
   const now = useNow();
   const { prefs, ready, save } = useRecipePrefs();
   const { byKey: confirmations } = useConfirmations();
   const dishes = useDishHistory();
-  const [query, setQuery] = useState("");
-  const [sort, setSort] = useState<SortKey>("title");
-  const [tags, setTags] = useState<string[]>([]);
-  const [maxMinutes, setMaxMinutes] = useState<number | undefined>(undefined);
   const ids = useId();
+
+  // Ricerca, ordine, etichette e tempo sono nell'indirizzo, letti a ogni disegno: tornando dalla scheda si ritrovano.
+  const searchText = search.toString();
+  const state = useMemo(() => parseRecipesQuery(searchText), [searchText]);
+  // un'etichetta nell'indirizzo che nessuna ricetta ha più non si potrebbe togliere: non conta
+  const knownTags = useMemo(() => allTags(recipes.data?.recipes ?? []), [recipes.data]);
+  const tags = useMemo(() => state.tags.filter((t) => knownTags.includes(t)), [state.tags, knownTags]);
+
+  // Il testo che si scrive è dello stato locale e l'indirizzo lo segue dopo una pausa: una battuta mentre parte la
+  // scrittura non si perde. Se l'indirizzo cambia da fuori (tasto indietro) vale lui.
+  const [text, setText] = useState(state.q);
+  const [written, setWritten] = useState(state.q);
+  const [seenQ, setSeenQ] = useState(state.q);
+  if (state.q !== seenQ) {
+    setSeenQ(state.q);
+    if (state.q !== written) {
+      setText(state.q);
+      setWritten(state.q);
+    }
+  }
+  /** Cambia un filtro tenendo anche il testo che si sta scrivendo. */
+  const go = (change: (current: RecipesQuery) => RecipesQuery) => {
+    setWritten(text);
+    router.replace(`${pathname}${recipesQueryString(change({ ...state, q: text, tags }))}`, { scroll: false });
+  };
+  useEffect(() => {
+    if (text === state.q) return;
+    const timer = window.setTimeout(() => {
+      setWritten(text);
+      router.replace(`${pathname}${recipesQueryString({ ...state, q: text })}`, { scroll: false });
+    }, SEARCH_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [text, state, router, pathname]);
 
   const view = useMemo(
     () => (pantry.data && now ? pantryView(activeLots(pantry.data), now) : undefined),
@@ -68,18 +125,19 @@ export function Recipes() {
     [recipes.data, view, dishes.byRecipe],
   );
 
-  // gli allergeni e le esclusioni dichiarati nel ricettario e nel piano contano insieme
-  const planAllergens = plan.data?.structure?.allergens;
-  const planExcluded = plan.data?.structure?.excludedFoods;
-  const allergens = useMemo(() => unionDeclared(prefs.allergens, planAllergens ?? []), [prefs.allergens, planAllergens]);
-  const excludedFoods = useMemo(() => unionDeclared(prefs.excludedFoods, planExcluded ?? []), [prefs.excludedFoods, planExcluded]);
+  // allergeni ed esclusioni dalla lettura unica (eventi e posti di prima, in unione)
+  const lists = useMemo(() => (diet.state ? declaredLists(diet.state) : undefined), [diet.state]);
+  const allergens = useMemo(() => lists?.allergens ?? [], [lists]);
+  const excludedFoods = useMemo(() => lists?.excludedFoods ?? [], [lists]);
   const linkOf = useMemo(
     () => makeLinkOf(pantryFoods(pantry.data ? activeLots(pantry.data) : [], products)),
     [pantry.data, products],
   );
 
+  const { maxMinutes, sort } = state;
+
   const filters: ListFilters = {
-    query,
+    query: state.q,
     tags,
     ...(maxMinutes !== undefined ? { maxMinutes } : {}),
     ...(prefs.limitToEquipment ? { ownedEquipment: prefs.ownedEquipment } : {}),
@@ -92,12 +150,12 @@ export function Recipes() {
     () => applyFilters(rows, filters),
     // `filters` si ricostruisce a ogni disegno: contano i suoi ingredienti
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows, query, tags, maxMinutes, prefs.limitToEquipment, prefs.ownedEquipment, allergens, excludedFoods, linkOf, confirmations],
+    [rows, state.q, tags, maxMinutes, prefs.limitToEquipment, prefs.ownedEquipment, allergens, excludedFoods, linkOf, confirmations],
   );
   const shown = useMemo(() => sortRows(filtered.rows, sort), [filtered.rows, sort]);
 
-  if (recipes.error || pantry.error || plan.error) return <StorageError />;
-  if (!recipes.data || !pantry.data || !plan.data || !products || !view || !ready || !confirmations) {
+  if (recipes.error || pantry.error || diet.error) return <StorageError />;
+  if (!recipes.data || !pantry.data || !diet.state || !products || !view || !ready || !confirmations) {
     return (
       <div className={ui.screen}>
         <h1 className={ui.title}>Ricettario</h1>
@@ -107,8 +165,9 @@ export function Recipes() {
   }
 
   const all = recipes.data.recipes;
-  const active = filtersActive(filters);
   const declared = allergens.length > 0 || excludedFoods.length > 0;
+  const incomplete = !diet.state.complete;
+  const summary = declaredSummary(diet.state);
   const hiddenSummary = hiddenText(filtered);
 
   return (
@@ -123,23 +182,16 @@ export function Recipes() {
         <Button href="/app/ricette/importa" variant="outline">
           Importa
         </Button>
-        <Button href="/app/ricette/idee" variant="outline">
-          Idee con ciò che hai
-        </Button>
-        <Button href="/app/ricette/abbinamenti" variant="outline">
-          Abbinamenti di gusto
-        </Button>
+        <MoreActions items={MORE_LINKS} />
       </div>
 
       {all.length === 0 ? (
-        <EmptyState
-          title="Il ricettario è vuoto"
-          text="Qui compariranno le tue ricette, con quanti ingredienti hai già in casa e quali mancano. Scrivine una, oppure importala da un indirizzo web o da un testo."
-          actionLabel="Scrivi la prima ricetta"
-          actionHref="/app/ricette/nuova"
-          secondaryLabel="Importa da un indirizzo o da un testo"
-          secondaryHref="/app/ricette/importa"
-        />
+        <div className={ui.empty}>
+          <h2 className={ui.emptyTitle}>Il ricettario è vuoto</h2>
+          <p className={ui.emptyText}>
+            Qui compariranno le tue ricette, con quanti ingredienti hai già in casa e quali mancano. Scrivine una, oppure importala da un indirizzo web o da un testo.
+          </p>
+        </div>
       ) : (
         <>
           <div className={ui.field}>
@@ -150,46 +202,41 @@ export function Recipes() {
               id={`${ids}-q`}
               className={ui.input}
               type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
               placeholder="Titolo, ingrediente o etichetta"
               autoComplete="off"
             />
           </div>
 
-          <fieldset className={ui.field}>
-            <legend className={ui.fieldLabel}>Ordina</legend>
-            <div className={ui.choices}>
-              {SORTS.map((s) => (
-                <label key={s} className={ui.choice}>
-                  <input type="radio" name={`${ids}-sort`} value={s} checked={sort === s} onChange={() => setSort(s)} />
-                  <span>{SORT_LABELS[s]}</span>
-                </label>
-              ))}
-            </div>
-            {sort === "favorites" ? <p className={ui.hint}>{SORT_FAVORITES_HINT}</p> : null}
-            {sort === "expiring" && view.expiring.length === 0 ? (
-              <p className={ui.hint}>Niente in dispensa sta per scadere: l&apos;ordine resta per nome.</p>
-            ) : null}
-          </fieldset>
-
-          <details className={styles.filters}>
-            <summary>{active ? "Filtri (attivi)" : "Filtri"}</summary>
+          <Disclosure title="Ordina e filtra" summary={sortFilterSummary({ ...state, tags })}>
+            <fieldset className={ui.field}>
+              <legend className={ui.fieldLabel}>Ordina</legend>
+              <div className={ui.choices}>
+                {SORTS.map((s) => (
+                  <label key={s} className={ui.choice}>
+                    <input type="radio" name={`${ids}-sort`} value={s} checked={sort === s} onChange={() => go((cur) => ({ ...cur, sort: s }))} />
+                    <span>{SORT_LABELS[s]}</span>
+                  </label>
+                ))}
+              </div>
+              {sort === "favorites" ? <p className={ui.hint}>{SORT_FAVORITES_HINT}</p> : null}
+              {sort === "expiring" && view.expiring.length === 0 ? (
+                <p className={ui.hint}>Niente in dispensa sta per scadere: l&apos;ordine resta per nome.</p>
+              ) : null}
+            </fieldset>
             <Filters
               recipes={all}
               tags={tags}
-              onTags={setTags}
+              onTags={(next) => go((cur) => ({ ...cur, tags: next }))}
               maxMinutes={maxMinutes}
-              onMaxMinutes={setMaxMinutes}
+              onMaxMinutes={(m) => go((cur) => ({ q: cur.q, sort: cur.sort, tags: cur.tags, ...(m !== undefined ? { maxMinutes: m } : {}) }))}
               prefs={prefs}
               onPrefs={save}
-              fromPlan={{
-                allergens: allergens.filter((a) => !prefs.allergens.includes(a)),
-                excludedFoods: excludedFoods.filter((a) => !prefs.excludedFoods.includes(a)),
-              }}
+              declaredText={summary}
               showNotice={!declared}
             />
-          </details>
+          </Disclosure>
 
           {shown.length === 0 ? (
             <div className={ui.empty}>
@@ -200,6 +247,7 @@ export function Recipes() {
             </div>
           ) : (
             <>
+              {incomplete ? <IncompleteDeclarations /> : null}
               <p className={ui.hint} role="status">
                 {shown.length === 1 ? "1 ricetta" : `${shown.length} ricette`}
                 {filtered.hidden > 0 ? ` · ${hiddenSummary}` : ""}
@@ -248,10 +296,6 @@ export function Recipes() {
       {declared ? <p className={ui.hint}>{ALLERGEN_CHECK_NOTICE}</p> : null}
 
       {recipes.data.archived.length > 0 ? <Archived recipes={recipes.data.archived} /> : null}
-
-      <Link href="/app/preparazioni" className={ui.textLink}>
-        Vai alle preparazioni
-      </Link>
     </div>
   );
 }
@@ -264,17 +308,16 @@ interface FiltersProps {
   onMaxMinutes: (m: number | undefined) => void;
   prefs: RecipePrefs;
   onPrefs: (p: RecipePrefs) => Promise<void>;
-  /** Ciò che il piano dichiara in più del ricettario: conta lo stesso. */
-  fromPlan: { allergens: string[]; excludedFoods: string[] };
+  /** Allergeni ed esclusioni dichiarati, in una riga: qui si leggono, si cambiano in Alimentazione. */
+  declaredText: string;
   /** Il testo fisso compare una volta per schermata: qui solo se altrove non c'è. */
   showNotice: boolean;
 }
 
-function Filters({ recipes, tags, onTags, maxMinutes, onMaxMinutes, prefs, onPrefs, fromPlan, showNotice }: FiltersProps) {
+function Filters({ recipes, tags, onTags, maxMinutes, onMaxMinutes, prefs, onPrefs, declaredText, showNotice }: FiltersProps) {
   const ids = useId();
   const tagNames = useMemo(() => allTags(recipes), [recipes]);
   const equipment = useMemo(() => allEquipment(recipes), [recipes]);
-  const [foodsText, setFoodsText] = useState(prefs.excludedFoods.join(", "));
 
   const toggle = (list: string[], value: string) => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
 
@@ -343,68 +386,46 @@ function Filters({ recipes, tags, onTags, maxMinutes, onMaxMinutes, prefs, onPre
         </fieldset>
       ) : null}
 
-      <fieldset className={ui.field}>
-        <legend className={ui.fieldLabel}>Senza</legend>
-        <div className={styles.chips}>
-          {ALLERGEN_NAMES.map((a) => (
-            <label key={a} className={styles.chip}>
-              <input
-                type="checkbox"
-                checked={prefs.allergens.includes(a)}
-                onChange={() => void onPrefs({ ...prefs, allergens: toggle(prefs.allergens, a) })}
-              />
-              <span>{a}</span>
-            </label>
-          ))}
-        </div>
-        <label className={ui.fieldLabel} htmlFor={`${ids}-foods`}>
-          Altri alimenti da escludere <span className={ui.optional}>(separati da virgola)</span>
-        </label>
-        <input
-          id={`${ids}-foods`}
-          className={ui.input}
-          type="text"
-          value={foodsText}
-          onChange={(e) => setFoodsText(e.target.value)}
-          onBlur={() => void onPrefs({ ...prefs, excludedFoods: splitList(foodsText) })}
-          placeholder="coriandolo, olive"
-          autoComplete="off"
-        />
-        {fromPlan.allergens.length + fromPlan.excludedFoods.length > 0 ? (
-          <p className={ui.hint}>
-            Dal piano conto anche: {[...fromPlan.allergens, ...fromPlan.excludedFoods].join(", ")}.
-          </p>
-        ) : null}
+      <div className={ui.field}>
+        <p className={ui.paragraph}>
+          Allergeni ed esclusioni: {declaredText === "" ? "niente dichiarato" : declaredText}{" "}
+          <Link href={DIET_HREF} className={ui.textLink}>
+            {declaredText === "" ? "Aggiungi" : "Cambia"}
+          </Link>
+        </p>
         <p className={ui.hint}>
           Le ricette con ingredienti generici (crema, salsa, ripieno) di cui non si può dire se contengono un allergene restano
           nascoste e le trovi a parte, come «non verificabili».
         </p>
         {showNotice ? <p className={ui.hint}>{ALLERGEN_CHECK_NOTICE}</p> : null}
-      </fieldset>
+      </div>
     </div>
   );
 }
 
 function Archived({ recipes }: { recipes: readonly Recipe[] }) {
   const { recordWith, busy } = useRecord();
+  /** Rilegge l'archivio: rimette la versione ritirata più recente, non quella che era a schermo. */
+  async function putBack(recipeId: string) {
+    const fresh = (await getRecipes()).archived.find((x) => x.recipeId === recipeId);
+    if (!fresh) return;
+    await recordWith((deviceId) => {
+      const result = rateRecipe(fresh, fresh.rating, { now: new Date().toISOString(), deviceId });
+      if (!result.ok) throw new Error(result.error);
+      return { events: [result.event], message: `«${fresh.title}» è tornata nel ricettario.` };
+    });
+  }
   return (
-    <details className={styles.filters}>
-      <summary>{recipes.length === 1 ? "1 ricetta ritirata" : `${recipes.length} ricette ritirate`}</summary>
+    <Disclosure title={recipes.length === 1 ? "1 ricetta ritirata" : `${recipes.length} ricette ritirate`} summary="Si rimettono nel ricettario">
       <ul className={styles.list}>
         {recipes.map((r) => (
           <li key={r.recipeId} className={styles.card}>
             <span className={styles.cardTitle}>{r.title}</span>
             <div>
               <Button
-                variant="outline"
+                variant="text"
                 disabled={busy}
-                onClick={() =>
-                  void recordWith((deviceId) => {
-                    const result = rateRecipe(r, r.rating, { now: new Date().toISOString(), deviceId });
-                    if (!result.ok) throw new Error(result.error);
-                    return { events: [result.event], message: `«${r.title}» è tornata nel ricettario.` };
-                  })
-                }
+                onClick={() => void putBack(r.recipeId)}
               >
                 Rimetti nel ricettario
               </Button>
@@ -412,7 +433,7 @@ function Archived({ recipes }: { recipes: readonly Recipe[] }) {
           </li>
         ))}
       </ul>
-    </details>
+    </Disclosure>
   );
 }
 
@@ -451,8 +472,10 @@ function HiddenBySafety({
       </div>
     );
   return (
-    <details className={styles.filters}>
-      <summary>Ricette nascoste per allergeni ed esclusioni ({contains.length + uncertain.length})</summary>
+    <Disclosure
+      title={`Ricette nascoste per allergeni ed esclusioni (${contains.length + uncertain.length})`}
+      summary={`${contains.length} con un allergene o un alimento escluso, ${uncertain.length} non verificabili`}
+    >
       <div className={styles.filterBody}>
         {group(
           `Non verificabili (${uncertain.length})`,
@@ -462,6 +485,6 @@ function HiddenBySafety({
         )}
         {group(`Con un allergene o un alimento escluso (${contains.length})`, contains, "contains")}
       </div>
-    </details>
+    </Disclosure>
   );
 }

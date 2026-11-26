@@ -3,37 +3,34 @@
 import { useMemo } from "react";
 import { PRODUCT_CHECK_NOTICE } from "@/core/allergens";
 import { needsStoreCodeConfirmation, type Product } from "@/core/catalog";
-import { usePlan } from "@/data";
-import { useRecipePrefs } from "../recipes/prefs";
-import { unionDeclared } from "../recipes/safety";
-import { PLAN_UNREADABLE_NOTE, assessForCard, isUnreliableSource, safetySourceNote, SAFETY_ADD_NOTE, SAFETY_FLAGS, SAFETY_HEADINGS, sortOutcomes } from "./safetyText";
+import { declaredLists, useDietDeclarations } from "../allergens";
+import { DECLARATIONS_UNREADABLE_NOTE, assessForCard, isUnreliableSource, safetySourceNote, SAFETY_ADD_NOTE, SAFETY_FLAGS, SAFETY_HEADINGS, sortOutcomes } from "./safetyText";
 import styles from "./BarcodeCapture.module.css";
 
 /**
- * Dice subito che cosa risulta dai dati di Open Food Facts rispetto agli allergeni e alle esclusioni dichiarati nel
- * ricettario e nel piano: mai un via libera, solo «contiene», «tracce», «incerto» o «non risulta».
+ * Dice subito che cosa risulta dai dati di Open Food Facts rispetto agli allergeni e alle esclusioni dichiarati (lettura
+ * unica): mai un via libera, solo «contiene», «tracce», «incerto» o «non risulta».
  * Non compare se non c'è nulla di dichiarato. Non blocca l'aggiunta alla dispensa.
  */
 export function ProductSafety({ product, confirmed = false }: { product: Product; /** L'utente ha confermato che il codice interno del negozio è ancora quel prodotto. */ confirmed?: boolean }) {
-  const plan = usePlan();
-  const { prefs, ready } = useRecipePrefs();
-  const planAllergens = plan.data?.structure?.allergens;
-  const planExcluded = plan.data?.structure?.excludedFoods;
-  const allergens = useMemo(() => unionDeclared(prefs.allergens, planAllergens ?? []), [prefs.allergens, planAllergens]);
-  const excludedFoods = useMemo(() => unionDeclared(prefs.excludedFoods, planExcluded ?? []), [prefs.excludedFoods, planExcluded]);
+  const diet = useDietDeclarations();
+  const lists = useMemo(() => (diet.state ? declaredLists(diet.state) : undefined), [diet.state]);
+  const allergens = useMemo(() => lists?.allergens ?? [], [lists]);
+  const excludedFoods = useMemo(() => lists?.excludedFoods ?? [], [lists]);
   // la scheda di Open Food Facts per un codice interno del negozio può essere di un altro prodotto: i suoi dati non contano
   const restricted = isUnreliableSource(product) || (needsStoreCodeConfirmation(product) && !confirmed);
   const assessment = useMemo(() => assessForCard(product, { allergens, excludedFoods }, { confirmed }), [product, allergens, excludedFoods, confirmed]);
   const sourceNote = restricted ? null : safetySourceNote(product, PRODUCT_CHECK_NOTICE);
 
-  // se il piano non si legge, i suoi allergeni mancano: il controllo è incompleto e va detto, anche senza altro da mostrare
-  const planFailed = plan.error !== undefined && plan.error !== null;
-  // finché le preferenze non sono lette non si sa se c'è qualcosa di dichiarato: meglio aspettare che mostrare un esito monco
-  if (!ready || (plan.loading && !plan.data && !planFailed)) return null;
-  if (assessment.verdict === "none") {
-    return planFailed ? (
-      <p className={styles.safetyNote} role="status">
-        {PLAN_UNREADABLE_NOTE}
+  // se un posto delle dichiarazioni non si legge, le sue voci mancano: il controllo è incompleto e va detto, anche senza
+  // altro da mostrare
+  const failed = (diet.error !== undefined && diet.error !== null) || (diet.state !== undefined && !diet.state.complete);
+  // finché le dichiarazioni non sono lette non si sa se c'è qualcosa di dichiarato: meglio aspettare che mostrare un esito monco
+  if (!diet.state && !failed) return null;
+  if (!diet.state || assessment.verdict === "none") {
+    return failed ? (
+      <p className={styles.safetyNote} role="alert">
+        {DECLARATIONS_UNREADABLE_NOTE}
       </p>
     ) : null;
   }
@@ -55,7 +52,7 @@ export function ProductSafety({ product, confirmed = false }: { product: Product
         ))}
       </ul>
       {verdict === "contains" ? <p className={styles.safetyNote}>{SAFETY_ADD_NOTE}</p> : null}
-      {planFailed ? <p className={styles.safetyNote}>{PLAN_UNREADABLE_NOTE}</p> : null}
+      {failed ? <p className={styles.safetyNote}>{DECLARATIONS_UNREADABLE_NOTE}</p> : null}
       {sourceNote ? <p className={styles.safetyNote}>{sourceNote}</p> : null}
     </section>
   );

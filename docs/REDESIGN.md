@@ -56,6 +56,18 @@ Questo documento è il progetto definitivo del redesign «utilitario funzionale�
 - **Due azioni in due tempi.** Passati in rassegna i punti di scrittura: lo scontrino (acquisti, poi scadenze) diventa una scrittura sola; la bevanda con «Scala dalla dispensa» resta due tocchi e due righe, con un testo giusto.
 - **Ondata 3 ridisegnata** in sette mandati su tre passi (10.5); l'ondata 4 perde Salute e riceve ciò che è stato rimandato (10.6).
 
+**Dopo l'integrazione dell'ondata 4 (26 nov 2026).** Il lavoro dei mandati 4A, 4B, 4C, 4E, 4F e 4G è stato unito e rivisto. Ne sono venute queste scelte.
+
+- **Niente `redirect()`.** Il service worker non salva le risposte con redirect e la copia ignora la query: senza rete un vecchio indirizzo cadrebbe su Oggi. Ogni indirizzo vecchio monta lo stesso componente del nuovo: `/app/piano/obiettivi` mostra Alimentazione con «Obiettivi» aperto, `/app/piano/verifica` mostra la Settimana con la verifica aperta, `/app/ricette/idee` e `/app/ricette/abbinamenti` mostrano «Cosa cucinare» sulla scheda giusta. Le pagine restano statiche e in cache. Le schermate scendono di tre (Obiettivi, Verifica, Abbinamenti) e salgono di una (Alimentazione).
+- **4A crea Alimentazione.** Toglie i campi dal Ricettario e da Obiettivi, quindi nello stesso passo serve il posto nuovo dove cambiarli; 4E ci porta obiettivi, pasti e conferme. Le voci aggiunte in Alimentazione non arrivano ai telefoni con la versione vecchia finché qualcuno non salva la struttura in Obiettivi.
+- **Allergeni: transizione.** Per tutta questa versione si leggono ancora i due archivi di prima (R, le preferenze delle ricette, e P, la struttura del piano), uniti con la scelta più severa. Vanno tolti nella prossima, quando tutti i telefoni sono aggiornati.
+- **4G è un mandato nuovo.** Bozza dello scontrino, «Da cosa è fatto» per il denaro e scorte minime stanno in file che non erano di 4B, 4C né 4E: distribuirli avrebbe messo due mandati sugli stessi file. La bozza è solo quella dello scontrino in questa ondata.
+- **«Hai uno scontrino a metà»** prende il posto di «Hai una spesa a metà»: la bozza è lo scontrino, non la lista.
+- **Memorie in un foglio, non in una pagina** (nessuna pagina nuova senza toglierne una). «Stai cucinando» sta in testa ad «Adesso» e non in «Da guardare oggi», dove c'è il tetto di tre righe. Gli avanzi non toccano il core: gli ingredienti confermati si dividono in K/N al pasto e (N−K)/N alle porzioni, in una scrittura sola.
+- **«Che cosa manca»** usa una riga richiudibile non quieta: il riassunto «Manca: …» si vede anche da chiusa.
+- **Scelte accettate da 4B.** Gli spuntini si aggiungono solo dalla Settimana. «Giorni passati» si apre da solo se `?giorno=` è un giorno passato. Le porzioni pronte vengono da `lot.remaining`.
+- **Da tenere d'occhio.** Il test di tempo con cinquantamila eventi in `activity/operations.test.ts` è fallito anche da solo durante l'ondata: va ripetuto a macchina libera e, se fallisce ancora, indagato. «AI» non trova nulla nella ricerca (`PAGE_WORD_MIN = 4`): da valutare.
+
 ---
 
 ## 0. Come leggere questo documento
@@ -1202,17 +1214,18 @@ Nelle tabelle delle sezioni 6 e 8 le sigle dell'ondata 3 sono quelle della prima
 
 **Che cosa sente l'utente.** «Stasera» dice che cosa cucinare e che cosa manca. La cucina non perde il passo né il timer, e alla fine chiede degli avanzi. Le impostazioni dicono come sono impostate. Gli allergeni hanno una casa sola.
 
-**Ordine.** 4A da solo, con la revisione; poi 4B, 4C, 4E insieme; poi 4F; poi l'integrazione. Salute (4D) è stata anticipata all'ondata 3 (3F): la riga qui sotto resta per memoria. Arrivano dall'ondata 3, da mettere nei mandati quando si scriveranno: la decisione sulla lettura continua dei codici (12.6) e, se si fa, i codici «da completare» senza rete; la bozza della revisione dello scontrino (9.2); «Da cosa è fatto» per il valore della dispensa e i costi della Spesa (4.7); le scorte minime tolte da Piano (riga 23 della sezione 6); la cucina che usa `useWakeLock` di `features/common`.
+**Ordine.** 4A da solo, con la revisione; poi 4B, 4C, 4E, 4G insieme; poi 4F; poi l'integrazione. Salute (4D) è stata anticipata all'ondata 3 (3F): la riga qui sotto resta per memoria. Arrivano dall'ondata 3, da mettere nei mandati quando si scriveranno: la decisione sulla lettura continua dei codici (12.6) e, se si fa, i codici «da completare» senza rete; la bozza della revisione dello scontrino (9.2); «Da cosa è fatto» per il valore della dispensa e i costi della Spesa (4.7); le scorte minime tolte da Piano (riga 23 della sezione 6); la cucina che usa `useWakeLock` di `features/common`.
 
 | Compito | Che cosa consegna | File in esclusiva | Difficoltà | Revisione |
 |---|---|---|---|---|
-| **4A** Allergeni: una casa sola (per primo, da solo) | 9.4 | `features/allergens.ts` (nuovo, con test) e, nei file che oggi leggono o scrivono i due archivi, solo la lettura e la scrittura | Critico | Sì, obbligatoria |
+| **4A** Allergeni: una casa sola (per primo, da solo) | 9.4; crea la pagina Alimentazione con la sola sezione allergeni | `features/allergens.ts` (nuovo, con test) e, nei file che oggi leggono o scrivono i due archivi, solo la lettura e la scrittura | Critico | Sì, obbligatoria |
 | **4B** Piano | «Stasera e domani», «Che cosa manca» con «Aggiungi alla spesa», foglio che resta aperto, settimane passate, Verifica come sezione | `features/plan/` (tranne `Goals.tsx`), `core/plan/missing.ts` (nuovo) | Difficile | No |
 | **4C** Ricette e cucina | «Cucina» diretto; stato salvato; timer dal testo; fine con pasto, avanzi e voto; «Metti nel piano»; filtri nell'indirizzo; «Incolla l'indirizzo»; Idee e abbinamenti in una pagina | `features/recipes/`, `features/recipes-video/`, `features/prep/`, `features/taste/`, `features/ai-capture/RecipeIdeas.tsx` | Difficile | Sì (allergeni in cucina; la dispensa si scala solo con la conferma) |
 | ~~**4D** Salute~~ | Anticipata: è il mandato 3F dell'ondata 3 | — | — | — |
 | **4E** Impostazioni | Righe con lo stato; pagina «Alimentazione» (allergeni, esclusioni, obiettivi, struttura); «Memorie» | `features/settings/`, `features/plan/Goals.tsx`, `src/app/app/impostazioni/alimentazione/page.tsx` (nuova) | Ben specificato | Sì (tocca la schermata degli allergeni) |
-| **4F** Oggi: «Stasera» e «Riprendi» (dopo 4B e 4C) | Nel momento del diario «Cucina» e «Che cosa manca»; in «Da guardare» «Stai cucinando: riprendi» | `features/today/` | Ben specificato | No |
-| **Integrazione 4** | Pagina nuova e rimandi | `public/sw.js`, `INTEGRAZIONE.md`, pagine `piano/obiettivi`, `piano/verifica`, `ricette/abbinamenti` | Meccanico | — |
+| **4G** Bozze e costi | Bozza dello scontrino («Hai uno scontrino a metà»), «Da cosa è fatto» per valore della dispensa e costi della Spesa, scorte minime in un foglio | `features/ai/`, `pantry/Pantry.tsx`, `features/shopping/`, `core/ledger`, `core/prices` | Difficile | Sì |
+| **4F** Oggi: «Stasera» e «Riprendi» (dopo 4B e 4C) | Nel momento del diario «Cucina» e «Che cosa manca»; in «Adesso» «Stai cucinando: riprendi» | `features/today/` | Ben specificato | No |
+| **Integrazione 4** | Fatta. Cache a `v5` con la pagina Alimentazione, i quattro indirizzi vecchi che mostrano le schermate nuove (stesso componente, niente `redirect()`) | `public/sw.js`, `INTEGRAZIONE.md`, pagine `piano/obiettivi`, `piano/verifica`, `ricette/idee`, `ricette/abbinamenti`, `ricette/importa` | Meccanico | — |
 
 ### 10.7 Ondata 5: scorciatoie, recupero, primo avvio, ripasso
 

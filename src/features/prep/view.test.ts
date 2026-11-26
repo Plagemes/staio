@@ -17,6 +17,7 @@ import {
   programTasks,
   repairItemText,
   repairItems,
+  repairSignature,
 } from "./view";
 
 function cook(events: AnyEvent[], title: string, portions: number, prepId = title, at = "2026-11-15T17:00:00.000Z") {
@@ -64,7 +65,7 @@ describe("testi", () => {
   it("spiega perché non si può annullare", () => {
     const text = portionsUsedExplanation({ eaten: 2, discarded: 1, gifted: 0 });
     expect(text).toContain("2 mangiate, 1 buttata");
-    expect(text).toContain("Non posso annullare");
+    expect(text).toContain("Non posso togliere");
   });
 
   it("dice entro quando cucinare", () => {
@@ -150,6 +151,20 @@ describe("riparazione di una preparazione annullata con porzioni usate", () => {
     expect(view.redundant).toBe(0);
     expect(view.shortfalls).toEqual([]);
     expect(r.voids).toEqual([]);
+  });
+
+  it("la firma della correzione non dipende dagli identificativi, ma dalle quantità", () => {
+    const { log } = scenario();
+    const first = proposePrepRepair("ragu", log, { deviceId: "dev-a", now: () => NOW });
+    const again = proposePrepRepair("ragu", log, { deviceId: "dev-a", now: () => NOW });
+    if (!first.ok || !again.ok) throw new Error("atteso ok");
+    expect(repairSignature(first)).toBe(repairSignature(again));
+    // un altro telefono ha mangiato un'altra porzione: la correzione scalerebbe una quantità diversa
+    const batchLot = (log.find((e) => e.type === "consume" && (e as ConsumeEvent).deviceId === "dev-b") as ConsumeEvent).lotId;
+    const more = consume("x9", "2026-11-15T17:45:00.000Z", { lotId: batchLot, quantity: { value: 1, unit: "pz" }, deviceId: "dev-b" }) as ConsumeEvent;
+    const changed = proposePrepRepair("ragu", [...log, more] as AnyEvent[], { deviceId: "dev-a", now: () => NOW });
+    if (!changed.ok) throw new Error("atteso ok");
+    expect(repairSignature(changed)).not.toBe(repairSignature(first));
   });
 
   it("dichiara le carenze: in dispensa resta meno di ciò che andrebbe scalato", () => {

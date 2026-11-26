@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyDiff, decideOnboarding, parseOnboarding, serializeOnboarding, type OnboardingInput } from "./logic";
+import { applyDiff, declarationDiff, splitVoices, decideOnboarding, parseOnboarding, serializeOnboarding, type OnboardingInput } from "./logic";
 
 const base: OnboardingInput = {
   pathname: "/app",
@@ -56,5 +56,34 @@ describe("applyDiff", () => {
   });
   it("senza modifiche non cambia nulla, nemmeno con una lettura vuota", () => {
     expect(applyDiff(["latte"], [], [])).toEqual(["latte"]);
+  });
+});
+
+describe("declarationDiff", () => {
+  it("toglie latte e aggiunge soia in una sola lista di cambi", () => {
+    expect(declarationDiff("allergens", ["latte"], ["latte"], ["soia"])).toEqual([
+      { action: "remove", list: "allergens", text: "latte" },
+      { action: "add", list: "allergens", text: "soia" },
+    ]);
+  });
+  it("non tocca ciò che è cambiato altrove e non ripete ciò che c'è già", () => {
+    expect(declarationDiff("excludedFoods", ["funghi", "Olive"], ["funghi"], ["funghi", "olive"])).toEqual([]);
+    expect(declarationDiff("excludedFoods", [], ["funghi"], [])).toEqual([]);
+  });
+  it("niente cambiato: niente da scrivere", () => {
+    expect(declarationDiff("allergens", ["latte"], ["Latte"], ["latte"])).toEqual([]);
+  });
+});
+
+describe("splitVoices", () => {
+  it("non taglia le voci lunghe e non mette un tetto", () => {
+    const long = "a".repeat(90);
+    expect(splitVoices(`funghi, ${long}; Funghi`)).toEqual(["funghi", long]);
+    expect(splitVoices(Array.from({ length: 50 }, (_, i) => `v${i}`).join(","))).toHaveLength(50);
+  });
+  it("un'esclusione già dichiarata con una virgola resta una voce sola", () => {
+    const existing = ["pesce crudo, sushi", "funghi"];
+    expect(splitVoices("pesce crudo, sushi, funghi", existing)).toEqual(["pesce crudo, sushi", "funghi"]);
+    expect(declarationDiff("excludedFoods", existing, existing, splitVoices("pesce crudo, sushi, funghi", existing))).toEqual([]);
   });
 });

@@ -21,7 +21,7 @@ const NO_SPLIT: Record<string, string> = {
 };
 
 /** Costo stimato, confronto tra negozi e tetto di spesa. Tutto dagli ultimi prezzi osservati: sono stime. */
-export function Costs({ data, undo }: { data: ShoppingData; undo: Undo }) {
+export function Costs({ data, undo, onOpenCost }: { data: ShoppingData; undo: Undo; onOpenCost: () => void }) {
   const view = data.view!;
   const id = useId();
   const [text, setText] = useState(data.budgetCents !== null ? (data.budgetCents / 100).toFixed(2).replace(".", ",") : "");
@@ -42,7 +42,13 @@ export function Costs({ data, undo }: { data: ShoppingData; undo: Undo }) {
     <>
       <section className={ui.section} aria-label="Costo stimato">
         <SectionHeader label="Costo stimato" />
-        <p className={styles.costLine}>{view.cost.text}</p>
+        {view.cost.pricedCount > 0 ? (
+          <button type="button" className={styles.tap} aria-haspopup="dialog" onClick={onOpenCost}>
+            {view.cost.text}
+          </button>
+        ) : (
+          <p className={styles.costLine}>{view.cost.text}</p>
+        )}
         <p className={ui.hint}>È l&apos;ultimo prezzo che hai registrato per ogni prodotto, per la quantità in lista: una stima, non un preventivo.</p>
       </section>
 

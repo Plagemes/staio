@@ -2,28 +2,33 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { activeLots } from "@/core/ledger";
 import { applySubstitutions, compareWithPantry, scaleRecipe, stockFromLots, totalMinutes, type Recipe, type Substitution } from "@/core/recipes";
 import { formatQuantity } from "@/core/units";
 import { buildPriceBook } from "@/core/shopping";
-import { usePantry, useRecipes } from "@/data";
+import { getRecipes, usePantry, useRecipes } from "@/data";
 import { Button, Label, Value } from "@/design";
+import { Disclosure, MoreActions, type ActionItem } from "../common";
+import { dayOf } from "../format";
+import { dayMonth } from "../plan/dates";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
 import { NUTRITION_DISCLAIMER_SHORT } from "../nutrition/labels";
 import { useFoodOverrides, useFoods } from "../nutrition/useNutrition";
 import { useNotice } from "../notice";
 import ui from "../ui.module.css";
 import { useRecord } from "../useRecord";
-import { formatMinutes, formatServings, safeSourceUrl } from "./common";
+import { formatMinutes, safeSourceUrl } from "./common";
 import { DishRatingRow } from "./DishRatingRow";
 import { countsText, dishRatingEvent, historyText, type DishVote } from "./dishRating";
 import { useDishHistory } from "./useDishHistory";
 import { computeFacts, costText, coverageText, makeContextFor, makeLookup, nutrientLines } from "./facts";
 import { availabilityLabel, pendingConfirmations, shortfallsWith, type Answers } from "./list";
-import { PairingsRow } from "./PairingsRow";
+import { MissingSheet } from "./MissingSheet";
+import { PlanSheet } from "./PlanSheet";
 import { rateRecipe, retireRecipe } from "./model";
-import { FlagText, SafetyPanel } from "./SafetyPanel";
+import { SHARE_COPIED, SHARE_FAILED, cookedSummary, haveText, shareRecipe, shareText, statusLine, stepsSummary } from "./recipeText";
+import { FlagText, IncompleteDeclarations, SafetyPanel } from "./SafetyPanel";
 import { prepHref } from "../prep/substitution";
 import { SubstituteOptions } from "./SubstituteOptions";
 import {
@@ -40,7 +45,12 @@ import {
 import { useRecipeSafety } from "./useRecipeSafety";
 import { useSubstitutes } from "./useSubstitutes";
 import styles from "./recipes.module.css";
-import { addToShoppingListWithUndo, proposalFromShortfalls } from "./shopping";
+
+/** Le porzioni dell'indirizzo, se sono un numero valido. */
+function servingsFromParam(raw: string | null): number | undefined {
+  const n = Number(raw);
+  return raw !== null && Number.isFinite(n) && n > 0 && n <= 1000 ? n : undefined;
+}
 
 export function RecipeView() {
   const params = useSearchParams();
@@ -74,12 +84,16 @@ export function RecipeView() {
       </div>
     );
   }
-  // chi torna dalla modalità cucina ritrova le sostituzioni scelte
+  // Chi torna dalla cucina o da «L'ho già cucinata» ritrova porzioni e sostituzioni scelte: se l'indirizzo cambia, la scheda riparte da lì.
+  const servings = servingsFromParam(params.get("porzioni"));
   const chosen = parseSubstitutions(params.getAll(SUBSTITUTION_PARAM), recipe.ingredients.length);
-  return <Detail key={recipe.recipeId} recipe={recipe} initialSubstitutions={chosen} />;
+  const key = JSON.stringify([recipe.recipeId, servings ?? null, chosen]);
+  return <Detail key={key} recipe={recipe} initialServings={servings} initialSubstitutions={chosen} />;
 }
 
-function Detail({ recipe: written, initialSubstitutions }: { recipe: Recipe; initialSubstitutions: Substitution[] }) {
+type OpenSheet = "plan" | "missing" | null;
+
+function Detail({ recipe: written, initialServings, initialSubstitutions }: { recipe: Recipe; initialServings: number | undefined; initialSubstitutions: Substitution[] }) {
   const pantry = usePantry();
   const foods = useFoods();
   const overrides = useFoodOverrides();
@@ -87,9 +101,9 @@ function Detail({ recipe: written, initialSubstitutions }: { recipe: Recipe; ini
   const notice = useNotice();
   const { recordWith, busy } = useRecord();
   const ids = useId();
-  const [servingsText, setServingsText] = useState<string | null>(null);
+  const [servingsText, setServingsText] = useState<string | null>(initialServings === undefined ? null : String(initialServings).replace(".", ","));
   const [error, setError] = useState<string | null>(null);
-  const [cooking, setCooking] = useState(false);
+  const [sheet, setSheet] = useState<OpenSheet>(null);
   const [answers, setAnswers] = useState<Answers>({});
   const history = useDishHistory();
   const past = history.byRecipe.get(written.recipeId);
@@ -143,34 +157,22 @@ function Detail({ recipe: written, initialSubstitutions }: { recipe: Recipe; ini
   const shortfalls = useMemo(() => (comparison ? shortfallsWith(comparison, answers) : []), [comparison, answers]);
   const pending = comparison ? pendingConfirmations(comparison, answers).length : 0;
   const missingCount = shortfalls.length;
+  const haveNames = useMemo(
+    () => (comparison ? comparison.items.filter((i) => i.status === "available").map((i) => i.ingredient.name) : []),
+    [comparison],
+  );
+  const have = comparison ? haveText({ total: comparison.items.length, missing: missingCount, pending }) : undefined;
   const nutrient = facts.nutrition ? nutrientLines(facts.nutrition) : [];
   const energy = nutrient.find((n) => n.key === "energyKcal");
-
-  async function addMissing() {
-    if (!comparison) return;
-    setError(null);
-    const proposal = proposalFromShortfalls(shortfalls);
-    try {
-      const r = await addToShoppingListWithUndo(proposal.entries);
-      if (r.added === 0) {
-        notice.show({ message: "Niente da aggiungere." });
-        return;
-      }
-      const voci = `${r.added} ${r.added === 1 ? "voce" : "voci"}`;
-      const senza =
-        r.withoutQuantity > 0
-          ? ` ${r.withoutQuantity === 1 ? "Una è entrata" : `${r.withoutQuantity} sono entrate`} senza quantità («q.b.»).`
-          : "";
-      notice.show({ message: `Aggiunte alla lista della spesa: ${voci}.${senza}`, onUndo: r.undo });
-    } catch {
-      setError("Non sono riuscito ad aggiungere alla lista della spesa. Riprova.");
-    }
-  }
+  const hasCost = facts.cost !== undefined && facts.cost.coverage.resolved > 0;
 
   async function rate(value: number) {
     const next = recipe.rating === value ? undefined : value;
+    // la ricetta si rilegge dall'archivio: una versione più nuova (anche da un altro telefono) non va sostituita con quella a schermo
+    const fresh = (await getRecipes()).recipes.find((r) => r.recipeId === written.recipeId);
+    if (!fresh) return setError("Questa ricetta non c'è più nel ricettario.");
     const r = await recordWith((deviceId) => {
-      const res = rateRecipe(written, next, { now: new Date().toISOString(), deviceId });
+      const res = rateRecipe(fresh, next, { now: new Date().toISOString(), deviceId });
       if (!res.ok) throw new Error(res.error);
       return { events: [res.event], message: next === undefined ? "Voto tolto." : `Voto: ${next} su 5.` };
     });
@@ -188,21 +190,52 @@ function Detail({ recipe: written, initialSubstitutions }: { recipe: Recipe; ini
     if (!r.ok) setError(r.error);
   }
 
+  /** Parte dal foglio «Altro», già chiuso: l'avviso nasce a foglio chiuso. */
   async function retire() {
+    setError(null);
+    const fresh = (await getRecipes()).recipes.find((r) => r.recipeId === written.recipeId);
+    if (!fresh) return setError("Questa ricetta non c'è più nel ricettario.");
     const r = await recordWith((deviceId) => {
-      const res = retireRecipe(written, { now: new Date().toISOString(), deviceId });
+      const res = retireRecipe(fresh, { now: new Date().toISOString(), deviceId });
       if (!res.ok) throw new Error(res.error);
-      return { events: [res.event], message: `«${recipe.title}» è stata ritirata dal ricettario.` };
+      return { events: [res.event], message: `Tolta dal ricettario: ${fresh.title}.` };
     });
     if (r.ok) router.push("/app/ricette");
     else setError(r.error);
   }
 
+  async function share() {
+    const text = shareText(written, servings);
+    const outcome = await shareRecipe(
+      { title: written.title, text },
+      {
+        ...(typeof navigator !== "undefined" && typeof navigator.share === "function" ? { share: (data: { title: string; text: string }) => navigator.share(data) } : {}),
+        ...(typeof navigator !== "undefined" && navigator.clipboard ? { copy: (t: string) => navigator.clipboard.writeText(t) } : {}),
+      },
+    );
+    if (outcome === "copied") notice.show({ message: SHARE_COPIED });
+    else if (outcome === "failed") notice.show({ message: SHARE_FAILED });
+  }
+
+  const more: ActionItem[] = [
+    { id: "edit", label: "Modifica", href: `/app/ricette/nuova?modifica=${encodeURIComponent(recipe.recipeId)}` },
+    { id: "prep", label: "Preparane più porzioni", href: prepHref(recipe.recipeId, servings, substitutions) },
+    { id: "done", label: "L'ho già cucinata", href: recipeHref("/app/ricette/cucinata", recipe.recipeId, substitutions, servings) },
+    { id: "pairings", label: "Con cosa sta bene", href: `/app/ricette/abbinamenti?ricetta=${encodeURIComponent(recipe.recipeId)}` },
+    { id: "share", label: "Condividi", onSelect: () => void share() },
+    { id: "retire", label: "Togli dal ricettario", danger: true, onSelect: () => void retire() },
+  ];
+
+  const lastDay = past ? dayMonth(dayOf(past.last.at)) : undefined;
+  const energySummary = energy ? `${energy.prefix}${energy.text}` : undefined;
+  const costSummary = hasCost && facts.cost ? `${costText(facts.cost).prefix}${costText(facts.cost).text}` : undefined;
+  const factsSummary = !lookup ? "Calcolo in corso" : [energySummary, costSummary].filter((x): x is string => x !== undefined).join(" · ") || "Nessun dato";
+
   return (
     <div className={ui.screen}>
       <div className={ui.head}>
         <Link href="/app/ricette" className={ui.textLink}>
-          Ricettario
+          Torna al ricettario
         </Link>
         {recipe.rating !== undefined ? <Label>{"★".repeat(recipe.rating)}</Label> : null}
       </div>
@@ -210,18 +243,22 @@ function Detail({ recipe: written, initialSubstitutions }: { recipe: Recipe; ini
       <header className={ui.section}>
         <h1 className={ui.title}>{recipe.title}</h1>
         <p className={styles.heroMeta}>
-          <span>{formatServings(recipe.servings)}</span>
-          {minutes !== undefined ? <span>{formatMinutes(minutes)}</span> : null}
-          {recipe.equipment.length > 0 ? <span>{recipe.equipment.join(", ")}</span> : null}
+          <span>{statusLine({ ...(minutes !== undefined ? { minutes } : {}), servings, ...(have ? { have } : {}) })}</span>
         </p>
         {recipe.tags.length > 0 ? <p className={styles.note}>{recipe.tags.join(" · ")}</p> : null}
       </header>
 
       <div className={styles.actions}>
-        <Button onClick={() => setCooking(true)}>Cucinala ora</Button>
-        <Button href={`/app/ricette/nuova?modifica=${encodeURIComponent(recipe.recipeId)}`} variant="outline">
-          Modifica
+        <Button href={recipeHref("/app/ricette/cucina", recipe.recipeId, substitutions, servings)}>Cucina</Button>
+        <Button variant="outline" onClick={() => setSheet("plan")}>
+          Metti nel piano
         </Button>
+        {missingCount > 0 ? (
+          <Button variant="outline" onClick={() => setSheet("missing")}>
+            Che cosa manca ({missingCount})
+          </Button>
+        ) : null}
+        <MoreActions items={more} />
       </div>
 
       <SafetyPanel state={safetyState} heading="Allergeni ed esclusioni" />
@@ -236,8 +273,6 @@ function Detail({ recipe: written, initialSubstitutions }: { recipe: Recipe; ini
           {unapplied}
         </p>
       ) : null}
-
-      <PairingsRow recipe={written} lots={lots} foods={foods} safety={safetyState} />
 
       <section className={ui.section} aria-labelledby={`${ids}-ing`}>
         <div className={ui.head}>
@@ -344,6 +379,7 @@ function Detail({ recipe: written, initialSubstitutions }: { recipe: Recipe; ini
           })}
         </ul>
         {substitutes.options.size > 0 ? <p className={ui.hint}>{SUBSTITUTE_BASIS}</p> : null}
+        {substitutes.options.size > 0 && substitutes.incomplete ? <IncompleteDeclarations /> : null}
         {pending > 0 ? (
           <p className={ui.hint}>
             {pending === 1 ? "Un ingrediente è da confermare" : `${pending} ingredienti sono da confermare`}: finché non rispondi non lo conto tra quelli che hai né tra quelli che mancano.
@@ -352,20 +388,10 @@ function Detail({ recipe: written, initialSubstitutions }: { recipe: Recipe; ini
         {comparison && comparison.items.some((x) => x.check === "presence" && x.status === "available" && x.needed) ? (
           <p className={ui.hint}>Dove scrivo «in casa» senza quantità, l&apos;unità non si confronta con la dispensa: ho controllato solo che ci sia.</p>
         ) : null}
-        <div className={ui.row}>
-          <Button variant="outline" onClick={() => void addMissing()} disabled={missingCount === 0}>
-            {missingCount === 0 ? "Hai tutto in casa" : `Aggiungi ciò che manca alla spesa (${missingCount})`}
-          </Button>
-          <Link href="/app/spesa" className={ui.textLink}>
-            Apri la spesa
-          </Link>
-        </div>
       </section>
 
-      <section className={ui.section} aria-labelledby={`${ids}-steps`}>
-        <h2 id={`${ids}-steps`} className={ui.fieldLabel}>
-          Passi
-        </h2>
+      <Disclosure title="Passi" summary={stepsSummary(recipe.steps.length, minutes)}>
+        {recipe.equipment.length > 0 ? <p className={ui.hint}>Ti serve: {recipe.equipment.join(", ")}.</p> : null}
         <ol className={styles.stepsList}>
           {recipe.steps.map((s, i) => (
             <li key={i} className={styles.stepsItem}>
@@ -376,111 +402,107 @@ function Detail({ recipe: written, initialSubstitutions }: { recipe: Recipe; ini
             </li>
           ))}
         </ol>
-      </section>
+      </Disclosure>
 
-      <section className={styles.facts} aria-labelledby={`${ids}-facts`}>
-        <h2 id={`${ids}-facts`} className={ui.fieldLabel}>
-          Per porzione <span className={ui.optional}>(stima)</span>
-        </h2>
-        {!lookup ? (
-          <p className={ui.hint}>Calcolo dei nutrienti…</p>
-        ) : nutrient.length === 0 ? (
-          <p className={ui.hint}>Non ho dati nutrizionali per questi ingredienti: non scrivo numeri inventati.</p>
-        ) : (
-          <>
-            {energy ? (
-              <p className={ui.lead}>
-                {energy.prefix}
-                <Value certainty="estimated">{energy.text}</Value>
-              </p>
-            ) : null}
-            <dl className={styles.factGrid}>
-              {nutrient
-                .filter((n) => n.key !== "energyKcal")
-                .map((n) => (
-                  <div key={n.key}>
-                    <dt>{n.label}</dt>
-                    <dd>
-                      {n.prefix}
-                      <Value certainty="estimated">{n.text}</Value>
-                    </dd>
-                  </div>
-                ))}
-            </dl>
-            {facts.nutrition && coverageText(facts.nutrition.coverage) ? (
-              <p className={ui.hint}>{coverageText(facts.nutrition.coverage)} I valori sono minimi: «almeno» dice che il vero valore può essere più alto.</p>
-            ) : null}
-            <p className={ui.hint}>
-              Ingredienti letti allo stato crudo o secco, con i valori di una tabella generica. {NUTRITION_DISCLAIMER_SHORT}
-            </p>
-          </>
-        )}
-        <div>
-          <Label>Costo per porzione</Label>
-          {facts.cost && facts.cost.coverage.resolved > 0 ? (
-            <>
-              <p className={ui.lead}>
-                {costText(facts.cost).prefix}
-                <Value certainty="estimated">{costText(facts.cost).text}</Value>
-              </p>
-              {coverageText(facts.cost.coverage, "prezzi") ? <p className={ui.hint}>{coverageText(facts.cost.coverage, "prezzi")}</p> : null}
-              <p className={ui.hint}>Stima dagli ultimi prezzi che hai pagato per gli stessi prodotti.</p>
-            </>
+      <Disclosure title="Per porzione (stima)" summary={factsSummary}>
+        <section className={styles.facts} aria-label="Valori per porzione">
+          {!lookup ? (
+            <p className={ui.hint}>Calcolo dei nutrienti…</p>
+          ) : nutrient.length === 0 ? (
+            <p className={ui.hint}>Non ho dati nutrizionali per questi ingredienti: non scrivo numeri inventati.</p>
           ) : (
-            <p className={ui.hint}>Nessun prezzo noto: comparirà quando registri un acquisto, con il prezzo, di questi ingredienti.</p>
+            <>
+              {energy ? (
+                <p className={ui.lead}>
+                  {energy.prefix}
+                  <Value certainty="estimated">{energy.text}</Value>
+                </p>
+              ) : null}
+              <dl className={styles.factGrid}>
+                {nutrient
+                  .filter((n) => n.key !== "energyKcal")
+                  .map((n) => (
+                    <div key={n.key}>
+                      <dt>{n.label}</dt>
+                      <dd>
+                        {n.prefix}
+                        <Value certainty="estimated">{n.text}</Value>
+                      </dd>
+                    </div>
+                  ))}
+              </dl>
+              {facts.nutrition && coverageText(facts.nutrition.coverage) ? (
+                <p className={ui.hint}>{coverageText(facts.nutrition.coverage)} I valori sono minimi: «almeno» dice che il vero valore può essere più alto.</p>
+              ) : null}
+              <p className={ui.hint}>
+                Ingredienti letti allo stato crudo o secco, con i valori di una tabella generica. {NUTRITION_DISCLAIMER_SHORT}
+              </p>
+            </>
           )}
-        </div>
-      </section>
-
-      {past ? (
-        <section className={ui.section} aria-labelledby={`${ids}-cooked`}>
-          <h2 id={`${ids}-cooked`} className={ui.fieldLabel}>
-            Le volte che l&apos;hai cucinata
-          </h2>
-          <p className={ui.lead}>{historyText(past)}</p>
-          {countsText(past) ? <p className={ui.hint}>{countsText(past)}</p> : null}
-          <DishRatingRow
-            label="Com'era l'ultima volta?"
-            value={{ ...(past.last.rating ? { rating: past.last.rating } : {}), ...(past.last.again ? { again: true } : {}) }}
-            onChange={(v) => void rateLast(v)}
-            disabled={busy}
-          />
+          <div>
+            <Label>Costo per porzione</Label>
+            {facts.cost && facts.cost.coverage.resolved > 0 ? (
+              <>
+                <p className={ui.lead}>
+                  {costText(facts.cost).prefix}
+                  <Value certainty="estimated">{costText(facts.cost).text}</Value>
+                </p>
+                {coverageText(facts.cost.coverage, "prezzi") ? <p className={ui.hint}>{coverageText(facts.cost.coverage, "prezzi")}</p> : null}
+                <p className={ui.hint}>Stima dagli ultimi prezzi che hai pagato per gli stessi prodotti.</p>
+              </>
+            ) : (
+              <p className={ui.hint}>Nessun prezzo noto: comparirà quando registri un acquisto, con il prezzo, di questi ingredienti.</p>
+            )}
+          </div>
         </section>
-      ) : null}
+      </Disclosure>
 
-      <section className={ui.section} aria-labelledby={`${ids}-rate`}>
-        <h2 id={`${ids}-rate`} className={ui.fieldLabel}>
-          Il tuo voto alla ricetta
-        </h2>
-        <div className={styles.rating} role="group" aria-label="Voto da 1 a 5">
-          {[1, 2, 3, 4, 5].map((n) => (
-            <button
-              key={n}
-              type="button"
-              className={recipe.rating !== undefined && n <= recipe.rating ? styles.starOn : styles.star}
-              aria-pressed={recipe.rating === n}
-              aria-label={`${n} su 5`}
+      <Disclosure title="Le volte che l'hai cucinata" summary={cookedSummary(past?.times ?? 0, lastDay)}>
+        {past ? (
+          <>
+            <p className={ui.lead}>{historyText(past)}</p>
+            {countsText(past) ? <p className={ui.hint}>{countsText(past)}</p> : null}
+            <DishRatingRow
+              label="Com'era l'ultima volta?"
+              value={{ ...(past.last.rating ? { rating: past.last.rating } : {}), ...(past.last.again ? { again: true } : {}) }}
+              onChange={(v) => void rateLast(v)}
               disabled={busy}
-              onClick={() => void rate(n)}
-            >
-              {recipe.rating !== undefined && n <= recipe.rating ? "★" : "☆"}
-            </button>
-          ))}
+            />
+          </>
+        ) : null}
+        <div className={ui.field}>
+          <h3 className={ui.fieldLabel}>Il tuo voto alla ricetta</h3>
+          <div className={styles.rating} role="group" aria-label="Voto da 1 a 5">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                className={recipe.rating !== undefined && n <= recipe.rating ? styles.starOn : styles.star}
+                aria-pressed={recipe.rating === n}
+                aria-label={`${n} su 5`}
+                disabled={busy}
+                onClick={() => void rate(n)}
+              >
+                {recipe.rating !== undefined && n <= recipe.rating ? "★" : "☆"}
+              </button>
+            ))}
+          </div>
         </div>
-      </section>
+      </Disclosure>
 
       {recipe.origin?.url || recipe.origin?.author ? (
-        <section className={styles.source} aria-label="Fonte">
-          <Label>Fonte</Label>
-          {recipe.origin?.author ? <span>di {recipe.origin.author}</span> : null}
-          {source ? (
-            <a className={styles.sourceLink} href={source.href} target="_blank" rel="noopener noreferrer">
-              {source.host}
-            </a>
-          ) : recipe.origin?.url ? (
-            <span>{recipe.origin.url}</span>
-          ) : null}
-        </section>
+        <Disclosure title="Fonte" summary={source?.host ?? (recipe.origin?.author ? `di ${recipe.origin.author}` : undefined)}>
+          <section className={styles.source} aria-label="Fonte">
+            {recipe.origin?.author ? <span>di {recipe.origin.author}</span> : null}
+            {source ? (
+              <a className={styles.sourceLink} href={source.href} target="_blank" rel="noopener noreferrer">
+                {source.host}
+              </a>
+            ) : recipe.origin?.url ? (
+              <span>{recipe.origin.url}</span>
+            ) : null}
+          </section>
+        </Disclosure>
       ) : null}
 
       {error ? (
@@ -489,70 +511,8 @@ function Detail({ recipe: written, initialSubstitutions }: { recipe: Recipe; ini
         </p>
       ) : null}
 
-      <div className={ui.row}>
-        <button type="button" className={ui.danger} onClick={() => void retire()} disabled={busy}>
-          Ritira dal ricettario
-        </button>
-      </div>
-      <p className={ui.hint}>La ricetta ritirata resta nel registro e si può rimettere dall&apos;elenco, o con «Annulla» subito dopo.</p>
-
-      {cooking ? <CookChoice recipeId={recipe.recipeId} servings={servings} substitutions={substitutions} onClose={() => setCooking(false)} /> : null}
+      {sheet === "plan" ? <PlanSheet recipeId={written.recipeId} title={written.title} servings={servings} onClose={() => setSheet(null)} /> : null}
+      {sheet === "missing" ? <MissingSheet shortfalls={shortfalls} have={haveNames} onClose={() => setSheet(null)} /> : null}
     </div>
-  );
-}
-
-function CookChoice({
-  recipeId,
-  servings,
-  substitutions,
-  onClose,
-}: {
-  recipeId: string;
-  servings: number;
-  substitutions: readonly Substitution[];
-  onClose: () => void;
-}) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const titleId = useId();
-  useEffect(() => {
-    const dialog = ref.current;
-    if (dialog && !dialog.open) dialog.showModal();
-    return () => {
-      if (dialog?.open) dialog.close();
-    };
-  }, []);
-  return (
-    <dialog
-      ref={ref}
-      className={styles.sheet}
-      aria-labelledby={titleId}
-      onClose={(e) => {
-        if (!e.currentTarget.open) onClose();
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) ref.current?.close();
-      }}
-    >
-      <div className={styles.sheetBody}>
-        <h2 id={titleId} className={styles.sheetTitle}>
-          Cucinala ora
-        </h2>
-        <Link className={styles.option} href={recipeHref("/app/ricette/cucina", recipeId, substitutions, servings)}>
-          <span className={styles.optionTitle}>Segui i passi</span>
-          <span className={styles.optionText}>Un passo alla volta, con caratteri grandi e i timer.</span>
-        </Link>
-        <Link className={styles.option} href={recipeHref("/app/ricette/cucinata", recipeId, substitutions, servings)}>
-          <span className={styles.optionTitle}>Registra il pasto</span>
-          <span className={styles.optionText}>Scegli cosa togli dalla dispensa e segna il pasto.</span>
-        </Link>
-        <Link className={styles.option} href={prepHref(recipeId, servings, substitutions)}>
-          <span className={styles.optionTitle}>Preparane più porzioni</span>
-          <span className={styles.optionText}>Cucini una volta e conservi le porzioni in frigo o in freezer.</span>
-        </Link>
-        <Button variant="text" onClick={() => ref.current?.close()}>
-          Chiudi
-        </Button>
-      </div>
-    </dialog>
   );
 }

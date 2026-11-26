@@ -16,7 +16,6 @@ import {
   type ExpandRef,
   type NutrientsOfEntry,
   type PlanState,
-  type PlanStructureState,
   type PlannedEntry,
   type ProposalDay,
   type ProposalIngredient,
@@ -403,7 +402,7 @@ export interface FinalizeArgs {
   entries: readonly PlannedEntry[];
   meals: readonly ProposedMeal[];
   weekStart: string;
-  structure: PlanStructureState | undefined;
+  /** Allergeni ed esclusioni dalla lettura unica (`declaredLists`). */
   declared: { allergens: readonly string[]; excludedFoods: readonly string[] };
   expandForChecks: ExpandRef;
   linkOf: LinkOf;
@@ -423,22 +422,14 @@ export interface Finalized {
 
 /**
  * L'ultima guardia prima di scrivere: un posto occupato nel frattempo non si tocca, e ogni ricetta passa dal controllo
- * di allergeni ed esclusioni del piano con tutto ciò che l'utente ha dichiarato (ricettario e piano insieme). Una
+ * di allergeni ed esclusioni del piano con tutto ciò che l'utente ha dichiarato (la lettura unica). Una
  * violazione toglie la proposta; un dubbio la toglie se l'utente non ha permesso le ricette incerte.
  */
 export function finalizeProposal(args: FinalizeArgs): Finalized {
   const taken = new Set(args.entries.map((e) => `${e.date}|${e.meal}`));
   const free = args.meals.filter((m) => !taken.has(`${m.slot.date}|${m.slot.meal}`) && args.activeRecipeIds.has(m.recipeId));
   const combined = [...args.entries, ...proposalEntries(free)];
-  const union = (a: readonly string[], b: readonly string[]) => [...new Map([...a, ...b].map((x) => [fold(x), x] as const)).values()];
-  const structure: PlanStructureState = {
-    meals: args.structure?.meals ?? [],
-    excludedFoods: union(args.structure?.excludedFoods ?? [], args.declared.excludedFoods),
-    allergens: union(args.structure?.allergens ?? [], args.declared.allergens),
-    eventId: args.structure?.eventId ?? "",
-    recordedAt: args.structure?.recordedAt ?? "",
-  };
-  const result = checkWeekConstraints(structure, { weekStart: args.weekStart, entries: combined, eventId: "", recordedAt: "" }, {
+  const result = checkWeekConstraints(args.declared, { weekStart: args.weekStart, entries: combined, eventId: "", recordedAt: "" }, {
     expandForChecks: args.expandForChecks,
     linkOf: args.linkOf,
     ...(args.confirmations ? { confirmations: args.confirmations } : {}),

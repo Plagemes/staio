@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState, type ChangeEvent } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useId, useRef, useState, type ChangeEvent } from "react";
 import { formatCost, isAiError, usageForMonth } from "@/core/ai";
 import type { ExpiryChoice } from "@/core/ai/receiptExpiry";
 import { emptyMemory, entryCount, normalizeStoreKey, type LoadedMemory } from "@/core/ai/receiptMemory";
-import { isCalendarDate } from "@/core/ledger";
-import { appendEvents, getDeviceId } from "@/data";
+import { derivePantry, generateId, isCalendarDate } from "@/core/ledger";
+import { appendEvents, getAllEvents, getDeviceId } from "@/data";
 import { Button, Label, SectionHeader } from "@/design";
 import { ActionBar, Disclosure } from "../common";
 import { dayOf, formatCalendarDate, formatPrice } from "../format";
@@ -19,6 +20,25 @@ import { describeAiError } from "./messages";
 import { NotReady } from "./NotReady";
 import { PROVIDER_LABELS } from "./providers/types";
 import { readReceipt, type ReceiptReadResult } from "./readReceipt";
+import {
+  buildDraft,
+  createDraftWriter,
+  draftSummary,
+  excludeWritten,
+  leftOutText,
+  mergeWritten,
+  nothingLeftText,
+  pendingLines,
+  receiptIdGenerator,
+  reviewWithout,
+  settleSave,
+  splitForSave,
+  useReceiptDraft,
+  writtenReceipt,
+  type LedgerView,
+  type ReceiptDraft,
+  type WrittenReceipt,
+} from "./receiptDraft";
 import { buildReceiptEvents, purchaseInstant, storeLabel, toReviewLines, type ReviewLine } from "./receiptEvents";
 import { applyMemory, reapplyMemory, adoptRemembered } from "./receiptLearning";
 import { forgetIgnore, forgetMemory, loadMemory, rememberReceipt, restoreMemory } from "./receiptMemoryStore";
@@ -56,12 +76,34 @@ export function ReceiptCapture() {
   return <Reader settings={settings} />;
 }
 
-type Busy = "preparing" | "reading" | "saving" | null;
+/**
+ * `?riprendi=1` (da «Riprendi» in Dispensa): la revisione riparte senza un secondo tocco. Il parametro si legge una volta
+ * e si toglie dall'indirizzo. Sta in un suo confine di Suspense perché la pagina non ne ha uno.
+ */
+function ResumeRequest({ ready, onResume }: { ready: boolean; onResume: () => unknown }) {
+  const wanted = useSearchParams().get("riprendi") !== null;
+  useEffect(() => {
+    if (!wanted || !ready) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("riprendi");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    void onResume();
+  }, [wanted, ready, onResume]);
+  return null;
+}
+
+type Busy = "preparing" | "reading" | "saving" | "resuming" | null;
 
 /** Una foto tenuta solo in memoria, finché la pagina è aperta: non si conserva da nessuna parte. */
 interface Photo {
   id: number;
   prepared: PreparedImage;
+}
+
+/** Il registro riletto: quali eventi ci sono e quali sono stati annullati. */
+async function readLedger(): Promise<LedgerView> {
+  const events = await getAllEvents();
+  return { written: new Set(events.map((e) => e.id)), voided: new Set(derivePantry(events).voidedEventIds) };
 }
 
 const photosKey = (photos: readonly Photo[]) => photos.map((p) => p.id).join(",");
@@ -79,6 +121,15 @@ function Reader({ settings }: { settings: AiSettings }) {
   const focusRef = useRef<{ key: string; field: "name" | "expiry" } | null>(null);
   // le righe com'erano appena lette, prima della memoria: servono a rileggere la memoria se cambia il negozio
   const baseRef = useRef<ReviewLine[]>([]);
+  // la bozza: scritta sul telefono mentre si rivede (`receiptDraft.ts`), fuori dal registro
+  const [writer] = useState(() => createDraftWriter());
+  const readingIdRef = useRef("");
+  const readAtRef = useRef("");
+  // righe già scritte nel registro da un salvataggio parziale: non stanno più tra le righe da rivedere
+  const savedKeysRef = useRef<string[]>([]);
+  const resumingRef = useRef(false);
+  // le firme delle righe già scritte da questa lettura: una lettura nuova dello stesso scontrino non le riscrive
+  const writtenRef = useRef<WrittenReceipt | null>(null);
 
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [readPhotos, setReadPhotos] = useState<string | null>(null);
@@ -96,8 +147,37 @@ function Reader({ settings }: { settings: AiSettings }) {
   const [formError, setFormError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [memory, setMemory] = useState<LoadedMemory>(emptyMemory);
+  // quante righe di questa lettura sono state lasciate fuori perché già scritte da una lettura dello stesso scontrino
+  const [leftOut, setLeftOut] = useState(0);
+  const { draft: stored, ready: draftReady } = useReceiptDraft(now);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  // uscendo dalla pagina o con l'app che va in secondo piano, ciò che è in attesa si scrive subito
+  useEffect(() => {
+    const flush = () => void writer.flush();
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, [writer]);
+
+  // a ogni cambio della revisione la bozza si riscrive, dopo mezzo secondo senza altri cambi
+  useEffect(() => {
+    if (result === null || readingIdRef.current === "") return;
+    writer.schedule(
+      buildDraft(
+        { readingId: readingIdRef.current, readAt: readAtRef.current, result, lines, layout, open, storeName, date, readingNo, savedLineIds: savedKeysRef.current },
+        new Date(),
+      ),
+    );
+  }, [writer, result, lines, layout, open, storeName, date, readingNo]);
 
   // dopo un salvataggio fermato da un errore: la prima riga sbagliata, ora aperta, in vista e con il cursore nel campo
   useEffect(() => {
@@ -124,6 +204,10 @@ function Reader({ settings }: { settings: AiSettings }) {
     setExpiryErrors({});
     setFormError(null);
     setReadPhotos(null);
+    setLeftOut(0);
+    readingIdRef.current = "";
+    readAtRef.current = "";
+    savedKeysRef.current = [];
   }
 
   async function onFiles(event: ChangeEvent<HTMLInputElement>) {
@@ -174,18 +258,33 @@ function Reader({ settings }: { settings: AiSettings }) {
       const name = storeLabel(out.reading);
       const base = toReviewLines(out.reading);
       const learned = await loadMemory(name);
-      const next = base.map((l) => applyMemory(l, learned));
+      // le righe uguali a quelle già scritte dalla bozza di prima (una nuova lettura dello stesso scontrino) tornano spente
+      const guarded = excludeWritten(base.map((l) => applyMemory(l, learned)), writtenRef.current, out.reading);
+      const next = guarded.lines;
+      // un altro scontrino: niente si spegne e ciò che si ricordava delle righe scritte si dimentica
+      if (!guarded.same) writtenRef.current = null;
       const arranged = reviewLayout(next);
+      const opened = Object.fromEntries(next.filter((l) => doubtsOf(l).length > 0).map((l) => [l.key, true]));
+      const readingId = generateId();
+      const readAt = new Date().toISOString();
       baseRef.current = base;
+      readingIdRef.current = readingId;
+      readAtRef.current = readAt;
+      savedKeysRef.current = [];
       setMemory(learned);
+      setLeftOut(guarded.excluded);
       setResult(out);
       setReadPhotos(photosKey(sent));
-      setReadingNo((n) => n + 1);
+      setReadingNo(readingNo + 1);
       setLines(next);
       setLayout(arranged);
-      setOpen(Object.fromEntries(next.filter((l) => doubtsOf(l).length > 0).map((l) => [l.key, true])));
+      setOpen(opened);
       setStoreName(name);
       setDate(out.reading.date ?? "");
+      // la lettura è pagata: la bozza si scrive subito, prima di ogni altro tocco, e prende il posto di una vecchia
+      void writer.writeNow(
+        buildDraft({ readingId, readAt, result: out, lines: next, layout: arranged, open: opened, storeName: name, date: out.reading.date ?? "", readingNo: readingNo + 1 }, new Date(readAt)),
+      );
     } catch (e) {
       if (isAiError(e)) {
         setError(describeAiError(e, { provider: settings.provider, model }));
@@ -262,6 +361,74 @@ function Reader({ settings }: { settings: AiSettings }) {
     clearResult();
     setMemory(emptyMemory());
     baseRef.current = [];
+    writtenRef.current = null;
+  }
+
+  /** Toglie la bozza e dice come rimetterla: «Scarta» è lo stesso verbo in ogni punto dello scontrino. */
+  async function dropDraft(draft: ReceiptDraft | null) {
+    await writer.clear();
+    if (draft === null) return;
+    notice.show({ message: "Scontrino scartato.", onUndo: () => writer.writeNow(draft) });
+  }
+
+  function snapshot(): ReceiptDraft | null {
+    if (result === null || readingIdRef.current === "") return null;
+    return buildDraft(
+      { readingId: readingIdRef.current, readAt: readAtRef.current, result, lines, layout, open, storeName, date, readingNo, savedLineIds: savedKeysRef.current },
+      new Date(),
+    );
+  }
+
+  async function discardReview() {
+    const draft = snapshot();
+    // la bozza si toglie prima di uscire dalla revisione: così la proposta non lampeggia
+    await writer.clear();
+    startOver();
+    if (draft !== null) notice.show({ message: "Scontrino scartato.", onUndo: () => writer.writeNow(draft) });
+  }
+
+  /** «Riprendi»: la revisione com'era, senza foto e senza chiedere niente al fornitore. Il registro non si tocca. */
+  async function resume(draft: ReceiptDraft) {
+    if (resumingRef.current || busy !== null || result !== null) return;
+    resumingRef.current = true;
+    setBusy("resuming");
+    setError(null);
+    try {
+      // le righe già nel registro (un salvataggio interrotto) non tornano tra quelle da salvare
+      const rest = pendingLines(draft, await readLedger());
+      if (rest.lines.length === 0) {
+        await writer.clear();
+        setDone(nothingLeftText(rest.inPantry, rest.removed.length));
+        return;
+      }
+      const learned = await loadMemory(draft.storeName);
+      baseRef.current = toReviewLines(draft.result.reading);
+      readingIdRef.current = draft.readingId;
+      readAtRef.current = draft.readAt;
+      savedKeysRef.current = rest.saved;
+      writtenRef.current = writtenReceipt(draft.result.reading, baseRef.current, rest.saved);
+      setLeftOut(0);
+      setMemory(learned);
+      setPhotos([]);
+      setDone(null);
+      setRowErrors({});
+      setExpiryErrors({});
+      setFormError(null);
+      setResult(draft.result);
+      // stringa vuota e non null: con null le foto risulterebbero cambiate
+      setReadPhotos("");
+      setReadingNo(draft.readingNo);
+      setLines(rest.lines);
+      setLayout(rest.layout);
+      setOpen(rest.open);
+      setStoreName(draft.storeName);
+      setDate(draft.date);
+    } catch {
+      setError("Non sono riuscito a riprendere lo scontrino. Riprova.");
+    } finally {
+      resumingRef.current = false;
+      setBusy(null);
+    }
   }
 
   async function onSave() {
@@ -271,7 +438,20 @@ function Reader({ settings }: { settings: AiSettings }) {
     setFormError(null);
     try {
       const at = new Date().toISOString();
-      const built = buildReceiptEvents(lines, { store: storeName, date }, { now: at, deviceId: await getDeviceId() });
+      const readingId = readingIdRef.current;
+      // il registro si rilegge prima di scrivere: una riga già scritta (un salvataggio interrotto) non si riscrive
+      const { already, removed, todo, toSave } = splitForSave(lines, readingId, await readLedger());
+      if (toSave.length === 0 && already.length + removed.length > 0) {
+        await writer.clear();
+        startOver();
+        setDone(nothingLeftText(already.length, removed.length));
+        return;
+      }
+      const built = buildReceiptEvents(
+        todo,
+        { store: storeName, date },
+        { now: at, deviceId: await getDeviceId(), idGenerator: receiptIdGenerator(readingId, toSave.map((l) => l.key)) },
+      );
       if (!built.ok) {
         const wrongExpiry = built.expiryErrors ?? {};
         setRowErrors(built.errors);
@@ -285,15 +465,23 @@ function Reader({ settings }: { settings: AiSettings }) {
       }
       // una sola scrittura per tutto lo scontrino, scadenze comprese: una riga in «Ultime azioni»
       const written = await appendEvents(built.events);
-      if (written.added === 0) {
+      // l'evento i è della riga i tra le scelte: `rejected` dice quali non sono entrate
+      const settled = settleSave(toSave, written.rejected.map((r) => r.index));
+      const rejectedAt = new Set(written.rejected.map((r) => r.index));
+      const savedEvents = built.events.filter((_, i) => !rejectedAt.has(i));
+      if (savedEvents.length === 0) {
         setFormError("Non sono riuscito a salvare. Riprova.");
         return;
       }
-      const learned = await rememberReceipt(storeName, lines, at);
+      const rejectedKeys = settled.rejected.map((l) => l.key);
+      const rejectedSet = new Set(rejectedKeys);
+      const learned = await rememberReceipt(storeName, lines.filter((l) => !rejectedSet.has(l.key)), at);
       const before = { storeName, row: learned.before.row };
       notice.show({
-        message: `${built.events.length === 1 ? "Aggiunto" : "Aggiunti"} alla dispensa: ${built.summary}.`,
-        undo: built.events,
+        message: `${savedEvents.length === 1 ? "Aggiunto" : "Aggiunti"} alla dispensa: ${
+          rejectedKeys.length === 0 ? built.summary : `${savedEvents.length} ${savedEvents.length === 1 ? "alimento" : "alimenti"}${storeName.trim() !== "" ? ` da ${storeName.trim()}` : ""}`
+        }.`,
+        undo: savedEvents,
         // «Annulla» toglie gli alimenti e rimette la memoria com'era prima di questo scontrino
         onUndo: async () => {
           try {
@@ -304,11 +492,37 @@ function Reader({ settings }: { settings: AiSettings }) {
         },
         link: { label: "Vedi", href: "/app/dispensa" },
       });
-      const skipped = built.events.length - written.added;
-      startOver();
-      setDone(
-        `Fatto: ${written.added === 1 ? "1 alimento" : `${written.added} alimenti`} in dispensa.` +
-          (skipped > 0 ? ` ${skipped === 1 ? "1 non è stato salvato" : `${skipped} non sono stati salvati`}.` : ""),
+      if (rejectedKeys.length === 0) {
+        const total = savedEvents.length + already.length;
+        await writer.clear();
+        startOver();
+        setDone(`Fatto: ${total === 1 ? "1 alimento" : `${total} alimenti`} in dispensa.`);
+        return;
+      }
+      // salvataggio parziale: le righe entrate escono dalla revisione, quelle respinte restano, e anche nella bozza
+      const doneKeys = new Set([...settled.saved, ...already, ...removed].map((l) => l.key));
+      const next = reviewWithout({ lines, layout, open }, doneKeys, rejectedKeys);
+      const nextLines = next.lines;
+      const nextLayout = next.layout;
+      const nextOpen = next.open;
+      savedKeysRef.current = [...new Set([...savedKeysRef.current, ...doneKeys])];
+      // le foto restano quelle di prima: una lettura nuova riscriverebbe le righe già entrate. Si torna allo stato di «Riprendi».
+      writtenRef.current = mergeWritten(writtenRef.current, writtenReceipt(result.reading, baseRef.current, settled.saved.map((l) => l.key)));
+      setPhotos([]);
+      setReadPhotos("");
+      setLines(nextLines);
+      setLayout(nextLayout);
+      setOpen(nextOpen);
+      setRowErrors(Object.fromEntries(rejectedKeys.map((k) => [k, "Non riesco a salvare questa riga. Controlla i campi e riprova."])));
+      setFormError(
+        `${rejectedKeys.length === 1 ? "1 riga non è stata salvata" : `${rejectedKeys.length} righe non sono state salvate`}: ${rejectedKeys.length === 1 ? "la trovi" : "le trovi"} qui sotto. Le altre sono già in dispensa.`,
+      );
+      focusRef.current = { key: rejectedKeys[0], field: "name" };
+      void writer.writeNow(
+        buildDraft(
+          { readingId, readAt: readAtRef.current, result, lines: nextLines, layout: nextLayout, open: nextOpen, storeName, date, readingNo, savedLineIds: savedKeysRef.current },
+          new Date(),
+        ),
       );
     } catch {
       setFormError("Non sono riuscito a salvare sul telefono. Riprova.");
@@ -329,6 +543,8 @@ function Reader({ settings }: { settings: AiSettings }) {
   const placed = new Set([...layout.order, ...layout.excluded]);
   const mainKeys = [...layout.order, ...lines.filter((l) => !placed.has(l.key)).map((l) => l.key)];
   const excludedLines = layout.excluded.map((k) => byKey.get(k)).filter((l): l is ReviewLine => l !== undefined);
+  // la proposta: solo nella fase delle foto, e mai mentre si legge. La revisione ancora viva in pagina non si ripropone.
+  const offer = result === null && busy === null && draftReady ? stored : undefined;
   const photoBytes = photos.reduce((sum, p) => sum + p.prepared.blob.size, 0);
 
   function renderRow(line: ReviewLine) {
@@ -383,6 +599,9 @@ function Reader({ settings }: { settings: AiSettings }) {
 
   return (
     <div className={ui.screen}>
+      <Suspense fallback={null}>
+        <ResumeRequest ready={draftReady && busy === null} onResume={() => (stored ? resume(stored) : undefined)} />
+      </Suspense>
       <div className={ui.head}>
         <h1 className={ui.title}>Scontrino</h1>
         <Label>Con l&apos;intelligenza artificiale</Label>
@@ -390,6 +609,19 @@ function Reader({ settings }: { settings: AiSettings }) {
 
       {result === null ? (
         <>
+          {offer && now ? (
+            <div className={ui.callout}>
+              <p className={ui.paragraph}>Hai uno scontrino a metà: {draftSummary(offer, new Date(now))}.</p>
+              <div className={ui.row}>
+                <Button variant="outline" onClick={() => void resume(offer)} disabled={busy !== null}>
+                  Riprendi
+                </Button>
+                <Button variant="text" onClick={() => void dropDraft(offer)} disabled={busy !== null}>
+                  Scarta
+                </Button>
+              </div>
+            </div>
+          ) : null}
           {done ? (
             <p className={ui.lead} role="status">
               {done}
@@ -471,6 +703,11 @@ function Reader({ settings }: { settings: AiSettings }) {
         </>
       ) : (
         <>
+          {leftOut > 0 ? (
+            <p className={ui.hint} role="status">
+              {leftOutText(leftOut)}
+            </p>
+          ) : null}
           {check?.status === "mismatch" ? (
             <div className={ui.calloutStrong} role="alert">
               <p className={ui.paragraph}>
@@ -542,7 +779,11 @@ function Reader({ settings }: { settings: AiSettings }) {
           <Disclosure
             key={`photos-${readingNo}`}
             title="Foto e lettura"
-            summary={`${photos.length === 1 ? "1 foto" : `${photos.length} foto`}${cost ? ` · costo stimato ${cost}` : ""}${photosChanged ? " · cambiate" : ""}`}
+            summary={
+              photos.length === 0 && readPhotos === ""
+                ? "Foto non conservate: le righe sì."
+                : `${photos.length === 1 ? "1 foto" : `${photos.length} foto`}${cost ? ` · costo stimato ${cost}` : ""}${photosChanged ? " · cambiate" : ""}`
+            }
           >
             {photosChanged ? (
               <p className={ui.hint} role="status">
@@ -614,8 +855,8 @@ function Reader({ settings }: { settings: AiSettings }) {
             <Button onClick={() => void onSave()} disabled={busy !== null || chosen.length === 0}>
               {busy === "saving" ? "Salvo…" : `Aggiungi alla dispensa (${chosen.length})`}
             </Button>
-            <Button variant="outline" onClick={startOver} disabled={busy !== null}>
-              Rifai la foto
+            <Button variant="outline" onClick={() => void discardReview()} disabled={busy !== null}>
+              Scarta e rifai la foto
             </Button>
           </ActionBar>
         </>

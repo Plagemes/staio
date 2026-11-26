@@ -40,6 +40,101 @@
   outline-offset: 2px;
 }
 
+/* Impostazioni › Alimentazione: le tre righe richiuse una sotto l'altra */
+.disclosures {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Foglio «Copie»: due blocchi, ognuno con il suo titolo, il suo testo e i suoi comandi */
+.sheetBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--gap-group);
+  min-width: 0;
+}
+
+.sheetBlock > * {
+  max-width: 100%;
+}
+
+/* «Importa…»: un comando di testo, che apre la scelta del file */
+.fileText {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding-inline: var(--space-4);
+  color: var(--color-accent);
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fileText input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.fileText:focus-within {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* Foglio «Memorie»: una riga per memoria */
+.memories {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.memory {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding-block: var(--space-5);
+  border-top: var(--rule-width) solid var(--color-rule);
+}
+
+.memory:first-child {
+  border-top: none;
+}
+
+.memoryHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-6);
+  width: 100%;
+}
+
+.memoryName {
+  font-size: var(--text-body);
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.memoryCount {
+  flex: none;
+  font-size: var(--text-caption);
+  color: var(--color-graphite);
+}
+
+.memoryRule {
+  margin: var(--space-2) 0 0;
+  border: none;
+  border-top: var(--rule-width) solid var(--color-control-border);
+}
+
 /* Vivo: ogni voce è una scheda sotto il suo titolo di sezione; il pulsante del file è pieno come gli altri secondari */
 :global([data-palette="vivo"]) .block {
   margin-top: var(--space-4);
@@ -55,4 +150,8 @@
   background: var(--button-quiet-fill);
   color: var(--button-quiet-text);
   font-weight: 600;
+}
+
+:global([data-palette="vivo"]) .disclosures {
+  gap: var(--gap-item);
 }

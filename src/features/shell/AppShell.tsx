@@ -9,6 +9,7 @@ import { Onboarding, useOnboardingGate } from "../onboarding";
 import { StyleChoice, StyleChoiceBoundary, useStyleChoiceGate } from "../settings/StyleChoice";
 import { AddSheet } from "./AddSheet";
 import { BarcodeMigration } from "./BarcodeMigration";
+import { DietMigration } from "./DietMigration";
 import styles from "./AppShell.module.css";
 
 const HREFS = {
@@ -56,6 +57,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <NoticeProvider>
       <BarcodeMigration />
+      <DietMigration />
       {/* data-area: nel tema Vivo l'area corrente dà il colore d'accento a tutta la sezione (themes.css) */}
       <div className={styles.shell} data-area={area}>
         {online ? null : (

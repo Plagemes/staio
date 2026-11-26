@@ -64,19 +64,9 @@
   font-weight: 500;
 }
 
-.filters {
-  border-top: var(--rule-width) solid var(--color-rule);
-  border-bottom: var(--rule-width) solid var(--color-rule);
-}
 
-.filters > summary {
-  display: flex;
-  align-items: center;
-  min-height: var(--tap-min);
-  font-size: var(--text-body-sm);
-  font-weight: 600;
-  cursor: pointer;
-}
+
+
 
 .filterBody {
   display: flex;
@@ -312,69 +302,6 @@
   font-weight: 600;
 }
 
-/* Finestra di scelta */
-
-.sheet {
-  box-sizing: border-box;
-  width: 100%;
-  max-width: var(--column-max);
-  max-height: 92dvh;
-  margin: auto auto 0;
-  padding: 0;
-  border: none;
-  border-top: var(--rule-width) solid var(--color-rule-strong);
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
-  background: var(--color-paper);
-  color: var(--color-ink);
-  overflow-y: auto;
-}
-
-.sheet::backdrop {
-  background: color-mix(in srgb, var(--color-ink) 45%, transparent);
-}
-
-.sheetBody {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-7);
-  padding: var(--space-8) var(--gutter) calc(var(--space-11) + env(safe-area-inset-bottom, 0px));
-}
-
-.sheetTitle {
-  margin: 0;
-  font-family: var(--font-display);
-  font-weight: var(--weight-display);
-  font-size: var(--text-title);
-  line-height: 1.1;
-}
-
-.option {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  align-items: flex-start;
-  min-height: var(--tap-min);
-  padding: var(--space-6) var(--space-7);
-  border: var(--rule-width) solid var(--color-control-border);
-  border-radius: var(--radius-md);
-  color: inherit;
-  text-decoration: none;
-  font: inherit;
-  text-align: left;
-  background: none;
-  cursor: pointer;
-}
-
-.optionTitle {
-  font-size: var(--text-body);
-  font-weight: 600;
-}
-
-.optionText {
-  font-size: var(--text-caption);
-  color: var(--color-graphite);
-}
-
 /* Modulo */
 
 .rows {
@@ -446,10 +373,7 @@
   overflow-wrap: anywhere;
 }
 
-.pasteBox {
-  width: 100%;
-  white-space: pre-wrap;
-}
+
 
 /* Modalità cucina */
 
@@ -525,18 +449,6 @@
   font-size: var(--text-display);
   line-height: 1;
   font-variant-numeric: tabular-nums;
-}
-
-.cookNav {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: var(--space-4);
-  margin-top: auto;
-}
-
-.cookNav > * {
-  min-height: 64px;
-  font-size: var(--text-figure);
 }
 
 .dots {
@@ -653,24 +565,11 @@
   border-bottom: none;
 }
 
-:global([data-palette="vivo"]) .filters .list {
-  padding-inline: 0;
-  border-radius: 0;
-  background: none;
-  box-shadow: none;
-}
 
-:global([data-palette="vivo"]) .filters {
-  padding-inline: var(--space-8);
-  border-block: none;
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  box-shadow: var(--card-shadow);
-}
 
-:global([data-palette="vivo"]) .filters > summary {
-  color: var(--color-accent);
-}
+
+
+
 
 :global([data-palette="vivo"]) .card:hover .cardTitle {
   text-decoration: none;
@@ -765,31 +664,6 @@
 .replaces {
   composes: note;
   margin-left: var(--space-3);
-}
-
-/* Riga «Con cosa sta bene» della scheda: una riga richiudibile, come i filtri dell'elenco */
-
-.summaryNote {
-  margin-left: var(--space-4);
-  font-weight: 400;
-  color: var(--color-graphite);
-}
-
-.pairBody {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  padding-bottom: var(--space-8);
-}
-
-.pairList {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2) var(--space-6);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: var(--text-body-sm);
 }
 
 :global([data-palette="vivo"]) .subChoice {

@@ -90,29 +90,56 @@ export interface PantryValue {
   certainty: Certainty;
 }
 
-/** Valore stimato della dispensa: somma dei valori residui dei lotti attivi con prezzo. */
-export function estimatedPantryValue(state: PantryState): PantryValue {
-  let cents = 0;
-  let priced = 0;
-  let unpriced = 0;
-  let certainty: Certainty = "measured";
+export interface PantryValuePart {
+  lot: Lot;
+  /** Valore della parte rimasta, in centesimi interi (`lotValueCents`). */
+  cents: number;
+  /** La meno affidabile tra prezzo, quantità iniziale e quantità rimasta. */
+  certainty: Certainty;
+}
+
+export interface PantryValueParts {
+  /** Lotti attivi con prezzo, nell'ordine della dispensa. */
+  parts: PantryValuePart[];
+  /** Lotti attivi senza prezzo (compresi quelli «già in casa»): non contano nel totale. */
+  missing: Lot[];
+}
+
+/**
+ * Le parti del valore della dispensa, nello stesso ciclo che dà il totale: la somma dei `cents`
+ * delle parti è esattamente `estimatedPantryValue(state).cents`.
+ */
+export function pantryValueParts(state: PantryState): PantryValueParts {
+  const parts: PantryValuePart[] = [];
+  const missing: Lot[] = [];
   for (const l of activeLots(state)) {
     const v = lotValueCents(l);
     if (v === undefined) {
-      unpriced += 1;
+      missing.push(l);
       continue;
     }
-    cents += v;
-    priced += 1;
-    certainty = worseCertainty(
-      certainty,
-      worseCertainty(
+    parts.push({
+      lot: l,
+      cents: v,
+      certainty: worseCertainty(
         l.priceCertainty ?? "estimated",
         worseCertainty(l.initialCertainty, l.remainingCertainty),
       ),
-    );
+    });
   }
-  return { cents, lotsWithPrice: priced, lotsWithoutPrice: unpriced, certainty };
+  return { parts, missing };
+}
+
+/** Valore stimato della dispensa: somma dei valori residui dei lotti attivi con prezzo. */
+export function estimatedPantryValue(state: PantryState): PantryValue {
+  const { parts, missing } = pantryValueParts(state);
+  let cents = 0;
+  let certainty: Certainty = "measured";
+  for (const p of parts) {
+    cents += p.cents;
+    certainty = worseCertainty(certainty, p.certainty);
+  }
+  return { cents, lotsWithPrice: parts.length, lotsWithoutPrice: missing.length, certainty };
 }
 
 export interface WastePeriod {

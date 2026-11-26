@@ -1,18 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useId, useMemo, useState } from "react";
+import type { AnyEvent } from "@/core/events";
 import type { MealKind } from "@/core/diary";
 import type { Lot } from "@/core/ledger";
 import { proposePrepRepair, voidPrep, type PrepRecord, type PrepRepairResult } from "@/core/prep";
 import { formatQuantity } from "@/core/units";
-import { appendEvents, getDeviceId, useEventLog, usePantry, usePlan, usePreps } from "@/data";
+import { appendEvents, getAllEvents, getDeviceId, getPantry, useEventLog, usePantry, usePlan, usePreps } from "@/data";
 import { Button, ExpiryTag, Label, SectionHeader } from "@/design";
 import { buildConsume } from "../actions";
 import { dayOf, formatCalendarDate, formatPrice } from "../format";
 import { LOCATION_LABELS } from "../labels";
 import { MEAL_KIND_LABELS, MEAL_KIND_ORDER, suggestMealKind } from "../meals";
 import { useNotice } from "../notice";
+import { ActionList, Sheet, closeSheetThen } from "../common";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
@@ -53,8 +55,7 @@ export function Preps() {
 
   async function startRepair(item: RepairItem) {
     setRepairError(null);
-    if (!log.data) return;
-    const r = proposePrepRepair(item.prepId, log.data, { deviceId: await getDeviceId() });
+    const r = proposePrepRepair(item.prepId, await getAllEvents(), { deviceId: await getDeviceId() });
     if (!r.ok) setRepairError("Non c'è niente da sistemare per questa preparazione.");
     else setRepair({ item, result: r });
   }
@@ -211,42 +212,33 @@ function PrepItem({ row, onOpen }: { row: PrepRow; onOpen: () => void }) {
   );
 }
 
-interface SheetProps {
+interface PrepSheetProps {
   prep: PrepRecord;
   now: string;
   onClose: () => void;
 }
 
-function PrepSheet({ prep, now, onClose }: SheetProps) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const titleId = useId();
+type Built = { events: AnyEvent[]; message: string } | { error: string };
+
+function PrepSheet({ prep, now, onClose }: PrepSheetProps) {
   const ids = useId();
   const notice = useNotice();
   const pantry = usePantry();
-  const log = useEventLog();
   const [kind, setKind] = useState<MealKind>(() => suggestMealKind(now));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    const dialog = ref.current;
-    if (dialog && !dialog.open) dialog.showModal();
-    return () => {
-      if (dialog?.open) dialog.close();
-    };
-  }, []);
-  const close = () => ref.current?.close();
-
-  const lot: Lot | undefined = pantry.data?.lots.find((l) => l.lotId === prep.batchLotId);
-  const canEat = prep.status === "active" && lot !== undefined && lot.remaining >= 1 - 1e-9;
+  // Solo per mostrare o spegnere i pulsanti: ciò che si scrive si ricalcola dall'archivio al tocco.
+  const shownLot: Lot | undefined = pantry.data?.lots.find((l) => l.lotId === prep.batchLotId);
+  const canEat = prep.status === "active" && shownLot !== undefined && shownLot.remaining >= 1 - 1e-9;
   const today = dayOf(now);
 
-  async function write(build: (deviceId: string) => { events: Parameters<typeof appendEvents>[0]; message: string } | { error: string }) {
+  async function write(build: (deviceId: string) => Promise<Built>) {
     if (busy) return;
     setBusy(true);
     setError(null);
     try {
-      const built = build(await getDeviceId());
+      const built = await build(await getDeviceId());
       if ("error" in built) {
         setError(built.error);
         return;
@@ -256,8 +248,8 @@ function PrepSheet({ prep, now, onClose }: SheetProps) {
         setError("Non sono riuscito a salvare. Riprova.");
         return;
       }
-      close();
-      notice.show({ message: built.message, undo: built.events });
+      // foglio chiuso prima dell'avviso
+      closeSheetThen(() => notice.show({ message: built.message, undo: built.events }));
     } catch {
       setError("Non sono riuscito a salvare sul telefono. Riprova.");
     } finally {
@@ -265,51 +257,53 @@ function PrepSheet({ prep, now, onClose }: SheetProps) {
     }
   }
 
+  const freshLot = async (): Promise<Lot | undefined> => (await getPantry()).lots.find((l) => l.lotId === prep.batchLotId);
+
   const eatInMeal = () =>
-    write((deviceId) => {
+    write(async (deviceId) => {
+      const lot = await freshLot();
       if (!lot) return { error: "Non trovo il lotto di porzioni." };
       const r = eatPortionInMeal(prep, lot, kind, { now: new Date().toISOString(), deviceId });
       return r.ok ? { events: r.events, message: r.message } : { error: r.error };
     });
 
   const eatOnly = () =>
-    write((deviceId) => {
+    write(async (deviceId) => {
+      const lot = await freshLot();
       if (!lot) return { error: "Non trovo il lotto di porzioni." };
       const r = buildConsume(lot, { kind: "text", text: "1" }, { now: new Date().toISOString(), deviceId });
       return r.ok ? { events: r.events, message: `Segnata mangiata una porzione di ${prep.title}.` } : { error: r.error };
     });
 
-  const cancel = () =>
-    write((deviceId) => {
-      if (!log.data) return { error: "Sto ancora leggendo il registro: riprova tra un attimo." };
-      const r = voidPrep(prep.prepId, log.data, { now: () => new Date().toISOString(), deviceId });
+  const remove = () =>
+    write(async (deviceId) => {
+      const r = voidPrep(prep.prepId, await getAllEvents(), { now: () => new Date().toISOString(), deviceId });
       if (!r.ok) {
         if (r.reason === "portions_used") return { error: portionsUsedExplanation(prep) };
-        if (r.reason === "already_voided") return { error: "Questa preparazione è già annullata." };
+        if (r.reason === "already_voided") return { error: "Questa preparazione è già stata tolta." };
         return { error: "Non trovo questa preparazione." };
       }
-      return { events: r.events, message: `Preparazione annullata: ${prep.title}. Gli ingredienti sono tornati in dispensa.` };
+      return { events: r.events, message: `Preparazione tolta: ${prep.title}. Gli ingredienti sono tornati in dispensa.` };
     });
 
   return (
-    <dialog
-      ref={ref}
-      className={styles.sheet}
-      aria-labelledby={titleId}
-      onClose={(e) => {
-        if (!e.currentTarget.open) onClose();
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) close();
-      }}
+    <Sheet
+      title={prep.title}
+      onClose={onClose}
+      busy={busy}
+      footer={
+        <>
+          <Button disabled={!canEat || busy} onClick={() => void eatInMeal()}>
+            Mangia una porzione
+          </Button>
+          <Button variant="outline" disabled={!canEat || busy} onClick={() => void eatOnly()}>
+            Segna solo come mangiata
+          </Button>
+        </>
+      }
     >
-      <div className={styles.sheetBody}>
-        <header>
-          <h2 id={titleId} className={styles.sheetTitle}>
-            {prep.title}
-          </h2>
-          <p className={styles.note}>{portionsText(prep)}</p>
-        </header>
+      <>
+        <p className={styles.note}>{portionsText(prep)}</p>
 
         <dl className={styles.data}>
           <div className={styles.dataRow}>
@@ -351,9 +345,7 @@ function PrepSheet({ prep, now, onClose }: SheetProps) {
           </div>
           <div className={styles.dataRow}>
             <dt>Ingredienti</dt>
-            <dd>
-              {prep.ingredients.map((i) => `${i.productRef} ${formatQuantity(i.quantity)}`).join(", ")}
-            </dd>
+            <dd>{prep.ingredients.map((i) => `${i.productRef} ${formatQuantity(i.quantity)}`).join(", ")}</dd>
           </div>
         </dl>
 
@@ -377,25 +369,12 @@ function PrepSheet({ prep, now, onClose }: SheetProps) {
           </p>
         ) : null}
 
-        <div className={styles.menu}>
-          <Button disabled={!canEat || busy} onClick={() => void eatInMeal()}>
-            Mangia una porzione
-          </Button>
-          <Button variant="outline" disabled={!canEat || busy} onClick={() => void eatOnly()}>
-            Segna solo come mangiata
-          </Button>
-          <button type="button" className={ui.danger} disabled={busy} onClick={() => void cancel()}>
-            Annulla la preparazione
-          </button>
-          <Button variant="text" onClick={close}>
-            Chiudi
-          </Button>
-        </div>
         <p className={ui.hint}>
-          «Mangia una porzione» registra un pasto con questa porzione. Annullare la preparazione rimette gli ingredienti in dispensa: non si può
+          «Mangia una porzione» registra un pasto con questa porzione. Togliere la preparazione rimette gli ingredienti in dispensa: non si può
           se ne hai già mangiate.
         </p>
-      </div>
-    </dialog>
+        <ActionList items={[{ id: "remove", label: "Togli la preparazione", danger: true, disabled: busy, onSelect: () => void remove() }]} />
+      </>
+    </Sheet>
   );
 }

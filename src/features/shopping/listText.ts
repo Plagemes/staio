@@ -4,6 +4,7 @@ import { formatQuantity } from "@/core/units";
 import { formatPrice } from "../format";
 import { parseManualLines, type ManualInput, type ManualReading } from "./manual";
 import { DISMISS_DAYS } from "./settings";
+import type { StockRow } from "./stockView";
 import type { ViewItem } from "./view";
 
 /** Il nome dentro una frase: «Latte» diventa «latte». */
@@ -123,3 +124,14 @@ export function removedText(name: string, proposal: boolean): string {
 export const confirmedAllText = "Confermate tutte le voci.";
 
 export const proposedAgainText = (name: string): string => `Di nuovo tra le proposte: ${inSentence(name)}.`;
+
+/** La riga di una scorta minima: «minimo 2 pz · in casa 1 pz». */
+export function stockLine(row: Pick<StockRow, "minimumText" | "stockText">): string {
+  const home = row.stockText.startsWith("In casa: ") ? `in casa ${row.stockText.slice("In casa: ".length)}` : "non ne hai in casa";
+  return `${row.minimumText ? `minimo ${row.minimumText}` : "nessun minimo"} · ${home}`;
+}
+
+/** «Suggerito: 3 pz»; niente se i consumi non bastano. */
+export function suggestedText(row: Pick<StockRow, "suggestion" | "unit">): string | undefined {
+  return row.suggestion ? `Suggerito: ${formatQuantity({ value: row.suggestion.suggested, unit: row.unit })}` : undefined;
+}

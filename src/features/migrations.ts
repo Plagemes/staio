@@ -1,6 +1,7 @@
 // Migrazioni dei dati locali, scritte come funzioni pure: restituiscono gli eventi da aggiungere.
+import { adoptLegacyDeclarations, type LegacyDeclarations } from "@/core/allergens";
 import type { AnyEvent } from "@/core/events";
-import { correctLot, derivePantry, type LedgerEvent } from "@/core/ledger";
+import { correctLot, derivePantry, type IdGenerator, type LedgerEvent } from "@/core/ledger";
 import { findCreationEvent } from "./actions";
 import { ledgerEventsOf } from "./events";
 
@@ -59,4 +60,26 @@ export function legacyBarcodeUpdates(
     }
   }
   return out;
+}
+
+export const DIET_MIGRATION_KEY = "migrations.dietDeclarations";
+/** `false` finché la pagina Alimentazione non ha detto che le voci sono state riunite; poi `true`. */
+export const DIET_MERGED_NOTICE_KEY = "diet.mergedNoticeSeen";
+
+/**
+ * Allergeni ed esclusioni scritti prima nel ricettario di questo telefono e nell'ultima struttura del piano diventano
+ * dichiarazioni: una `add` per ogni voce che non è già viva. Nessuna voce si toglie. Se uno dei due posti non si legge
+ * non si fa niente (si riprova alla prossima apertura). Rifarla dà una lista vuota.
+ */
+export function dietDeclarationsMigration(
+  events: readonly AnyEvent[],
+  legacy: LegacyDeclarations,
+  ctx: { now: string; deviceId: string; idGenerator?: IdGenerator },
+): AnyEvent[] {
+  return adoptLegacyDeclarations(events, legacy, {
+    deviceId: ctx.deviceId,
+    now: () => ctx.now,
+    note: AUTOMATIC_NOTE,
+    ...(ctx.idGenerator ? { idGenerator: ctx.idGenerator } : {}),
+  });
 }

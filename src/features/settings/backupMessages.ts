@@ -36,7 +36,12 @@ export function describeImport(result: ImportBackupResult): { ok: boolean; text:
   return { ok: true, text: `${parts.join(". ")}.${tail}` };
 }
 
-/** Esito dell'importazione delle sole impostazioni (mai le chiavi dell'AI). */
+/** Esito dell'esportazione delle sole impostazioni: quante, e che chiavi e token non ci sono mai. */
+export function describeSettingsExport(count: number): string {
+  return `Copia pronta: ${count === 1 ? "1 impostazione" : `${count} impostazioni`}, senza chiavi né token.`;
+}
+
+/** Esito dell'importazione delle sole impostazioni (mai chiavi né token). */
 export function describeSettingsImport(result: ImportSettingsResult): { ok: boolean; text: string } {
   if (!result.ok) {
     switch (result.error) {
@@ -51,6 +56,6 @@ export function describeSettingsImport(result: ImportSettingsResult): { ok: bool
     }
   }
   const imported = result.imported === 1 ? "1 impostazione importata" : `${result.imported} impostazioni importate`;
-  const skipped = result.skipped > 0 ? ` ${result.skipped === 1 ? "Una voce è stata ignorata" : `${result.skipped} voci sono state ignorate`}: le chiavi dell'intelligenza artificiale non si importano mai.` : "";
+  const skipped = result.skipped > 0 ? ` ${result.skipped === 1 ? "Una voce è stata ignorata" : `${result.skipped} voci sono state ignorate`}: le chiavi e i token non si importano mai.` : "";
   return { ok: true, text: `${imported}.${skipped}` };
 }

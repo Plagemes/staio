@@ -34,6 +34,38 @@ export type {
   ConfirmationsState,
   DeclaredCriteria,
 } from "./confirmations";
+export {
+  DECLARATION_EVENT_TYPES,
+  DECLARATION_LIMITS,
+  DECLARATION_LISTS,
+  DECLARATION_ORIGINS,
+  adoptLegacyDeclarations,
+  cleanVoiceText,
+  declareVoice,
+  declaredTexts,
+  deriveDeclarations,
+  foldVoice,
+  isDeclarationEvent,
+  legacyPlanStructure,
+  planDeclarationChanges,
+  removeVoice,
+  validateDeclarationEvent,
+  voiceTextProblem,
+} from "./declarations";
+export type {
+  AllergenDeclarationEvent,
+  DeclarationChange,
+  DeclarationEventOptions,
+  DeclarationList,
+  DeclarationOrigin,
+  DeclarationPlan,
+  DeclarationRefusal,
+  DeclarationSource,
+  DeclaredState,
+  DeclaredVoice,
+  LegacyDeclarations,
+  LegacyLists,
+} from "./declarations";
 export type {
   AllergenOutcome,
   ConfirmationOptions,

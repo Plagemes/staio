@@ -4,6 +4,7 @@
 // sono stati riscritti stanno con l'annullamento scritto insieme a loro. Annullare e rifare sono solo eventi `void` nuovi; prima di restituirli si
 // derivano dispensa e diario sulla parte di registro che l'azione tocca, per controllare che niente resti a metà.
 // Logica pura: gli eventi si restituiscono, li scrive chi chiama.
+import { deriveDeclarations, foldVoice, legacyPlanStructure, type LegacyDeclarations } from "@/core/allergens";
 import { QUICK_CONSUME_NOTE, deriveDiary, familyConsumes, type MealEvent } from "@/core/diary";
 import { isKnownEvent, operationIdOf, validateAnyEvent, type AnyEvent } from "@/core/events";
 import { DEFAULT_TIME_ZONE } from "@/core/expiry";
@@ -24,7 +25,7 @@ import {
 } from "@/core/ledger";
 // `consumeRoots` non è tra le esportazioni del libro mastro: qui serve per ragionare per famiglie di consumi
 import { consumeRoots } from "@/core/ledger/supersede";
-import { derivePlan, resolveVoids } from "@/core/plan";
+import { resolveVoids } from "@/core/plan";
 import { PREP_REPAIR_ID_PREFIX } from "@/core/prep";
 import { drinkLinkNote } from "../drinks";
 import { dayOf, formatCalendarDate, formatTime } from "../format";
@@ -66,6 +67,11 @@ export interface OperationContext {
   idGenerator?: IdGenerator;
   /** Per dire l'ora nei motivi e per riconoscere lo stesso momento del giorno. Predefinito: Roma. */
   timeZone?: string;
+  /**
+   * Allergeni ed esclusioni nell'impostazione del ricettario di questo telefono, se il chiamante li ha letti. Senza, il
+   * controllo che nessuna voce sparisca è più severo (una voce che sta anche lì non conta come rimasta).
+   */
+  recipePrefs?: LegacyDeclarations["recipePrefs"];
 }
 
 /** Un gruppo di eventi scritti insieme: un'azione, oppure un «Annulla» (solo annullamenti). */
@@ -111,7 +117,7 @@ const REDO_NO_MEAL = "Non si può rifare: il pasto non c'è più.";
 const REDO_NO_DRINK = "Non si può rifare: la bevanda non c'è più.";
 const REDO_CHANGED = "Non si può rifare: nel frattempo è stata corretta di nuovo.";
 const REDO_ALREADY = "Non si può rifare: l'hai già segnato di nuovo.";
-const LOSES_ALLERGEN = "Toglierebbe un allergene o un'esclusione: cambiali dal Piano.";
+const LOSES_ALLERGEN = "Toglierebbe un allergene o un'esclusione: cambiali in Alimentazione.";
 const RECIPE_IN_PLAN = "La ricetta è usata nel piano.";
 const RECIPE_IN_PREP = "La ricetta è usata in una preparazione.";
 
@@ -230,6 +236,8 @@ function replaceKey(e: AnyEvent): string | undefined {
       return `experiment:${e.experimentId}`;
     case "allergenConfirmation":
       return `allergenConfirmation:${e.key}`;
+    case "allergenDeclaration":
+      return `allergenDeclaration:${e.list}:${foldVoice(e.text)}`;
     default:
       return undefined;
   }
@@ -800,12 +808,13 @@ function orphanConsumes(a: Analysis): Map<string, "meal" | "drink"> {
   return out;
 }
 
-const fold = (s: string): string => s.trim().toLowerCase();
-
-/** Allergeni ed esclusioni dichiarati nel piano: annullare o rifare non deve mai toglierne uno senza dirlo. */
-function declaredLimits(events: readonly AnyEvent[]): Set<string> {
-  const structure = derivePlan(events).structure;
-  return new Set([...(structure?.allergens ?? []).map((x) => `a:${fold(x)}`), ...(structure?.excludedFoods ?? []).map((x) => `e:${fold(x)}`)]);
+/**
+ * Allergeni ed esclusioni dichiarati, dalla lettura unica (eventi, struttura del piano, ricettario): annullare o rifare
+ * non deve mai toglierne uno senza dirlo.
+ */
+function declaredLimits(events: readonly AnyEvent[], recipePrefs: OperationContext["recipePrefs"]): Set<string> {
+  const state = deriveDeclarations(events, { recipePrefs, planStructure: legacyPlanStructure(events) });
+  return new Set([...state.allergens.map((v) => `a:${foldVoice(v.text)}`), ...state.excludedFoods.map((v) => `e:${foldVoice(v.text)}`)]);
 }
 
 interface Scope {
@@ -915,9 +924,11 @@ function verify(scope: Scope, a: Analysis, added: readonly VoidEvent[], kind: "u
     return kind === "redo" ? REDO_NO_MEAL : ADDED_LATER;
   }
 
-  if (scope.bases.some((e) => e.type === "planStructure")) {
-    const limits = declaredLimits(after);
-    for (const x of declaredLimits(before)) if (!limits.has(x)) return LOSES_ALLERGEN;
+  // un'azione su allergeni ed esclusioni dice già quale voce cambia: si annulla e si rifà. Per il resto (una struttura del
+  // piano) si guarda il registro intero: le dichiarazioni vivono anche negli eventi che questa parte non contiene
+  if (!op.events.some((e) => e.type === "allergenDeclaration") && scope.bases.some((e) => e.type === "planStructure")) {
+    const limits = declaredLimits([...a.order, ...added], ctx.recipePrefs);
+    for (const x of declaredLimits(a.order, ctx.recipePrefs)) if (!limits.has(x)) return LOSES_ALLERGEN;
   }
 
   // una ricetta che resterebbe senza nessuna versione, mentre il piano o una preparazione la citano ancora

@@ -95,7 +95,7 @@ describe("frasi della sincronizzazione", () => {
       expect(familyLabel(family), family).toBeTruthy();
       expect(familyLabel(family)).not.toBe("altri dati del registro");
     }
-    expect(familiesText()).toContain("conferme sugli allergeni");
+    expect(familiesText()).toContain("allergeni e conferme");
   });
 
   it("file saltati, quarantena piena e sequenza riparata compaiono nell'esito", () => {

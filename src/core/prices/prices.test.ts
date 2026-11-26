@@ -42,6 +42,41 @@ describe("spesa del periodo", () => {
     expect(s.purchaseCount).toBe(1);
   });
 
+  it("gli acquisti sono le parti del totale, nello stesso ciclo", () => {
+    const l = ledger();
+    l.buy(38, "Latte", 1000, "ml", { price: 150, category: "latticini", store: "Conad" });
+    l.buy(37, "Pane", 500, "g", { price: 300, category: "pane" });
+    l.buy(36, "Sale", 1000, "g", { category: "dispensa" });
+    l.buy(10, "Pasta", 500, "g", { price: 99 });
+    const s = summarizeSpend(l.pantry(), range("7"));
+    expect(s.purchases).toHaveLength(s.purchaseCount);
+    expect(s.purchases.filter((p) => p.cents !== undefined)).toHaveLength(s.pricedCount);
+    expect(s.purchases.filter((p) => p.cents === undefined)).toHaveLength(s.unpricedCount);
+    expect(s.purchases.reduce((sum, p) => sum + (p.cents ?? 0), 0)).toBe(s.totalCents);
+    expect(s.purchases.find((p) => p.name === "Latte")).toMatchObject({
+      lotId: "L0001",
+      eventId: "e00001",
+      date: day(38),
+      store: "Conad",
+      category: "latticini",
+      cents: 150,
+      certainty: "measured",
+    });
+    const sale = s.purchases.find((p) => p.name === "Sale")!;
+    expect(sale.cents).toBeUndefined();
+    expect(sale.certainty).toBeUndefined();
+    expect(s.purchases.find((p) => p.name === "Pasta")).toBeUndefined(); // fuori periodo
+  });
+
+  it("un acquisto annullato non è tra le parti", () => {
+    const l = ledger();
+    l.buy(38, "Latte", 1000, "ml", { price: 150 });
+    l.buy(37, "Pane", 500, "g", { price: 300 });
+    l.events.push(voidOf("v1", at(39), "e00001"));
+    const s = summarizeSpend(derivePantry(l.events), range("7"));
+    expect(s.purchases.map((p) => p.name)).toEqual(["Pane"]);
+  });
+
   it("il mese in corso parte dal primo del mese", () => {
     expect(range("month").from).toBe(`${TODAY.slice(0, 7)}-01`);
   });

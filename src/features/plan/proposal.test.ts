@@ -279,7 +279,7 @@ describe("scrittura: ultimo controllo", () => {
     servings: 2,
     reasons: [{ code: "variety" }],
   });
-  const base = { weekStart: TODAY, structure: undefined, expandForChecks, linkOf: makeLinkOf([]), allowUncertain: false, activeRecipeIds: new Set(["pasta", "fritt", "zuppa", "dubbia"]) };
+  const base = { weekStart: TODAY, expandForChecks, linkOf: makeLinkOf([]), allowUncertain: false, activeRecipeIds: new Set(["pasta", "fritt", "zuppa", "dubbia"]) };
 
   it("scrive le voci dell'utente come sono più le proposte, in un'unica settimana", () => {
     const mine: PlannedEntry[] = [{ date: TODAY, meal: "lunch", item: { kind: "food", name: "Riso", quantity: { value: 80, unit: "g" } } }];

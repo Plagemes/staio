@@ -36,6 +36,16 @@ describe("vista della lista", () => {
     expect(v.dayText).toMatch(/Giorno consigliato \(stima\)/);
   });
 
+  it("la voce porta il conto del suo costo; senza prezzo osservato non c'è", () => {
+    const v = buildShoppingView(input({ manual: [{ id: "m1", product: "Sale", quantity: { value: 1, unit: "pz" }, addedAt: `${today}T08:00:00.000Z` }] }));
+    const milk = v.items.find((i) => i.name === "Latte")!;
+    expect(milk.estimate).toMatchObject({ cents: milk.costCents, unitPrice: { cents: 150, per: "l" }, basis: "last" });
+    expect(milk.estimate?.date).toBe(day(21));
+    expect(v.items.find((i) => i.name === "Sale")?.estimate).toBeUndefined();
+    // la somma dei costi delle voci è il totale mostrato
+    expect(v.items.reduce((s, i) => s + (i.costCents ?? 0), 0)).toBe(v.cost.totalCents);
+  });
+
   it("le voci senza prezzo non sono stimate: si contano", () => {
     const v = buildShoppingView(input({ manual: [{ id: "m1", product: "Sale", quantity: { value: 1, unit: "pz" }, addedAt: `${today}T08:00:00.000Z` }] }));
     const salt = v.items.find((i) => i.name === "Sale");

@@ -39,10 +39,11 @@ export {
   getLot,
   InvalidPeriodError,
   lotValueCents,
+  pantryValueParts,
   totalForProduct,
   totalsByProduct,
   wasteByReason,
 } from "./selectors";
-export type { PantryValue, ProductTotal, WasteEntry, WastePeriod } from "./selectors";
+export type { PantryValue, PantryValuePart, PantryValueParts, ProductTotal, WasteEntry, WastePeriod } from "./selectors";
 export { buildLotStory } from "./story";
 export type { LotStoryKind, LotStoryRow } from "./story";

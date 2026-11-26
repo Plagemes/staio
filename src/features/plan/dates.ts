@@ -1,5 +1,6 @@
 // Settimane e giorni del piano: etichette in italiano su date di calendario `YYYY-MM-DD`. Logica pura.
 import { addDays, daysBetween } from "@/core/diary";
+import { isCalendarDate } from "@/core/ledger";
 import { weekStartOf } from "@/core/plan";
 
 const capitalize = (s: string) => (s === "" ? s : s[0].toUpperCase() + s.slice(1));
@@ -60,3 +61,23 @@ export function whenText(date: string, today: string): string {
   if (d <= 6) return weekdayName(date);
   return `il ${dayMonth(date)}`;
 }
+
+const dayNumber = (date: string): number => Number(date.slice(8, 10));
+
+/** "Mar 18": il giorno in una riga corta. */
+export function shortDayNumber(date: string): string {
+  return `${capitalize(weekdayName(date).slice(0, 3))} ${dayNumber(date)}`;
+}
+
+/** "lun 16": come sopra, in minuscolo, per i riepiloghi. */
+export function shortDayLower(date: string): string {
+  return `${weekdayName(date).slice(0, 3)} ${dayNumber(date)}`;
+}
+
+/** Il giorno scelto dall'indirizzo (`?giorno=`): se manca o non è una data di calendario vale oggi. */
+export function dayFromParam(param: string | null, today: string): string {
+  return param !== null && isCalendarDate(param) ? param : today;
+}
+
+/** Il lunedì della settimana dopo quella di `date`. */
+export const nextMonday = (date: string): string => addDays(weekStartOf(date), 7);

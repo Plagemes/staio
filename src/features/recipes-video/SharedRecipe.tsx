@@ -210,6 +210,8 @@ function SharedBody({ shared }: { shared: SharedContent }) {
   const aiIssue = aiReady ? configIssue(ai) : null;
   const configured = isConfigured(service);
   const hasCaption = shared.caption.trim() !== "";
+  // un solo pieno per schermata: «Leggi il video» se è offerto, altrimenti «Leggi il testo»
+  const videoOffered = shared.link !== undefined && platform !== undefined && serviceReady && configured && aiIssue === null;
 
   return (
     <div className={ui.screen}>
@@ -243,7 +245,7 @@ function SharedBody({ shared }: { shared: SharedContent }) {
                   Questo indirizzo non è un video di Instagram, TikTok o YouTube, quindi non so leggerlo come video. Se è una pagina con
                   una ricetta, puoi importarla dall&apos;indirizzo.
                 </p>
-                <Button href="/app/ricette/importa" variant="outline">
+                <Button href={`/app/ricette/importa?url=${encodeURIComponent(shared.link)}`} variant="outline">
                   Importa da un indirizzo
                 </Button>
               </>
@@ -283,7 +285,7 @@ function SharedBody({ shared }: { shared: SharedContent }) {
                   </Button>
                   {busy ? (
                     <Button variant="text" onClick={() => abortRef.current?.abort()}>
-                      Annulla
+                      Ferma
                     </Button>
                   ) : null}
                 </div>
@@ -337,7 +339,9 @@ function SharedBody({ shared }: { shared: SharedContent }) {
               />
               <p className={ui.hint}>Funziona anche senza rete. Il link del video resta salvato come fonte della ricetta.</p>
             </div>
-            <Button type="submit">Leggi il testo</Button>
+            <Button type="submit" variant={videoOffered ? "outline" : "primary"}>
+              Leggi il testo
+            </Button>
           </form>
         </div>
       </section>

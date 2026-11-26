@@ -1,7 +1,7 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
-import { monthlyBudgetProgress, spendRanges, summarizeSpend, type SpendPeriodId } from "@/core/prices";
+import { useId, useState } from "react";
+import { monthlyBudgetProgress, type SpendPeriodId, type SpendSummary } from "@/core/prices";
 import { Button, Label, ProgressLine, SectionHeader, Tabs, Value } from "@/design";
 import { formatPrice, parsePriceCents } from "../format";
 import ui from "../ui.module.css";
@@ -20,16 +20,13 @@ const PERIODS = [
 ];
 
 /** Quanto hai speso dagli acquisti del registro, per categoria, e il tetto mensile facoltativo. */
-export function Spending({ data, undo }: { data: ShoppingData; undo: Undo }) {
+export function Spending({ data, undo, summaries, onOpen }: { data: ShoppingData; undo: Undo; summaries: readonly SpendSummary[]; onOpen: (period: SpendPeriodId) => void }) {
   const id = useId();
-  const pantry = data.plan.pantry;
-  const today = data.view?.today;
   const [period, setPeriod] = useState<SpendPeriodId>("month");
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const summaries = useMemo(() => (pantry && today ? spendRanges(today).map((r) => summarizeSpend(pantry, r)) : []), [pantry, today]);
   const summary = summaries.find((s) => s.range.id === period);
   const monthly = summaries.find((s) => s.range.id === "month");
   const cap = data.monthlyBudgetCents;
@@ -51,7 +48,13 @@ export function Spending({ data, undo }: { data: ShoppingData; undo: Undo }) {
         <Label>Dal registro</Label>
       </div>
       <Tabs label="Periodo della spesa" items={PERIODS} value={period} onChange={(v) => setPeriod(v as SpendPeriodId)} />
-      <p className={styles.costLine}>{spendText(summary)}</p>
+      {summary.purchaseCount > 0 ? (
+        <button type="button" className={styles.tap} aria-haspopup="dialog" onClick={() => onOpen(period)}>
+          {spendText(summary)}
+        </button>
+      ) : (
+        <p className={styles.costLine}>{spendText(summary)}</p>
+      )}
       {summary.byCategory.length > 0 ? (
         <ul className={styles.table}>
           {summary.byCategory.map((c) => (
@@ -78,7 +81,13 @@ export function Spending({ data, undo }: { data: ShoppingData; undo: Undo }) {
       {progress ? (
         <div className={styles.card}>
           <Label>Tetto mensile</Label>
-          <p className={styles.costLine}>{budgetText(progress)}</p>
+          {monthly.purchaseCount > 0 ? (
+            <button type="button" className={styles.tap} aria-haspopup="dialog" onClick={() => onOpen("month")}>
+              {budgetText(progress)}
+            </button>
+          ) : (
+            <p className={styles.costLine}>{budgetText(progress)}</p>
+          )}
           <ProgressLine value={Math.min(progress.share, 1) * 100} max={100} label={`Speso ${formatPrice(progress.spentCents)} su ${formatPrice(progress.capCents)}`} />
         </div>
       ) : null}

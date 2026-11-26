@@ -135,43 +135,7 @@
   font-size: var(--text-body-sm);
 }
 
-/* Finestra con i dettagli */
-
-.sheet {
-  box-sizing: border-box;
-  width: 100%;
-  max-width: var(--column-max);
-  max-height: 92dvh;
-  margin: auto auto 0;
-  padding: 0;
-  border: none;
-  border-top: var(--rule-width) solid var(--color-rule-strong);
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
-  background: var(--color-paper);
-  color: var(--color-ink);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
-.sheet::backdrop {
-  background: color-mix(in srgb, var(--color-ink) 45%, transparent);
-}
-
-.sheetBody {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-8);
-  padding: var(--space-8) var(--gutter) calc(var(--space-11) + env(safe-area-inset-bottom, 0px));
-}
-
-.sheetTitle {
-  margin: 0;
-  font-family: var(--font-display);
-  font-weight: var(--weight-display);
-  font-size: var(--text-title);
-  line-height: 1.1;
-  overflow-wrap: anywhere;
-}
+/* Dati dentro il foglio */
 
 .data {
   display: flex;
@@ -193,12 +157,6 @@
 .dataRow dt,
 .dataRow dd {
   margin: 0;
-}
-
-.menu {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
 }
 
 /* Vivo: titoli e numeri in grassetto come nelle altre schermate */
@@ -239,9 +197,4 @@
   border-color: transparent;
   border-radius: var(--radius-card);
   background: var(--area-current-tint);
-}
-
-:global([data-palette="vivo"]) .sheet {
-  border-top: none;
-  border-radius: var(--radius-card) var(--radius-card) 0 0;
 }
