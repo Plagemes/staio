@@ -3,6 +3,7 @@ export { BottomNav, type NavArea } from "./components/BottomNav";
 export { Button, type ButtonVariant } from "./components/Button";
 export { ExpiryTag, type ExpiryLevel } from "./components/ExpiryTag";
 export { Figure, FigureGrid, type FigureNutrient } from "./components/Figure";
+export { FoodThumb, type FoodThumbKind } from "./components/FoodThumb";
 export { Label } from "./components/Label";
 export { LedgerRow } from "./components/LedgerRow";
 export { LevelBar } from "./components/LevelBar";

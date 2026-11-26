@@ -234,3 +234,26 @@
   backdrop-filter: var(--nav-backdrop);
   -webkit-backdrop-filter: var(--nav-backdrop);
 }
+
+/* ------------------------------------------------------------------------------------------------
+   Grano: il gruppo «In scadenza» sta su un fondo pesca (più chiaro delle pastiglie delle scadenze, che restano
+   del pesca pieno); l'elenco dentro perde la sua scheda bianca, la striscia di stato resta sul bordo.
+   ------------------------------------------------------------------------------------------------ */
+
+:global([data-variant="grano"]) .soon {
+  padding-block: var(--space-6) 0;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--state-near-tint) 40%, var(--color-surface));
+  box-shadow: var(--card-shadow);
+}
+
+:global([data-variant="grano"]) .soon > h2 {
+  padding-inline: var(--space-8);
+}
+
+:global([data-variant="grano"]) .soon > ul {
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}

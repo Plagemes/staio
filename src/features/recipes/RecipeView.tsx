@@ -8,9 +8,10 @@ import { applySubstitutions, compareWithPantry, scaleRecipe, stockFromLots, tota
 import { formatQuantity } from "@/core/units";
 import { buildPriceBook } from "@/core/shopping";
 import { getRecipes, usePantry, useRecipes } from "@/data";
-import { Button, Label, Value } from "@/design";
+import { Button, FoodThumb, Label, Value } from "@/design";
 import { Disclosure, MoreActions, type ActionItem } from "../common";
 import { dayOf } from "../format";
+import { foodKindOf } from "../foodKind";
 import { dayMonth } from "../plan/dates";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
 import { NUTRITION_DISCLAIMER_SHORT } from "../nutrition/labels";
@@ -162,6 +163,8 @@ function Detail({ recipe: written, initialServings, initialSubstitutions }: { re
     [comparison],
   );
   const have = comparison ? haveText({ total: comparison.items.length, missing: missingCount, pending }) : undefined;
+  // la dispensa copre tutto: stesso criterio di «hai tutto» nella riga di stato (nessun ingrediente mancante o da confermare)
+  const allCovered = comparison !== undefined && comparison.items.length > 0 && missingCount === 0 && pending === 0;
   const nutrient = facts.nutrition ? nutrientLines(facts.nutrition) : [];
   const energy = nutrient.find((n) => n.key === "energyKcal");
   const hasCost = facts.cost !== undefined && facts.cost.coverage.resolved > 0;
@@ -241,6 +244,8 @@ function Detail({ recipe: written, initialServings, initialSubstitutions }: { re
       </div>
 
       <header className={ui.section}>
+        {/* la ricetta non ha foto: in Grano un disegno al posto dell'immagine */}
+        <FoodThumb kind={foodKindOf(undefined)} size="hero" />
         <h1 className={ui.title}>{recipe.title}</h1>
         <p className={styles.heroMeta}>
           <span>{statusLine({ ...(minutes !== undefined ? { minutes } : {}), servings, ...(have ? { have } : {}) })}</span>
@@ -322,6 +327,16 @@ function Detail({ recipe: written, initialServings, initialSubstitutions }: { re
             <p className={ui.hint}>Le quantità sono scalate e arrotondate a valori comodi: sono approssimative.</p>
           ) : null}
         </div>
+
+        {allCovered ? (
+          <p className={styles.allHave}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9.5" />
+              <path d="M7.8 12.4l3 3 5.6-6" />
+            </svg>
+            Hai già tutti gli ingredienti
+          </p>
+        ) : null}
 
         <ul className={styles.ingredients}>
           {(scaled?.ingredients ?? recipe.ingredients).map((ing, i) => {

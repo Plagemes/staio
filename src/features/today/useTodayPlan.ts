@@ -51,6 +51,11 @@ export interface TodayPlan {
   catalog: Catalog | undefined;
 }
 
+/** «Da comprare (N)» della Spesa: voci con quantità più voci senza quantità. Oggi deve dire lo stesso numero. */
+export function shoppingListCount(view: { items: readonly unknown[]; noQuantity: readonly unknown[] } | null | undefined): number {
+  return view ? view.items.length + view.noQuantity.length : 0;
+}
+
 /** Ciò che Oggi sa del piano e della spesa: quante voci propone la lista e che cosa è pianificato per oggi. */
 export function useTodayPlan(): TodayPlan {
   const data = useShoppingData();
@@ -101,7 +106,7 @@ export function useTodayPlan(): TodayPlan {
     [data.view, plan.today],
   );
   const kinds = useMemo(() => plan.plan?.structure?.meals.map((m) => m.kind), [plan.plan]);
-  return { ready: data.ready, shoppingCount: data.view?.items.length ?? 0, missingToday, planned, missingByMeal, expand: plan.expand, preps: plan.preps, weekStart, weekEntries, nextWeekStart: nextStart, nextWeekEntries, adherence, kinds, catalog: plan.catalog };
+  return { ready: data.ready, shoppingCount: shoppingListCount(data.view), missingToday, planned, missingByMeal, expand: plan.expand, preps: plan.preps, weekStart, weekEntries, nextWeekStart: nextStart, nextWeekEntries, adherence, kinds, catalog: plan.catalog };
 }
 
 function cookLink(item: PlannedItem, catalog: Catalog): { href: string } | Record<string, never> {

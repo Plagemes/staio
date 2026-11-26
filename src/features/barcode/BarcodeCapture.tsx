@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
-import { isRestrictedCode, needsStoreCodeConfirmation, quantityText, type Product } from "@/core/catalog";
+import { expiryCategoryFor, isRestrictedCode, needsStoreCodeConfirmation, quantityText, type Product } from "@/core/catalog";
 import { compositionFromProduct } from "@/core/nutrition";
 import { deleteProductRecord, putProductRecord } from "@/data";
-import { Button, Label } from "@/design";
+import { Button, FoodThumb, Label } from "@/design";
 import { NutritionEntry } from "../ai-capture/NutritionFromPhoto";
 import { Disclosure } from "../common";
+import { foodKindOf } from "../foodKind";
 import { Per100Table, ProductNutrients } from "../nutrition/Per100";
 import ui from "../ui.module.css";
 import { SHELF_PATH, qualityHref } from "../quality/links";
@@ -368,7 +369,10 @@ function ProductCard({
             referrerPolicy="no-referrer"
             onError={() => setImageFailed(true)}
           />
-        ) : null}
+        ) : (
+          // senza immagine: in Grano un disegno per categoria (negli altri temi resta fuori)
+          <FoodThumb kind={foodKindOf(expiryCategoryFor(product))} size="hero" />
+        )}
         <div className={styles.heading}>
           <h2 className={styles.name}>{product.name ?? "Nome non indicato"}</h2>
           {meta ? <p className={styles.brand}>{meta}</p> : null}

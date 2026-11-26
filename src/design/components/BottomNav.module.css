@@ -63,3 +63,21 @@
 :global([data-palette="vivo"]) .item svg {
   color: var(--area-current);
 }
+
+/* ------------------------------------------------------------------------------------------------
+   Grano: la voce corrente ha l'icona piena (le altre restano a contorno). Le linee interne (.cut) si scavano nel pieno
+   col colore della barra; l'icona della Salute è una linea e diventa solo più spessa.
+   ------------------------------------------------------------------------------------------------ */
+
+:global([data-variant="grano"]) .current svg {
+  fill: currentColor;
+}
+
+:global([data-variant="grano"]) .current .cut {
+  stroke: var(--color-surface);
+}
+
+:global([data-variant="grano"]) .current[data-area="health"] svg {
+  fill: none;
+  stroke-width: 2.4;
+}

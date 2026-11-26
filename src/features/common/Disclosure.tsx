@@ -16,17 +16,19 @@ export interface DisclosureProps {
   onOpenChange?: (open: boolean) => void;
   /** Variante piccola per le spiegazioni («Che cosa significa»): una riga di testo, senza riepilogo. */
   quiet?: boolean;
+  /** Una classe in più sulla sezione (per esempio per darle un fondo di un tema). */
+  className?: string;
 }
 
 /** Una sezione richiusa: la riga dice che cosa contiene, un tocco su tutta la riga la apre. */
-export function Disclosure({ title, summary, children, defaultOpen = false, open, onOpenChange, quiet = false }: DisclosureProps): ReactElement {
+export function Disclosure({ title, summary, children, defaultOpen = false, open, onOpenChange, quiet = false, className }: DisclosureProps): ReactElement {
   const controlled = open !== undefined;
   const [inner, setInner] = useState(defaultOpen);
   const isOpen = controlled ? open : inner;
 
   return (
     <details
-      className={quiet ? styles.quiet : styles.disclosure}
+      className={cx(quiet ? styles.quiet : styles.disclosure, className)}
       open={isOpen}
       // anche il browser può aprirla da solo (la ricerca nella pagina): lo stato lo segue
       onToggle={(event) => {

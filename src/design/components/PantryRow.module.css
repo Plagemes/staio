@@ -33,3 +33,20 @@
   display: flex;
   justify-content: flex-end;
 }
+
+/* ------------------------------------------------------------------------------------------------
+   Grano: davanti al nome il segnaposto illustrato (FoodThumb); la barra del livello lascia il posto al disegno,
+   la quantità resta scritta nel dettaglio.
+   ------------------------------------------------------------------------------------------------ */
+
+:global([data-variant="grano"]) .withThumb {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+:global([data-variant="grano"]) .withThumb.withBar {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+:global([data-variant="grano"]) .withThumb > [role="img"] {
+  display: none;
+}

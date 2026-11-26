@@ -45,8 +45,8 @@ const AREAS: Area[] = [
     icon: (
       <svg {...svgProps}>
         <rect x="4" y="3" width="16" height="18" rx="1.5" />
-        <path d="M4 9.5h16" />
-        <path d="M4 15.5h16" />
+        <path className={styles.cut} d="M4 9.5h16" />
+        <path className={styles.cut} d="M4 15.5h16" />
       </svg>
     ),
   },
@@ -57,7 +57,7 @@ const AREAS: Area[] = [
     icon: (
       <svg {...svgProps}>
         <rect x="4" y="5" width="16" height="15" rx="1.5" />
-        <path d="M4 10h16" />
+        <path className={styles.cut} d="M4 10h16" />
         <path d="M8 3v4" />
         <path d="M16 3v4" />
       </svg>

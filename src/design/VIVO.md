@@ -176,6 +176,20 @@ Forma (solo ciò che differisce da Vivo): titoli e titoli di sezione in Fraunces
 peso 600, `--radius-card` 22 px, `--radius-md` 16 px, `--radius-sm` 12 px, ombra morbida e calda, selettori a pillola con la voce scelta piena nel colore dell'area (`--tab-selected-fill`, e il nuovo `--tab-selected-text`,
 che negli altri temi resta `--color-ink`), «+» della barra in verde bosco. Il testo corrente resta Instrument Sans. Il marchio non cambia forma e resta con grazie; solo il suo punto prende `--brand-accent` (in `Wordmark.module.css`, con ritorno all'accento).
 
-Non si ottiene con il solo tema (andrebbe fatto nelle schermate o nei dati): foto degli alimenti e dei piatti nelle righe e nelle schede, la banda «Hai già tutti gli ingredienti» sopra gli ingredienti di una ricetta
-(markup nuovo nel modulo della ricetta, sul fondo `--area-today-tint`), l'icona della barra in basso riempita invece che a tratto per la voce attiva, il titolo con la sottolineatura a mano di «La tua cucina, in ordine.»,
-la spiga accanto al nome nell'intestazione (il marchio ha solo il testo), la scheda «Da usare prima» su fondo pesca (oggi la scheda è bianca con la striscia di stato).
+### Grano, fase 2: decorazioni nelle schermate
+
+Regola: markup neutro (classi o attributo `hidden`) e regole solo sotto `:global([data-variant="grano"])` in fondo al modulo; negli altri temi non cambia niente, tranne la banda degli ingredienti (informazione utile in tutti i temi).
+`vivoScope.test.ts` ha la lista `GRANO_ONLY_CLASSES` per le classi che esistono solo per Grano.
+
+| Pezzo | Dove | Resa in Grano |
+|---|---|---|
+| Icona piena della voce corrente | `BottomNav.module.css` (`.current svg`, `.cut`) | casa, dispensa e piano pieni (le linee interne si scavano col colore della superficie), Salute a linea più spessa; le altre a contorno |
+| Spiga | `Wordmark.tsx` (`.ear`, SVG con `hidden`) | spiga in `--brand-accent` davanti al nome |
+| Sottolineatura a mano | `Today.module.css` (`.dayLabel::after`) | ondina in `--brand-accent` sotto la data grande di Oggi (maschera SVG, nessun testo) |
+| Scadenze su fondo pesca | `Today.module.css` (`details.expiring`), `Pantry.module.css` (`.soon`) | `--state-near-tint` al 40% sulla superficie; le pastiglie `ExpiryTag` restano sul pesca pieno (un tono più scure); contrasti in `themes.test.ts` |
+| Banda «Hai già tutti gli ingredienti» | `RecipeView.tsx` (`.allHave`), `recipes.module.css` | in tutti i temi una riga con la spunta quando la dispensa copre tutto (nessun ingrediente mancante o da confermare); Vivo fondo `--state-ok-tint`; Grano pastiglia larga col segno in un tondo `--state-ok`. Non è un pulsante |
+| Segnaposto illustrato | `FoodThumb` (`design/components`), `foodKind.ts` (categoria → disegno) | tondo `--color-fill` con disegno al tratto in `--color-accent`; miniatura nelle righe di Dispensa e di «In scadenza» (la barra del livello lascia il posto al disegno, la quantità resta nel dettaglio), grande in testa alla ricetta e alla scheda del codice a barre senza immagine. Se un dato ha già la sua immagine (Open Food Facts) si usa quella |
+
+La scheda di un lotto (`LotSheet`) ha già il suo modello 3D in testa e non prende il segnaposto. Le ricette non hanno immagini nel modello dati: la testa mostra il disegno «piatto».
+
+Non fatto: il testo «La tua cucina, in ordine.» e «Da usare prima» (le schermate dicono «Oggi» e «In scadenza», e cambiare le parole le cambierebbe in tutti i temi); la sottolineatura sta sulla data grande.

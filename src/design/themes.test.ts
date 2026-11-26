@@ -473,6 +473,14 @@ describe("Grano", () => {
       it("il testo della voce scelta in un selettore (sul colore di ogni area) >= 4,5", () => {
         for (const a of ["today", "pantry", "capture", "plan", "health"]) expect(c("--color-on-fill", `--area-${a}`), a).toBeGreaterThanOrEqual(4.5);
       });
+      it("fondo pesca delle scadenze (tinta «in scadenza» al 40% sulla superficie, come in Oggi e Dispensa): testo, testo secondario e stati >= 4,5", () => {
+        const hex = (v: string) => [1, 3, 5].map((i) => Number.parseInt(v.slice(i, i + 2), 16));
+        const [near, surface] = [hex(p["--state-near-tint"]), hex(p["--color-surface"])];
+        const peach = `#${near.map((n, i) => Math.round(n * 0.4 + surface[i] * 0.6).toString(16).padStart(2, "0")).join("")}`;
+        for (const fg of ["--color-ink", "--color-graphite", "--state-near", "--state-expired", "--state-ok"]) {
+          expect(contrastRatio(p[fg], peach), fg).toBeGreaterThanOrEqual(4.5);
+        }
+      });
     });
   }
 });

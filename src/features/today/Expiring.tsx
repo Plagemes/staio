@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { PantryRow } from "@/design";
+import { FoodThumb, PantryRow } from "@/design";
 import { ideasHref } from "../ai-capture/ideasFood";
 import { Disclosure } from "../common";
+import { foodKindOf } from "../foodKind";
 import { LOCATION_LABELS } from "../labels";
 import { expiryTagView, isExpiring, levelPercent, type PantryEntry } from "../lots";
 import { breakdownText, groupEntries, groupName } from "../pantry/groups";
@@ -24,7 +25,7 @@ export function Expiring({ entries, today }: { entries: readonly PantryEntry[]; 
   if (groups.length === 0) return null;
 
   return (
-    <Disclosure title="In scadenza" summary={expiringSummary(groups[0].entries[0], groups.length)}>
+    <Disclosure title="In scadenza" className={styles.expiring} summary={expiringSummary(groups[0].entries[0], groups.length)}>
       <ul className={styles.list}>
         {groups.map((group) => {
           const entry = group.entries[0];
@@ -34,6 +35,7 @@ export function Expiring({ entries, today }: { entries: readonly PantryEntry[]; 
               <Link href={`/app/dispensa?lotto=${encodeURIComponent(entry.lot.lotId)}`} className={styles.rowLink}>
                 <PantryRow
                   name={groupName(group)}
+                  thumb={<FoodThumb kind={foodKindOf(entry.lot.category)} />}
                   detail={
                     breakdown ? (
                       <>

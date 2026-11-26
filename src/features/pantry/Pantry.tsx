@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useId, useLayoutEffect, useMemo, useState } from "react";
 import { activeLots, estimatedPantryValue, pantryValueParts, type Location, type PantryState } from "@/core/ledger";
 import { appendEvents, getDeviceId, useEventLog, usePantry } from "@/data";
-import { Button, Label, PantryRow, Tabs, Value } from "@/design";
+import { Button, FoodThumb, Label, PantryRow, Tabs, Value, cx } from "@/design";
 import { buildRemoveMany, type RemoveManyKind } from "../actions";
 import { configIssue } from "../ai/settings";
 import { useAiSettings } from "../ai/useAiSettings";
@@ -19,6 +19,7 @@ import { piecesText } from "../pieces";
 import { orderForRealign } from "../realign";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
 import { addManualEntries } from "../shopping";
+import { foodKindOf } from "../foodKind";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
 import { filterEntries, normalizeSearch, splitByExpiry } from "./filter";
@@ -225,6 +226,7 @@ export function Pantry() {
     const row = (
       <PantryRow
         name={groupName(group)}
+        thumb={<FoodThumb kind={foodKindOf(entry.lot.category)} />}
         detail={
           detailBreakdown ? (
             <>
@@ -278,8 +280,8 @@ export function Pantry() {
     );
   };
 
-  const renderList = (list: LotGroup[], title: string | null) => (
-    <div className={styles.block}>
+  const renderList = (list: LotGroup[], title: string | null, soon = false) => (
+    <div className={cx(styles.block, soon && styles.soon)}>
       {title ? (
         <Label as="h2" className={styles.groupLabel}>
           {`${title} (${list.length})`}
@@ -392,7 +394,7 @@ export function Pantry() {
               ) : (
                 <>
                   {/* Senza nulla in scadenza l'elenco è uno solo e senza etichetta; con l'altro gruppo vuoto resta il titolo di chi scade. */}
-                  {expiring.length > 0 ? renderList(expiring, "In scadenza") : null}
+                  {expiring.length > 0 ? renderList(expiring, "In scadenza", true) : null}
                   {rest.length > 0 ? renderList(rest, expiring.length > 0 ? "Il resto" : null) : null}
                 </>
               )}

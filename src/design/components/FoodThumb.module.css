@@ -1,0 +1,25 @@
+/* Solo Grano: tondo crema con un disegno al tratto. Negli altri temi l'elemento ha `hidden` e queste regole non lo toccano. */
+
+:global([data-variant="grano"]) .thumb {
+  display: grid;
+  place-items: center;
+  flex: none;
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-round);
+  background: var(--color-fill);
+  box-shadow: inset 0 0 0 1px var(--color-rule);
+  color: var(--color-accent);
+}
+
+:global([data-variant="grano"]) .thumb svg {
+  width: 72%;
+  height: 72%;
+}
+
+/* In testa a una ricetta o a una scheda: più grande, centrato */
+:global([data-variant="grano"]) .hero {
+  width: 96px;
+  height: 96px;
+}

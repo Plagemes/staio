@@ -45,7 +45,7 @@ export function DietView({ initial, params = "" }: { initial: DietSection | null
           Torna alle impostazioni
         </Link>
       </div>
-      <MergedNotice key={epoch} />
+      <MergedNotice key={`avviso|${epoch}`} />
 
       {/* sempre per prima e aperta: gli allergeni non dipendono da piano né da conferme */}
       {diet.error !== undefined ? (
@@ -60,7 +60,7 @@ export function DietView({ initial, params = "" }: { initial: DietSection | null
         <DeclarationsSection state={diet.state} />
       )}
 
-      <DietRows key={epoch} initial={initial} />
+      <DietRows key={`righe|${epoch}`} initial={initial} />
     </div>
   );
 }

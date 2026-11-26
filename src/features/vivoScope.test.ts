@@ -40,6 +40,17 @@ const VIVO_ONLY_CLASSES: Record<string, string[]> = {
   "LotSheet.module.css": [".rows"],
 };
 
+/** Classi messe nel markup solo per Grano (decorazioni): le loro regole stanno solo sotto [data-variant="grano"]. */
+const GRANO = ':global([data-variant="grano"])';
+const GRANO_ONLY_CLASSES: Record<string, string[]> = {
+  "Wordmark.module.css": [".ear"],
+  "BottomNav.module.css": [".cut"],
+  "FoodThumb.module.css": [".thumb", ".hero"],
+  "PantryRow.module.css": [".withThumb"],
+  "Today.module.css": [".expiring"],
+  "Pantry.module.css": [".soon"],
+};
+
 /** Attributi messi nel markup per Vivo. */
 const VIVO_ONLY_ATTRIBUTES = ["[data-tone", "[data-state", "[data-status", "[data-level", "[data-nutrient", "[data-estimated"];
 
@@ -48,14 +59,26 @@ describe("Vivo nelle schermate: niente cambia negli altri temi", () => {
     expect(FILES.length).toBeGreaterThan(20);
   });
 
-  it("le classi aggiunte per Vivo hanno regole solo sotto [data-palette=\"vivo\"]", () => {
+  it("le classi aggiunte per Vivo hanno regole solo sotto [data-palette=\"vivo\"] (o sotto Grano, che è Vivo con una variante)", () => {
     for (const [file, classes] of Object.entries(VIVO_ONLY_CLASSES)) {
       const hits = FILES.filter((f) => f.path.endsWith(file));
       expect(hits.length).toBe(1);
       for (const s of hits[0].sel) {
         for (const cls of classes) {
-          if (new RegExp(String.raw`\.${cls.slice(1)}(?![\w-])`).test(s)) expect(s.startsWith(VIVO), `${file}: ${s}`).toBe(true);
+          if (new RegExp(String.raw`\.${cls.slice(1)}(?![\w-])`).test(s)) expect(s.startsWith(VIVO) || s.startsWith(GRANO), `${file}: ${s}`).toBe(true);
         }
+      }
+    }
+  });
+
+  it("le classi aggiunte per Grano hanno regole solo sotto [data-variant=\"grano\"]", () => {
+    for (const [file, classes] of Object.entries(GRANO_ONLY_CLASSES)) {
+      const hits = FILES.filter((f) => f.path.endsWith(file));
+      expect(hits.length).toBe(1);
+      for (const cls of classes) {
+        const rules = hits[0].sel.filter((s) => new RegExp(String.raw`\.${cls.slice(1)}(?![\w-])`).test(s));
+        expect(rules.length, `${file}: ${cls} non ha regole`).toBeGreaterThan(0);
+        for (const s of rules) expect(s.startsWith(GRANO), `${file}: ${s}`).toBe(true);
       }
     }
   });

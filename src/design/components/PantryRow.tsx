@@ -11,11 +11,14 @@ type PantryRowProps = {
   levelLabel?: string;
   /** Di solito un ExpiryTag. */
   expiry: ReactNode;
+  /** Il segnaposto illustrato (`FoodThumb`) davanti al nome: si vede solo in Grano. */
+  thumb?: ReactNode;
 };
 
-export function PantryRow({ name, detail, level, levelLabel, expiry }: PantryRowProps) {
+export function PantryRow({ name, detail, level, levelLabel, expiry, thumb }: PantryRowProps) {
   return (
-    <div className={cx(styles.row, level !== undefined && styles.withBar)}>
+    <div className={cx(styles.row, level !== undefined && styles.withBar, thumb ? styles.withThumb : false)}>
+      {thumb}
       <div className={styles.text}>
         <div className={styles.name}>{name}</div>
         <div className={styles.detail}>{detail}</div>

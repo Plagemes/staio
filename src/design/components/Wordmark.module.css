@@ -16,3 +16,17 @@
 .dot {
   color: var(--brand-accent, var(--color-accent));
 }
+
+/* Grano: la spiga in oro del grano accanto al nome (è decorativa e negli altri temi resta `hidden`) */
+:global([data-variant="grano"]) .ear {
+  display: inline-block;
+  width: 0.72em;
+  height: 0.96em;
+  margin-right: 0.12em;
+  vertical-align: -0.08em;
+  color: var(--brand-accent);
+}
+
+:global([data-variant="grano"]) .ear svg {
+  display: block;
+}

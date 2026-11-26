@@ -209,6 +209,23 @@
   font-weight: 600;
 }
 
+/* «Hai già tutti gli ingredienti»: in tutti i temi, una riga con il segno di spunta sopra l'elenco. Non è un'azione. */
+.allHave {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin: 0;
+  padding-block: var(--space-4);
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.allHave svg {
+  flex: none;
+  color: var(--state-ok);
+}
+
 .stepsList {
   display: flex;
   flex-direction: column;
@@ -677,4 +694,30 @@
   background: var(--button-fill);
   color: var(--button-text);
   font-weight: 600;
+}
+
+/* In Vivo la banda prende il fondo tinto di «a posto» (negli altri temi quella variabile è trasparente) */
+:global([data-palette="vivo"]) .allHave {
+  padding-inline: var(--space-6);
+  border-radius: var(--radius-sm);
+  background: var(--state-ok-tint);
+}
+
+/* ------------------------------------------------------------------------------------------------
+   Grano: la banda è una pastiglia larga verde chiaro con il segno in un tondo pieno (resta un'informazione, non un
+   pulsante: l'azione piena della scheda è «Cucina»).
+   ------------------------------------------------------------------------------------------------ */
+
+:global([data-variant="grano"]) .allHave {
+  padding-block: var(--space-5);
+  border-radius: var(--radius-md);
+}
+
+:global([data-variant="grano"]) .allHave circle {
+  fill: var(--state-ok);
+  stroke: none;
+}
+
+:global([data-variant="grano"]) .allHave path {
+  stroke: var(--color-on-fill);
 }
