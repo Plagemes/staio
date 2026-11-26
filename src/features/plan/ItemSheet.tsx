@@ -35,7 +35,7 @@ interface Props {
 const SUBTITLE: Record<Exclude<Step, "root">, string> = {
   eat: "Registra come mangiato",
   move: "Sposta",
-  amount: "Cambia le porzioni",
+  amount: "Correggi le porzioni",
 };
 
 /**
@@ -56,7 +56,7 @@ export function ItemSheet({ data, entry, entryRef, weekStart, nextWeekStart, ent
     // un giorno che non è ancora arrivato non si registra come mangiato
     ...(!eatShown && entry.date <= data.today ? [{ id: "eat", label: "Registra come mangiato", onSelect: () => setStep("eat") }] : []),
     { id: "move", label: "Sposta", onSelect: () => setStep("move") },
-    { id: "amount", label: item.kind === "food" ? "Cambia la quantità" : "Cambia le porzioni", onSelect: () => setStep("amount") },
+    { id: "amount", label: item.kind === "food" ? "Correggi la quantità" : "Correggi le porzioni", onSelect: () => setStep("amount") },
     ...(recipeShown && item.kind === "recipe" ? [{ id: "recipe", label: "Apri la ricetta", href: `/app/ricette/vedi?id=${encodeURIComponent(item.recipeId)}` }] : []),
     {
       id: "remove",

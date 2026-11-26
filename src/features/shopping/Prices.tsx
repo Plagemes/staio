@@ -14,7 +14,7 @@ export function Prices({ view }: { view: ShoppingView }) {
     <section className={ui.section} aria-label="Prezzi">
       <SectionHeader label="Prezzi" />
       {products.length === 0 ? (
-        <p className={ui.paragraph}>Servono almeno due acquisti dello stesso prodotto con il prezzo per vedere come cambia. Il prezzo si scrive alla cattura o si legge dallo scontrino.</p>
+        <p className={ui.paragraph}>Servono due acquisti con prezzo dello stesso prodotto.</p>
       ) : (
         <ul className={styles.table}>
           {products.map((h) => (
@@ -32,7 +32,7 @@ export function Prices({ view }: { view: ShoppingView }) {
       )}
       {notComparable > 0 ? (
         <p className={ui.hint}>
-          {notComparable} {notComparable === 1 ? "prodotto è stato comprato" : "prodotti sono stati comprati"} in unità diverse (per esempio a pezzi e a peso): senza il peso del pezzo non li confronto, restano fuori.
+          {notComparable} {notComparable === 1 ? "prodotto è comprato" : "prodotti sono comprati"} in unità diverse: restano fuori dal confronto.
         </p>
       ) : null}
       {singlePurchase > 0 ? <p className={ui.hint}>{singlePurchase} {singlePurchase === 1 ? "prodotto ha" : "prodotti hanno"} un solo acquisto con prezzo: non c&apos;è ancora uno storico.</p> : null}

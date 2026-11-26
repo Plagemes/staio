@@ -8,6 +8,7 @@ import { PLATE_MIN_CONFIDENCE, type PlatePhotoDraft } from "@/core/ai/platePhoto
 import { activeLots } from "@/core/ledger";
 import { usePantry } from "@/data";
 import { Button } from "@/design";
+import { Disclosure } from "../common";
 import { IMAGE_ERROR_MESSAGES, ImageError, PANTRY_IMAGE_LIMITS, prepareImage, type PreparedImage } from "../ai/image";
 import { describeAiError } from "../ai/messages";
 import { NotReady } from "../ai/NotReady";
@@ -183,9 +184,10 @@ function Plate({ settings }: { settings: AiSettings }) {
   return (
     <div className={ui.screen}>
       <AiHead title={TITLE} />
-      <p className={ui.lead}>
-        Fotografa il piatto: ti propongo che cosa c&apos;è e quanto, con un intervallo, perché da una foto la quantità è sempre una stima. Tu rivedi ogni voce prima che entri nel registro.
-      </p>
+      <p className={ui.lead}>Fotografa il piatto.</p>
+      <Disclosure quiet title="Che cosa significa">
+        Ti propongo che cosa c&apos;è e quanto, con un intervallo, perché da una foto la quantità è sempre una stima. Tu rivedi ogni voce prima che entri nel registro.
+      </Disclosure>
 
       <SendNotice settings={settings} sends="La foto del piatto (ridotta sul telefono) e l'elenco della tua dispensa (nomi e quantità)" now={now} />
 
@@ -223,7 +225,7 @@ function Plate({ settings }: { settings: AiSettings }) {
           </Button>
           {busy === "reading" ? (
             <Button variant="outline" onClick={() => abortRef.current?.abort()}>
-              Annulla
+              Ferma
             </Button>
           ) : null}
         </div>

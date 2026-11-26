@@ -88,8 +88,8 @@ export function QualityProduct() {
       {current?.status === "not_found" ? (
         <div className={ui.empty}>
           <h2 className={ui.emptyTitle}>Prodotto non trovato</h2>
-          <p className={ui.emptyText}>Open Food Facts non conosce il codice {code}: senza i suoi dati non posso valutarlo. Lo puoi aggiungere a mano alla dispensa.</p>
-          <Button href={captureHrefForCode(code)}>Inserisci a mano</Button>
+          <p className={ui.emptyText}>Open Food Facts non conosce il codice {code}: senza i suoi dati non posso valutarlo. Puoi aggiungerlo tu alla dispensa.</p>
+          <Button href={captureHrefForCode(code)}>Aggiungi alla dispensa</Button>
         </div>
       ) : null}
 

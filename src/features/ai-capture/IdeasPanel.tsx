@@ -500,7 +500,7 @@ function Ideas({
         </p>
         <p className={ui.hint}>
           <Link href={DIET_HREF} className={ui.textLink}>
-            Cambia
+            Correggi
           </Link>
           . {ALLERGEN_CHECK_NOTICE}
         </p>

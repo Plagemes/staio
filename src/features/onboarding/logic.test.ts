@@ -13,9 +13,24 @@ describe("parseOnboarding", () => {
   it("valori inattesi valgono «mai fatto»", () => {
     for (const raw of [null, "", "x", "1", "null", "[]", '{"phase":"altro"}']) expect(parseOnboarding(raw)).toEqual({ phase: "new" });
   });
-  it("legge fase e punto di partenza", () => {
-    expect(parseOnboarding(serializeOnboarding({ phase: "done", start: "meal" }))).toEqual({ phase: "done", start: "meal" });
+  it("legge fase, giorno di fine e «Lascia così»", () => {
+    expect(parseOnboarding(serializeOnboarding({ phase: "done", since: "2026-11-26", stepsHidden: true }))).toEqual({
+      phase: "done",
+      since: "2026-11-26",
+      stepsHidden: true,
+    });
+    expect(parseOnboarding('{"phase":"done"}')).toEqual({ phase: "done" });
+  });
+  it("una memoria vecchia con `start` si legge senza errori e `start` si ignora", () => {
+    expect(parseOnboarding('{"phase":"done","start":"meal"}')).toEqual({ phase: "done" });
     expect(parseOnboarding('{"phase":"redo","start":"x"}')).toEqual({ phase: "redo" });
+  });
+  it("scarta giorno e «Lascia così» malformati", () => {
+    for (const since of [20261126, "2026-11-6", "oggi", "", null, {}]) {
+      expect(parseOnboarding(JSON.stringify({ phase: "done", since }))).toEqual({ phase: "done" });
+    }
+    expect(parseOnboarding('{"phase":"done","stepsHidden":"yes"}')).toEqual({ phase: "done" });
+    expect(parseOnboarding('{"phase":"done","stepsHidden":false}')).toEqual({ phase: "done" });
   });
 });
 

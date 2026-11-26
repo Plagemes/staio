@@ -45,7 +45,7 @@ export function Realign() {
   if (!pantry.data || !now) {
     return (
       <div className={ui.screen}>
-        <h1 className={ui.title}>Riallinea</h1>
+        <h1 className={ui.title}>Controlla le quantità</h1>
         <LoadingLine />
       </div>
     );
@@ -114,7 +114,7 @@ export function Realign() {
     return (
       <div className={ui.screen}>
         <div className={ui.head}>
-          <h1 className={ui.title}>Riallinea</h1>
+          <h1 className={ui.title}>Controlla le quantità</h1>
           <Label>Fatto</Label>
         </div>
         {total === 0 ? (
@@ -169,7 +169,7 @@ export function Realign() {
   return (
     <div className={ui.screen}>
       <div className={ui.head}>
-        <h1 className={ui.title}>Riallinea</h1>
+        <h1 className={ui.title}>Controlla le quantità</h1>
         <Label>
           {done + 1} di {total}
         </Label>
@@ -258,7 +258,7 @@ export function Realign() {
         </Button>
         {undoButton}
         <Link href="/app/dispensa" className={ui.textLink}>
-          Esci
+          Torna alla dispensa
         </Link>
       </div>
     </div>

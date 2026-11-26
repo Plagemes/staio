@@ -13,6 +13,7 @@ import {
   type NoticeType,
 } from "@/core/notify";
 import { Button, SectionHeader } from "@/design";
+import { Disclosure } from "../common";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
 import { detectDevice, readPermission, requestPermission, showMessage } from "./browser";
@@ -188,7 +189,10 @@ export function NotificationsScreen() {
             />
             <span className={ui.switchText}>Avvisami</span>
           </label>
-          <p className={ui.hint}>Gli avvisi non si ripetono: ogni cosa te la dico una volta. Se sono più di una, ricevi un solo riepilogo.</p>
+          <p className={ui.hint}>Gli avvisi non si ripetono: ogni cosa te la dico una volta.</p>
+          <Disclosure title="Che cosa significa" quiet>
+            Se le cose da dire sono più di una, ricevi un solo riepilogo.
+          </Disclosure>
           {message ? (
             <p className={message.ok ? ui.hint : ui.error} role={message.ok ? "status" : "alert"}>
               {message.text}
@@ -279,7 +283,9 @@ export function NotificationsScreen() {
             </div>
           </div>
           {clockInvalid ? <p className={ui.error}>Orario non valido.</p> : null}
-          <p className={ui.hint}>Se il silenzio attraversa la mezzanotte (per esempio dalle 22:00 alle 08:00) vale per tutta la notte.</p>
+          <Disclosure title="Che cosa significa" quiet>
+            Se il silenzio attraversa la mezzanotte (per esempio dalle 22:00 alle 08:00) vale per tutta la notte.
+          </Disclosure>
         </div>
       </section>
 
@@ -299,7 +305,7 @@ export function NotificationsScreen() {
         </div>
       </section>
 
-      <p className={ui.hint}>Le scelte restano su questo dispositivo. Nessun dato lascia il telefono per mandare avvisi.</p>
+      <p className={ui.hint}>Le scelte restano sul telefono: nessun dato esce per mandare avvisi.</p>
     </div>
   );
 }

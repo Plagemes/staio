@@ -14,7 +14,7 @@ interface EmptyStateProps {
 }
 
 /** Schermata vuota: dice che cosa comparirà e porta alla cattura. Nessun dato di esempio. */
-export function EmptyState({ title, text, actionLabel = "Aggiungi un alimento", actionHref = "/app/cattura", secondaryLabel, secondaryHref }: EmptyStateProps) {
+export function EmptyState({ title, text, actionLabel = "Aggiungi alla dispensa", actionHref = "/app/cattura", secondaryLabel, secondaryHref }: EmptyStateProps) {
   return (
     <div className={styles.empty}>
       <h3 className={styles.emptyTitle}>{title}</h3>

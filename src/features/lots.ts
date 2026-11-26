@@ -106,7 +106,7 @@ export function levelPercent(lot: Lot): number {
 /** Frase per il pannello: da dove viene la data e se è una stima. */
 export function expiryExplanation(entry: PantryEntry): string {
   const { expiry } = entry;
-  if (!expiry) return "Nessuna scadenza nota. Scegli una categoria con «Modifica» per avere una stima.";
+  if (!expiry) return "Nessuna scadenza nota. Scegli una categoria con «Correggi», in «Altro», per avere una stima.";
   const date = formatCalendarDate(expiry.date);
   switch (expiry.basis) {
     case "label":

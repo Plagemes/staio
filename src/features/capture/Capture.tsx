@@ -752,7 +752,7 @@ export function Capture() {
                   />
                   <div className={ui.row}>
                     <Button variant="outline" onClick={() => setEditingNutrition(true)}>
-                      Modifica i valori
+                      Correggi i valori
                     </Button>
                   </div>
                 </>

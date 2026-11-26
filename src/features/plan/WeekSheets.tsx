@@ -52,7 +52,7 @@ export function AmountSheet({
   return (
     <StepFrame
       embedded={embedded}
-      title={item.kind === "food" ? "Cambia la quantità" : "Cambia le porzioni"}
+      title={item.kind === "food" ? "Correggi la quantità" : "Correggi le porzioni"}
       onClose={onClose}
       busy={busy}
       footer={
@@ -134,7 +134,7 @@ export function CopyDaySheet({
             </label>
           ))}
         </div>
-        <p className={ui.hint}>I pasti già pianificati nel giorno scelto vengono sostituiti. Con «Annulla» tornano.</p>
+        <p className={ui.hint}>I pasti già pianificati nel giorno scelto vengono sostituiti.</p>
       </fieldset>
       {error ? (
         <p className={ui.error} role="alert">

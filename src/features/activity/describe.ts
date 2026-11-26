@@ -1,5 +1,5 @@
 // «Ultime azioni»: il testo di una riga. Verbo al passato, che cosa, quanto; e dove si va a vederla. Logica pura.
-import type { DrinkEvent, MealEvent, MealKind, WaterEvent } from "@/core/diary";
+import { CATCHUP_NOTE, localDate, type DrinkEvent, type MealEvent, type MealKind, type WaterEvent } from "@/core/diary";
 import { familyOf, isKnownEvent, type AnyEvent, type EventFamily } from "@/core/events";
 import type {
   AdjustEvent,
@@ -18,6 +18,7 @@ import type {
 import { PREP_REPAIR_ID_PREFIX, type PrepEvent } from "@/core/prep";
 import { formatQuantity } from "@/core/units";
 import { DIET_HREF } from "../allergens";
+import { catchUpDayHref, catchUpOperationText } from "../catchup/catchupText";
 import { formatTime } from "../format";
 import { SYMPTOM_LABELS, formatKg, formatMl } from "../health";
 import { DISCARD_REASON_LABELS, LOCATION_LABELS } from "../labels";
@@ -109,10 +110,10 @@ const FAMILY_PAGES: Record<EventFamily, string> = {
 const AT_MOMENT: Record<MealKind, string> = { breakfast: "a colazione", lunch: "a pranzo", dinner: "a cena", snack: "come spuntino" };
 const SKIPPED: Record<MealKind, string> = { breakfast: "Colazione saltata", lunch: "Pranzo saltato", dinner: "Cena saltata", snack: "Spuntino saltato" };
 const NO_DETAILS: Record<MealKind, string> = {
-  breakfast: "Colazione mangiata, senza dettagli",
-  lunch: "Pranzo mangiato, senza dettagli",
-  dinner: "Cena mangiata, senza dettagli",
-  snack: "Spuntino mangiato, senza dettagli",
+  breakfast: "Colazione · mangiato, senza dettagli",
+  lunch: "Pranzo · mangiato, senza dettagli",
+  dinner: "Cena · mangiato, senza dettagli",
+  snack: "Spuntino · mangiato, senza dettagli",
 };
 const RATINGS = { poor: "non buono", good: "buono", great: "ottimo" } as const;
 
@@ -340,6 +341,16 @@ function describer(ctx: DescribeContext) {
     if (own.length === 0 || own.some((e) => !isKnownEvent(e))) return { text: GENERIC };
     const corrected = own.length < op.events.length;
     const of = <E extends AnyEvent>(type: E["type"]): E[] => own.filter((e) => e.type === type) as E[];
+
+    // «Mettiamoci in pari»: più giorni in una scrittura sola, non un pasto registrato adesso. Una correzione successiva
+    // di quei pasti ne eredita la nota, ma è una correzione: la descrive `mealPhrase`.
+    if (!corrected && own.every((e) => (e.type === "meal" || e.type === "mealDeclaration") && e.note === CATCHUP_NOTE && !hasReplaces(e))) {
+      const dates = own.map((e) => (e.type === "mealDeclaration" ? e.date : localDate(e.at, ctx.timeZone) ?? ""));
+      if (dates.every((d) => d !== "")) {
+        const first = [...dates].sort()[0];
+        return { text: catchUpOperationText(dates), href: catchUpDayHref(first) };
+      }
+    }
 
     const meals = of<MealEvent>("meal");
     const consumes = of<ConsumeEvent>("consume");

@@ -6,6 +6,7 @@ import type { AnyEvent } from "@/core/events";
 import { activeLots, type PantryState } from "@/core/ledger";
 import { Button, Label } from "@/design";
 import { ActionList, Sheet, type ActionItem } from "../common";
+import { Hint } from "../common/Hint";
 import { drinkCounts } from "../drinks";
 import { DRINK_PRESETS, formatMl, type DrinkPreset } from "../health";
 import { DrinkPantrySuggestion, useDrinkSuggestion } from "../health/DrinkPantry";
@@ -15,6 +16,7 @@ import { buildMealFromHabit, itemText } from "../meals";
 import ui from "../ui.module.css";
 import { useRecord } from "../useRecord";
 import { CookingNow } from "./CookingNow";
+import { FirstSteps, useFirstSteps } from "./FirstStepsBlock";
 import { HABIT_WINDOW_MINUTES, nowAction, nowActionHref, nowActionLabel } from "./nowModel";
 import { useWaterGoal } from "./useWaterGoal";
 import styles from "./Now.module.css";
@@ -43,6 +45,7 @@ const TEA = DRINK_PRESETS.find((p) => p.id === "tea");
 /**
  * Il blocco d'azione di Oggi: che cosa registrare adesso. Un pulsante per il pasto del momento (con il pasto abituale,
  * se c'è, già pronto), quattro pastiglie per ciò che si beve, e sotto il conto del giorno, che cambia a ogni tocco.
+ * In fondo, nella prima settimana, «Primi passi»: ciò che resta da fare, senza pulsanti propri.
  */
 export function Now({ now, today, diary, pantry, onShowWater, onDrinkAdded, withCooking = false }: Props) {
   const timeZone = diary.timeZone;
@@ -57,6 +60,7 @@ export function Now({ now, today, diary, pantry, onShowWater, onDrinkAdded, with
   const customFormId = useId();
   const [sheetError, setSheetError] = useState<string | null>(null);
   const busy = recording || drinkActions.busy;
+  const firstSteps = useFirstSteps({ today, diary, pantry });
 
   const day = getDay(diary, today);
   const habits = useMemo(() => habitsToPropose(diary, now, { windowMinutes: HABIT_WINDOW_MINUTES }), [diary, now]);
@@ -193,6 +197,9 @@ export function Now({ now, today, diary, pantry, onShowWater, onDrinkAdded, with
             {error}
           </p>
         ) : null}
+
+        {/* «Primi passi» nella prima settimana; senza, il suggerimento per il «+» (mai tutti e due) */}
+        {firstSteps.rows !== null ? <FirstSteps rows={firstSteps.rows} /> : firstSteps.ready ? <Hint id="add" /> : null}
       </div>
 
       {/* fuori dal blocco tinto: il foglio non ne eredita i colori */}

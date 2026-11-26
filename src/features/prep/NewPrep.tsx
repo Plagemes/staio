@@ -16,6 +16,7 @@ import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
 import { NUTRITION_DISCLAIMER_SHORT } from "../nutrition/labels";
 import { barcodesOfLots, buildResolver } from "../nutrition/resolver";
 import { useFoodOverrides, useFoods, useProducts } from "../nutrition/useNutrition";
+import { Disclosure } from "../common/Disclosure";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
 import { useRecord } from "../useRecord";
@@ -66,7 +67,7 @@ export function NewPrep() {
           text="Non trovo la ricetta da cui partire: potrebbe essere stata ritirata. Puoi comunque scegliere gli ingredienti a mano."
           actionLabel="Prepara senza ricetta"
           actionHref="/app/preparazioni/nuova"
-          secondaryLabel="Vai al ricettario"
+          secondaryLabel="Apri il ricettario"
           secondaryHref="/app/ricette"
         />
       </div>
@@ -239,7 +240,7 @@ function Form({ recipe, written, substitutions, unapplied, servings, entries, no
           Parti da «{recipe.title}»: ho proposto dalla dispensa ciò che serve, prima ciò che scade. Controlla le quantità.
         </p>
       ) : (
-        <p className={ui.lead}>Scegli gli ingredienti dalla dispensa, quante porzioni ottieni e dove le metti.</p>
+        <Disclosure quiet title="Che cosa significa">Scegli gli ingredienti dalla dispensa, quante porzioni ottieni e dove le metti.</Disclosure>
       )}
 
       {substitutions.length > 0 && written ? (
@@ -418,7 +419,7 @@ function Form({ recipe, written, substitutions, unapplied, servings, entries, no
         <Button type="submit" disabled={busy}>
           {busy ? "Salvo…" : "Salva la preparazione"}
         </Button>
-        <p className={ui.hint}>Gli ingredienti escono dalla dispensa e le porzioni ci entrano. Con «Annulla» subito dopo torna tutto com&apos;era.</p>
+        <Disclosure quiet title="Che cosa significa">Gli ingredienti escono dalla dispensa e le porzioni ci entrano.</Disclosure>
       </form>
 
       <Link href="/app/preparazioni" className={ui.textLink}>

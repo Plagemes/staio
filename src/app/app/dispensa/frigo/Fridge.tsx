@@ -7,6 +7,7 @@ import { activeLots, type Location } from "@/core/ledger";
 import { useEventLog, usePantry } from "@/data";
 import { Button, Label, Tabs } from "@/design";
 import { findCreationEvent } from "@/features/actions";
+import { Disclosure } from "@/features/common";
 import { dayOf } from "@/features/format";
 import { LOCATION_LABELS } from "@/features/labels";
 import { evaluateLots, isExpiring } from "@/features/lots";
@@ -77,7 +78,7 @@ export function Fridge() {
       <div className={ui.head}>
         <h1 className={ui.title}>{placeLabel}</h1>
         <Link href="/app/dispensa" className={styles.back}>
-          Elenco
+          Torna alla dispensa
         </Link>
       </div>
 
@@ -117,13 +118,14 @@ export function Fridge() {
             {hiddenHere > 0 ? (
               <p className={styles.note}>
                 {hiddenHere === 1 ? "1 alimento non entra" : `${hiddenHere} alimenti non entrano`} in scena: restano fuori i meno
-                urgenti. Li trovi nell&apos;elenco.
+                urgenti. Li trovi nella dispensa.
               </p>
             ) : null}
-            <p className={styles.note}>
-              In rosso ciò che scade presto. Una confezione più piccola è una confezione più vuota. Bottiglie e cartoni stanno nello sportello, frutta e verdura nel cassetto. Tocca un alimento per vederlo.
-            </p>
+            <p className={styles.note}>In rosso ciò che scade presto.</p>
           </div>
+          <Disclosure quiet title="Che cosa significa">
+            Una confezione più piccola è una confezione più vuota. Bottiglie e cartoni stanno nello sportello, frutta e verdura nel cassetto. Tocca un alimento per vederlo.
+          </Disclosure>
 
           {selected ? (
             <div className={styles.card}>

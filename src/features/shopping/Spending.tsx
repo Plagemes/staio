@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import { monthlyBudgetProgress, type SpendPeriodId, type SpendSummary } from "@/core/prices";
 import { Button, Label, ProgressLine, SectionHeader, Tabs, Value } from "@/design";
 import { formatPrice, parsePriceCents } from "../format";
+import { Disclosure } from "../common/Disclosure";
 import ui from "../ui.module.css";
 import { budgetText, categoryLabel, spendText } from "./priceText";
 import { SETTING_KEYS } from "./settings";
@@ -76,7 +77,7 @@ export function Spending({ data, undo, summaries, onOpen }: { data: ShoppingData
           ))}
         </ul>
       ) : null}
-      <p className={ui.hint}>Contano gli acquisti registrati con un prezzo; quelli annullati o corretti nel registro valgono come corretti.</p>
+      <Disclosure quiet title="Che cosa significa">Contano gli acquisti registrati con un prezzo; quelli annullati o corretti nel registro valgono come corretti.</Disclosure>
 
       {progress ? (
         <div className={styles.card}>
@@ -109,7 +110,7 @@ export function Spending({ data, undo, summaries, onOpen }: { data: ShoppingData
               Salva
             </Button>
             <Button variant="text" onClick={() => setEditing(false)}>
-              Annulla
+              Chiudi
             </Button>
           </div>
           {error ? <p className={ui.error}>{error}</p> : null}

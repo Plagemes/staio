@@ -266,8 +266,9 @@ function Form({
         <h1 className={ui.title}>{buttonText}</h1>
       </div>
       <p className={ui.lead}>
-        «{recipe.title}», {servings === 1 ? "1 porzione" : `${servings} porzioni`}. Ho proposto dalla dispensa ciò che serve, prima ciò che scade: controlla le quantità.
+        «{recipe.title}», {servings === 1 ? "1 porzione" : `${servings} porzioni`}. Controlla le quantità.
       </p>
+      <Disclosure quiet title="Che cosa significa">Le quantità sono proposte dalla dispensa: prima ciò che scade.</Disclosure>
 
       {substitutions.length > 0 ? (
         <p className={ui.hint}>
@@ -321,7 +322,7 @@ function Form({
             <h2 className={ui.fieldLabel} id={`${ids}-free`}>
               Non in dispensa
             </h2>
-            <p className={ui.hint}>Le segno come voci a mano: non scalano la dispensa e valgono come stime.</p>
+            <p className={ui.hint}>Le segno a mano: non scalano la dispensa, valgono come stime.</p>
             {free.map((row) => {
               const usedIndex = free.filter((f) => f.use).findIndex((f) => f.id === row.id);
               return (
@@ -418,7 +419,7 @@ function Form({
         ) : null}
 
         <DishRatingRow value={vote} onChange={setVote} disabled={busyNow} />
-        <p className={ui.hint}>Si salta: la ritrovi nella scheda della ricetta e la puoi cambiare quando vuoi.</p>
+        <Disclosure quiet title="Che cosa significa">Si salta: la ritrovi nella scheda della ricetta e la puoi cambiare quando vuoi.</Disclosure>
       </form>
 
       <Link href={recipeHref("/app/ricette/vedi", written.recipeId, substitutions, servings)} className={ui.textLink}>

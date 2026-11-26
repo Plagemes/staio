@@ -12,6 +12,7 @@ import { useAiSettings } from "../ai/useAiSettings";
 import { formFromDraft } from "../recipes/form";
 import { draftSummary, type ImportDraft } from "../recipes/importDraft";
 import { RecipeEditor } from "../recipes/RecipeEditor";
+import { Disclosure } from "../common/Disclosure";
 import ui from "../ui.module.css";
 import { readVideo } from "./analyze";
 import { captionHasRecipe, draftFromCaption, draftFromReading } from "./draft";
@@ -164,9 +165,9 @@ function SharedBody({ shared }: { shared: SharedContent }) {
               </>
             ) : null}
             {shown.cost ? <p className={ui.hint}>{shown.cost}</p> : null}
-            <p className={ui.hint}>
+            <Disclosure quiet title="Che cosa significa">
               {PERSONAL_USE} La fonte è già nei campi in fondo: lasciala, serve a ritrovare da dove viene.
-            </p>
+            </Disclosure>
             <div>
               <Button
                 variant="text"
@@ -219,7 +220,7 @@ function SharedBody({ shared }: { shared: SharedContent }) {
         <h1 className={ui.title}>Condiviso con {APP_NAME}</h1>
         <Label>{platform ? PLATFORM_LABELS[platform] : "Condiviso"}</Label>
       </div>
-      <p className={ui.lead}>Ecco cosa è arrivato. Prima di salvare qualsiasi ricetta la rivedi e la correggi tu.</p>
+      <p className={ui.lead}>Ecco cosa è arrivato. La ricetta la rivedi prima di salvarla.</p>
 
       <div className={styles.received}>
         {shared.title !== "" ? <p className={styles.receivedTitle}>{shared.title}</p> : null}
@@ -270,15 +271,15 @@ function SharedBody({ shared }: { shared: SharedContent }) {
                     : "Le impostazioni dell'intelligenza artificiale sono incomplete: correggile per leggere il video. Intanto puoi incollare qui la didascalia."}
                 </p>
                 <Link href="/app/impostazioni/ai" className={ui.textLink}>
-                  Vai alle impostazioni dell&apos;intelligenza artificiale
+                  Apri le impostazioni dell&apos;intelligenza artificiale
                 </Link>
               </>
             ) : (
               <>
-                <p className={ui.paragraph}>
-                  Il link va al tuo servizio di estrazione ({serviceHost(service.url)}), che scarica il video e ne prende didascalia e alcune
-                  immagini. Poi le legge il telefono, con la tua chiave: costa qualche centesimo e conta nel tetto di spesa.
-                </p>
+                <p className={ui.paragraph}>Il link va a {serviceHost(service.url)}; poi legge il telefono, con la tua chiave.</p>
+                <Disclosure quiet title="Che cosa significa">
+                  Il servizio scarica il video e ne prende didascalia e alcune immagini. Leggerle costa qualche centesimo e conta nel tetto di spesa.
+                </Disclosure>
                 <div className={ui.row}>
                   <Button onClick={() => void readFromVideo()} disabled={busy !== null || !aiReady}>
                     {busy === "extracting" ? "Scarico il video…" : busy === "reading" ? "Leggo il video…" : "Leggi il video"}
@@ -337,7 +338,7 @@ function SharedBody({ shared }: { shared: SharedContent }) {
                 }}
                 placeholder={"Ingredienti\n320 g spaghetti\n400 ml passata\nPreparazione\nCuoci la pasta per 10 minuti."}
               />
-              <p className={ui.hint}>Funziona anche senza rete. Il link del video resta salvato come fonte della ricetta.</p>
+              <p className={ui.hint}>Funziona anche senza rete. Il link resta come fonte.</p>
             </div>
             <Button type="submit" variant={videoOffered ? "outline" : "primary"}>
               Leggi il testo

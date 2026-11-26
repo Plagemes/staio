@@ -95,4 +95,17 @@ export {
   rewriteMeal,
 } from "./editMeal";
 export { familyConsumes } from "./log";
+export {
+  CATCHUP_LOOKBACK_DAYS,
+  CATCHUP_MIN_DAYS,
+  CATCHUP_NOTE,
+  InvalidCatchUpError,
+  buildCatchUpEvents,
+  catchUpDays,
+  catchUpKey,
+  emptyDays,
+  isEmptyDay,
+  stillEmpty,
+} from "./catchup";
+export type { CatchUpChoice, CatchUpContext, CatchUpEntry, CatchUpKind } from "./catchup";
 export type { EditContext, MealEdit } from "./editMeal";

@@ -22,6 +22,7 @@ import {
   type SyncOverview,
 } from "@/data/sync";
 import { Button, SectionHeader } from "@/design";
+import { Disclosure } from "../common";
 import { dayOf } from "../format";
 import settingsStyles from "../settings/Settings.module.css";
 import ui from "../ui.module.css";
@@ -371,10 +372,10 @@ export function SyncScreen() {
       <section className={ui.section}>
         <SectionHeader label="Stato" />
         <div className={settingsStyles.block}>
-          <p className={ui.paragraph}>
-            Tiene allineati i tuoi dispositivi senza passare da un server dell&apos;app: con il tuo Google Drive oppure con un file.
-            Si aggiunge soltanto, non si cancella niente.
-          </p>
+          <p className={ui.paragraph}>Tiene allineati i tuoi dispositivi, senza un server dell&apos;app.</p>
+          <Disclosure title="Che cosa significa" quiet>
+            Con il tuo Google Drive oppure con un file. Si aggiunge soltanto, non si cancella niente.
+          </Disclosure>
           <dl className={styles.facts}>
             <dt>Con Google Drive</dt>
             <dd>{lastOutcome(overview?.drive)}</dd>
@@ -400,10 +401,10 @@ export function SyncScreen() {
         <div className={settingsStyles.block}>
           {driveReady ? (
             <>
-              <p className={ui.paragraph}>
-                I dati vanno in una cartella nascosta del tuo Drive che solo l&apos;app vede, sempre cifrati con la tua frase
-                segreta: Google non può leggerli. L&apos;app chiede il permesso solo per quella cartella.
-              </p>
+              <p className={ui.paragraph}>Dati cifrati in una cartella nascosta: Google non può leggerli.</p>
+              <Disclosure title="Che cosa significa" quiet>
+                La cartella sta nel tuo Drive e solo l&apos;app la vede. I dati sono sempre cifrati con la tua frase segreta. L&apos;app chiede il permesso solo per quella cartella.
+              </Disclosure>
               <div className={ui.row}>
                 <Button onClick={onSyncDrive} disabled={busy}>
                   {busy ? "Sincronizzo…" : "Sincronizza ora"}
@@ -431,16 +432,17 @@ export function SyncScreen() {
       <section className={ui.section}>
         <SectionHeader label="Frase segreta" />
         <div className={settingsStyles.block}>
-          <p className={ui.paragraph}>
-            Con Drive è obbligatoria: cifra i dati prima che lascino il telefono. Usa la stessa frase su tutti i tuoi dispositivi.
-            Non viene salvata: resta solo una chiave che nessuno può leggere. Se la dimentichi, i dati su Drive non si possono
-            recuperare, ma quelli sui telefoni restano.
-          </p>
+          <p className={ui.paragraph}>Con Drive è obbligatoria: cifra i dati prima che lascino il telefono.</p>
+          <p className={ui.paragraph}>Se la dimentichi, i dati su Drive non si possono recuperare.</p>
+          <Disclosure title="Che cosa significa" quiet>
+            Usa la stessa frase su tutti i tuoi dispositivi. Non viene salvata: resta solo una chiave che nessuno può leggere. I dati sui telefoni restano anche se la dimentichi.
+          </Disclosure>
           {step === "connect" ? (
             <>
-              <p className={ui.paragraph}>
-                Prima collega Google Drive: se hai già impostato la frase su un altro dispositivo, la trovo lì e ti chiedo quella.
-              </p>
+              <p className={ui.paragraph}>Prima collega Google Drive.</p>
+              <Disclosure title="Che cosa significa" quiet>
+                Se hai già impostato la frase su un altro dispositivo, la trovo lì e ti chiedo quella.
+              </Disclosure>
               <div className={ui.row}>
                 <Button onClick={onConnect} disabled={busy}>
                   Collega Google Drive
@@ -514,7 +516,7 @@ export function SyncScreen() {
                       }}
                       disabled={busy}
                     >
-                      Annulla
+                      Chiudi
                     </Button>
                   </div>
                 </form>
@@ -529,7 +531,7 @@ export function SyncScreen() {
                       Sì, togli la chiave
                     </Button>
                     <Button variant="outline" onClick={() => setConfirmForget(false)} disabled={busy}>
-                      Annulla
+                      Chiudi
                     </Button>
                   </div>
                 </div>
@@ -552,10 +554,10 @@ export function SyncScreen() {
       <section className={ui.section}>
         <SectionHeader label="Sincronizzazione con file" />
         <div className={settingsStyles.block}>
-          <p className={ui.paragraph}>
-            Funziona subito, senza account: prepara il file su un telefono, mandalo all&apos;altro (messaggio, cavo, chiavetta) e
-            aprilo lì con «Unisci un file». Poi fai lo stesso nel verso opposto. Unire non cancella niente.
-          </p>
+          <p className={ui.paragraph}>Funziona subito, senza account.</p>
+          <Disclosure title="Che cosa significa" quiet>
+            Prepara il file su un telefono, mandalo all&apos;altro (messaggio, cavo, chiavetta) e aprilo lì con «Unisci un file». Poi fai lo stesso nel verso opposto. Unire non cancella niente.
+          </Disclosure>
           <label className={ui.switch}>
             <input type="checkbox" checked={encryptFile && keysReady} disabled={!keysReady || busy} onChange={(e) => setEncryptFile(e.target.checked)} />
             <span className={ui.switchText}>
@@ -594,7 +596,7 @@ export function SyncScreen() {
                   Sblocca e unisci
                 </Button>
                 <Button variant="outline" onClick={() => setLockedPackage(null)} disabled={busy}>
-                  Annulla
+                  Chiudi
                 </Button>
               </div>
             </form>
@@ -610,10 +612,10 @@ export function SyncScreen() {
             <p className={ui.paragraph}>Nessuno. Qui compaiono i dati arrivati da un altro dispositivo che non si possono applicare.</p>
           ) : (
             <>
-              <p className={ui.paragraph}>
-                Questi dati sono arrivati ma non sono stati applicati. Restano conservati qui; quelli che una versione più
-                recente dell&apos;app sa leggere vengono riprovati dopo un aggiornamento.
-              </p>
+              <p className={ui.paragraph}>Questi dati sono arrivati ma non sono stati applicati.</p>
+              <Disclosure title="Che cosa significa" quiet>
+                Restano conservati qui; quelli che una versione più recente dell&apos;app sa leggere vengono riprovati dopo un aggiornamento.
+              </Disclosure>
               <ul className={styles.list}>
                 {quarantine.map((q) => (
                   <li key={q.id} className={styles.item}>
@@ -640,7 +642,7 @@ export function SyncScreen() {
                       Sì, svuota
                     </Button>
                     <Button variant="outline" onClick={() => setConfirmClear(false)} disabled={busy}>
-                      Annulla
+                      Chiudi
                     </Button>
                   </div>
                 </div>

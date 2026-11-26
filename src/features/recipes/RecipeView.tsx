@@ -324,7 +324,7 @@ function Detail({ recipe: written, initialServings, initialSubstitutions }: { re
           </div>
           {!servingsValid ? <p className={ui.error}>Scrivi un numero di porzioni da 1 a 1000.</p> : null}
           {servings !== recipe.servings ? (
-            <p className={ui.hint}>Le quantità sono scalate e arrotondate a valori comodi: sono approssimative.</p>
+            <Disclosure quiet title="Che cosa significa">Le quantità sono scalate e arrotondate a valori comodi: sono approssimative.</Disclosure>
           ) : null}
         </div>
 
@@ -401,7 +401,7 @@ function Detail({ recipe: written, initialServings, initialSubstitutions }: { re
           </p>
         ) : null}
         {comparison && comparison.items.some((x) => x.check === "presence" && x.status === "available" && x.needed) ? (
-          <p className={ui.hint}>Dove scrivo «in casa» senza quantità, l&apos;unità non si confronta con la dispensa: ho controllato solo che ci sia.</p>
+          <Disclosure quiet title="Che cosa significa">Dove scrivo «in casa» senza quantità, l&apos;unità non si confronta con la dispensa: ho controllato solo che ci sia.</Disclosure>
         ) : null}
       </section>
 
@@ -466,7 +466,7 @@ function Detail({ recipe: written, initialServings, initialSubstitutions }: { re
                 <p className={ui.hint}>Stima dagli ultimi prezzi che hai pagato per gli stessi prodotti.</p>
               </>
             ) : (
-              <p className={ui.hint}>Nessun prezzo noto: comparirà quando registri un acquisto, con il prezzo, di questi ingredienti.</p>
+              <Disclosure quiet title="Che cosa significa">Nessun prezzo noto: comparirà quando registri un acquisto, con il prezzo, di questi ingredienti.</Disclosure>
             )}
           </div>
         </section>

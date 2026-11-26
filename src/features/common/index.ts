@@ -7,3 +7,5 @@ export { closeSheetThen } from "./sheetHistory";
 export { BreakdownSheet, type BreakdownGroup, type BreakdownRow, type BreakdownSheetProps } from "./Breakdown";
 export { useWakeLock } from "./useWakeLock";
 export { formEpochKey, useFormEpoch } from "./freshForm";
+export { Hint, useHint } from "./Hint";
+export { HINTS, hintKey, type HintId } from "./hints";

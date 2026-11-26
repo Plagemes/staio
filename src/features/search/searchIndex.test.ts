@@ -184,6 +184,12 @@ describe("search: pagine", () => {
     expect(pagesOf("qualità")).toEqual(["Qualità dei prodotti"]);
   });
 
+  it("una parola chiave corta vale solo scritta per intero: «ai» trova la pagina, «a» no, «latte» come prima", () => {
+    expect(pagesOf("ai")).toEqual(["Intelligenza artificiale"]);
+    expect(pagesOf("a")).toEqual([]);
+    expect(pagesOf("latte")).toEqual([]);
+  });
+
   it("se si trovano soltanto pagine, le pagine vengono per prime e sotto restano le due azioni, senza «Non ne hai in casa.»", () => {
     const groups = search("tema", sources());
     expect(titles(groups)).toEqual(["Pagine", "Azioni"]);

@@ -9,9 +9,11 @@ export const SECRET_PREFIX = "ai.";
 export const SECRET_KEYS: ReadonlySet<string> = new Set(["video.service"]);
 /**
  * Stato di un solo telefono: una copia che arriva da fuori non deve cambiarlo (la data dell'ultima copia) e non deve
- * far ricomparire su un altro telefono una bozza di scontrino o una cucina a metà.
+ * far ricomparire su un altro telefono una bozza di scontrino, una cucina a metà o un suggerimento già visto.
  */
 const LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set(["backup.lastExportAt", "receipt.draft", "recipes.cookSession"]);
+/** Prefisso dei suggerimenti già mostrati (`hint.<id>`): stato di questo telefono, come la bozza dello scontrino. */
+const LOCAL_ONLY_PREFIX = "hint.";
 
 export const SETTINGS_FORMAT = "ledger-settings";
 export const SETTINGS_VERSION = 1;
@@ -30,7 +32,7 @@ function assertWritable(key: string): void {
 
 /** Una sola regola per l'esportazione e per l'importazione. */
 const isExportable = (key: string): boolean =>
-  key.length > 0 && !key.startsWith(SECRET_PREFIX) && !SECRET_KEYS.has(key) && !RESERVED_KEYS.has(key) && !LOCAL_ONLY_KEYS.has(key);
+  key.length > 0 && !key.startsWith(SECRET_PREFIX) && !SECRET_KEYS.has(key) && !RESERVED_KEYS.has(key) && !LOCAL_ONLY_KEYS.has(key) && !key.startsWith(LOCAL_ONLY_PREFIX);
 
 export async function getSetting<T = unknown>(key: string): Promise<T | undefined> {
   if (RESERVED_KEYS.has(key)) return undefined;

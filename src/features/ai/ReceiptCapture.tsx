@@ -71,7 +71,7 @@ export function ReceiptCapture() {
 
   const issue = configIssue(settings);
   if (issue !== null) {
-    return <NotReady issue={issue} title="Scontrino" what="leggere uno scontrino da una foto" alternative={{ href: "/app/cattura", label: "Aggiungi a mano" }} />;
+    return <NotReady issue={issue} title="Scontrino" what="leggere uno scontrino da una foto" alternative={{ href: "/app/cattura", label: "Aggiungi alla dispensa" }} />;
   }
   return <Reader settings={settings} />;
 }
@@ -595,7 +595,14 @@ function Reader({ settings }: { settings: AiSettings }) {
       </div>
     ) : null;
 
-  const howTo = <p className={ui.hint}>Scontrino lungo? Fotografalo a pezzi, dall&apos;alto in basso, lasciando una riga in comune tra una foto e l&apos;altra.</p>;
+  const howTo = (
+    <>
+      <p className={ui.hint}>Scontrino lungo? Fotografalo a pezzi.</p>
+      <Disclosure quiet title="Che cosa significa">
+        Dall&apos;alto in basso, lasciando una riga in comune tra una foto e l&apos;altra.
+      </Disclosure>
+    </>
+  );
 
   return (
     <div className={ui.screen}>
@@ -627,7 +634,12 @@ function Reader({ settings }: { settings: AiSettings }) {
               {done}
             </p>
           ) : (
-            <p className={ui.lead}>Fotografa lo scontrino: ti propongo gli alimenti, con quantità, categoria e luogo. Tu rivedi le righe prima che entrino in dispensa.</p>
+            <>
+              <p className={ui.lead}>Fotografa lo scontrino.</p>
+              <Disclosure quiet title="Che cosa significa">
+                Ti propongo gli alimenti, con quantità, categoria e luogo. Tu rivedi le righe prima che entrino in dispensa.
+              </Disclosure>
+            </>
           )}
 
           <div className={ui.calloutStrong} role="note">
@@ -678,7 +690,7 @@ function Reader({ settings }: { settings: AiSettings }) {
             <p className={ui.hint}>
               Non vuoi usare l&apos;intelligenza artificiale?{" "}
               <Link href="/app/cattura" className={ui.textLink}>
-                Aggiungi a mano
+                Aggiungi alla dispensa
               </Link>
             </p>
           ) : null}
@@ -820,14 +832,17 @@ function Reader({ settings }: { settings: AiSettings }) {
             {lines.length === 0 ? (
               <div className={ui.empty}>
                 <h2 className={ui.emptyTitle}>Nessuna riga letta</h2>
-                <p className={ui.emptyText}>La foto potrebbe essere sfocata o tagliata. Prova con un&apos;altra, oppure aggiungi gli alimenti a mano.</p>
+                <p className={ui.emptyText}>La foto potrebbe essere sfocata o tagliata. Prova con un&apos;altra, oppure aggiungili alla dispensa.</p>
               </div>
             ) : (
               <>
                 <p className={ui.paragraph} role="status">
                   {reviewStatus(lines, rowErrors)}
                 </p>
-                <p className={ui.hint}>Letto da {providerName} dalle foto: sono stime. Entrano in dispensa solo le righe accese.</p>
+                <p className={ui.hint}>Letto da {providerName} dalle foto: sono stime.</p>
+                <Disclosure quiet title="Che cosa significa">
+                  Entrano in dispensa solo le righe accese.
+                </Disclosure>
                 {mainKeys.length > 0 ? (
                   <ul className={styles.rows}>
                     {mainKeys.map((k) => {

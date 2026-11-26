@@ -111,7 +111,7 @@ export function NutritionEntry({ barcode, product, safety, onSaved }: Props) {
             ) : null}
             {busy === "reading" ? (
               <Button variant="outline" onClick={() => abortRef.current?.abort()}>
-                Annulla
+                Ferma
               </Button>
             ) : null}
             {busy === null ? (
@@ -123,7 +123,7 @@ export function NutritionEntry({ barcode, product, safety, onSaved }: Props) {
                   setManual(true);
                 }}
               >
-                {hasValues ? "Modifica i valori" : "Scrivi i valori nutrizionali"}
+                {hasValues ? "Correggi i valori" : "Scrivi i valori nutrizionali"}
               </Button>
             ) : null}
           </div>

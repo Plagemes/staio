@@ -8,6 +8,7 @@ import type { AnyEvent } from "@/core/events";
 import { formatQuantity } from "@/core/units";
 import { appendEvents, getDeviceId } from "@/data";
 import { Button, Label, SectionHeader } from "@/design";
+import { Disclosure } from "../common";
 import { buildUndo } from "../actions";
 import type { PantryEntry } from "../lots";
 import { mealInstant, todayHref } from "../meal/mealTarget";
@@ -132,11 +133,12 @@ export function MealDraftReview({ source, initialKind, pastDate = null, initialR
     return (
       <div className={ui.empty} role="status">
         <h2 className={ui.emptyTitle}>{done.undone ? "Ho annullato tutto" : "Fatto"}</h2>
-        <p className={ui.emptyText}>
-          {done.undone
-            ? "Il registro è tornato com'era prima di questo pasto."
-            : `${done.message} È segnato come stimato, e la dispensa è stata scalata solo per le voci che hai confermato. «Annulla» toglie il pasto senza cancellare nulla.`}
-        </p>
+        <p className={ui.emptyText}>{done.undone ? "Il registro è tornato com'era prima di questo pasto." : `${done.message} È segnato come stimato.`}</p>
+        {done.undone ? null : (
+          <Disclosure quiet title="Che cosa significa">
+            La dispensa è stata scalata solo per le voci che hai confermato. «Annulla» toglie il pasto senza cancellare nulla.
+          </Disclosure>
+        )}
         {general ? (
           <p className={ui.error} role="alert">
             {general}
@@ -181,7 +183,10 @@ export function MealDraftReview({ source, initialKind, pastDate = null, initialR
             A che ora
           </label>
           <input id={`${ids}-time`} className={ui.input} type="time" value={mealTime} onChange={(e) => setTimeEdit(e.target.value)} />
-          <p className={ui.hint}>Il pasto finisce nel giorno scelto in Oggi. Gli alimenti presi dalla dispensa si scalano adesso.</p>
+          <p className={ui.hint}>Il pasto finisce nel giorno scelto in Oggi.</p>
+          <Disclosure quiet title="Che cosa significa">
+            Gli alimenti presi dalla dispensa si scalano adesso.
+          </Disclosure>
         </div>
       ) : null}
 
@@ -190,7 +195,7 @@ export function MealDraftReview({ source, initialKind, pastDate = null, initialR
         {rows.length === 0 ? (
           <div className={ui.empty}>
             <h2 className={ui.emptyTitle}>Nessuna voce</h2>
-            <p className={ui.emptyText}>Dalla {sourceNoun} non ho ricavato niente di utilizzabile. Aggiungi le voci a mano qui sotto, oppure riprova.</p>
+            <p className={ui.emptyText}>Dalla {sourceNoun} non ho ricavato niente di utilizzabile. Scrivi le voci qui sotto, oppure riprova.</p>
           </div>
         ) : (
           <ul className={styles.rows}>
@@ -208,10 +213,10 @@ export function MealDraftReview({ source, initialKind, pastDate = null, initialR
             ))}
           </ul>
         )}
-        {leftovers.length > 0 ? <p className={ui.hint}>Non ho saputo riconoscere: {leftovers.join("; ")}. Se serve, aggiungilo a mano.</p> : null}
+        {leftovers.length > 0 ? <p className={ui.hint}>Non ho saputo riconoscere: {leftovers.join("; ")}. Se serve, scrivilo come voce.</p> : null}
         <div className={ui.row}>
           <Button variant="outline" onClick={() => setRows((all) => [...all, newFreeRow()])}>
-            Aggiungi una voce a mano
+            Scrivi una voce
           </Button>
           {available.length > 0 ? (
             <select
@@ -239,7 +244,10 @@ export function MealDraftReview({ source, initialKind, pastDate = null, initialR
           {general}
         </p>
       ) : null}
-      <p className={ui.hint}>Non si scrive niente finché non premi «Registra». Le voci non spuntate restano fuori.</p>
+      <p className={ui.hint}>Non si scrive niente finché non premi «Registra».</p>
+      <Disclosure quiet title="Che cosa significa">
+        Le voci non spuntate restano fuori.
+      </Disclosure>
       <div className={ui.row}>
         <Button onClick={onConfirm} disabled={busy || included.length === 0}>
           {busy ? "Salvo…" : `Registra ${MEAL_KIND_LABELS[kind].toLowerCase()} (${included.length})`}

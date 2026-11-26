@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { QUESTION_MAX_CHARS, viewNeedsNutrition, type PinnedView, type ViewProblem, type ViewSpec } from "@/core/views";
 import { Button, SectionHeader } from "@/design";
+import { Disclosure } from "../common";
 import { configIssue, dexieSettingsStore } from "../ai/settings";
 import { useAiSettings } from "../ai/useAiSettings";
 import ui from "../ui.module.css";
@@ -76,12 +77,11 @@ export function Assistant() {
           Torna a Oggi
         </Link>
       </div>
-      <p className={ui.lead}>
-        Chiedi a parole, per esempio «com&apos;è andato il ferro questo mese?». L&apos;assistente compone una schermata con i pezzi che l&apos;app sa calcolare; i numeri vengono sempre dai tuoi dati, mai dall&apos;intelligenza artificiale.
-      </p>
-      <p className={styles.privacy}>
-        All&apos;intelligenza artificiale viene mandata solo la tua domanda, con l&apos;elenco di ciò che l&apos;app sa calcolare: non i tuoi dati. I numeri li calcola questa app, sul tuo telefono.
-      </p>
+      <p className={ui.lead}>Chiedi a parole, per esempio «com&apos;è andato il ferro questo mese?».</p>
+      <p className={styles.privacy}>All&apos;intelligenza artificiale va solo la tua domanda, non i tuoi dati.</p>
+      <Disclosure title="Che cosa significa" quiet>
+        L&apos;assistente compone una schermata con i pezzi che l&apos;app sa calcolare; i numeri vengono sempre dai tuoi dati, mai dall&apos;intelligenza artificiale. Insieme alla domanda viaggia solo l&apos;elenco di ciò che l&apos;app sa calcolare. I numeri li calcola questa app, sul tuo telefono.
+      </Disclosure>
 
       {issue !== null ? <NoKey issue={issue} /> : null}
 
@@ -109,7 +109,7 @@ export function Assistant() {
           </Button>
           {busy ? (
             <Button variant="outline" onClick={onCancel}>
-              Annulla
+              Ferma
             </Button>
           ) : null}
         </div>
@@ -146,7 +146,7 @@ function NoKey({ issue }: { issue: NonNullable<ReturnType<typeof configIssue>> }
       <p className={ui.paragraph}>{text}</p>
       <div className={ui.row}>
         <Button href="/app/impostazioni/ai" variant="outline">
-          Vai alle impostazioni
+          Apri le impostazioni
         </Button>
       </div>
     </div>
@@ -172,7 +172,7 @@ function Answer({ result, pin, onPin }: { result: AskResult; pin: Pin; onPin: (s
         {result.needsSettings ? (
           <div className={ui.row}>
             <Button href="/app/impostazioni/ai" variant="outline">
-              Vai alle impostazioni
+              Apri le impostazioni
             </Button>
           </div>
         ) : null}
@@ -319,7 +319,7 @@ function PinnedItem({ pinned, children }: { pinned: PinnedView; children: ReactN
           Rinomina
         </Button>
         <Button variant="text" onClick={() => void run(() => removePinnedView(pinned.id))}>
-          Rimuovi
+          Togli
         </Button>
       </form>
       {error ? (

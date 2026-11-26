@@ -4,6 +4,7 @@ import { useId, useState, type ReactElement } from "react";
 import { Button } from "@/design";
 import { parseQuantityInUnit } from "../actions";
 import { ActionList, Sheet, type ActionItem } from "../common";
+import { Disclosure } from "../common/Disclosure";
 import ui from "../ui.module.css";
 import { itemDetailLines, itemQuantityText } from "./listText";
 import type { QuantitylessItem, ViewItem } from "./view";
@@ -88,7 +89,7 @@ export function ItemSheet({ target, actions, onClose }: { target: SheetTarget; a
             ))}
           </div>
         ) : (
-          <p className={ui.hint}>Aggiunta da te, senza quantità: c&apos;è in lista e va in negozio, ma non c&apos;è un numero né un prezzo stimato.</p>
+          <Disclosure quiet title="Che cosa significa">Aggiunta da te, senza quantità: c&apos;è in lista e va in negozio, ma non c&apos;è un numero né un prezzo stimato.</Disclosure>
         )
       }
       footer={

@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { deriveExperiments } from "@/core/analysis";
 import { useEventLog } from "@/data";
 import { Button, SectionHeader } from "@/design";
+import { Disclosure } from "../common";
 import { LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { ExperimentCard } from "./ExperimentCard";
@@ -30,10 +31,13 @@ export function Experiments() {
           Torna a Salute
         </Link>
       </div>
-      <p className={ui.lead}>
-        Cambi una cosa per un periodo e guardi alcune misure. Il confronto è con i giorni immediatamente prima, di pari durata: dice se la differenza si distingue
-        dalla variabilità abituale dei tuoi dati, non perché ci sia.
-      </p>
+      <p className={ui.lead}>Cambi una cosa per un periodo e guardi alcune misure.</p>
+      <Disclosure quiet title="Che cosa significa">
+        <p>
+          Il confronto è con i giorni immediatamente prima, di pari durata: dice se la differenza si distingue dalla variabilità abituale dei tuoi dati, non
+          perché ci sia.
+        </p>
+      </Disclosure>
       <AnalysisDisclaimer />
 
       {error || log.error ? <StorageError /> : null}

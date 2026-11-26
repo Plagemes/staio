@@ -1,7 +1,7 @@
 /* Service worker scritto a mano. Per alzare la versione vedi src/pwa/README.md. */
 "use strict";
 
-const CACHE_VERSION = "v5";
+const CACHE_VERSION = "v6";
 const PREFIX = "staio-";
 const CACHES = {
   pages: PREFIX + "pages-" + CACHE_VERSION, // HTML delle navigazioni

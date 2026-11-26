@@ -169,11 +169,11 @@ export function buildJournal(
         rows.push(row("Spostato", `→ ${LOCATION_LABELS[e.to]}`));
         break;
       case "adjust":
-        rows.push(row("Riallineato", formatQuantity(e.remaining), e.certainty === "estimated"));
+        rows.push(row("Quantità controllata", formatQuantity(e.remaining), e.certainty === "estimated"));
         break;
       case "updateLot": {
         const changed = (Object.keys(e.patch) as (keyof LotPatch)[]).filter((k) => e.patch[k] !== undefined);
-        rows.push(row("Modificato", changed.map((k) => PATCH_LABELS[k]).join(", ") || "—"));
+        rows.push(row("Corretto", changed.map((k) => PATCH_LABELS[k]).join(", ") || "—"));
         break;
       }
     }

@@ -167,7 +167,7 @@ export function ShelfScanner({ onCode }: ShelfScannerProps) {
         </div>
         {phase === "scanning" ? (
           <p className={ui.hint} role="status">
-            Inquadra un codice dopo l&apos;altro: la fotocamera resta accesa e ogni prodotto nuovo finisce nello storico qui sotto.
+            Inquadra un codice dopo l&apos;altro: finiscono nello storico qui sotto.
           </p>
         ) : null}
         {problem ? (

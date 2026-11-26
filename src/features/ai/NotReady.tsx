@@ -29,7 +29,7 @@ export function NotReady({ issue, title, what, alternative }: NotReadyProps) {
         <h2 className={ui.emptyTitle}>{issue === "missing_key" ? "Manca la chiave" : "Impostazioni incomplete"}</h2>
         <p className={ui.emptyText}>{text}</p>
         <div className={ui.row}>
-          <Button href="/app/impostazioni/ai">Vai alle impostazioni</Button>
+          <Button href="/app/impostazioni/ai">Apri le impostazioni</Button>
           <Button href={alternative.href} variant="outline">
             {alternative.label}
           </Button>

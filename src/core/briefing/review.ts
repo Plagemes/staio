@@ -70,7 +70,7 @@ export function buildReviewItems(input: BriefingInput): ReviewItem[] {
         kind: "untracked_meal",
         text: `${upperFirst(MEAL_NAMES[m.kind])} di ${agoText(date, today)}`,
         why: "Hai detto di aver mangiato ma non è registrato: i nutrienti di quel giorno restano incompleti.",
-        actionLabel: "Registralo",
+        actionLabel: `Registra ${MEAL_NAMES[m.kind]}`,
         href: `/app/pasto?momento=${m.kind}&giorno=${date}`,
         certainty: "recorded",
         order: 10 + back,

@@ -204,7 +204,7 @@ function DrinkSheet({
   const items: ActionItem[] = [
     {
       id: "time",
-      label: "Cambia ora",
+      label: "Correggi l'ora",
       hint: `Adesso: ${time}`,
       disabled: busy,
       onSelect: () => {

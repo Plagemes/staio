@@ -8,6 +8,7 @@ import { usePantry } from "@/data";
 import { RESTRICTED_WARNING_TITLE } from "../barcode/safetyText";
 import { LoadingLine } from "../shell/EmptyState";
 import { useProducts } from "../nutrition/useNutrition";
+import { Disclosure } from "../common/Disclosure";
 import ui from "../ui.module.css";
 import { isDoubtfulProduct, displayProductCode } from "./codes";
 import { knownProductRows } from "./candidates";
@@ -38,9 +39,9 @@ export function KnownProducts() {
           Torna a Qualità
         </Link>
       </div>
-      <p className={ui.lead}>
+      <Disclosure quiet title="Che cosa significa">
         Quelli che hai già letto con la fotocamera o comprato. Le alternative migliori si cercano soltanto qui: nessun prodotto che non conosci.
-      </p>
+      </Disclosure>
 
       {!products ? (
         <LoadingLine />

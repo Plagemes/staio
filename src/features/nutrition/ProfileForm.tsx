@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useId, useMemo, useState, type FormEvent } from "react";
 import type { ReferenceWithVariant, Sex } from "@/core/nutrition";
 import { Button, Label } from "@/design";
+import { Disclosure } from "../common";
 import { dayOf } from "../format";
 import { setSetting } from "../localSettings";
 import { LoadingLine } from "../shell/EmptyState";
@@ -137,15 +138,20 @@ function Editor({ initial, refs, today }: EditorProps) {
       {choices.length > 0 ? (
         <section className={ui.field} aria-label="Scelte facoltative">
           <Label>Scelte facoltative</Label>
-          <p className={ui.hint}>
-            Per alcuni nutrienti esistono più valori di riferimento. Se non scegli, uso quello predefinito e te lo dico accanto al numero.
-          </p>
+          <p className={ui.hint}>Per alcuni nutrienti esistono più valori di riferimento.</p>
+          <Disclosure quiet title="Che cosa significa">
+            <p>Se non scegli, uso quello predefinito e te lo dico accanto al numero.</p>
+          </Disclosure>
           {choices.map((c) => (
             <fieldset key={c.key} className={ui.field}>
               <legend className={ui.fieldLabel}>
                 {nutrientLabel(c.nutrient)} <span className={ui.optional}>({REFERENCE_KIND_LABELS[c.kind]})</span>
               </legend>
-              {VARIANT_HELP[c.nutrient] ? <p className={ui.hint}>{VARIANT_HELP[c.nutrient]}</p> : null}
+              {VARIANT_HELP[c.nutrient] ? (
+                <Disclosure quiet title="Che cosa significa">
+                  <p>{VARIANT_HELP[c.nutrient]}</p>
+                </Disclosure>
+              ) : null}
               <div className={ui.choices}>
                 <label className={ui.choice}>
                   <input
@@ -201,7 +207,7 @@ function Editor({ initial, refs, today }: EditorProps) {
         <p className={ui.callout} role="status">
           Profilo salvato su questo telefono.{" "}
           <Link href="/app/salute/nutrizione" className={ui.textLink}>
-            Vai alla nutrizione
+            Torna a Nutrizione
           </Link>
         </p>
       ) : null}
@@ -210,7 +216,7 @@ function Editor({ initial, refs, today }: EditorProps) {
         <Button type="submit">Salva il profilo</Button>
         {initial ? (
           <Button variant="text" onClick={() => void onRemove()}>
-            Rimuovi il profilo
+            Togli il profilo
           </Button>
         ) : null}
       </div>
@@ -231,9 +237,10 @@ export function ProfileForm() {
           Torna alle impostazioni
         </Link>
       </div>
-      <p className={ui.lead}>
-        Sesso ed età servono solo a scegliere i valori di riferimento con cui confrontare ciò che mangi. Restano su questo telefono.
-      </p>
+      <p className={ui.lead}>Restano su questo telefono.</p>
+      <Disclosure quiet title="Che cosa significa">
+        <p>Sesso ed età servono solo a scegliere i valori di riferimento con cui confrontare ciò che mangi.</p>
+      </Disclosure>
       {!ready || !refs || !now ? (
         <LoadingLine />
       ) : (

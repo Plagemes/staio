@@ -17,6 +17,7 @@ import { confirmedText } from "../recipes/safety";
 import { CONFIRMATION_NOTICE } from "../recipes/SafetyPanel";
 import { useConfirmationActions, useConfirmations } from "../recipes/useConfirmations";
 import { LoadingLine } from "../shell/EmptyState";
+import { Disclosure } from "../common/Disclosure";
 import ui from "../ui.module.css";
 import { DietView } from "../settings/DietScreen";
 import { buildClearTargets, buildStructure, buildTargets } from "./edit";
@@ -68,7 +69,7 @@ export function TargetsSection({ plan, today }: { plan: PlanState; today: string
           <input className={ui.input} value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="allenamento" aria-label="Nome del nuovo tipo di giornata" autoComplete="off" />
         ) : null}
         {types.length === 0 ? (
-          <p className={ui.hint}>Non c&apos;è ancora nessun tipo di giornata. Scrivine uno, per esempio «allenamento» o «riposo», poi assegnalo ai giorni nella settimana.</p>
+          <p className={ui.hint}>Nessun tipo di giornata: scrivine uno, per esempio «allenamento».</p>
         ) : null}
       </fieldset>
       {name !== "" ? <TargetsForm key={name} plan={plan} dayType={name} today={today} /> : null}
@@ -109,10 +110,10 @@ function TargetsForm({ plan, dayType, today }: { plan: PlanState; dayType: strin
       }}
       noValidate
     >
-      <p className={ui.hint}>Gli obiettivi sono quelli che scrivi tu: non ne propongo. Lascia vuoto ciò che non vuoi controllare; scrivi un minimo, un massimo o tutti e due.</p>
+      <Disclosure quiet title="Che cosa significa">Gli obiettivi sono quelli che scrivi tu: non ne propongo. Lascia vuoto ciò che non vuoi controllare; scrivi un minimo, un massimo o tutti e due.</Disclosure>
       {ready && !profile ? (
         <p className={ui.hint}>
-          Per vedere accanto ai campi i valori di riferimento per te, <Link href="/app/impostazioni/profilo">compila il profilo</Link>.
+          Per i valori di riferimento <Link href="/app/impostazioni/profilo">compila il profilo</Link>.
         </p>
       ) : null}
       <div>
@@ -177,8 +178,8 @@ function TargetsForm({ plan, dayType, today }: { plan: PlanState; dayType: strin
         ) : null}
       </div>
       <p className={ui.hint}>
-        I giorni con questo tipo, oggi: {plan.dayTypes.filter((d) => dayTypeOf(plan, d.date) === dayType).length} con una scelta esplicita
-        {plan.structure?.defaultDayType === dayType ? ", più tutti quelli senza scelta (è il tipo predefinito)" : ""}.
+        Giorni con questo tipo: {plan.dayTypes.filter((d) => dayTypeOf(plan, d.date) === dayType).length} scelti da te
+        {plan.structure?.defaultDayType === dayType ? ", più quelli senza scelta (predefinito)" : ""}.
       </p>
     </form>
   );
@@ -255,7 +256,7 @@ export function StructureSection({ plan }: { plan: PlanState }) {
             />
           </div>
         ))}
-        <p className={ui.hint}>Gli orari sono indicativi: servono a ordinare i pasti, non a controllarti.</p>
+        <Disclosure quiet title="Che cosa significa">Gli orari sono indicativi: servono a ordinare i pasti, non a controllarti.</Disclosure>
       </fieldset>
 
       <fieldset className={ui.field}>

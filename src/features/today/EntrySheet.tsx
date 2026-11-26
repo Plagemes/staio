@@ -279,7 +279,7 @@ export function EntrySheet({ title, entry, date, today, diary, log, energyHistor
           </Button>
         }
       >
-        <p className={ui.fieldLabel}>Cambia momento</p>
+        <p className={ui.fieldLabel}>Correggi il momento</p>
         <ActionList items={moments} />
         {listError}
       </Sheet>
@@ -287,7 +287,7 @@ export function EntrySheet({ title, entry, date, today, diary, log, energyHistor
   }
 
   const actions: ActionItem[] = [
-    ...(targets.length > 0 ? [{ id: "moment", label: "Cambia momento", disabled: busy, onSelect: () => go("moment") }] : []),
+    ...(targets.length > 0 ? [{ id: "moment", label: "Correggi il momento", disabled: busy, onSelect: () => go("moment") }] : []),
     ...(lot && lot.status === "active" ? [{ id: "lot", label: "Apri l'alimento", href: `/app/dispensa?lotto=${encodeURIComponent(lot.lotId)}` }] : []),
     // a una stima «fuori casa» non c'è un alimento da collegare
     ...(!outOfHome && lineNutrientText(current.line) === "senza dato" ? [{ id: "values", label: "Collega i valori", href: "/app/salute/nutrizione" }] : []),

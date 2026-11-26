@@ -126,7 +126,7 @@ function StorePicker({ stores, value, onChange }: { stores: readonly string[]; v
         </label>
       </div>
       {other ? <input className={ui.input} value={value ?? ""} onChange={(e) => onChange(e.target.value)} aria-label="Nome del negozio" placeholder="Nome del negozio" autoComplete="off" /> : null}
-      <p className={ui.hint}>Il negozio serve a mettere le voci nell&apos;ordine in cui le hai spuntate le altre volte lì, e a stimare con i suoi prezzi.</p>
+      <Disclosure quiet title="Che cosa significa">Il negozio serve a mettere le voci nell&apos;ordine in cui le hai spuntate le altre volte lì, e a stimare con i suoi prezzi.</Disclosure>
     </fieldset>
   );
 }
@@ -817,7 +817,7 @@ function LastTrip({ trip, pantry, rows: base, already, force, today, onForce, on
 
       <Disclosure title="Confronto con la lista" summary={compareSummary(compare)}>
         {compare.waiting ? (
-          <p className={ui.paragraph}>Non vedo ancora acquisti registrati per questa spesa: quando li metti in dispensa, qui confronto ciò che avevi in lista con ciò che hai comprato.</p>
+          <p className={ui.paragraph}>Ancora nessun acquisto registrato per questa spesa.</p>
         ) : (
           <>
             <p className={ui.paragraph}>{compare.boughtText}</p>

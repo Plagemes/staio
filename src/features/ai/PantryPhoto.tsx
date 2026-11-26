@@ -6,6 +6,7 @@ import { activeLots, type LedgerEvent } from "@/core/ledger";
 import { appendEvents, getAllEvents, getDeviceId, usePantry } from "@/data";
 import { Button, Label, SectionHeader } from "@/design";
 import { buildUndo } from "../actions";
+import { Disclosure } from "../common";
 import { dayOf } from "../format";
 import { LOCATION_LABELS } from "../labels";
 import { useNotice } from "../notice";
@@ -279,7 +280,10 @@ function Scanner({ settings }: { settings: AiSettings }) {
                     {done.result.errors.length === 1 ? "Una conferma non è stata scritta" : `${done.result.errors.length} conferme non sono state scritte`}: {done.result.errors.map((e) => e.message).join(" ")}
                   </p>
                 ) : null}
-                <p className={ui.hint}>Tutto è segnato come stimato dalla foto. «Annulla» toglie queste modifiche senza cancellare nulla.</p>
+                <p className={ui.hint}>Tutto è segnato come stimato dalla foto.</p>
+                <Disclosure quiet title="Che cosa significa">
+                  «Annulla» toglie queste modifiche senza cancellare nulla.
+                </Disclosure>
               </>
             )}
             {error ? (
@@ -294,7 +298,7 @@ function Scanner({ settings }: { settings: AiSettings }) {
                 </Button>
               )}
               <Button href="/app/dispensa" variant={done.undone ? "primary" : "outline"}>
-                Vai alla dispensa
+                Torna alla dispensa
               </Button>
               <Button variant="text" onClick={startOver}>
                 Un&apos;altra foto
@@ -378,7 +382,7 @@ function Scanner({ settings }: { settings: AiSettings }) {
                   </Button>
                   {busy === "scanning" ? (
                     <Button variant="outline" onClick={() => abortRef.current?.abort()}>
-                      Annulla
+                      Ferma
                     </Button>
                   ) : null}
                 </div>
@@ -506,7 +510,7 @@ function DifferenceCard({ diff, decision, onDecide }: { diff: Difference; decisi
         <div className={styles.decided}>
           <span>{DECISION_TEXT[decision]}</span>
           <button type="button" className={styles.change} onClick={() => onDecide(null)}>
-            Cambia
+            Correggi
           </button>
         </div>
       ) : diff.change.type === "notice" ? (

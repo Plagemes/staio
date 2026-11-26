@@ -10,6 +10,7 @@ import { mealsWithPantry, type MealKind } from "@/core/diary";
 import { activeLots } from "@/core/ledger";
 import { useDiary, useEventLog, usePantry } from "@/data";
 import { Button } from "@/design";
+import { Disclosure } from "../common";
 import { dayOf } from "../format";
 import { parseMealTarget } from "../meal/mealTarget";
 import { describeAiError } from "../ai/messages";
@@ -164,10 +165,10 @@ function Phraser({ settings }: { settings: AiSettings }) {
   return (
     <div className={ui.screen}>
       <AiHead title={TITLE} />
-      <p className={ui.lead}>
-        Scrivi (o detta) che cosa hai mangiato: ti propongo il pasto, e tu lo rivedi prima che entri nel registro. Per esempio «a colazione due uova e una fetta di pane» oppure «come ieri a
-        pranzo ma senza pane».
-      </p>
+      <p className={ui.lead}>Scrivi (o detta) che cosa hai mangiato.</p>
+      <Disclosure quiet title="Che cosa significa">
+        Ti propongo il pasto, e tu lo rivedi prima che entri nel registro. Per esempio «a colazione due uova e una fetta di pane» oppure «come ieri a pranzo ma senza pane».
+      </Disclosure>
 
       <SendNotice settings={settings} sends="La frase, l'elenco della tua dispensa (nomi e quantità) e i tuoi pasti degli ultimi giorni" now={now} />
 
@@ -214,7 +215,7 @@ function Phraser({ settings }: { settings: AiSettings }) {
         </Button>
         {busy ? (
           <Button variant="outline" onClick={() => abortRef.current?.abort()}>
-            Annulla
+            Ferma
           </Button>
         ) : null}
       </div>
@@ -224,7 +225,7 @@ function Phraser({ settings }: { settings: AiSettings }) {
         </p>
       ) : null}
       {entries.length === 0 ? (
-        <EmptyState title="La dispensa è vuota" text="Posso comunque proporre voci libere, ma non scalerò nulla dalla dispensa." actionLabel="Aggiungi un alimento" />
+        <EmptyState title="La dispensa è vuota" text="Posso comunque proporre voci libere, ma non scalerò nulla dalla dispensa." actionLabel="Aggiungi alla dispensa" />
       ) : null}
       <p className={ui.hint}>
         Non vuoi usare l&apos;intelligenza artificiale?{" "}

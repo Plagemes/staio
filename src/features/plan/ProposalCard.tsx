@@ -53,7 +53,7 @@ export function ProposalCard({ view, weekDates, today, structureMeals, onUse, bu
         <>
           <p className={ui.lead}>Non hai ancora ricette salvate: senza, non ho da dove scegliere.</p>
           <Link href="/app/ricette" className={ui.textLink}>
-            Vai al ricettario
+            Apri il ricettario
           </Link>
         </>
       ) : (

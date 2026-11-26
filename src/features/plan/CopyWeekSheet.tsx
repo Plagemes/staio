@@ -73,7 +73,7 @@ export function CopyWeekSheet({ data, target, initial, onClose }: Props) {
               </label>
             ))}
           </div>
-          <p className={ui.hint}>Sostituisce tutto ciò che è pianificato in questa settimana. Con «Annulla» torna com&apos;era.</p>
+          <p className={ui.hint}>Sostituisce tutto ciò che è pianificato in questa settimana.</p>
         </fieldset>
       )}
       {error ? (

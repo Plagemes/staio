@@ -1,9 +1,12 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import type { Location } from "@/core/ledger";
 import { Button } from "@/design";
 import type { RemoveManyKind } from "../actions";
+import { LOCATION_LABELS, LOCATION_ORDER } from "../labels";
 import ui from "../ui.module.css";
+import { packsText } from "./selectionActions";
 import styles from "./Pantry.module.css";
 
 interface SelectionBarProps {
@@ -13,23 +16,66 @@ interface SelectionBarProps {
   busy: boolean;
   error: string | null;
   onRemove: (kind: RemoveManyKind) => void;
+  onMove: (to: Location) => void;
+  onAddToList: () => void;
+  /** Si cambia passo: l'errore di prima non vale più. */
+  onClearError: () => void;
 }
 
-const packs = (n: number) => (n === 1 ? "1 confezione" : `${n} confezioni`);
-const countText = (n: number, products: number) => (products > 1 ? `${packs(n)} di ${products} prodotti` : packs(n));
+const countText = (n: number, products: number) => (products > 1 ? `${packsText(n)} di ${products} prodotti` : packsText(n));
 
-/** Barra in basso della modalità «Seleziona»: il numero degli alimenti scelti, poi la scelta breve e una sola conferma. */
-export function SelectionBar({ count, products, busy, error, onRemove }: SelectionBarProps) {
+type Step = "main" | "move" | "remove";
+
+/**
+ * Barra in basso della modalità «Seleziona»: il numero degli alimenti scelti e tre comandi. «Sposta» e «Elimina» hanno
+ * un passo breve con una sola conferma; «Aggiungi alla spesa» scrive subito.
+ */
+export function SelectionBar({ count, products, busy, error, onRemove, onMove, onAddToList, onClearError }: SelectionBarProps) {
   const ids = useId();
-  const [choosing, setChoosing] = useState(false);
+  const [step, setStep] = useState<Step>("main");
   const [kind, setKind] = useState<RemoveManyKind | null>(null);
+  const [to, setTo] = useState<Location | null>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const moved = useRef(false);
+  // cambiando passo la tastiera e il lettore dello schermo ripartono dall'inizio del passo (legenda o primo comando)
+  useEffect(() => {
+    if (!moved.current) return;
+    root.current?.querySelector<HTMLElement>("legend, button:not(:disabled)")?.focus();
+  }, [step]);
+  const go = (next: Step) => {
+    moved.current = true;
+    onClearError();
+    setStep(next);
+  };
 
   return (
-    <div className={styles.bar} role="region" aria-label="Elimina gli alimenti scelti">
-      {choosing && count > 0 ? (
+    <div ref={root} className={styles.bar} role="region" aria-label="Alimenti scelti">
+      {step === "move" && count > 0 ? (
         <div className={styles.barChoice}>
           <fieldset className={ui.field}>
-            <legend className={ui.fieldLabel}>Elimina {countText(count, products)}</legend>
+            <legend className={ui.fieldLabel} tabIndex={-1}>Sposta {countText(count, products)}</legend>
+            <div className={ui.choices}>
+              {LOCATION_ORDER.map((place) => (
+                <label key={place} className={ui.choice}>
+                  <input type="radio" name={`${ids}-to`} checked={to === place} onChange={() => setTo(place)} />
+                  <span>{LOCATION_LABELS[place]}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <div className={ui.row}>
+            <Button disabled={busy || to === null} onClick={() => to && onMove(to)}>
+              {`Sposta ${packsText(count)}`}
+            </Button>
+            <Button variant="text" disabled={busy} onClick={() => go("main")}>
+              Indietro
+            </Button>
+          </div>
+        </div>
+      ) : step === "remove" && count > 0 ? (
+        <div className={styles.barChoice}>
+          <fieldset className={ui.field}>
+            <legend className={ui.fieldLabel} tabIndex={-1}>Elimina {countText(count, products)}</legend>
             <div className={ui.choices}>
               <label className={ui.choice}>
                 <input type="radio" name={`${ids}-kind`} checked={kind === "mistaken"} onChange={() => setKind("mistaken")} />
@@ -50,9 +96,9 @@ export function SelectionBar({ count, products, busy, error, onRemove }: Selecti
           </fieldset>
           <div className={ui.row}>
             <Button disabled={busy || kind === null} onClick={() => kind && onRemove(kind)}>
-              {`Elimina ${packs(count)}`}
+              {`Elimina ${packsText(count)}`}
             </Button>
-            <Button variant="text" disabled={busy} onClick={() => setChoosing(false)}>
+            <Button variant="text" disabled={busy} onClick={() => go("main")}>
               Indietro
             </Button>
           </div>
@@ -62,9 +108,17 @@ export function SelectionBar({ count, products, busy, error, onRemove }: Selecti
           <span className={styles.barCount} aria-live="polite">
             {countText(count, products)}
           </span>
-          <Button disabled={count === 0} onClick={() => setChoosing(true)}>
-            Elimina
-          </Button>
+          <div className={styles.barActions}>
+            <Button disabled={count === 0 || busy} onClick={() => go("move")}>
+              Sposta
+            </Button>
+            <Button variant="outline" disabled={count === 0 || busy} onClick={onAddToList}>
+              Aggiungi alla spesa
+            </Button>
+            <button type="button" className={styles.barDanger} disabled={count === 0 || busy} onClick={() => go("remove")}>
+              Elimina
+            </button>
+          </div>
         </div>
       )}
       {error ? (

@@ -107,7 +107,7 @@ export function ExpiryFromPhoto({ today, currentKind, onPick }: Props) {
         </label>
         {busy === "reading" ? (
           <Button variant="outline" onClick={() => abortRef.current?.abort()}>
-            Annulla
+            Ferma
           </Button>
         ) : null}
       </div>

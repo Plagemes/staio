@@ -1,16 +1,16 @@
-// Percorso d'ingresso dopo la scelta dello stile: quando proporlo e che cosa si ricorda. Logica pura.
+// Introduzione dopo la scelta dello stile (una domanda sola): quando proporla e che cosa si ricorda. Logica pura.
 import { foldVoice, type DeclarationChange, type DeclarationList } from "@/core/allergens";
 import { isStyleChoicePath } from "../settings/firstRunStyle";
-
-/** Per dove vuole cominciare chi ha finito il percorso; guida la scheda del primo passo in Oggi. */
-export type StartChoice = "pantry" | "meal" | "look";
 
 /** «new»: mai fatto; «redo»: richiesto da Impostazioni, vale anche con dei dati; «done»: fatto o saltato. */
 export type OnboardingPhase = "new" | "redo" | "done";
 
 export interface OnboardingMemory {
   phase: OnboardingPhase;
-  start?: StartChoice;
+  /** Il giorno (`YYYY-MM-DD`) in cui l'introduzione è finita, fatta o saltata: da lì contano i sette giorni di «Primi passi». Assente per chi non l'ha vista. */
+  since?: string;
+  /** «Lascia così» in «Primi passi»: le righe non tornano. */
+  stepsHidden?: true;
 }
 
 /**
@@ -20,9 +20,9 @@ export interface OnboardingMemory {
  */
 export const ONBOARDING_STORAGE_KEY = "onboarding";
 
-const isStart = (v: unknown): v is StartChoice => v === "pantry" || v === "meal" || v === "look";
+const isDay = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
-/** Legge la copia locale con prudenza: qualunque forma inattesa vale «mai fatto». */
+/** Legge la copia locale con prudenza: qualunque forma inattesa vale «mai fatto». Un vecchio `start` si ignora. */
 export function parseOnboarding(raw: string | null): OnboardingMemory {
   if (raw === null) return { phase: "new" };
   try {
@@ -30,7 +30,11 @@ export function parseOnboarding(raw: string | null): OnboardingMemory {
     if (typeof v !== "object" || v === null) return { phase: "new" };
     const o = v as Record<string, unknown>;
     const phase: OnboardingPhase = o.phase === "done" || o.phase === "redo" ? o.phase : "new";
-    return isStart(o.start) ? { phase, start: o.start } : { phase };
+    return {
+      phase,
+      ...(isDay(o.since) ? { since: o.since } : {}),
+      ...(o.stepsHidden === true ? { stepsHidden: true as const } : {}),
+    };
   } catch {
     return { phase: "new" };
   }

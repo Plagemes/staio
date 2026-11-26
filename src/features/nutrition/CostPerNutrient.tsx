@@ -125,7 +125,7 @@ function Ranking({ foods, overrides, today }: { foods: readonly FoodComposition[
         </p>
       ) : null}
       <Link href="/app/spesa" className={ui.textLink}>
-        Vai alla spesa
+        Torna alla spesa
       </Link>
     </>
   );

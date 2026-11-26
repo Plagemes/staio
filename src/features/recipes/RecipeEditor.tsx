@@ -8,6 +8,7 @@ import { useFormEpoch } from "../common/freshForm";
 import { createFoodSearch } from "../nutrition/candidates";
 import { FoodChoice } from "../nutrition/FoodChoice";
 import { useFoods } from "../nutrition/useNutrition";
+import { Disclosure } from "../common/Disclosure";
 import ui from "../ui.module.css";
 import { useRecord } from "../useRecord";
 import {
@@ -203,7 +204,7 @@ function RecipeEditorForm({
           <h2 className={ui.fieldLabel} id={`${ids}-ing`}>
             Ingredienti
           </h2>
-          <p className={ui.hint}>Lascia vuota la quantità per «quanto basta». Un numero senza unità vale come pezzi.</p>
+          <Disclosure quiet title="Che cosa significa">Lascia vuota la quantità per «quanto basta». Un numero senza unità vale come pezzi.</Disclosure>
           <div className={styles.rows}>
             {form.ingredients.map((row, index) => (
               <div key={row.id} className={styles.row}>
@@ -264,9 +265,9 @@ function RecipeEditorForm({
               Aggiungi un ingrediente
             </Button>
           </div>
-          <p className={ui.hint}>
+          <Disclosure quiet title="Che cosa significa">
             La scelta dell&apos;alimento della tabella è facoltativa: serve a calcolare i nutrienti. Senza scelta, il nome basta se è riconoscibile.
-          </p>
+          </Disclosure>
         </section>
 
         <section className={ui.field} aria-labelledby={`${ids}-steps`}>

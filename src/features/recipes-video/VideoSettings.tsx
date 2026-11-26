@@ -5,6 +5,7 @@ import { useId, useState } from "react";
 import { APP_NAME } from "@/config";
 import { Button, SectionHeader } from "@/design";
 import { maskKey } from "../ai/settings";
+import { Disclosure } from "../common/Disclosure";
 import ui from "../ui.module.css";
 import { checkService } from "./serviceClient";
 import {
@@ -122,9 +123,9 @@ function VideoSettingsForm({ service }: { service: VideoServiceSettings }) {
       await clearVideoService(videoServiceStore());
       setUrl("");
       setToken("");
-      setStatus({ kind: "ok", text: "Servizio e token cancellati da questo telefono." });
+      setStatus({ kind: "ok", text: "Servizio e token tolti da questo telefono." });
     } catch {
-      setStatus({ kind: "error", text: "Non sono riuscito a cancellare. Riprova." });
+      setStatus({ kind: "error", text: "Non sono riuscito a toglierli. Riprova." });
     }
   }
 
@@ -137,20 +138,20 @@ function VideoSettingsForm({ service }: { service: VideoServiceSettings }) {
         </Link>
       </div>
 
-      <section className={ui.section} aria-labelledby={`${ids}-why`}>
+      <section className={ui.section} aria-label="A cosa serve">
         <SectionHeader label="A cosa serve" />
         <div className={styles.block}>
-          <p className={ui.paragraph} id={`${ids}-why`}>
+          <Disclosure quiet title="Che cosa significa">
             Se condividi con {APP_NAME} un video di ricette (Instagram, TikTok, YouTube), un servizio di estrazione può scaricarlo,
             prenderne la didascalia e alcune immagini. Poi il telefono li legge con la tua chiave di intelligenza artificiale e ti
             propone una bozza di ricetta, che rivedi prima di salvarla.
-          </p>
+          </Disclosure>
           <ul className={ui.bullets}>
             <li className={ui.paragraph}>
               <strong>È facoltativo, e per ora il servizio non è attivo.</strong> Senza, puoi sempre incollare la didascalia del video.
             </li>
             <li className={ui.paragraph}>
-              <strong>Indirizzo e token restano su questo telefono.</strong> Non vanno nelle copie di sicurezza e li cancelli quando
+              <strong>Indirizzo e token restano su questo telefono.</strong> Non vanno nelle copie di sicurezza e li togli quando
               vuoi.
             </li>
             <li className={ui.paragraph}>
@@ -235,7 +236,7 @@ function VideoSettingsForm({ service }: { service: VideoServiceSettings }) {
               {busy === "testing" ? "Provo…" : "Prova il collegamento"}
             </Button>
           </div>
-          <p className={ui.hint}>«Prova il collegamento» chiede solo se il servizio risponde: non invia né il token né alcun link.</p>
+          <p className={ui.hint}>«Prova il collegamento» non invia né il token né alcun link.</p>
           {status ? (
             <p className={status.kind === "error" ? ui.error : ui.hint} role={status.kind === "error" ? "alert" : "status"}>
               {status.text}
@@ -244,13 +245,13 @@ function VideoSettingsForm({ service }: { service: VideoServiceSettings }) {
 
           {configured || url.trim() !== "" ? (
             confirmClear ? (
-              <div className={ui.calloutStrong} role="group" aria-label="Conferma cancellazione">
+              <div className={ui.calloutStrong} role="group" aria-label="Conferma: togli servizio e token">
                 <p className={ui.paragraph}>
-                  <strong>Cancello indirizzo e token?</strong> Spariscono da questo telefono e la lettura dei video si spegne.
+                  <strong>Tolgo indirizzo e token?</strong> Spariscono da questo telefono e la lettura dei video si spegne.
                 </p>
                 <div className={ui.row}>
                   <button type="button" className={ui.dangerSolid} onClick={() => void onClear()}>
-                    Sì, cancella
+                    Sì, togli
                   </button>
                   <Button variant="text" onClick={() => setConfirmClear(false)}>
                     No, tienili
@@ -259,7 +260,7 @@ function VideoSettingsForm({ service }: { service: VideoServiceSettings }) {
               </div>
             ) : (
               <button type="button" className={ui.danger} onClick={() => setConfirmClear(true)}>
-                Cancella servizio e token
+                Togli servizio e token
               </button>
             )
           ) : null}

@@ -1,13 +1,7 @@
 "use client";
 
-// Memoria del percorso d'ingresso nella copia locale del telefono. Un solo valore, con ascoltatori per la stessa pagina.
-import {
-  ONBOARDING_STORAGE_KEY,
-  parseOnboarding,
-  serializeOnboarding,
-  type OnboardingMemory,
-  type StartChoice,
-} from "./logic";
+// Memoria dell'introduzione nella copia locale del telefono. Un solo valore, con ascoltatori per la stessa pagina.
+import { ONBOARDING_STORAGE_KEY, parseOnboarding, serializeOnboarding, type OnboardingMemory } from "./logic";
 
 const listeners = new Set<() => void>();
 /** «Fatto» tenuto anche in memoria: se la copia locale non si scrive, il percorso si chiude lo stesso fino al ricaricamento. */
@@ -46,15 +40,25 @@ function write(memory: OnboardingMemory): void {
   listeners.forEach((l) => l());
 }
 
-/** Fatto o saltato: non si ripropone. Se si sa dove si voleva cominciare, lo si ricorda. */
-export function markOnboardingDone(start?: StartChoice): void {
+/**
+ * Fatto o saltato: non si ripropone. Con `since` (il giorno di oggi) comincia anche la settimana di «Primi passi», e
+ * l'eventuale «Lascia così» di prima non vale più. Senza `since` (chi aveva già dei dati) si tiene ciò che c'era.
+ */
+export function markOnboardingDone(since?: string): void {
   const current = readOnboarding();
-  const keep = start ?? current.start;
-  write(keep ? { phase: "done", start: keep } : { phase: "done" });
+  if (since !== undefined) {
+    write({ phase: "done", since });
+    return;
+  }
+  write({ phase: "done", ...(current.since ? { since: current.since } : {}), ...(current.stepsHidden ? { stepsHidden: true } : {}) });
 }
 
-/** «Rifai l'introduzione»: alla prossima apertura di Oggi il percorso riparte, anche con dei dati. */
+/** «Lascia così» in «Primi passi»: le righe non tornano. */
+export function hideFirstSteps(): void {
+  write({ ...readOnboarding(), stepsHidden: true });
+}
+
+/** «Rifai l'introduzione»: alla prossima apertura di Oggi riparte, anche con dei dati; i sette giorni si rinnovano alla fine. */
 export function requestOnboardingRedo(): void {
-  const current = readOnboarding();
-  write(current.start ? { phase: "redo", start: current.start } : { phase: "redo" });
+  write({ phase: "redo" });
 }

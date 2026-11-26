@@ -8,6 +8,7 @@ import { Button, Label, SectionHeader } from "@/design";
 import { captureHrefForCode } from "../barcode/links";
 import { lookupProduct } from "../barcode/lookup";
 import { LOOKUP_FAILURE_MESSAGES } from "../barcode/messages";
+import { Disclosure } from "../common/Disclosure";
 import ui from "../ui.module.css";
 import { isDoubtfulProduct, displayProductCode } from "./codes";
 import { pantryStockFor, pricesFor } from "./candidates";
@@ -160,7 +161,7 @@ function StatusCard({ entry, onRetry, onRemove }: { entry: Exclude<ShelfEntry, {
           <p className={ui.paragraph}>Open Food Facts non conosce questo codice: senza i suoi dati non posso valutarlo.</p>
           <div className={ui.row}>
             <Button variant="outline" href={captureHrefForCode(entry.code)}>
-              Inserisci a mano
+              Aggiungi alla dispensa
             </Button>
             <Button variant="text" onClick={onRemove}>
               Togli
@@ -283,9 +284,9 @@ export function Shelf() {
           Torna alla spesa
         </Link>
       </div>
-      <p className={ui.lead}>
+      <Disclosure quiet title="Che cosa significa">
         In negozio leggi un codice dopo l&apos;altro: per ogni prodotto un verdetto breve, dimensione per dimensione, senza voto unico.
-      </p>
+      </Disclosure>
 
       {!online ? (
         <p className={styles.banner} role="status">
@@ -297,7 +298,7 @@ export function Shelf() {
       <ShelfScanner onCode={handleCode} />
 
       <p className={ui.hint}>
-        Riservatezza: il codice di un prodotto non ancora salvato viene inviato a Open Food Facts per cercarlo. Non parte nient&apos;altro.
+        Un codice non ancora salvato va a Open Food Facts; nient&apos;altro parte.
       </p>
 
       <section className={ui.section} aria-label="Storico della sessione">

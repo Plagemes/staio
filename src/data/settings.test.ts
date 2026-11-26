@@ -70,6 +70,20 @@ describe("copia delle impostazioni: le chiavi segrete non escono mai", () => {
     expect(await getSetting("recipes.cookSession")).toEqual({ step: 3 });
   });
 
+  it("i suggerimenti già mostrati (hint.<id>) sono di un solo telefono: non escono e non si importano", async () => {
+    await setSetting("hint.add", "2026-11-20");
+    await setSetting("theme", "dark");
+    expect((await exportSettings()).settings).toEqual({ theme: "dark" });
+    const res = await importSettings({
+      format: "ledger-settings",
+      version: 1,
+      settings: { "hint.add": "2020-01-01", "hint.pantryRow": "2020-01-01", theme: "light" },
+    });
+    expect(res).toEqual({ ok: true, imported: 1, skipped: 2 });
+    expect(await getSetting("hint.add")).toBe("2026-11-20");
+    expect(await getSetting("hint.pantryRow")).toBeUndefined();
+  });
+
   it("su un telefono che non le ha, l'importazione non le crea", async () => {
     await importSettings({ format: "ledger-settings", version: 1, settings: { "receipt.draft": { lines: [9] }, "recipes.cookSession": { step: 9 } } });
     expect(await getSetting("receipt.draft")).toBeUndefined();

@@ -6,7 +6,7 @@ import { formatQuantity } from "@/core/units";
 import { appendEvents, getDeviceId, usePantry } from "@/data";
 import { Button, Label, Value } from "@/design";
 import { searchRecipes } from "@/models3d/catalog";
-import { ActionBar } from "../common";
+import { ActionBar, Disclosure } from "../common";
 import { FOOD_CATEGORY_GROUPS, FOOD_CATEGORY_LABELS, LOCATION_LABELS, LOCATION_ORDER } from "../labels";
 import { getSetting, setSetting, useSetting } from "../localSettings";
 import { ITEM_DEFAULTS_KEY, itemKey, readItemDefault, withItemDefault } from "../memory/itemDefaults";
@@ -184,8 +184,11 @@ export function QuickAdd() {
           Alimenti, uno per riga
         </label>
         <p className={ui.hint} id={`${ids}-text-hint`}>
-          Un alimento per riga, con la quantità: “latte 1 l”, “6 uova”, “pasta 500 g, credenza”.
+          Un alimento per riga, con la quantità.
         </p>
+        <Disclosure quiet title="Che cosa significa">
+          Per esempio: “latte 1 l”, “6 uova”, “pasta 500 g, credenza”.
+        </Disclosure>
         <textarea
           id={`${ids}-text`}
           className={`${ui.input} ${styles.textarea}`}

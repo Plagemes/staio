@@ -522,7 +522,7 @@ function Steps({
         ))}
       </div>
 
-      {!wakeSupported ? <p className={ui.hint}>Questo dispositivo non mi lascia tenere lo schermo acceso: potrebbe spegnersi mentre cucini.</p> : null}
+      {!wakeSupported ? <p className={ui.hint}>Lo schermo potrebbe spegnersi mentre cucini.</p> : null}
 
       <ActionBar>
         <Button variant="outline" disabled={isFirst(state)} onClick={() => update((s) => move(s, -1))}>

@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { isStorageAvailable } from "@/design";
 import { useEventLog, useSetting } from "@/data";
+import { dayOf } from "../format";
 import { isStyleChoicePath } from "../settings/firstRunStyle";
 import { PROFILE_SETTING_KEY, isNutritionProfile } from "../nutrition/profile";
 import { useDietDeclarations } from "../allergens";
@@ -15,7 +16,7 @@ let storageOkCache: boolean | undefined;
 const readStorageOk = () => (storageOkCache ??= isStorageAvailable());
 
 /**
- * Decide sul client se proporre il percorso d'ingresso. Sul server e al primo disegno vale «no».
+ * Decide sul client se proporre l'introduzione. Sul server e al primo disegno vale «no».
  * Una volta partito resta acceso fino a «fine» anche se nel frattempo compaiono dei dati (allergeni, profilo):
  * li ha scritti lui stesso.
  */
@@ -43,8 +44,8 @@ export function useOnboardingGate(pathname: string): { show: boolean; close: () 
     if (decision === "skip-mark" && !latched) markOnboardingDone();
   }, [decision, latched]);
 
-  function close(start?: Parameters<typeof markOnboardingDone>[0]) {
-    markOnboardingDone(start);
+  function close() {
+    markOnboardingDone(dayOf(new Date().toISOString()));
     setLatched(false);
   }
 

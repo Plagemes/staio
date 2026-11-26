@@ -274,10 +274,10 @@ export function buildEdit(
   if (events.length === 0) return { ok: false, error: "Non hai cambiato niente." };
   for (const e of events) {
     if (validateEvent(e).length > 0) {
-      return { ok: false, error: "Non riesco a salvare la modifica. Controlla i campi e riprova." };
+      return { ok: false, error: "Non riesco a salvare la correzione. Controlla i campi e riprova." };
     }
   }
-  return { ok: true, events, message: `Modificato: ${changes.productRef ?? lot.productRef}.` };
+  return { ok: true, events, message: `Corretto: ${changes.productRef ?? lot.productRef}.` };
 }
 
 /** Un evento `void` per ognuno degli eventi dati: annulla l'azione appena fatta senza cancellare niente. */
@@ -395,12 +395,12 @@ export function buildSetExpiry(
     );
   }
   if (out.length === 0) return { ok: false, error: "La data è già quella." };
-  if (out.some((e) => validateEvent(e).length > 0)) return { ok: false, error: "Non riesco a salvare la modifica." };
+  if (out.some((e) => validateEvent(e).length > 0)) return { ok: false, error: "Non riesco a salvare la correzione." };
   const name = lots[0].productRef;
   return {
     ok: true,
     events: out,
-    message: lots.length === 1 ? `Data modificata: ${name}.` : `Data modificata per ${lots.length} confezioni di ${name}.`,
+    message: lots.length === 1 ? `Data corretta: ${name}.` : `Data corretta per ${lots.length} confezioni di ${name}.`,
   };
 }
 
@@ -465,6 +465,6 @@ export function buildEditMany(targets: readonly EditTarget[], base: Lot, form: E
   return {
     ok: true,
     events,
-    message: targets.length > 1 ? `Modificate ${targets.length} confezioni di ${name}.` : `Modificato: ${name}.`,
+    message: targets.length > 1 ? `Corrette: ${targets.length} confezioni di ${name}.` : `Corretto: ${name}.`,
   };
 }

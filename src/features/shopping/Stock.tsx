@@ -6,6 +6,7 @@ import { emptyStockConfig, removeMinimum, setMinimum, type StockConfig } from "@
 import { Label, cx } from "@/design";
 import { getSetting } from "@/data";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
+import { Disclosure } from "../common/Disclosure";
 import ui from "../ui.module.css";
 import { stockLine, suggestedText } from "./listText";
 import { SETTING_KEYS, isStockConfig } from "./settings";
@@ -59,7 +60,7 @@ export function Stock() {
         <h1 className={ui.title}>Scorte minime</h1>
         <Label>Scelte da te</Label>
       </div>
-      <p className={ui.lead}>Sotto la scorta minima un prodotto va nella lista della spesa. Il suggerimento viene dai tuoi consumi: lo confermi tu.</p>
+      <Disclosure quiet title="Che cosa significa">Sotto la scorta minima un prodotto va nella lista della spesa. Il suggerimento viene dai tuoi consumi: lo confermi tu.</Disclosure>
       {rows.length === 0 ? (
         <EmptyState
           title="Ancora nessun prodotto abituale"

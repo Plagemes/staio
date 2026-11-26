@@ -127,8 +127,7 @@ export function StyleChoice({ onDone }: { onDone: () => void }) {
           Scegli lo stile
         </h1>
         <p className={ui.lead}>
-          Ogni stile cambia colori, caratteri e forme dell&apos;app. Tocca un esempio per provarlo su tutta la pagina. Potrai
-          cambiarlo quando vuoi in Impostazioni, Aspetto.
+          Tocca un esempio per provarlo. Lo cambi quando vuoi in Impostazioni › Aspetto.
         </p>
       </div>
 

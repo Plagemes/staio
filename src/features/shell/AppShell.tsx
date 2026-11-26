@@ -1,13 +1,14 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { BottomNav, type NavArea } from "@/design";
 import { InstallHint, useOnlineStatus } from "@/pwa";
 import { NoticeProvider } from "../notice";
 import { Onboarding, useOnboardingGate } from "../onboarding";
 import { StyleChoice, StyleChoiceBoundary, useStyleChoiceGate } from "../settings/StyleChoice";
 import { AddSheet } from "./AddSheet";
+import { wantsAddSheet, withoutAddParam } from "./addParam";
 import { BarcodeMigration } from "./BarcodeMigration";
 import { DietMigration } from "./DietMigration";
 import styles from "./AppShell.module.css";
@@ -54,6 +55,19 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [adding, setAdding] = useState(false);
   // finché si sceglie lo stile o si fa l'introduzione il «+» non apre niente: sotto non c'è ancora l'app
   const canAdd = !styleChoice.show && !onboarding.show;
+
+  // la scorciatoia «Aggiungi» dell'icona apre l'app su `?aggiungi=1`: la richiesta si consuma (si toglie dall'indirizzo,
+  // così né la ricarica né il tasto indietro la ripetono) e poi si apre il foglio. Si legge `window.location` e non
+  // `useSearchParams`: la shell sta nel layout, senza `Suspense` la build si fermerebbe.
+  useEffect(() => {
+    const { pathname: path, search, hash } = window.location;
+    if (!wantsAddSheet(search)) return;
+    window.history.replaceState(window.history.state, "", withoutAddParam(path, search, hash));
+    queueMicrotask(() => setAdding(true));
+  }, [pathname]);
+
+  // scelta dello stile o introduzione ancora da fare (anche decisa un attimo dopo): la richiesta cade, niente foglio a sorpresa
+  if (adding && !canAdd) setAdding(false);
   return (
     <NoticeProvider>
       <BarcodeMigration />

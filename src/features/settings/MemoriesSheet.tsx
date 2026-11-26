@@ -2,7 +2,7 @@
 
 import { useState, type ReactElement } from "react";
 import { Button } from "@/design";
-import { Sheet } from "../common";
+import { Disclosure, Sheet } from "../common";
 import { useNotice } from "../notice";
 import ui from "../ui.module.css";
 import { FORGOT_ALL_TEXT, countText, forgotText } from "./memories";
@@ -39,7 +39,10 @@ export function MemoriesSheet({ onClose }: { onClose: () => void }): ReactElemen
   return (
     <Sheet title="Memorie" onClose={onClose} busy={busy}>
       <div className={ui.screen}>
-        <p className={ui.lead}>Che cosa ricordo per farti fare prima. Dimenticarle non tocca ciò che hai registrato.</p>
+        <p className={ui.lead}>Che cosa ricordo per farti fare prima.</p>
+        <Disclosure title="Che cosa significa" quiet>
+          Dimenticarle non tocca ciò che hai registrato.
+        </Disclosure>
         {readFailed ? (
           <p className={ui.error} role="alert">
             Non riesco a leggere ciò che ricordo. Chiudi e riapri l&apos;app.

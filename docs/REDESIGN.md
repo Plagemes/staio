@@ -68,6 +68,22 @@ Questo documento è il progetto definitivo del redesign «utilitario funzionale�
 - **Scelte accettate da 4B.** Gli spuntini si aggiungono solo dalla Settimana. «Giorni passati» si apre da solo se `?giorno=` è un giorno passato. Le porzioni pronte vengono da `lot.remaining`.
 - **Da tenere d'occhio.** Il test di tempo con cinquantamila eventi in `activity/operations.test.ts` è fallito anche da solo durante l'ondata: va ripetuto a macchina libera e, se fallisce ancora, indagato. «AI» non trova nulla nella ricerca (`PAGE_WORD_MIN = 4`): da valutare.
 
+**Dopo l'integrazione dell'ondata 5 (26 nov 2026).** Il lavoro dei mandati 5A, 5B, 5C e dei quattro compiti di 5D è stato unito; 5B e 5D-1 sono stati rivisti da una seconda mano. Ne sono venute queste scelte.
+
+- **Niente dettatura nel campo del «+».** La tastiera del telefono ha già la sua, e il riconoscimento vocale del browser può mandare la voce in rete. Resta solo in «Scrivi o detta» di Registra pasto.
+- **Scorciatoie senza icone proprie** (nessuna icona nuova); nomi brevi «Pasto», «Codice», «Spesa», «Aggiungi».
+- **Un indirizzo incollato nel «+»** porta a Importa con l'indirizzo scritto; per Instagram, TikTok e YouTube alla pagina del video condiviso. Importa non legge la pagina da sola: resta un tocco su «Leggi la pagina», così la riga sul servizio che la legge si vede prima della richiesta.
+- **`AppShell` è entrato nei file di 5A**, perché lo stato del foglio vive nella shell: legge `window.location`, toglie `?aggiungi=1` con `history.replaceState` e poi apre il foglio (la shell sta nel layout e non può usare `useSearchParams` senza `Suspense`). Durante la scelta dello stile o l'introduzione il parametro cade.
+- **«Mettiamoci in pari»**: compare con almeno due giorni del tutto vuoti negli ultimi sette, solo dopo il primo giorno del diario, per colazione, pranzo e cena (spuntini no). Scelta di partenza: pasto abituale più usato, poi «come l'ultima volta» (14 giorni prima), poi «Non ricordo»; mai «Fuori casa» o «Saltato». Ora dei pasti: quella tipica del momento. «Non ricordo» = «mangiato, senza dettagli» (il giorno esce dalle medie). È un foglio a passi, non una pagina; sta in testa a «Da guardare oggi», fuori dal tetto di tre righe; «Lascia così» scrive `catchup:<primo>:<ultimo>` in `briefing.dismissed`.
+- **`describe.ts` è entrato nei file di 5B** e gli eventi del recupero portano `note: "catchup"`: nessun tipo di evento nuovo, e «Ultime azioni» dice «Messo in pari: 14-16 nov» in una riga sola, con un solo «Annulla».
+- **Primo avvio.** Resta la domanda su allergeni ed esclusioni; sesso ed età e «da dove cominciare» diventano due righe di «Primi passi» dentro «Adesso», per sette giorni dalla fine dell'introduzione (`since` e `stepsHidden` nella memoria locale `onboarding`). `Today.tsx` è entrato nei file di 5C per togliere la scheda vuota, che dava due pulsanti pieni; `shell/FirstStep.tsx` è stato tolto. L'invito a installare non compare il giorno in cui finisce l'introduzione, ed è una riga.
+- **Suggerimenti di una riga**: quattro (`add` in «Adesso», `diaryRow`, `pantryRow`, `shoppingRow`), uno per schermata, una volta sola, in `common/Hint.tsx` e `common/hints.ts`. Stanno nelle impostazioni locali (`hint.<id>`), non sono Memorie e **non entrano nella copia delle impostazioni** (`isExportable`, con un test): sono stati di un solo telefono, come `receipt.draft` e `recipes.cookSession`.
+- **Glossario** (4.10): i nomi delle pagine restano quelli della mappa; «Cancella tutti i dati» resta; «Cancella la chiave» diventa «Togli la chiave»; soglia per «oltre una riga»: 70 caratteri. Aree aggiunte a 5D rispetto al piano: `ai-capture` e `memory`, `catchup`, `activity` e `search`. All'integrazione sono stati allineati i testi che i mandati non potevano toccare («Registra pranzo» al posto di «Registralo» nelle voci «Da rivedere»; «Pranzo · mangiato, senza dettagli» in «Ultime azioni»).
+- **Selezione multipla in Dispensa** (5D-1): «Sposta» pieno, «Aggiungi alla spesa» a contorno, «Elimina» di testo; in lista va un nome per prodotto, non per confezione.
+- **Ricerca «AI»**: una parola chiave corta vale se scritta per intero.
+- **Lettura continua dei codici** (12.6): ancora non presa.
+- **Da guardare a schermo**: scorciatoie e tasto indietro dopo `?aggiungi=1` su un telefono vero; il primo avvio con un solo pieno; le misure del ripasso (punti 22-25 della verifica).
+
 ---
 
 ## 0. Come leggere questo documento
@@ -236,7 +252,7 @@ Le pagine non aumentano: ne nasce una («Ultime azioni», `/app/attivita`, ondat
 | `?momento=`, `?giorno=`, `?lotto=` | Registra pasto | Esistono | — |
 | `?voce=<id evento>` | Oggi | Mostra il giorno di quell'evento, scorre fino alla riga e la evidenzia | 2 |
 | `?pasto=<mealId>` | Registra pasto | Aggiunge voci a un pasto esistente | 2 |
-| `?aggiungi=1` | qualunque | Apre il foglio «+» (serve solo alle scorciatoie dell'icona) | 5 |
+| `?aggiungi=1` | `/app` (la legge la shell) | Apre il foglio «+» e si toglie dall'indirizzo; serve solo alla scorciatoia «Aggiungi» dell'icona. Fatto | 5 |
 
 Una pagina che legge un parametro con `useSearchParams` va avvolta in `<Suspense>` nel suo file `page.tsx`, come fa già `src/app/app/page.tsx`: senza, la build si ferma. Il service worker ignora il testo dopo «?» nella chiave della cache: senza rete ogni collegamento apre la pagina giusta e il parametro lo legge la pagina. Un identificativo che non esiste più dice «Non c'è più» e offre la schermata di partenza.
 
@@ -894,7 +910,7 @@ Ogni riga ha un compito che la chiude (i codici sono nella sezione 10). I tipi: 
 | 19 | Dove finisce ciò che si mangia dalla scheda | Persa | Lo dice un riquadro in fondo alla scheda, sotto «Elimina» | Avviso con il momento e «Vedi in Oggi»; voce nel diario | 1B, 1C |
 | 20 | «Aggiungi alla spesa» dalla scheda | Rotta | L'avviso nasce sotto la scheda | La scheda si chiude, l'avviso si vede | 1B |
 | 21 | Aprire un alimento da un collegamento | Mancante | `/app/dispensa?lotto=` non apre nulla | Apre la scheda | 1F |
-| 22 | Selezione multipla | Incompleta | Solo «Elimina» | Anche «Sposta» e «Aggiungi alla spesa» | 5D |
+| 22 | Selezione multipla | Incompleta | Solo «Elimina» | Anche «Sposta» e «Aggiungi alla spesa» | 5D (fatto, ondata 5) |
 | 23 | Scorte minime | Doppia | Collegamento in Piano e in Spesa | Sezione richiusa della Spesa | 3D |
 | 24 | Categorie nella «Spesa del periodo» | Rotta | Nomi interni in inglese | Nomi italiani (`FOOD_CATEGORY_LABELS`) | 1A |
 
@@ -935,7 +951,7 @@ Ogni riga ha un compito che la chiude (i codici sono nella sezione 10). I tipi: 
 | 50 | Cucina | Incompleta | Passo e timer si perdono con l'indietro | Stato salvato; «Stai cucinando: riprendi» in Oggi | 4C |
 | 51 | Dopo aver cucinato | Incompleta | Niente avanzi | «È avanzato qualcosa?» crea la porzione in frigo | 4C |
 | 52 | Filtri del ricettario | Incompleta | Si perdono tornando indietro | Nell'indirizzo della pagina | 4C |
-| 53 | Salvare una ricetta su iPhone | Incompleta | Nessun incolla | «Incolla l'indirizzo»; riconoscimento nel «+» | 4C, 5A |
+| 53 | Salvare una ricetta su iPhone | Incompleta | Nessun incolla | «Incolla l'indirizzo»; riconoscimento nel «+» | 4C, 5A (fatto, ondata 5) |
 | 54 | Allergeni ed esclusioni | Doppia | Tre posti, due archivi | Una casa, un archivio, unione mai meno severa | 4A |
 | 55 | Obiettivi e struttura | Fuori posto | In Piano | Impostazioni > Alimentazione | 4E |
 | 56 | Lista in negozio | Incompleta | È una copia fatta all'inizio del giro: ciò che si aggiunge dopo non entra | Lista viva | 3D |
@@ -951,11 +967,11 @@ Ogni riga ha un compito che la chiude (i codici sono nella sezione 10). I tipi: 
 | 61 | Aggiungere da qualunque schermata | Mancante | Ogni cosa nella sua area | Il «+» | 2C |
 | 62 | Ricerca | Mancante | Sei ricerche locali, nessuna generale | Nel foglio «Aggiungi» | 2C |
 | 63 | Impostazioni | Incompleta | Nessuno stato in vista | Ogni riga dice il valore attuale | 4E |
-| 64 | Scorciatoie dell'icona | Mancante | Il manifest non ne ha | Quattro su Android | 5A |
-| 65 | Giorni senza registrazioni | Mancante | Si ricostruiscono a mano | «Mettiamoci in pari» | 5B |
-| 66 | Primo avvio | Incompleta | Stile e tre domande, poi niente | Una domanda; «Primi passi» nella prima settimana | 5C |
+| 64 | Scorciatoie dell'icona | Mancante | Il manifest non ne ha | Quattro su Android | 5A (fatto, ondata 5) |
+| 65 | Giorni senza registrazioni | Mancante | Si ricostruiscono a mano | «Mettiamoci in pari» | 5B (fatto, ondata 5) |
+| 66 | Primo avvio | Incompleta | Stile e tre domande, poi niente | Una domanda; «Primi passi» nella prima settimana | 5C (fatto, ondata 5) |
 | 67 | Caricamento | Incompleta | Ogni pagina rilegge tutto il registro, più volte | Lettura condivisa | 3A |
-| 68 | Nomi delle azioni | Doppia | Nove formule per registrare un pasto, quattro significati di «Annulla» | Glossario | Tutti; ripasso in 5D |
+| 68 | Nomi delle azioni | Doppia | Nove formule per registrare un pasto, quattro significati di «Annulla» | Glossario | Tutti; ripasso in 5D (fatto, ondata 5) |
 
 ---
 
@@ -1235,10 +1251,11 @@ Nelle tabelle delle sezioni 6 e 8 le sigle dell'ondata 3 sono quelle della prima
 
 | Compito | Che cosa consegna | File in esclusiva | Difficoltà | Revisione |
 |---|---|---|---|---|
-| **5A** Scorciatoie e incolla | 9.5 | `src/app/manifest.ts`, `features/shell/AddSheet.tsx`, `features/recipes/Import.tsx` | Ben specificato | No |
-| **5B** Recupero dei giorni | «Mettiamoci in pari»: un giorno alla volta, una scelta già fatta per momento (pasto abituale, come il giorno prima, fuori casa, saltato, non ricordo); nulla tocca la dispensa; tutto è una sola operazione annullabile | `core/diary/catchup.ts` (nuovo), `features/catchup/` (nuovo), `features/today/DayBriefing.tsx` | Difficile | Sì |
-| **5C** Primo avvio | Una domanda dopo lo stile (allergie ed esclusioni); «Primi passi» in «Adesso» per la prima settimana; suggerimenti di una riga, una volta | `features/onboarding/`, `features/settings/StyleChoice.tsx`, `src/pwa/InstallHint.tsx`, `features/today/Now.tsx`, `features/common/hints.ts` (nuovo) | Ben specificato | No |
-| **5D** Ripasso, in quattro compiti per area | Glossario applicato (compreso «Spuntino»); nessun testo di servizio oltre una riga senza «Che cosa significa»; nessun blocco orfano; selezione multipla con «Sposta» e «Aggiungi alla spesa» | (1) `capture`, `barcode`, `quick`, `ai`, `pantry`, `realign`; (2) `today`, `meal`, `habits`, `health`, `nutrition`, `analysis`; (3) `plan`, `recipes`, `recipes-video`, `prep`, `shopping`, `quality`, `taste`; (4) `shell`, `settings`, `notifications`, `sync`, `assistant`, `onboarding`, più `drinks.ts`, `meals.ts`, `actions.ts` per i soli testi | Meccanico | No |
+| **5A** Scorciatoie e incolla | 9.5 | `src/app/manifest.ts`, `features/shell/{AppShell,AddSheet,addSheetText,addParam}`, `features/recipes/{Import.tsx,pastedAddress.ts}` | Ben specificato | No |
+| **5B** Recupero dei giorni | «Mettiamoci in pari»: un giorno alla volta, una scelta già fatta per momento (pasto abituale, come il giorno prima, fuori casa, saltato, non ricordo); nulla tocca la dispensa; tutto è una sola operazione annullabile | `core/diary/catchup.ts` (nuovo), `features/catchup/` (nuovo), `features/today/{DayBriefing.tsx,Briefing.module.css}`, `features/activity/describe.ts` | Difficile | Sì |
+| **5C** Primo avvio | Una domanda dopo lo stile (allergie ed esclusioni); «Primi passi» in «Adesso» per la prima settimana; suggerimenti di una riga, una volta | `features/onboarding/`, `features/settings/StyleChoice*`, `src/pwa/InstallHint*`, `features/today/{Now.tsx,Today.tsx,FirstStepsBlock.tsx,firstSteps.ts,DiaryHint.tsx}`, `features/common/{hints.ts,Hint.tsx}` (nuovi); `shell/FirstStep.tsx` tolto | Ben specificato | No |
+| **5D** Ripasso, in quattro compiti per area | Glossario applicato (compreso «Spuntino»); nessun testo di servizio oltre una riga senza «Che cosa significa»; nessun blocco orfano; selezione multipla con «Sposta» e «Aggiungi alla spesa» | (1) `capture`, `barcode`, `quick`, `ai`, `pantry` (selezione multipla: `SelectionBar`, `selectionActions.ts`), `realign`; (2) `today`, `meal`, `habits`, `health`, `nutrition`, `analysis`; (3) `plan`, `recipes`, `recipes-video`, `prep`, `shopping`, `quality`, `taste`; (4) `shell`, `settings`, `notifications`, `sync`, `assistant`, `onboarding`, `activity`, `search`, più `drinks.ts`, `meals.ts`, `actions.ts` per i soli testi; aggiunte rispetto al piano: `ai-capture` e `memory` (1), `catchup` per i soli testi (2) | Meccanico | No |
+| **Integrazione 5** | Fatta. Cache a `v6` (manifest con le scorciatoie); `Hint`, `useHint` e il catalogo esportati da `common/index.ts`; `hint.<id>` escluse dalla copia delle impostazioni; testi rimasti allineati al glossario (con i loro test); `INTEGRAZIONE.md`, `README.md`, questo documento | `public/sw.js`, `common/index.ts`, `data/settings.ts`, `INTEGRAZIONE.md`, `README.md`, `docs/REDESIGN.md` | Meccanico | - |
 
 ---
 
@@ -1271,7 +1288,7 @@ Nelle tabelle delle sezioni 6 e 8 le sigle dell'ondata 3 sono quelle della prima
 | 3 | Dopo «Mangiato» la scheda dell'alimento si chiude e l'avviso dice dove è finito (oggi resta aperta con un riquadro in fondo) | Sì: una regola sola dopo ogni azione | Si chiude |
 | 4 | In Oggi «Da mangiare prima» diventa la riga richiusa «In scadenza» (solo ciò che scade entro tre giorni) | Sì | Si fa |
 | 5 | Il pasto fuori casa, stimato, conta nelle medie di Nutrizione (ondata 2) | Sì, segnato come stima | Conta, come stima |
-| 6 | La lettura continua dei codici (rimandata dall'ondata 3 all'ondata 4) | Si decide dopo aver usato il lettore che riparte da solo: oggi è un tocco per prodotto, senza scorrere | Non si fa: resta il lettore che riparte da solo |
+| 6 | La lettura continua dei codici (rimandata dall'ondata 3 all'ondata 4; ancora non presa dopo l'ondata 5, nessun mandato) | Si decide dopo aver usato il lettore che riparte da solo: oggi è un tocco per prodotto, senza scorrere | Non si fa: resta il lettore che riparte da solo |
 | 7 | Pressione lunga e scorrimento laterale sulle righe | No per ora: prima le azioni a un tocco; si rivaluta dopo l'ondata 2 | Non si fanno |
 | 8 | «Chiedi» esce da Oggi quando c'è la ricerca del «+»; le viste fissate restano | Sì | Si fa |
 

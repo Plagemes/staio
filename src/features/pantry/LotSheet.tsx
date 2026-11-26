@@ -227,13 +227,13 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
     try {
       const result = await addManualEntries([{ product: lot.productRef, quantity: { value: lot.initial, unit: lot.unit } }]);
       if (result.added === 0) {
-        setError("Non sono riuscito ad aggiungerlo alla lista. Riprova.");
+        setError("Non sono riuscito ad aggiungerlo alla spesa. Riprova.");
         return;
       }
       onClose();
       notice.show({ message: `Aggiunto alla lista della spesa: ${lot.productRef}.`, onUndo: result.undo });
     } catch {
-      setError("Non sono riuscito ad aggiungerlo alla lista. Riprova.");
+      setError("Non sono riuscito ad aggiungerlo alla spesa. Riprova.");
     } finally {
       end();
     }

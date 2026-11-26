@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { appendItems, changeConsumeQuantity, changeItem, deriveDiary, rewriteMeal } from "@/core/diary";
+import { appendItems, buildCatchUpEvents, catchUpDays, changeConsumeQuantity, changeItem, deriveDiary, rewriteMeal } from "@/core/diary";
 import { declaration, drink, habit, meal, mood, supplement, symptom, water, weight } from "@/core/diary/test-helpers";
 import { withOperationId, type AnyEvent } from "@/core/events";
 import { stampOperationId } from "@/core/events/operation";
@@ -9,7 +9,7 @@ import { buildRemoveMistaken } from "../actions";
 import { retimeDrink } from "../drinks";
 import { buildChangeMoment, buildEaten } from "../pantry/eaten";
 import { describeOperation, doneText, indexLog, type OperationText } from "./describe";
-import { groupOperations, type Operation } from "./operations";
+import { groupOperations, undoOperation, type Operation } from "./operations";
 
 const TZ = "Europe/Rome";
 const BOUGHT = "2026-11-10T09:00:00.000Z";
@@ -160,7 +160,7 @@ describe("describeOperation: il diario", () => {
   it("un pasto dichiarato", () => {
     const skipped = declaration("x1", NOW, { date: "2026-11-16", kind: "lunch", status: "skipped" });
     expect(textOf([skipped])).toEqual({ text: "Pranzo saltato", href: "/app?voce=x1", fromOtherDevice: false });
-    expect(textOf([declaration("x2", NOW, { date: "2026-11-16", kind: "lunch", status: "untracked" })]).text).toBe("Pranzo mangiato, senza dettagli");
+    expect(textOf([declaration("x2", NOW, { date: "2026-11-16", kind: "lunch", status: "untracked" })]).text).toBe("Pranzo · mangiato, senza dettagli");
     expect(textOf([declaration("x3", NOW, { date: "2026-11-16", kind: "breakfast", status: "skipped" })]).text).toBe("Colazione saltata");
   });
 
@@ -334,5 +334,77 @@ describe("doneText: l'avviso dopo «Annulla» e «Rifai»", () => {
     expect(doneText("redo", "Buttato: 150 g di petto di pollo (scaduto)")).toBe("Rifatto: buttato 150 g di petto di pollo (scaduto).");
     expect(doneText("undo", "Pranzo saltato")).toBe("Annullato: pranzo saltato.");
     expect(doneText("undo", "Acqua: 400 ml")).toBe("Annullato: acqua 400 ml.");
+  });
+});
+
+describe("describeOperation: «Mettiamoci in pari»", () => {
+  const AFTER = "2026-11-17T09:00:00.000Z";
+  const minutesOf = { breakfast: 480, lunch: 780, dinner: 1200, snack: 990 };
+  const pasta = { name: "Pasta", quantity: q(100), certainty: "estimated" as const };
+  const days = ["2026-11-14", "2026-11-15", "2026-11-16"];
+  const catchUp = (deviceId = "dev-a"): AnyEvent[] =>
+    buildCatchUpEvents(
+      days.flatMap((date) => [
+        { date, kind: "breakfast" as const, choice: { kind: "meal" as const, items: [pasta], source: "manual" as const } },
+        { date, kind: "lunch" as const, choice: { kind: "unknown" as const } },
+        { date, kind: "dinner" as const, choice: { kind: "skipped" as const } },
+      ]),
+      { deviceId, now: AFTER, timeZone: TZ, minutesOf, idGenerator: nextId },
+    );
+
+  it("tre giorni con pasti e dichiarazioni: una riga, al primo giorno", () => {
+    const events = catchUp();
+    expect(textOf(events)).toEqual({ text: "Messo in pari: 14-16 nov", href: "/app?giorno=2026-11-14", fromOtherDevice: false });
+  });
+
+  it("un giorno solo", () => {
+    const [one] = buildCatchUpEvents([{ date: "2026-11-16", kind: "lunch", choice: { kind: "skipped" } }], { deviceId: "dev-a", now: AFTER, timeZone: TZ, minutesOf, idGenerator: nextId });
+    expect(textOf([one]).text).toBe("Messo in pari: lunedì 16");
+  });
+
+  it("un pasto normale, senza la nota, resta com'era", () => {
+    const plain = meal("m-plain", NOW, { mealId: "meal-plain", kind: "dinner", items: [{ name: "Pasta", quantity: q(100), certainty: "estimated" }] });
+    expect(textOf([plain]).text).toBe("Registrato: cena (pasta)");
+    const skipped = declaration("x-plain", NOW, { date: "2026-11-16", kind: "lunch", status: "skipped" });
+    expect(textOf([skipped]).text).toBe("Pranzo saltato");
+  });
+
+  it("una correzione successiva di un pasto recuperato non è «Messo in pari»", () => {
+    const events = catchUp();
+    const recovered = events.find((e) => e.type === "meal" && e.at.startsWith("2026-11-15")) as Extract<AnyEvent, { type: "meal" }>;
+    const base = [...stock, ...events];
+    const fixed = changeItem(recovered.mealId, 0, { quantity: q(150) }, base, ctx("2026-11-17T10:00:00.000Z"));
+    if (!fixed.ok) throw new Error(fixed.error);
+    expect(fixed.events.some((e) => e.note === "catchup")).toBe(true);
+    const text = textOf(fixed.events, fixed.events[fixed.events.length - 1], base).text;
+    expect(text).not.toMatch(/^Messo in pari/);
+    const moved = rewriteMeal(recovered.mealId, { kind: "lunch" }, base, { ...ctx("2026-11-17T10:05:00.000Z"), timeZone: TZ });
+    if (!moved.ok) throw new Error(moved.error);
+    expect(textOf(moved.events, moved.events[moved.events.length - 1], base).text).not.toMatch(/^Messo in pari/);
+    // la riga del recupero resta la sua
+    expect(textOf(events, events[0], [...stock, ...fixed.events]).text).toBe("Messo in pari: 14-16 nov");
+  });
+
+  it("timbrati come fa appendEvents, sono un'operazione sola; «Annulla» li toglie tutti e i giorni tornano vuoti", () => {
+    const base = stampOperationId([...stock, meal("m-10", "2026-11-10T12:00:00.000Z", { mealId: "meal-10", kind: "lunch", items: [pasta] })], "op-prima");
+    for (const stamp of [(e: readonly AnyEvent[]) => withOperationId(e, "op-pari"), (e: readonly AnyEvent[]) => stampOperationId(e, "op-pari")]) {
+      const written = stamp(catchUp());
+      const log = [...base, ...written];
+      const ops = groupOperations(log, { since: AFTER });
+      expect(ops).toHaveLength(1);
+      expect(ops[0].events).toHaveLength(9);
+      expect(describeOperation(ops[0], { pantry: derivePantry(log), ownDeviceId: "dev-a", timeZone: TZ, log: indexLog(log) }).text).toBe("Messo in pari: 14-16 nov");
+      // restano vuoti solo i giorni che il recupero non ha toccato
+      expect(catchUpDays(deriveDiary(log, { timeZone: TZ }), "2026-11-17")).toEqual(["2026-11-11", "2026-11-12", "2026-11-13"]);
+
+      const undo = undoOperation(ops[0], log, derivePantry(log), { deviceId: "dev-a", now: "2026-11-17T09:05:00.000Z", timeZone: TZ, idGenerator: nextId });
+      if (!undo.ok) throw new Error(undo.reason);
+      expect(undo.events.map((v) => v.targetEventId).sort()).toEqual(written.map((e) => e.id).sort());
+      const after = [...log, ...stampOperationId(undo.events, "op-annulla")];
+      expect(catchUpDays(deriveDiary(after, { timeZone: TZ }), "2026-11-17")).toEqual(["2026-11-11", "2026-11-12", "2026-11-13", "2026-11-14", "2026-11-15", "2026-11-16"]);
+      // la dispensa non si muove, né scrivendo né annullando
+      expect(derivePantry(log).lots).toEqual(derivePantry(base).lots);
+      expect(derivePantry(after).lots).toEqual(derivePantry(base).lots);
+    }
   });
 });

@@ -89,10 +89,18 @@ function matchByName<T>(items: readonly T[], nameOf: (item: T) => string, words:
 /** Le parole corte del nome di una pagina («dei», «le») non contano: con due lettere risponderebbero a tutto. */
 const PAGE_WORD_MIN = 4;
 
-/** Una pagina risponde se ogni parola scritta è l'inizio di una parola del suo nome o delle sue parole chiave. */
+/**
+ * Una pagina risponde se ogni parola scritta è l'inizio di una parola del suo nome o delle sue parole chiave.
+ * Una parola chiave corta («ai») vale solo se la parola scritta è uguale a lei per intero.
+ */
 function pageMatches(page: SearchSources["pages"][number], words: readonly string[]): boolean {
-  const parts = [page.label, ...page.keywords].flatMap((text) => partsOf(normalizeSearch(text))).filter((part) => part.length >= PAGE_WORD_MIN);
-  return words.every((word) => parts.some((part) => part.startsWith(word)));
+  const labelParts = partsOf(normalizeSearch(page.label)).filter((part) => part.length >= PAGE_WORD_MIN);
+  const keywordParts = page.keywords.flatMap((text) => partsOf(normalizeSearch(text)));
+  return words.every(
+    (word) =>
+      labelParts.some((part) => part.startsWith(word)) ||
+      keywordParts.some((part) => (part.length >= PAGE_WORD_MIN ? part.startsWith(word) : part === word)),
+  );
 }
 
 const NOT_IN_HOME = "Non ne hai in casa.";

@@ -31,7 +31,7 @@ export const SEARCH_PAGES: readonly SearchPage[] = [
     href: "/app/impostazioni/alimentazione",
     keywords: ["allergeni", "allergie", "intolleranze", "esclusioni", "obiettivi", "pasti", "orari", "conferme"],
   },
-  { label: "Intelligenza artificiale", href: "/app/impostazioni/ai", keywords: ["chiave", "modello"] },
+  { label: "Intelligenza artificiale", href: "/app/impostazioni/ai", keywords: ["ai", "chiave", "modello"] },
   { label: "Ricette da video", href: "/app/impostazioni/video", keywords: ["video", "tiktok", "instagram"] },
   { label: "Qualità dei prodotti", href: "/app/qualita", keywords: [] },
   { label: "Controlla le quantità", href: "/app/dispensa/riallinea", keywords: [] },

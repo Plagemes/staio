@@ -1,0 +1,12 @@
+/* «Primi passi»: sotto il conto del giorno, dentro «Adesso». Titolo, righe e «Lascia così». */
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-item);
+  min-width: 0;
+}
+
+.leave {
+  align-self: flex-start;
+}

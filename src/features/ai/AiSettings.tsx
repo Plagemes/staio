@@ -14,6 +14,7 @@ import {
   type PriceList,
 } from "@/core/ai";
 import { Button, Label, SectionHeader } from "@/design";
+import { Disclosure } from "../common";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
 import { callAi } from "./call";
@@ -209,7 +210,7 @@ function AiSettingsForm({ settings }: { settings: AiSettings }) {
   }
 
   const DROPPED_TEXT =
-    "Hai cambiato l'indirizzo del servizio: per non inviare la vecchia chiave a un altro dominio l'ho cancellata. Incolla la chiave valida per il nuovo indirizzo.";
+    "Hai cambiato l'indirizzo del servizio: per non inviare la vecchia chiave a un altro dominio l'ho tolta. Incolla la chiave valida per il nuovo indirizzo.";
 
   async function onSave() {
     if (busy) return;
@@ -263,9 +264,9 @@ function AiSettingsForm({ settings }: { settings: AiSettings }) {
     try {
       await clearApiKey(dexieSettingsStore(), draft.provider);
       set(isAnthropic ? { aKey: "" } : { oKey: "" });
-      setStatus({ kind: "ok", text: "Chiave cancellata da questo telefono." });
+      setStatus({ kind: "ok", text: "Chiave tolta da questo telefono." });
     } catch {
-      setStatus({ kind: "error", text: "Non sono riuscito a cancellare la chiave. Riprova." });
+      setStatus({ kind: "error", text: "Non sono riuscito a togliere la chiave. Riprova." });
     }
   }
 
@@ -286,19 +287,9 @@ function AiSettingsForm({ settings }: { settings: AiSettings }) {
         <SectionHeader label="A cosa serve" />
         <div className={styles.block}>
           <p className={ui.paragraph} id={`${ids}-why`}>
-            {APP_NAME} funziona benissimo senza. Se vuoi, puoi aggiungere un aiuto: per ora legge lo scontrino da una foto e ti
-            propone gli alimenti da mettere in dispensa. Ogni cosa che propone è una stima: la rivedi e la correggi tu prima che
-            entri nel registro.
+            {APP_NAME} funziona benissimo senza.
           </p>
           <ul className={ui.bullets}>
-            <li className={ui.paragraph}>
-              <strong>È facoltativa.</strong> Senza chiave, il resto dell&apos;app non cambia.
-            </li>
-            <li className={ui.paragraph}>
-              <strong>La chiave è tua e resta su questo telefono.</strong> Non passa da nessun server di {APP_NAME}: le richieste
-              partono dal telefono direttamente verso il fornitore che scegli. Non finisce nelle copie di sicurezza e la togli
-              quando vuoi.
-            </li>
             <li className={ui.paragraph}>
               <strong>Ogni lettura ha un costo.</strong> Lo paghi tu, sul tuo conto presso il fornitore: di solito pochi centesimi
               a scontrino, ma dipende dal modello e dalla foto. {APP_NAME} non conosce i prezzi: se vuoi vedere una stima e fissare
@@ -309,6 +300,22 @@ function AiSettingsForm({ settings }: { settings: AiSettings }) {
               inviata a lui. Non c&apos;è altro invio: gli alimenti che registri restano sul telefono.
             </li>
           </ul>
+          <Disclosure quiet title="Che cosa significa">
+            <p>
+              Se vuoi, puoi aggiungere un aiuto: per ora legge lo scontrino da una foto e ti propone gli alimenti da mettere in
+              dispensa. Ogni cosa che propone è una stima: la rivedi e la correggi tu prima che entri nel registro.
+            </p>
+            <ul className={ui.bullets}>
+              <li className={ui.paragraph}>
+                <strong>È facoltativa.</strong> Senza chiave, il resto dell&apos;app non cambia.
+              </li>
+              <li className={ui.paragraph}>
+                <strong>La chiave è tua e resta su questo telefono.</strong> Non passa da nessun server di {APP_NAME}: le richieste
+                partono dal telefono direttamente verso il fornitore che scegli. Non finisce nelle copie di sicurezza e la togli
+                quando vuoi.
+              </li>
+            </ul>
+          </Disclosure>
         </div>
       </section>
 
@@ -329,8 +336,7 @@ function AiSettingsForm({ settings }: { settings: AiSettings }) {
             </div>
           </fieldset>
 
-          <div className={styles.guide}>
-            <Label as="h3">Come ottenere una chiave</Label>
+          <Disclosure title="Come ottenere una chiave" summary={isAnthropic ? "Console di Anthropic, in quattro passi" : "Indirizzo, modello e chiave"}>
             {isAnthropic ? (
               <ol className={styles.steps}>
                 <li>
@@ -372,7 +378,7 @@ function AiSettingsForm({ settings }: { settings: AiSettings }) {
             ) : (
               <p className={ui.hint}>La chiave verrà inviata all&apos;indirizzo che scrivi: usa solo servizi di cui ti fidi.</p>
             )}
-          </div>
+          </Disclosure>
         </div>
       </section>
 
@@ -393,7 +399,7 @@ function AiSettingsForm({ settings }: { settings: AiSettings }) {
             <p className={ui.hint}>
               La chiave verrà inviata solo a:{" "}
               <strong className={styles.mono}>{hostOf(draft.provider, draft.oBaseUrl) || "(indirizzo non valido)"}</strong>
-              {isAnthropic ? "." : ". Se cambi l'indirizzo verso un altro dominio, la chiave salvata viene cancellata e va incollata di nuovo."}
+              {isAnthropic ? "." : ". Se cambi l'indirizzo verso un altro dominio, la chiave salvata viene tolta e va incollata di nuovo."}
             </p>
             <div className={styles.keyRow}>
               <input
@@ -498,13 +504,13 @@ function AiSettingsForm({ settings }: { settings: AiSettings }) {
 
           {savedKey !== "" ? (
             confirmClear ? (
-              <div className={ui.calloutStrong} role="group" aria-label="Conferma cancellazione della chiave">
+              <div className={ui.calloutStrong} role="group" aria-label="Conferma: togli la chiave">
                 <p className={ui.paragraph}>
-                  <strong>Cancello la chiave {providerName}?</strong> Sparisce da questo telefono. Per usarla di nuovo la dovrai incollare ancora.
+                  <strong>Tolgo la chiave {providerName}?</strong> Sparisce da questo telefono. Per usarla di nuovo la dovrai incollare ancora.
                 </p>
                 <div className={ui.row}>
                   <button type="button" className={ui.dangerSolid} onClick={onClearKey}>
-                    Sì, cancella la chiave
+                    Sì, togli la chiave
                   </button>
                   <Button variant="outline" onClick={() => setConfirmClear(false)}>
                     No, tienila
@@ -514,7 +520,7 @@ function AiSettingsForm({ settings }: { settings: AiSettings }) {
             ) : (
               <div className={ui.row}>
                 <button type="button" className={ui.danger} onClick={() => setConfirmClear(true)}>
-                  Cancella la chiave
+                  Togli la chiave
                 </button>
               </div>
             )

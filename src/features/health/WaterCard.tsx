@@ -99,7 +99,7 @@ function WaterControls() {
             aria-describedby={error ? `${ids}-water-error` : undefined}
           />
           <Button type="submit" variant="outline" disabled={busy}>
-            Aggiungi
+            Segna
           </Button>
         </div>
         {error ? (

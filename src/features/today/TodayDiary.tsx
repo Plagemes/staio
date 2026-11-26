@@ -14,6 +14,7 @@ import { MEAL_KIND_LABELS, TYPICAL_MEAL_TIME, minutesOfTime } from "../meals";
 import { looseConsumesOf } from "../pantry/eaten";
 import ui from "../ui.module.css";
 import { BodyRow } from "./BodyRow";
+import { DiaryHint } from "./DiaryHint";
 import { bodyLines, bodySummary, mealsWithPantryOf, waterGlasses } from "./dayRows";
 import { dayStatusLine, diaryTitle } from "./dayStatus";
 import { useDayIntake } from "./MealLines";
@@ -83,6 +84,7 @@ export function TodayDiary({ now, today, date, diary, pantry, log, plan, waterOp
       <p className={styles.status} role="status">
         {status}
       </p>
+      {!pastDay && (meals.length > 0 || Object.values(loose).some((l) => l.length > 0)) ? <DiaryHint /> : null}
 
       <MealMoments
         date={date}

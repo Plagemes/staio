@@ -188,14 +188,14 @@ export function ExperimentCard({ experiment, today, diary, intakeDays }: Props) 
         </div>
       ) : null}
       {confirming === "cancel" ? (
-        <div className={styles.confirm} role="group" aria-label="Conferma l'annullamento">
+        <div className={styles.confirm} role="group" aria-label="Conferma: togli l'esperimento">
           <p>
-            Annullare «{experiment.title}»? Scompare dall&apos;elenco e dal confronto; i dati registrati nel diario restano. Potrai tornare indietro subito dopo
+            Togliere «{experiment.title}»? Scompare dall&apos;elenco e dal confronto; i dati registrati nel diario restano. Potrai tornare indietro subito dopo
             con «Annulla».
           </p>
           <div className={ui.row}>
             <button type="button" className={ui.dangerSolid} disabled={busy} onClick={onCancel}>
-              Annulla l&apos;esperimento
+              Togli l&apos;esperimento
             </button>
             <Button variant="text" onClick={() => setConfirming(null)}>
               Non ora
@@ -217,7 +217,7 @@ export function ExperimentCard({ experiment, today, diary, intakeDays }: Props) 
             </button>
           ) : null}
           <button type="button" className={ui.danger} onClick={() => setConfirming("cancel")}>
-            Annulla l&apos;esperimento
+            Togli l&apos;esperimento
           </button>
         </div>
       ) : null}

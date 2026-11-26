@@ -28,6 +28,7 @@ import { SearchResults } from "../search/SearchResults";
 import { isSearching, pantrySources, queryText, search, type SearchAction, type SearchSources } from "../search/searchIndex";
 import { addManualEntries, type ManualInput } from "../shopping";
 import ui from "../ui.module.css";
+import { addressHost, pastedLinkTarget } from "../recipes/pastedAddress";
 import { useNow } from "../useNow";
 import { useRecord } from "../useRecord";
 import { drinkNoticeText, eatenHint, visitNoticeText } from "./addSheetText";
@@ -272,7 +273,7 @@ export function AddSheet({ onClose }: { onClose: () => void }) {
       commitAdded([...addedRef.current, { id: nextId.current, name, input, undo: result.undo }]);
       return true;
     } catch {
-      setError("Non sono riuscito ad aggiungerlo alla lista. Riprova.");
+      setError("Non sono riuscito ad aggiungerlo alla spesa. Riprova.");
       return false;
     } finally {
       listBusyRef.current = false;
@@ -314,7 +315,7 @@ export function AddSheet({ onClose }: { onClose: () => void }) {
         commitAdded(kept);
       }
     } catch {
-      setError("Non sono riuscito a toglierlo dalla lista. Riprova.");
+      setError("Non sono riuscito a toglierlo dalla spesa. Riprova.");
     } finally {
       listBusyRef.current = false;
       setListBusy(false);
@@ -351,6 +352,10 @@ export function AddSheet({ onClose }: { onClose: () => void }) {
   const moreItem: ActionItem[] = [{ id: "more", label: "Altro", onSelect: () => go("more") }];
 
   const searching = isSearching(query);
+  // un indirizzo incollato è una riga sola: né ricerca né «alla spesa». Niente rete: la pagina si legge in Importa, al tocco.
+  const pasted = pastedLinkTarget(query);
+  const host = pasted ? addressHost(query) : undefined;
+  const pastedItems: ActionItem[] = pasted ? [{ id: "pasted", label: pasted.label, ...(host ? { hint: host } : {}), href: pasted.href }] : [];
   const errorLine = error ? (
     <p className={ui.error} role="alert">
       {error}
@@ -391,7 +396,9 @@ export function AddSheet({ onClose }: { onClose: () => void }) {
             }}
           />
         </div>
-        {searching ? (
+        {pasted ? (
+          <ActionList items={pastedItems} />
+        ) : searching ? (
           <SearchPanel query={query} habits={diary.data?.habits} disabled={busy} onAction={onSearchAction} />
         ) : (
           <>
@@ -467,7 +474,7 @@ export function AddSheet({ onClose }: { onClose: () => void }) {
         </form>
         {errorLine}
         {added.length > 0 ? (
-          <ul className={cx(styles.added, ui.group)} aria-label="Aggiunti alla lista adesso">
+          <ul className={cx(styles.added, ui.group)} aria-label="Aggiunti alla spesa adesso">
             {added.map((entry) => (
               <li key={entry.id} className={styles.addedRow}>
                 <span className={styles.addedName}>{entry.name}</span>

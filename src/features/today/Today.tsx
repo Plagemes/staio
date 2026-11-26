@@ -16,7 +16,6 @@ import { evaluateLots } from "../lots";
 import { TodayNutrition } from "../nutrition/TodayNutrition";
 import { missedThisWeek } from "../plan/moveMeal";
 import { LoadingLine, StorageError } from "../shell/EmptyState";
-import { FirstStepToday } from "../shell/FirstStep";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
 import { DayBriefing, MISSED_ID } from "./DayBriefing";
@@ -174,7 +173,7 @@ export function Today() {
     [pantry.data, now],
   );
 
-  // niente nel registro e niente in dispensa: la prima apertura, con la scheda guidata e «Adesso» soltanto
+  // niente nel registro e niente in dispensa: la prima apertura, con «Adesso» e «Primi passi» soltanto
   const firstTime = entries.length === 0 && log.data?.length === 0;
   const failed = Boolean(pantry.error || log.error || diary.error);
   const today = now ? dayOf(now) : "";
@@ -438,8 +437,6 @@ export function Today() {
           />
         ) : (
           <>
-            {firstTime ? <FirstStepToday /> : null}
-
             <Now
               now={now}
               today={today}

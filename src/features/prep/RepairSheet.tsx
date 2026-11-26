@@ -7,6 +7,7 @@ import { appendEvents, getAllEvents, getDeviceId } from "@/data";
 import { Button, Label } from "@/design";
 import { Sheet, closeSheetThen } from "../common";
 import { useNotice } from "../notice";
+import { Disclosure } from "../common/Disclosure";
 import ui from "../ui.module.css";
 import { describeRepair, repairItemText, repairSignature, type RepairItem } from "./view";
 
@@ -126,7 +127,7 @@ export function RepairSheet({ item, result, lots, onClose }: RepairProps) {
             {error}
           </p>
         ) : null}
-        <p className={ui.hint}>Non scrivo niente finché non confermi. Dopo, «Annulla» toglie la correzione.</p>
+        <Disclosure quiet title="Che cosa significa">Non scrivo niente finché non confermi. Dopo, «Annulla» toglie la correzione.</Disclosure>
       </>
     </Sheet>
   );

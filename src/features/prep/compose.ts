@@ -173,5 +173,5 @@ export function eatPortionInMeal(
     const first = Object.values(result.errors.picks)[0] ?? result.errors.general ?? "Non riesco a registrare il pasto.";
     return { ok: false, error: first };
   }
-  return { ok: true, events: result.events, message: `Mangiata una porzione di ${prep.title}. Restano ${formatQuantity({ value: lot.remaining - 1, unit: "pz" })}.` };
+  return { ok: true, events: result.events, message: `Mangiato: una porzione di ${prep.title}. Restano ${formatQuantity({ value: lot.remaining - 1, unit: "pz" })}.` };
 }

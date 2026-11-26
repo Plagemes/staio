@@ -7,7 +7,7 @@ import { DEFAULT_TIME_ZONE } from "@/core/expiry";
 import { activeLots, type Lot } from "@/core/ledger";
 import { appendEvents, getDeviceId, useDiary, usePantry } from "@/data";
 import { Button, Label } from "@/design";
-import { MoreActions } from "../common";
+import { Disclosure, MoreActions } from "../common";
 import { evaluateLots } from "../lots";
 import { eatOrder } from "../meal/plate";
 import { MEAL_KIND_LABELS, buildMealFromHabit, itemText } from "../meals";
@@ -21,7 +21,7 @@ import styles from "./Habits.module.css";
 
 type Mode = "view" | "rename" | "items";
 
-/** Un pasto abituale: «Registra adesso» in vista, il resto in «Altro». `lots`: gli alimenti in ordine «da mangiare prima». */
+/** Un pasto abituale: «Registra» più il momento in vista, il resto in «Altro». `lots`: gli alimenti in ordine «da mangiare prima». */
 function HabitCard({ habit, lots }: { habit: DiaryHabit; lots: readonly Lot[] | undefined }) {
   const { record, busy } = useRecord();
   const notice = useNotice();
@@ -139,7 +139,7 @@ function HabitCard({ habit, lots }: { habit: DiaryHabit; lots: readonly Lot[] | 
       {mode === "view" ? (
         <div className={styles.actions}>
           <Button variant="outline" disabled={!lots || writing || busy} onClick={() => void registerNow()}>
-            Registra adesso
+            Registra {MEAL_KIND_LABELS[habit.kind].toLowerCase()}
           </Button>
           <MoreActions
             title={habit.title}
@@ -305,7 +305,10 @@ export function Habits() {
           Torna a Oggi
         </Link>
       </div>
-      <p className={ui.lead}>I pasti che ripeti. Si registrano con un tocco da qui, da “Registra pasto” e da Oggi all&apos;ora giusta.</p>
+      <p className={ui.lead}>I pasti che ripeti.</p>
+      <Disclosure quiet title="Che cosa significa">
+        <p>Si registrano con un tocco da qui, da «Registra pasto» e da Oggi all&apos;ora giusta.</p>
+      </Disclosure>
 
       {diary.error ? <StorageError /> : null}
       {diary.loading ? <LoadingLine /> : null}

@@ -12,6 +12,7 @@ import { NUTRITION_DISCLAIMER_SHORT, CERTAINTY_LABELS } from "../nutrition/label
 import { IncompleteDeclarations } from "../recipes/SafetyPanel";
 import { useDeclared } from "../recipes/useRecipeSafety";
 import { LoadingLine } from "../shell/EmptyState";
+import { Disclosure } from "../common/Disclosure";
 import ui from "../ui.module.css";
 import { WEEK_LABELS, dayHeading, weekChoices, type WeekId } from "./dates";
 import { itemName } from "./describe";
@@ -59,11 +60,11 @@ export function VerifyBody({ data, initialWeek = "current" }: { data: PlanData; 
 
   return (
     <div className={ui.screen}>
-      <p className={ui.hint}>Il piano confrontato con gli obiettivi che hai scelto, e con ciò che hai registrato davvero. Sono stime: dove il dato manca, lo dico.</p>
+      <Disclosure quiet title="Che cosa significa">Il piano confrontato con gli obiettivi che hai scelto, e con ciò che hai registrato davvero. Sono stime: dove il dato manca, lo dico.</Disclosure>
       <Tabs label="Settimana da verificare" items={TABS} value={weekId} onChange={(id) => setWeekId(id as WeekId)} />
 
       {planned === 0 ? (
-        <p className={ui.paragraph}>Niente di pianificato in questa settimana: con un piano qui compariranno gli obiettivi rispettati o no, gli alimenti esclusi e, per le settimane passate, il confronto con ciò che hai mangiato.</p>
+        <p className={ui.paragraph}>Niente di pianificato in questa settimana.</p>
       ) : (
         <>
           <section className={ui.section} aria-label="Alimenti esclusi e allergeni">

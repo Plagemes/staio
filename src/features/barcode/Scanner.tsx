@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { validateBarcode } from "@/core/catalog";
 import { Button } from "@/design";
+import { Disclosure } from "../common";
 import ui from "../ui.module.css";
 import { CAMERA_MESSAGES, cameraAvailability, classifyCameraError, openRearCamera, stopStream, type CameraProblem } from "./camera";
 import { createCodeReader } from "./detector";
@@ -194,9 +195,14 @@ export function Scanner({ onCode, disabled = false, autoStart = false, ignoreCod
           {phase === "starting" ? <p className={styles.overlay}>Apro la fotocamera…</p> : null}
         </div>
         {phase === "scanning" ? (
-          <p className={ui.hint} role="status">
-            Inquadra il codice a barre, ben illuminato e fermo. Mi fermo al primo che riconosco.
-          </p>
+          <>
+            <p className={ui.hint} role="status">
+              Inquadra il codice a barre, ben illuminato e fermo.
+            </p>
+            <Disclosure quiet title="Che cosa significa">
+              Mi fermo al primo codice che riconosco.
+            </Disclosure>
+          </>
         ) : null}
 
         {problem ? (

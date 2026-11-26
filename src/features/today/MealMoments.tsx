@@ -467,7 +467,7 @@ export function MealMoments({ date, today, now, diary, day, meals, loose, log, p
                   {declared ? (
                     <span className={styles.momentChoices}>
                       <Button variant="text" disabled={busy} onClick={() => setChanging(changing === kind ? null : kind)} aria-expanded={changing === kind}>
-                        Cambia
+                        Correggi
                       </Button>
                       {removeId ? (
                         <Button variant="text" disabled={busy} onClick={() => removeDeclaration(kind, removeId, `${name} ${STATUS_WORD[status]}`)}>
@@ -489,7 +489,7 @@ export function MealMoments({ date, today, now, diary, day, meals, loose, log, p
               {plannedLines}
 
               {declared && changing === kind ? (
-                <div className={styles.momentChoices} role="group" aria-label={`Cambia ${name}`}>
+                <div className={styles.momentChoices} role="group" aria-label={`Correggi ${name}`}>
                   <Button href={registerHref(kind)} variant="outline">
                     Registra
                   </Button>

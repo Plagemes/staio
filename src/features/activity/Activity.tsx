@@ -8,6 +8,7 @@ import type { AnyEvent } from "@/core/events";
 import type { PantryState } from "@/core/ledger";
 import { appendEvents, derivedOf, getDeviceId, useEventLog } from "@/data";
 import { Button, Label, cx } from "@/design";
+import { Disclosure } from "../common";
 import { dayOf, formatDayLabel, formatTime } from "../format";
 import { useNotice } from "../notice";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
@@ -156,7 +157,10 @@ export function Activity() {
           Torna a Oggi
         </Link>
       </div>
-      <p className={ui.lead}>Quello che hai fatto negli ultimi {DAYS} giorni. Puoi annullare anche dopo ore.</p>
+      <p className={ui.lead}>Quello che hai fatto negli ultimi {DAYS} giorni.</p>
+      <Disclosure title="Che cosa significa" quiet>
+        Puoi annullare anche dopo ore.
+      </Disclosure>
 
       {log.error ? <StorageError /> : null}
       {!log.error && !days ? <LoadingLine /> : null}

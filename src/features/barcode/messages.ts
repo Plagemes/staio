@@ -9,10 +9,10 @@ export const BARCODE_PROBLEM_MESSAGES: Record<BarcodeProblem, string> = {
 };
 
 export const LOOKUP_FAILURE_MESSAGES: Record<LookupFailure, string> = {
-  offline: "Il telefono non ha rete e questo prodotto non è tra quelli già letti. Riprova con la rete, o inseriscilo a mano.",
-  network: "Non riesco a raggiungere Open Food Facts. Controlla la connessione e riprova, o inserisci il prodotto a mano.",
-  timeout: "Open Food Facts non ha risposto in tempo. Riprova, o inserisci il prodotto a mano.",
-  service: "Open Food Facts ha avuto un problema nel rispondere. Riprova più tardi, o inserisci il prodotto a mano.",
+  offline: "Il telefono non ha rete e questo prodotto non è tra quelli già letti. Riprova con la rete, o aggiungilo alla dispensa.",
+  network: "Non riesco a raggiungere Open Food Facts. Controlla la connessione e riprova, o aggiungilo alla dispensa.",
+  timeout: "Open Food Facts non ha risposto in tempo. Riprova, o aggiungilo alla dispensa.",
+  service: "Open Food Facts ha avuto un problema nel rispondere. Riprova più tardi, o aggiungilo alla dispensa.",
   invalid_code: "Il codice non è valido.",
   aborted: "Ricerca interrotta.",
 };

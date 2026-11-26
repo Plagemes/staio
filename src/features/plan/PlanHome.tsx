@@ -93,12 +93,11 @@ export function PlanHome() {
             </Link>
           </li>
         </ul>
+        <div className={ui.row}>
+          {rows.empty ? <Button href={PROPOSE_HREF}>Proponi la settimana</Button> : null}
+          <MoreActions items={more} />
+        </div>
       </section>
-
-      <div className={ui.row}>
-        {rows.empty ? <Button href={PROPOSE_HREF}>Proponi la settimana</Button> : null}
-        <MoreActions items={more} />
-      </div>
 
       {copying ? <CopyWeekSheet data={data} target={current} initial="previous" onClose={() => setCopying(false)} /> : null}
     </div>

@@ -16,6 +16,7 @@ import { MEAL_KIND_LABELS, MEAL_KIND_ORDER, suggestMealKind } from "../meals";
 import { useNotice } from "../notice";
 import { ActionList, Sheet, closeSheetThen } from "../common";
 import { EmptyState, LoadingLine, StorageError } from "../shell/EmptyState";
+import { Disclosure } from "../common/Disclosure";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
 import { eatPortionInMeal } from "./compose";
@@ -136,7 +137,7 @@ export function Preps() {
               </div>
             ))}
           </div>
-          <p className={ui.hint}>Le date vengono dal piano della settimana. La durata delle porzioni è una stima.</p>
+          <Disclosure quiet title="Che cosa significa">Le date vengono dal piano della settimana. La durata delle porzioni è una stima.</Disclosure>
         </section>
       ) : plan.data ? (
         <p className={ui.hint}>
@@ -369,10 +370,10 @@ function PrepSheet({ prep, now, onClose }: PrepSheetProps) {
           </p>
         ) : null}
 
-        <p className={ui.hint}>
+        <Disclosure quiet title="Che cosa significa">
           «Mangia una porzione» registra un pasto con questa porzione. Togliere la preparazione rimette gli ingredienti in dispensa: non si può
           se ne hai già mangiate.
-        </p>
+        </Disclosure>
         <ActionList items={[{ id: "remove", label: "Togli la preparazione", danger: true, disabled: busy, onSelect: () => void remove() }]} />
       </>
     </Sheet>

@@ -178,13 +178,13 @@ export function BarcodeCapture() {
           <h2 className={ui.emptyTitle}>Prodotto non trovato</h2>
           <p className={ui.emptyText}>
             {view.rejected
-              ? `La scheda trovata per il codice ${view.code} non è il tuo prodotto: i codici interni dei negozi cambiano da un negozio all'altro. Scrivi i valori nutrizionali, o aggiungilo a mano.`
+              ? `La scheda trovata per il codice ${view.code} non è il tuo prodotto: i codici interni dei negozi cambiano da un negozio all'altro. Scrivi i valori nutrizionali, o aggiungilo alla dispensa.`
               : isRestrictedCode(view.code)
-                ? `Open Food Facts non ha una scheda per il codice ${view.code}, che è un codice interno del negozio. Lo aggiungi a mano: ti ricordo il codice nel modulo.`
-                : `Open Food Facts non conosce il codice ${view.code}. Lo aggiungi a mano: ti ricordo il codice nel modulo.`}
+                ? `Open Food Facts non ha una scheda per il codice ${view.code}, che è un codice interno del negozio. Lo aggiungi alla dispensa: ti ricordo il codice nel modulo.`
+                : `Open Food Facts non conosce il codice ${view.code}. Lo aggiungi alla dispensa: ti ricordo il codice nel modulo.`}
           </p>
           <div className={ui.row}>
-            <Button href={captureHrefForCode(view.code)}>Aggiungi a mano</Button>
+            <Button href={captureHrefForCode(view.code)}>Aggiungi alla dispensa</Button>
             <Button variant="outline" onClick={reset}>
               Altro codice
             </Button>
@@ -200,7 +200,7 @@ export function BarcodeCapture() {
           <div className={ui.row}>
             <Button onClick={() => void search(view.code)}>Riprova</Button>
             <Button variant="outline" href={captureHrefForCode(view.code)}>
-              Aggiungi a mano
+              Aggiungi alla dispensa
             </Button>
             <Button variant="text" onClick={reset}>
               Altro codice

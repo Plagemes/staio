@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useId, useLayoutEffect, useMemo, useState } from "react";
 import { activeLots, estimatedPantryValue, pantryValueParts, type Location, type PantryState } from "@/core/ledger";
-import { appendEvents, getDeviceId, useEventLog, usePantry } from "@/data";
+import { appendEvents, getDeviceId, getPantry, useEventLog, usePantry } from "@/data";
 import { Button, FoodThumb, Label, PantryRow, Tabs, Value, cx } from "@/design";
 import { buildRemoveMany, type RemoveManyKind } from "../actions";
 import { configIssue } from "../ai/settings";
 import { useAiSettings } from "../ai/useAiSettings";
 import { useReceiptDraft } from "../ai/receiptDraft";
 import { BreakdownSheet, MoreActions, type ActionItem } from "../common";
+import { Hint } from "../common/Hint";
 import { dayOf, formatPrice } from "../format";
 import { LOCATION_LABELS } from "../labels";
 import { useNotice } from "../notice";
@@ -29,6 +30,7 @@ import { pantryValueContent } from "./valueBreakdown";
 import { LOT_WAIT_MS, lotLinkVerdict } from "./lotLink";
 import { entryDetail, entryExpiry } from "./rows";
 import { SelectionBar } from "./SelectionBar";
+import { NOTHING_LEFT_TEXT, buildMoveSelection, listMessage, planList, planMove, shoppingNames } from "./selectionActions";
 import styles from "./Pantry.module.css";
 
 type Tab = "all" | Location;
@@ -61,8 +63,8 @@ export function Pantry() {
   const searchId = useId();
   const [selecting, setSelecting] = useState(false);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
-  const [removing, setRemoving] = useState(false);
-  const [removeError, setRemoveError] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
+  const [barError, setBarError] = useState<string | null>(null);
 
   const entries = useMemo(
     () => (pantry.data && now ? evaluateLots(activeLots(pantry.data), now) : []),
@@ -108,7 +110,7 @@ export function Pantry() {
       setListError(null);
       setSelecting(false);
       setPicked(new Set());
-      setRemoveError(null);
+      setBarError(null);
       setValueOpen(false);
     },
     [],
@@ -117,7 +119,7 @@ export function Pantry() {
   const stopSelecting = () => {
     setSelecting(false);
     setPicked(new Set());
-    setRemoveError(null);
+    setBarError(null);
   };
   const togglePicked = (lotIds: readonly string[], on: boolean) =>
     setPicked((prev) => {
@@ -170,28 +172,82 @@ export function Pantry() {
 
   async function removePicked(kind: RemoveManyKind) {
     if (!pantry.data || !log.data) return;
-    setRemoving(true);
-    setRemoveError(null);
+    setWorking(true);
+    setBarError(null);
     try {
       const result = buildRemoveMany(pickedLots, kind, log.data, pantry.data.voidedEventIds, {
         now: new Date().toISOString(),
         deviceId: await getDeviceId(),
       });
       if (!result.ok) {
-        setRemoveError(result.error);
+        setBarError(result.error);
         return;
       }
       const written = await appendEvents(result.events);
       if (written.added === 0 || written.rejected.length > 0) {
-        setRemoveError("Non sono riuscito a salvare. Riprova.");
+        setBarError("Non sono riuscito a salvare. Riprova.");
         return;
       }
       stopSelecting();
       notice.show({ message: result.message, undo: result.events });
     } catch {
-      setRemoveError("Non sono riuscito a salvare sul telefono. Riprova.");
+      setBarError("Non sono riuscito a salvare sul telefono. Riprova.");
     } finally {
-      setRemoving(false);
+      setWorking(false);
+    }
+  }
+
+  /** «Sposta»: una sola scrittura per tutte le confezioni; prima si rilegge la dispensa, perché qualcuna può essere cambiata. */
+  async function movePicked(to: Location) {
+    if (working) return;
+    const ids = pickedLots.map((l) => l.lotId);
+    setWorking(true);
+    setBarError(null);
+    try {
+      const plan = planMove(activeLots(await getPantry()), ids, to);
+      const result = buildMoveSelection(plan, to, { now: new Date().toISOString(), deviceId: await getDeviceId() });
+      if (!result.ok) {
+        setBarError(result.error);
+        return;
+      }
+      const written = await appendEvents(result.events);
+      if (written.added === 0 || written.rejected.length > 0) {
+        setBarError("Non sono riuscito a salvare. Riprova.");
+        return;
+      }
+      stopSelecting();
+      notice.show({ message: result.message, undo: result.events });
+    } catch {
+      setBarError("Non sono riuscito a salvare sul telefono. Riprova.");
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  /** «Aggiungi alla spesa»: un nome per prodotto, una unità come col «+»; la lista è un'impostazione, non il registro. */
+  async function addPickedToList() {
+    if (working) return;
+    const ids = pickedLots.map((l) => l.lotId);
+    setWorking(true);
+    setBarError(null);
+    try {
+      const { lots, gone } = planList(activeLots(await getPantry()), ids);
+      const names = shoppingNames(lots);
+      if (names.length === 0) {
+        setBarError(NOTHING_LEFT_TEXT);
+        return;
+      }
+      const result = await addManualEntries(names.map((product) => ({ product, quantity: { value: 1, unit: "pz" as const } })));
+      if (result.added === 0) {
+        setBarError("Non sono riuscito ad aggiungerli alla spesa. Riprova.");
+        return;
+      }
+      stopSelecting();
+      notice.show({ message: listMessage(names, gone), onUndo: result.undo, link: { label: "Vedi", href: "/app/spesa" } });
+    } catch {
+      setBarError("Non sono riuscito ad aggiungerli alla spesa. Riprova.");
+    } finally {
+      setWorking(false);
     }
   }
 
@@ -203,7 +259,7 @@ export function Pantry() {
       if (result.added === 0) return;
       notice.show({ message: `Aggiunto alla lista della spesa: ${queryText}.`, onUndo: result.undo });
     } catch {
-      setListError("Non sono riuscito ad aggiungerlo alla lista. Riprova.");
+      setListError("Non sono riuscito ad aggiungerlo alla spesa. Riprova.");
     }
   }
 
@@ -311,7 +367,7 @@ export function Pantry() {
             Seleziona tutti
           </button>
           <button type="button" className={styles.tool} onClick={stopSelecting}>
-            Annulla selezione
+            Chiudi la selezione
           </button>
         </div>
       ) : null}
@@ -373,6 +429,7 @@ export function Pantry() {
                 </Link>
               </div>
             ) : null}
+            {!searching && !selecting ? <Hint id="pantryRow" /> : null}
             <div className={styles.lists} role="tabpanel" aria-label={searching ? "Risultati della ricerca" : TAB_ITEMS.find((t) => t.id === tab)?.label}>
               {shown.length === 0 && searching ? (
                 <div className={ui.empty}>
@@ -418,9 +475,12 @@ export function Pantry() {
             key={pickedLots.length === 0 ? "empty" : "some"}
             count={pickedLots.length}
             products={new Set(pickedLots.map((l) => l.barcode ?? l.productRef.trim().toLowerCase())).size}
-            busy={removing || !log.data}
-            error={removeError}
+            busy={working || !log.data}
+            error={barError}
             onRemove={(kind) => void removePicked(kind)}
+            onMove={(to) => void movePicked(to)}
+            onAddToList={() => void addPickedToList()}
+            onClearError={() => setBarError(null)}
           />
         </>
       ) : null}

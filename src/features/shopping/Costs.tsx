@@ -5,6 +5,7 @@ import { Button, SectionHeader } from "@/design";
 import { getSetting } from "@/data";
 import { formatQuantity } from "@/core/units";
 import { formatPrice, parsePriceCents } from "../format";
+import { Disclosure } from "../common/Disclosure";
 import ui from "../ui.module.css";
 import { dismiss, setQuantity } from "./decisions";
 import { SETTING_KEYS, emptyDecisions, isDecisions } from "./settings";
@@ -49,13 +50,13 @@ export function Costs({ data, undo, onOpenCost }: { data: ShoppingData; undo: Un
         ) : (
           <p className={styles.costLine}>{view.cost.text}</p>
         )}
-        <p className={ui.hint}>È l&apos;ultimo prezzo che hai registrato per ogni prodotto, per la quantità in lista: una stima, non un preventivo.</p>
+        <Disclosure quiet title="Che cosa significa">È l&apos;ultimo prezzo che hai registrato per ogni prodotto, per la quantità in lista: una stima, non un preventivo.</Disclosure>
       </section>
 
       <section className={ui.section} aria-label="Confronto tra negozi">
         <SectionHeader label="Dove conviene" />
         {c.singles.length === 0 ? (
-          <p className={ui.paragraph}>Non ho ancora prezzi per negozio. Quando registri acquisti con il negozio e il prezzo, qui confronto i negozi per questa lista.</p>
+          <p className={ui.paragraph}>Nessun prezzo per negozio: registra acquisti con negozio e prezzo.</p>
         ) : (
           <>
             <ul className={styles.table}>
@@ -73,7 +74,7 @@ export function Costs({ data, undo, onOpenCost }: { data: ShoppingData; undo: Un
                 </li>
               ))}
             </ul>
-            {c.unpricedCount > 0 ? <p className={ui.hint}>{c.unpricedCount} {c.unpricedCount === 1 ? "voce non ha" : "voci non hanno"} alcun prezzo osservato e restano fuori da ogni stima.</p> : null}
+            {c.unpricedCount > 0 ? <p className={ui.hint}>{c.unpricedCount} {c.unpricedCount === 1 ? "voce senza prezzo resta" : "voci senza prezzo restano"} fuori dalla stima.</p> : null}
             {c.split ? (
               <div className={styles.card}>
                 <p className={styles.costLine}>
@@ -100,7 +101,7 @@ export function Costs({ data, undo, onOpenCost }: { data: ShoppingData; undo: Un
 
       <section className={ui.section} aria-label="Tetto di spesa">
         <SectionHeader label="Tetto di spesa" />
-        <p className={ui.hint}>Facoltativo. Se la lista lo supera, ti propongo riduzioni, dalle voci più deboli: le accetti una per una.</p>
+        <Disclosure quiet title="Che cosa significa">Facoltativo. Se la lista lo supera, ti propongo riduzioni, dalle voci più deboli: le accetti una per una.</Disclosure>
         <form
           className={ui.field}
           onSubmit={(e) => {

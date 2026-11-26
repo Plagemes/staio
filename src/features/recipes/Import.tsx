@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { APP_NAME } from "@/config";
 import { Button, Tabs } from "@/design";
+import { Disclosure } from "../common/Disclosure";
 import ui from "../ui.module.css";
 import { formFromDraft } from "./form";
 import {
@@ -15,6 +16,7 @@ import {
   importFromUrl,
   type ImportDraft,
 } from "./importDraft";
+import { addressIn, isOnlyAddress } from "./pastedAddress";
 import { RecipeEditor } from "./RecipeEditor";
 import styles from "./recipes.module.css";
 
@@ -46,6 +48,9 @@ export function Import() {
 
 function ImportBody({ sharedUrl }: { sharedUrl: string }) {
   const [via, setVia] = useState<Via>("url");
+  // l'indirizzo con cui si apre la scheda «Indirizzo» e il testo della scheda «Testo»: restano se si cambia scheda
+  const [address, setAddress] = useState(sharedUrl);
+  const [recipeText, setRecipeText] = useState("");
   const [draft, setDraft] = useState<{ value: ImportDraft; key: number } | null>(null);
   const counter = useRef(0);
 
@@ -75,9 +80,9 @@ function ImportBody({ sharedUrl }: { sharedUrl: string }) {
                 : "Letta da un testo: controlla bene quantità e passi."}
             </p>
             {draft.value.description ? <p className={ui.hint}>{draft.value.description}</p> : null}
-            <p className={ui.hint}>
+            <Disclosure quiet title="Che cosa significa">
               {PERSONAL_USE} La fonte è già nei campi in fondo: lasciala, serve a ritrovare da dove viene.
-            </p>
+            </Disclosure>
             <div>
               <Button variant="text" onClick={() => setDraft(null)}>
                 Scarta la bozza e ricomincia
@@ -99,7 +104,17 @@ function ImportBody({ sharedUrl }: { sharedUrl: string }) {
       <div>
         <Tabs label="Da dove" items={TABS} value={via} onChange={(id) => setVia(id as Via)} />
         <div role="tabpanel" aria-label={TABS.find((t) => t.id === via)?.label} className={ui.section}>
-          {via === "url" ? <FromUrl initialUrl={sharedUrl} onDraft={openDraft} /> : via === "text" ? <FromText onDraft={openDraft} /> : <FromMedia />}
+          {via === "url" ? <FromUrl initialUrl={address} onDraft={openDraft} /> : via === "text" ? (
+            <FromText
+              text={recipeText}
+              onText={setRecipeText}
+              onAddress={(found) => {
+                setAddress(found);
+                setVia("url");
+              }}
+              onDraft={openDraft}
+            />
+          ) : <FromMedia />}
         </div>
       </div>
 
@@ -132,7 +147,7 @@ function FromUrl({ initialUrl, onDraft }: { initialUrl: string; onDraft: (d: Imp
       setError(CLIPBOARD_ERROR);
       return;
     }
-    setUrl(pasted);
+    setUrl(addressIn(pasted) ?? pasted);
     setError(null);
   }
 
@@ -141,10 +156,13 @@ function FromUrl({ initialUrl, onDraft }: { initialUrl: string; onDraft: (d: Imp
     setBusy(true);
     setError(null);
     setPage(null);
+    // un testo condiviso che contiene un indirizzo (titolo + link): si usa l'indirizzo
+    const target = addressIn(url) ?? url;
+    if (target !== url) setUrl(target);
     const abort = new AbortController();
     controller.current = abort;
     try {
-      const outcome = await importFromUrl(url, {
+      const outcome = await importFromUrl(target, {
         fetch: (input, init) => fetch(input, init),
         online: typeof navigator === "undefined" ? true : navigator.onLine,
         signal: abort.signal,
@@ -188,7 +206,7 @@ function FromUrl({ initialUrl, onDraft }: { initialUrl: string; onDraft: (d: Imp
           </Button>
         </div>
         <p className={ui.hint}>
-          La pagina viene letta dal nostro servizio, che non salva niente. Servono la rete e un indirizzo che comincia con https.
+          La pagina passa dal nostro servizio, che non salva niente. Serve https.
         </p>
       </div>
       <Button type="submit" disabled={busy}>
@@ -242,9 +260,20 @@ function PageTextBox({ page, onRead }: { page: PageText; onRead: (text: string) 
   );
 }
 
-function FromText({ onDraft }: { onDraft: (d: ImportDraft) => void }) {
+function FromText({
+  text,
+  onText,
+  onAddress,
+  onDraft,
+}: {
+  text: string;
+  onText: (value: string) => void;
+  onAddress: (address: string) => void;
+  onDraft: (d: ImportDraft) => void;
+}) {
   const ids = useId();
-  const [text, setText] = useState("");
+  const setText = onText;
+  const foundAddress = isOnlyAddress(text) ? addressIn(text) : undefined;
   const [url, setUrl] = useState("");
   const [author, setAuthor] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -290,7 +319,14 @@ function FromText({ onDraft }: { onDraft: (d: ImportDraft) => void }) {
           }}
           placeholder={"Pasta al pomodoro\nPorzioni: 4\nIngredienti\n320 g spaghetti\n400 ml passata\nPreparazione\nCuoci la pasta per 10 minuti."}
         />
-        <p className={ui.hint}>Funziona anche senza rete. Riconosco titolo, porzioni, tempi, ingredienti e passi.</p>
+        {foundAddress ? (
+          <div>
+            <Button variant="text" onClick={() => onAddress(foundAddress)}>
+              È un indirizzo: leggi la pagina
+            </Button>
+          </div>
+        ) : null}
+        <Disclosure quiet title="Che cosa significa">Funziona anche senza rete. Riconosco titolo, porzioni, tempi, ingredienti e passi.</Disclosure>
       </div>
       <fieldset className={ui.field}>
         <legend className={ui.fieldLabel}>

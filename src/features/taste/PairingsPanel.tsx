@@ -321,13 +321,12 @@ function ForIngredient({
         ) : null}
         {typed && candidates.length === 0 ? (
           <p className={ui.hint} role="status">
-            «{query.trim()}» non è nell&apos;elenco degli alimenti di cui conosco gli abbinamenti. Non ne invento: prova con un
-            altro nome.
+            «{query.trim()}» non è tra gli alimenti con abbinamenti noti: prova un altro nome.
           </p>
         ) : null}
         {!typed ? (
           <p className={ui.hint}>
-            L&apos;elenco ha {index.data.foods.length} alimenti: scrivi le prime lettere per trovarli.
+            Scrivi le prime lettere: l&apos;elenco ha {index.data.foods.length} alimenti.
           </p>
         ) : null}
       </div>
@@ -338,7 +337,7 @@ function ForIngredient({
         <SectionHeader label="Parti da ciò che scade" />
         {!hasPantry ? (
           <p className={ui.hint}>
-            La dispensa è vuota: non ho niente da cui partire. Aggiungi ciò che hai comprato e qui comparirà ciò che scade.
+            La dispensa è vuota: aggiungi ciò che compri e qui compare ciò che scade.
           </p>
         ) : expiringInfo.picks.length === 0 && expiringInfo.notInList.length === 0 ? (
           <p className={ui.hint}>Niente in dispensa sta per scadere.</p>

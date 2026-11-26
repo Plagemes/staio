@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import type { Slot } from "@/core/plan";
 import { Button } from "@/design";
 import { MEAL_KIND_LABELS } from "../meals";
+import { Disclosure } from "../common/Disclosure";
 import ui from "../ui.module.css";
 import { dayHeading } from "./dates";
 import { slotText } from "./moveMeal";
@@ -69,7 +70,7 @@ export function MoveSheet({ what, from, options, today, onMove, onClose, embedde
               </label>
             ))}
           </div>
-          <p className={ui.hint}>Gli ingredienti vanno con il pasto: nella spesa e nel confronto col piano contano una volta sola. Con «Annulla» torna dov&apos;era.</p>
+          <Disclosure quiet title="Che cosa significa">Gli ingredienti vanno con il pasto: nella spesa e nel confronto col piano contano una volta sola.</Disclosure>
         </fieldset>
       )}
       {error ? (

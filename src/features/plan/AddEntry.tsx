@@ -12,6 +12,7 @@ import { createFoodSearch, resolveFreeItems } from "../nutrition/candidates";
 import { FoodChoice } from "../nutrition/FoodChoice";
 import { loadFoods, useFoods } from "../nutrition/useNutrition";
 import { useNotice } from "../notice";
+import { Disclosure } from "../common/Disclosure";
 import ui from "../ui.module.css";
 import { dayMonth } from "./dates";
 import { KIND_LABELS, itemLabel, servingsText } from "./describe";
@@ -207,7 +208,7 @@ export function AddEntry({ data, meals, meal, onMeal, formId, onBusy, onAdd }: A
                   : "Le preparazioni che cucini compariranno qui, con le porzioni ancora pronte."}
               </p>
               <Button href={kind === "recipe" ? "/app/ricette" : "/app/preparazioni"} variant="outline">
-                {kind === "recipe" ? "Vai alle ricette" : "Vai alle preparazioni"}
+                {kind === "recipe" ? "Apri le ricette" : "Apri le preparazioni"}
               </Button>
             </div>
           ) : (
@@ -235,7 +236,7 @@ export function AddEntry({ data, meals, meal, onMeal, formId, onBusy, onAdd }: A
                     Porzioni
                   </label>
                   <input id={`${ids}-serv`} className={ui.input} inputMode="decimal" value={servingsTextValue} onChange={(e) => setServingsText(e.target.value)} autoComplete="off" />
-                  {kind === "prep" ? <p className={ui.hint}>Le porzioni già pronte non chiedono ingredienti nella lista della spesa; per le altre sì.</p> : null}
+                  {kind === "prep" ? <Disclosure quiet title="Che cosa significa">Le porzioni già pronte non chiedono ingredienti nella lista della spesa; per le altre sì.</Disclosure> : null}
                 </div>
               ) : null}
             </>

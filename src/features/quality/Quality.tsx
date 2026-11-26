@@ -5,6 +5,7 @@ import { IMPACT_METRICS, type MetricImpact } from "@/core/quality";
 import { isLocalProduct, type Product } from "@/core/catalog";
 import { Button, Label, SectionHeader } from "@/design";
 import { LoadingLine, StorageError } from "../shell/EmptyState";
+import { Disclosure } from "../common/Disclosure";
 import ui from "../ui.module.css";
 import { restrictedExcludedText } from "./consumption";
 import { GOAL_OPTIONS, hasGoal, toggleGoal } from "./goals";
@@ -57,10 +58,10 @@ function Goals() {
   return (
     <section className={ui.section} aria-label="Obiettivi">
       <SectionHeader label="I tuoi obiettivi" />
-      <p className={styles.small}>
+      <Disclosure quiet title="Che cosa significa">
         Facoltativi. Servono solo a dire se un prodotto ti aiuta o ti pesa rispetto a ciò che vuoi ottenere; restano sul telefono. Un nutriente ha un solo
         obiettivo.
-      </p>
+      </Disclosure>
       {GOAL_OPTIONS.map((o) => (
         <label key={`${o.nutrient}:${o.direction}`} className={ui.switch}>
           <input
@@ -121,9 +122,9 @@ function Impact() {
         <p className={styles.quiet}>Nessun prodotto porta una quota misurabile di questi totali: non ho cambi da proporre.</p>
       ) : (
         <>
-          <p className={styles.small}>
+          <Disclosure quiet title="Che cosa significa">
             Toglierne del tutto uno: dimezzarne la frequenza sposta la metà. Calcolo sui soli consumi con il dato, quindi sono minimi.
-          </p>
+          </Disclosure>
           <ul className={styles.list}>
             {report.changes.map((c) => (
               <li key={c.barcode} className={styles.metric}>
@@ -157,10 +158,10 @@ export function Quality() {
           Torna alla spesa
         </Link>
       </div>
-      <p className={ui.lead}>
+      <Disclosure quiet title="Che cosa significa">
         Ogni prodotto si guarda dimensione per dimensione, con il suo perché e la sua fonte. Non c&apos;è un voto unico, e ciò che non si può valutare resta
         «non valutabile».
-      </p>
+      </Disclosure>
 
       <div className={ui.row}>
         <Button href={SHELF_PATH}>Modalità scaffale</Button>

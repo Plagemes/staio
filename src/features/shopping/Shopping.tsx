@@ -9,6 +9,7 @@ import { emptyRejections, type RejectionMemory } from "@/core/shopping";
 import { formatQuantity } from "@/core/units";
 import { getSetting } from "@/data";
 import { ActionBar, BreakdownSheet, Disclosure, MoreActions, type ActionItem } from "../common";
+import { Hint } from "../common/Hint";
 import { LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { Costs } from "./Costs";
@@ -222,6 +223,7 @@ function ShoppingView({ data, undo }: { data: ShoppingData; undo: Undo }) {
 
       <section className={ui.section} aria-label="Voci">
         <SectionHeader label={`Da comprare (${listCount})`} />
+        {listCount > 0 ? <Hint id="shoppingRow" /> : null}
         {listCount === 0 ? (
           <p className={ui.paragraph}>Niente da comprare per ora.</p>
         ) : (

@@ -333,7 +333,7 @@ export function MealSheet({ title, meal: given, initialStep = "main", today, now
   const actions: ActionItem[] = [
     ...(other ? [{ id: "other", label: "L'altra versione", hint: "Corretto anche da un altro dispositivo", disabled: busy, onSelect: () => go("other") }] : []),
     { id: "add", label: "Aggiungi qui", href: `/app/pasto?pasto=${encodeURIComponent(meal.mealId)}` },
-    { id: "when", label: "Cambia momento o ora", disabled: busy, onSelect: () => go("when") },
+    { id: "when", label: "Correggi momento o ora", disabled: busy, onSelect: () => go("when") },
     ...(repeatNames.length > 0 ? [{ id: "repeat", label: "Ripeti adesso", hint: namesHint(repeatNames), disabled: busy, onSelect: repeat }] : []),
     { id: "remove", label: "Togli il pasto", danger: true, disabled: busy, onSelect: remove },
   ];

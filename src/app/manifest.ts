@@ -25,6 +25,13 @@ export default function manifest(): MetadataRoute.Manifest {
       method: "GET",
       params: { title: "title", text: "text", url: "url" },
     },
+    // Android: pressione lunga sull'icona. Senza `icons` proprie vale l'icona dell'app.
+    shortcuts: [
+      { name: "Registra un pasto", short_name: "Pasto", description: "Segna ciò che hai mangiato", url: "/app/pasto" },
+      { name: "Leggi un codice", short_name: "Codice", description: "Leggi il codice a barre di un prodotto", url: "/app/cattura/codice" },
+      { name: "Lista della spesa", short_name: "Spesa", description: "Apri la lista della spesa", url: "/app/spesa" },
+      { name: "Aggiungi", short_name: "Aggiungi", description: "Apri il foglio per aggiungere", url: "/app?aggiungi=1" },
+    ],
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
