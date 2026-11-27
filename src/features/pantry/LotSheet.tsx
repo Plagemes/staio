@@ -4,7 +4,6 @@
 // «Buttato» e «Aperto» sono accanto, il resto è dietro «Altro». Ogni azione riuscita chiude la scheda e lascia
 // l'avviso con «Annulla»; un errore resta scritto dentro la scheda.
 import { useId, useMemo, useRef, useState, type ReactNode } from "react";
-import { isLocalProduct } from "@/core/catalog";
 import type { DiaryState } from "@/core/diary";
 import { DEFAULT_TIME_ZONE } from "@/core/expiry";
 import { buildLotStory, type DeclareEvent, type Location, type PurchaseEvent } from "@/core/ledger";
@@ -20,6 +19,7 @@ import { FOOD_CATEGORY_LABELS, LOCATION_LABELS, MODEL_CATEGORY_OF } from "../lab
 import { evaluateLots, expiryExplanation, expiryTagView, isFoodCategory, levelPercent, previewExpiryAfterMove, type PantryEntry } from "../lots";
 import { useNotice } from "../notice";
 import { useProducts } from "../nutrition/useNutrition";
+import { QualityGlance } from "../quality/QualityGlance";
 import { addManualEntries } from "../shopping";
 import ui from "../ui.module.css";
 import { buildEaten, inSentence, undoPlacement } from "./eaten";
@@ -27,6 +27,7 @@ import { byNearestExpiry, entryDate } from "./groups";
 import { LotActions, type Perform, type Step } from "./LotActions";
 import { LotHistory } from "./LotHistory";
 import { LotNutrition, lotValuesSummary, useLotValues } from "./LotNutrition";
+import { lotQuality } from "./lotQuality";
 import { amountFor, amountLabel, quantityOptions, remembersPortion } from "./quantityOptions";
 import { SAVE_LABELS, saveActions } from "./saveActions";
 import { storyLines, storySummary } from "./storyText";
@@ -250,8 +251,7 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
   const freezePreview = freezeEntry?.expiry
     ? `In freezer: fino al ${formatCalendarDate(freezeEntry.expiry.date)}${freezeEntry.expiry.certainty === "estimated" ? ", stima" : ""}.`
     : null;
-  const qualityHref =
-    lot.barcode && !isLocalProduct(products?.get(lot.barcode)) ? `/app/qualita/prodotto?codice=${encodeURIComponent(lot.barcode)}` : undefined;
+  const quality = lotQuality(lot.barcode, lot.barcode ? products?.get(lot.barcode) : undefined);
 
   const detailsSummary = [
     isFoodCategory(lot.category) ? FOOD_CATEGORY_LABELS[lot.category] : undefined,
@@ -479,6 +479,11 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
             <Disclosure title="Valori nutrizionali" summary={lotValuesSummary(values)}>
               <LotNutrition lot={lot} />
             </Disclosure>
+            {quality.glance ? (
+              <div className={styles.quality}>
+                <QualityGlance product={quality.glance} />
+              </div>
+            ) : null}
             {story ? (
               <Disclosure title="Storia" summary={story.summary}>
                 <LotHistory lines={story.lines} />
@@ -501,7 +506,7 @@ export function LotSheet({ entry: initialEntry, creation: givenCreation, group, 
           moveInFooter={opened}
           actionSlot={actionSlot}
           formId={`${ids}-step`}
-          qualityHref={qualityHref}
+          qualityHref={quality.menuHref}
           onStep={(next) => {
             if (next === "move") setMoveTo(undefined);
             go(next);

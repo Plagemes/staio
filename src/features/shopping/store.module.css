@@ -90,6 +90,18 @@
   color: var(--color-graphite);
 }
 
+/* «qualità: vedi»: sotto la riga, discreto; fuori dall'etichetta della casella, così toccarlo non spunta la voce */
+.qualityNote {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding: 0 var(--space-7);
+  font-size: var(--text-body-sm);
+  font-weight: 600;
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
 /* Metti in dispensa: righe chiuse a filetti, aperte solo dove manca un dato */
 
 .putList {

@@ -11,7 +11,9 @@ import { Disclosure } from "../common";
 import { foodKindOf } from "../foodKind";
 import { Per100Table, ProductNutrients } from "../nutrition/Per100";
 import ui from "../ui.module.css";
-import { SHELF_PATH, qualityHref } from "../quality/links";
+import { isDoubtfulProduct } from "../quality/codes";
+import { SHELF_PATH } from "../quality/links";
+import { QualityGlance } from "../quality/QualityGlance";
 import { translatePackaging } from "./packaging";
 import { Scanner, type ScanInfo } from "./Scanner";
 import { CAPTURE_PATH, captureHrefForCode } from "./links";
@@ -332,15 +334,6 @@ function ProductCard({
           <dd className={styles.code}>{displayProductCode(product)}</dd>
         </div>
       </dl>
-
-      <div className={styles.links}>
-        <Link href={qualityHref(product.barcode)} className={ui.textLink}>
-          Vedi la qualità del prodotto
-        </Link>
-        <Link href={SHELF_PATH} className={ui.textLink}>
-          Confronta sullo scaffale
-        </Link>
-      </div>
     </Disclosure>
   );
 
@@ -410,6 +403,14 @@ function ProductCard({
       ) : null}
 
       <ProductSafety product={product} confirmed={confirmed} />
+
+      {/* l'esito della qualità in vista, dopo la sicurezza: non per le schede da confermare né per i codici dubbi */}
+      {needsConfirm || isDoubtfulProduct(product) ? null : <QualityGlance product={product} />}
+      <div className={styles.links}>
+        <Link href={SHELF_PATH} className={ui.textLink}>
+          Confronta sullo scaffale
+        </Link>
+      </div>
 
       {needsConfirm ? (
         <>

@@ -14,3 +14,7 @@ export { buildDietImpact, consumptionEntries, trackedWindow } from "./consumptio
 export { alternativesView } from "./alternatives";
 export { compareTable } from "./compare";
 export { listEntryFor } from "./listEntry";
+export { QualityGlance } from "./QualityGlance";
+export type { QualityGlanceProps } from "./QualityGlance";
+export { GLANCE_MAX, qualityGlance } from "./glance";
+export type { GlanceChip, QualityGlanceView } from "./glance";

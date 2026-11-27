@@ -17,11 +17,14 @@ import { FOOD_CATEGORY_GROUPS, FOOD_CATEGORY_LABELS, LOCATION_LABELS, LOCATION_O
 import { ITEM_DEFAULTS_KEY, readItemDefault } from "../memory/itemDefaults";
 import { useItemDefaults } from "../memory/useItemDefaults";
 import { useNotice } from "../notice";
+import { useProducts } from "../nutrition/useNutrition";
+import { qualityHref, SHELF_PATH } from "../quality/links";
 import { LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { addManualEntries } from "./add";
 import { pruneDecisions, useShoppingData, type ShoppingData } from "./useShoppingData";
 import { SETTING_KEYS, isTrip } from "./settings";
+import { qualityFlags } from "./storeQuality";
 import {
   addedToListText,
   alreadyReason,
@@ -257,6 +260,8 @@ function ActiveTrip({ data, trip }: { data: ShoppingData; trip: TripState }) {
   const synced = useMemo(() => syncTrip(trip, lines), [trip, lines]);
   const ordered = useMemo(() => shoppingOrder(synced, data.history), [synced, data.history]);
   const estimate = tripEstimate(synced, tripTotals(synced, view.book));
+  const products = useProducts();
+  const flags = useMemo(() => qualityFlags(ordered.map((o) => o.item), products), [ordered, products]);
 
   // le spunte appena toccate, finché la spesa salvata non arriva: valgono solo per la spesa da cui sono partite
   const [marks, setMarks] = useState<{ base: TripState; ids: Record<string, boolean> } | null>(null);
@@ -378,6 +383,9 @@ function ActiveTrip({ data, trip }: { data: ShoppingData; trip: TripState }) {
           <p className={styles.statusLine}>{statusText(synced.store, progress, estimate)}</p>
           {!supported ? <p className={ui.hint}>{NO_WAKE_LOCK_TEXT}</p> : null}
         </div>
+        <Link href={SHELF_PATH} className={ui.textLink}>
+          Confronta sullo scaffale
+        </Link>
         <AddField onAdd={add} />
         {ordered.length > 0 ? (
           <ul className={styles.list}>
@@ -390,6 +398,11 @@ function ActiveTrip({ data, trip }: { data: ShoppingData; trip: TripState }) {
                     <span className={styles.name}>{item.name}</span>
                     <span className={styles.qty}>{item.quantity > 0 ? formatQuantity({ value: item.quantity, unit: item.unit }) : "—"}</span>
                   </label>
+                  {flags.has(item.id) ? (
+                    <Link className={styles.qualityNote} href={qualityHref(flags.get(item.id)!)} aria-label={`qualità: vedi la scheda di ${item.name}`}>
+                      qualità: vedi
+                    </Link>
+                  ) : null}
                 </li>
               );
             })}
@@ -490,7 +503,6 @@ function TripMenu({ store, stores, onStore, onLeave }: { store: string | null; s
               setStep("store");
             },
           },
-          { id: "shelf", label: "Confronta sullo scaffale", href: "/app/qualita/scaffale" },
           { id: "list", label: "Torna alla lista", href: "/app/spesa" },
           { id: "leave", label: "Lascia la spesa", hint: "Non registra niente", danger: true, onSelect: () => closeSheetThen(onLeave) },
         ]}

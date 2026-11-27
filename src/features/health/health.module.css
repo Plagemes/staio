@@ -223,6 +223,14 @@
   margin-top: var(--space-6);
 }
 
+/* La scheda «Qualità di ciò che mangi»: una o due righe di testo sotto l'intestazione */
+.qualityLine {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  line-height: 1.45;
+  color: var(--color-graphite);
+}
+
 /* Dentro una riga di «Andamento»: una riga di testo per dato */
 .facts {
   display: flex;

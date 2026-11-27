@@ -536,3 +536,18 @@
 :global([data-palette="vivo"]) .table tbody th {
   background: var(--color-surface);
 }
+
+/* Riquadro compatto montato nelle altre schermate. */
+.glance {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--rule-width) solid var(--color-rule);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.glanceHead {
+  margin: 0;
+  font-size: var(--text-body-sm);
+}

@@ -12,6 +12,7 @@ import { bodyLines } from "../today/dayRows";
 import { useWaterGoal } from "../today/useWaterGoal";
 import ui from "../ui.module.css";
 import { useNow } from "../useNow";
+import { QualityCard } from "./QualityCard";
 import { FeelingSheet, SupplementSheet, WeightEntrySheet, type HealthSheetKind } from "./HealthSheets";
 import { Trends } from "./Trends";
 import styles from "./health.module.css";
@@ -77,6 +78,8 @@ export function Health() {
               </div>
             </section>
           ) : null}
+
+          <QualityCard />
 
           <section className={ui.section}>
             <SectionHeader label="Andamento" actionLabel="Nutrizione" actionHref="/app/salute/nutrizione" />

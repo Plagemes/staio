@@ -5,6 +5,8 @@ import { Button } from "@/design";
 import { parseQuantityInUnit } from "../actions";
 import { ActionList, Sheet, type ActionItem } from "../common";
 import { Disclosure } from "../common/Disclosure";
+import { useProducts } from "../nutrition/useNutrition";
+import { QualityGlance } from "../quality/QualityGlance";
 import ui from "../ui.module.css";
 import { itemDetailLines, itemQuantityText } from "./listText";
 import type { QuantitylessItem, ViewItem } from "./view";
@@ -28,6 +30,10 @@ export function ItemSheet({ target, actions, onClose }: { target: SheetTarget; a
   const formId = useId();
   const [busy, setBusy] = useState(false);
   const item = target.kind === "item" ? target.v : null;
+  const products = useProducts();
+  // la qualità sta qui perché è il momento in cui si decide che cosa comprare; serve il codice e la scheda già in cache
+  const barcode = item?.item.barcode;
+  const product = barcode ? products?.get(barcode) : undefined;
   const initial = item ? itemQuantityText(item) : "";
   const [text, setText] = useState(initial);
   const [error, setError] = useState<string | null>(null);
@@ -132,6 +138,7 @@ export function ItemSheet({ target, actions, onClose }: { target: SheetTarget; a
           {error}
         </p>
       ) : null}
+      {product ? <QualityGlance product={product} /> : null}
       <ActionList items={rows} />
     </Sheet>
   );

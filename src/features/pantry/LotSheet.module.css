@@ -305,3 +305,8 @@
   background: var(--color-fill);
   font-weight: 500;
 }
+
+/* Il riquadro «Qualità» sotto i valori nutrizionali: sta a sé, con il suo bordo. */
+.quality {
+  margin-top: var(--space-3);
+}

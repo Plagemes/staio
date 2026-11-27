@@ -184,6 +184,12 @@ describe("search: pagine", () => {
     expect(pagesOf("qualità")).toEqual(["Qualità dei prodotti"]);
   });
 
+  it("la qualità dei prodotti si trova con le parole di chi guarda l'etichetta", () => {
+    for (const word of ["nutriscore", "score", "nova", "additivi", "scaffale", "confronta", "ultra trasformati", "etichetta"]) {
+      expect(pagesOf(word), word).toEqual(["Qualità dei prodotti"]);
+    }
+  });
+
   it("una parola chiave corta vale solo scritta per intero: «ai» trova la pagina, «a» no, «latte» come prima", () => {
     expect(pagesOf("ai")).toEqual(["Intelligenza artificiale"]);
     expect(pagesOf("a")).toEqual([]);

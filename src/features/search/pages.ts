@@ -33,6 +33,10 @@ export const SEARCH_PAGES: readonly SearchPage[] = [
   },
   { label: "Intelligenza artificiale", href: "/app/impostazioni/ai", keywords: ["ai", "chiave", "modello"] },
   { label: "Ricette da video", href: "/app/impostazioni/video", keywords: ["video", "tiktok", "instagram"] },
-  { label: "Qualità dei prodotti", href: "/app/qualita", keywords: [] },
+  {
+    label: "Qualità dei prodotti",
+    href: "/app/qualita",
+    keywords: ["nutriscore", "nutri-score", "nova", "additivi", "scaffale", "confronta", "ultra trasformati", "etichetta"],
+  },
   { label: "Controlla le quantità", href: "/app/dispensa/riallinea", keywords: [] },
 ];
