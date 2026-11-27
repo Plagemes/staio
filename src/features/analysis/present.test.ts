@@ -12,6 +12,7 @@ import {
   outOfHomeExcludedText,
   outOfHomeMealsText,
   plural,
+  exposureLabel,
   regularityText,
   reliabilityText,
 } from "./present";
@@ -112,5 +113,16 @@ describe("pasti fuori casa stimati nelle analisi", () => {
     expect(outOfHomeAssociationText(2)).toBe(
       "2 giorni tracciati per intero hanno un pasto fuori casa stimato e non entrano nel confronto: di quel pasto non si conoscono gli alimenti.",
     );
+  });
+});
+
+describe("etichetta delle esposizioni", () => {
+  it("i prodotti molto lavorati sono una stima e lo dicono con la tilde", () => {
+    expect(exposureLabel({ id: "processed:high", label: "più energia del solito da prodotti molto lavorati" })).toBe(
+      "giorni con più energia del solito da prodotti molto lavorati (~)",
+    );
+  });
+  it("le altre esposizioni restano com'erano", () => {
+    expect(exposureLabel({ id: "late_dinner", label: "cena tardi" })).toBe("cena tardi");
   });
 });

@@ -36,7 +36,8 @@ export type ExposureKind =
   | "alcohol"
   | "caffeineHigh"
   | "lateDinner"
-  | "lateCaffeine";
+  | "lateCaffeine"
+  | "processedHigh";
 
 export interface Exposure {
   /** Identificativo stabile, per esempio `food:uovo`. */
@@ -74,6 +75,13 @@ export interface AssociationOptions {
    * completi della persona (ciò che per lei è sopra il solito), non un valore di riferimento.
    */
   caffeineHighMg?: number;
+  /**
+   * Quota di energia da prodotti molto lavorati per data (0..1) e quanta parte dell'energia aveva un livello di lavorazione
+   * noto. Abilita l'esposizione «processed:high»: giorni sopra la mediana personale, solo tra quelli con copertura sufficiente.
+   */
+  processedShareByDate?: Readonly<Record<string, { share: number; coverage: number }>>;
+  /** Copertura minima per contare un giorno nell'esposizione dei prodotti molto lavorati. Predefinito 0,7, come la soglia del quadro settimanale. */
+  processedMinCoverage?: number;
   /** Gruppo alimentare di un alimento di tabella (per esempio dalla sua `group`); abilita le esposizioni di gruppo. */
   groupOfFoodRef?: (ref: string) => string | undefined;
   /**
@@ -350,6 +358,26 @@ export function findAssociations(
     { id: "timing:lateCaffeine", kind: "lateCaffeine", label: `ultima caffeina dopo le ${formatMinutes(lateCaffeineFrom)}` },
     lateCaffeineDays,
   );
+  // Prodotti molto lavorati: «alta» è sopra la mediana della persona. Un giorno con poca copertura non si sa dove stia:
+  // resta fuori da entrambi i gruppi, altrimenti annacquerebbe il confronto.
+  const excluded = new Map<string, Set<string>>();
+  const processedByDate = options.processedShareByDate;
+  if (processedByDate !== undefined) {
+    const minCoverage = options.processedMinCoverage ?? 0.7;
+    const eligible = new Map<string, number>();
+    for (const date of completeDates) {
+      const p = processedByDate[date];
+      if (p !== undefined && Number.isFinite(p.share) && p.coverage >= minCoverage) eligible.set(date, p.share);
+    }
+    if (eligible.size >= 2) {
+      const cut = median([...eligible.values()]);
+      defineUniversal(
+        { id: "processed:high", kind: "processedHigh", label: "più energia del solito da prodotti molto lavorati" },
+        new Set([...eligible].filter(([, share]) => share > cut).map(([date]) => date)),
+      );
+      excluded.set("processed:high", new Set(completeDates.filter((d) => !eligible.has(d))));
+    }
+  }
   for (const [id, present] of universal) {
     for (const f of facts) if (present.has(f.date)) f.exposures.add(id);
   }
@@ -374,7 +402,9 @@ export function findAssociations(
       for (const lag of [0, 1] as const) {
         const withValues: number[] = [];
         const withoutValues: number[] = [];
+        const skip = excluded.get(id);
         for (const f of facts) {
+          if (skip?.has(f.date)) continue;
           const v = outcomeOn(f.date, outcome, lag);
           if (v === undefined) continue;
           (f.exposures.has(id) ? withValues : withoutValues).push(v);
@@ -438,8 +468,8 @@ export function findAssociations(
     const level = 1 - alpha / m;
     const wide = welch(
       // Ricalcolo dell'intervallo al livello corretto per i confronti: stessi dati, stesso test.
-      withGroup(facts, c, outcomeOn, true),
-      withGroup(facts, c, outcomeOn, false),
+      withGroup(facts, c, outcomeOn, true, excluded.get(c.exposure.id)),
+      withGroup(facts, c, outcomeOn, false, excluded.get(c.exposure.id)),
       level,
     ) ?? c.w;
     const minN = Math.min(c.w.nA, c.w.nB);
@@ -487,9 +517,11 @@ function withGroup(
   c: { exposure: Exposure; outcome: OutcomeKey; lag: 0 | 1 },
   outcomeOn: (date: string, key: OutcomeKey, lag: 0 | 1) => number | undefined,
   exposed: boolean,
+  skip?: ReadonlySet<string>,
 ): number[] {
   const out: number[] = [];
   for (const f of facts) {
+    if (skip?.has(f.date)) continue;
     if (f.exposures.has(c.exposure.id) !== exposed) continue;
     const v = outcomeOn(f.date, c.outcome, c.lag);
     if (v !== undefined) out.push(v);

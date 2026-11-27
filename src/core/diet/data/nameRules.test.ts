@@ -1,0 +1,95 @@
+import { describe, expect, it } from "vitest";
+import { foldName, nameRuleOf } from "./nameRules";
+
+const cases: [string, string | undefined, string?][] = [
+  ["Lenticchie", "legumes", "legumes"],
+  ["Lenticchie secche", "legumes", "legumesDry"],
+  ["Ceci in scatola", "legumes", "legumes"],
+  ["Fagiolini", "vegetables", "vegetables"],
+  ["Tofu al naturale", "legumes", "soy"],
+  ["Pasta e fagioli", "mixedDish"],
+  ["Spaghetti al pomodoro", "mixedDish"],
+  ["Lasagne alla bolognese", "mixedDish"],
+  ["Insalata di riso", "mixedDish"],
+  ["Insalata mista", "vegetables", "leafySalad"],
+  ["Salmone", "fish", "fish"],
+  ["Filetto di merluzzo", "fish", "fish"],
+  ["Tonno", "fish", "fishPreserved"],
+  ["Tonno fresco", "fish", "fish"],
+  ["Prosciutto crudo", "processedMeat", "processedMeat"],
+  ["Würstel", "processedMeat", "processedMeat"],
+  ["Petto di pollo", "whiteMeat", "whiteMeat"],
+  ["Bistecca di manzo", "redMeat", "redMeat"],
+  ["Uova strapazzate", "eggs", "eggs"],
+  ["Tagliatelle all'uovo", "refinedGrains", "freshEggPasta"],
+  ["Mozzarella", "cheese", "cheeseFresh"],
+  ["Parmigiano grattugiato", "cheese", "cheeseAged"],
+  ["Gorgonzola dolce", "cheese", "cheeseAged"],
+  ["Yoghurt greco", "milkYogurt", "yogurt"],
+  ["Latte parzialmente scremato", "milkYogurt", "milk"],
+  ["Latte di soia", "otherDrinks"],
+  ["Fiocchi di latte", "cheese", "cheeseFresh"],
+  ["Cappuccino", "milkYogurt", "milk"],
+  ["Caffè", "otherDrinks"],
+  ["Acqua frizzante", "otherDrinks"],
+  ["Tè verde", "otherDrinks"],
+  ["Succo di frutta", "sugaryDrinks", "sugaryDrinks"],
+  ["Coca Cola", "sugaryDrinks", "sugaryDrinks"],
+  ["Succo di limone", "condiments"],
+  ["Vino rosso", "alcohol"],
+  ["Birra", "alcohol"],
+  ["Burro di arachidi", "nutsSeeds", "nutsSeeds"],
+  ["Burro", "oilsFats", "butter"],
+  ["Olio extravergine d'oliva", "oilsFats", "oil"],
+  ["Olive nere", "condiments"],
+  ["Noci", "nutsSeeds", "nutsSeeds"],
+  ["Noce moscata", "condiments"],
+  ["Patate al forno", "potatoes", "potatoes"],
+  ["Patatine fritte", "potatoes", "potatoes"],
+  ["Patatine in busta", "saltySnacks", "snacks"],
+  ["Gnocchi", "potatoes", "potatoes"],
+  ["Pane integrale", "wholeGrains", "bread"],
+  ["Pane", "refinedGrains", "bread"],
+  ["Cracker integrali", "wholeGrains", "breadSubstitutes"],
+  ["Fette biscottate", "refinedGrains", "breadSubstitutes"],
+  ["Riso integrale", "wholeGrains", "grains"],
+  ["Riso", "refinedGrains", "grains"],
+  ["Quinoa", "wholeGrains", "grains"],
+  ["Fiocchi d'avena", "wholeGrains", "breakfastCereals"],
+  ["Corn flakes", "refinedGrains", "breakfastCereals"],
+  ["Biscotti", "sweets", "sweetBakery"],
+  ["Cornetto", "sweets", "sweetBakery"],
+  ["Torta di mele", "sweets", "cakes"],
+  ["Gelato al pistacchio", "sweets", "cakes"],
+  ["Cioccolato fondente", "sweets", "snacks"],
+  ["Nutella", "sweets", "spreads"],
+  ["Cacao amaro", "condiments"],
+  ["Zucchero", "sugars", "sugar"],
+  ["Miele", "sugars", "honeyJam"],
+  ["Marmellata di albicocche", "sugars", "honeyJam"],
+  ["Confettura extra", "sugars", "honeyJam"],
+  ["Sale", "condiments"],
+  ["Passata di pomodoro", "vegetables", "vegetables"],
+  ["Zucchine", "vegetables", "vegetables"],
+  ["Melanzane", "vegetables", "vegetables"],
+  ["Mais dolce", "vegetables", "vegetables"],
+  ["Mela", "fruit", "fruit"],
+  ["Fichi secchi", "fruit", "driedFruit"],
+  ["Banana", "fruit", "fruit"],
+  ["Pizza margherita", "mixedDish"],
+  ["Xyz sconosciuto", undefined],
+  ["", undefined],
+];
+
+describe("regole sul nome", () => {
+  it.each(cases)("%s", (name, group, portionKey) => {
+    const m = nameRuleOf(name);
+    expect(m?.group).toBe(group);
+    if (portionKey !== undefined) expect(m?.portionKey).toBe(portionKey);
+  });
+
+  it("piega accenti e punteggiatura", () => {
+    expect(foldName("Caffè d'orzo  ")).toBe("caffe d orzo");
+    expect(foldName("Yoghurt")).toBe("yogurt");
+  });
+});

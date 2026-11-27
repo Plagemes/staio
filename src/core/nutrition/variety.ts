@@ -56,6 +56,11 @@ const WHOLE_GRAIN_KEYS: ReadonlySet<string> = new Set([
   "miglio",
 ]);
 
+/** Vero se la chiave (`variantOf ?? id`) è un cereale integrale riconosciuto. */
+export function isWholeGrainKey(key: string): boolean {
+  return WHOLE_GRAIN_KEYS.has(key);
+}
+
 /** Erbe aromatiche della tabella. Le spezie non sono incluse. */
 const HERB_IDS: ReadonlySet<string> = new Set([
   "basilico-fresco",

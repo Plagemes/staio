@@ -17,8 +17,8 @@ import {
 const memory = (id: string) => MEMORIES.find((m) => m.id === id)!;
 
 describe("catalogo", () => {
-  it("le dodici memorie dell'elenco, con la loro frase", () => {
-    expect(MEMORIES.map((m) => m.id)).toEqual(["items", "portions", "barcodes", "receipts", "zones", "foods", "drinks", "quickAdd", "kept", "briefing", "shopping", "stores"]);
+  it("le tredici memorie dell'elenco, con la loro frase", () => {
+    expect(MEMORIES.map((m) => m.id)).toEqual(["items", "portions", "barcodes", "receipts", "zones", "foods", "classes", "drinks", "quickAdd", "kept", "briefing", "shopping", "stores"]);
     for (const m of MEMORIES) {
       expect(m.label.length, m.id).toBeGreaterThan(0);
       expect(m.hint.endsWith("."), m.id).toBe(true);
@@ -63,6 +63,7 @@ describe("catalogo", () => {
       "receipt.draft",
       "recipes.prefs",
       "diet.mergedNoticeSeen",
+      "quality.eaten.level",
       "ai.settings",
       "video.service",
       "nutritionProfile",
@@ -73,6 +74,19 @@ describe("catalogo", () => {
     ];
     expect(memoryKeys(all)).toEqual([]);
     for (const key of all) expect(isProtectedKey(key), key).toBe(true);
+  });
+});
+
+describe("qualità di ciò che mangi", () => {
+  it("le classificazioni corrette sono una memoria, il livello energetico no", () => {
+    expect(keysOf(memory("classes"), ["quality.classOverrides", "quality.eaten.level", "quality.goals"])).toEqual(["quality.classOverrides"]);
+    expect(isProtectedKey("quality.eaten.level")).toBe(true);
+    expect(isProtectedKey("quality.classOverrides")).toBe(false);
+  });
+
+  it("ogni correzione è una voce", () => {
+    const rows = [{ key: "quality.classOverrides", value: { "n:pane": { group: "bread" }, "b:800123": { group: "fish" } } }];
+    expect(listMemories(rows).map((m) => [m.id, m.count])).toEqual([["classes", 2]]);
   });
 });
 

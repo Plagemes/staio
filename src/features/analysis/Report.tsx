@@ -29,6 +29,7 @@ import {
   weightInsufficientView,
   weightReportText,
 } from "./reportView";
+import { DietReportSection } from "./DietReportSection";
 import { AnalysisDisclaimer, BasisLine, InsufficientBox } from "./shared";
 import { DishesSection, FoodFlowSection, MoodSection, PeriodComparison, WasteReport } from "./SummarySections";
 import { useAnalysisBase } from "./useAnalysisBase";
@@ -285,6 +286,8 @@ export function Report() {
               )}
             </div>
           </section>
+
+          <DietReportSection from={period.from} to={period.to} />
 
           <MoodSection summary={summary} />
 

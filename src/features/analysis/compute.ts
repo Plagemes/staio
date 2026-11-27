@@ -61,6 +61,7 @@ export function computeAssociations(
   diary: DiaryState,
   intakeDays: readonly DayIntake[],
   today: string,
+  processedShareByDate?: Readonly<Record<string, { share: number; coverage: number }>>,
 ): AssociationsResult {
   return findAssociations(diary, intakeDays, {
     from: addDays(today, -(ASSOCIATION_WINDOW_DAYS - 1)),
@@ -69,6 +70,7 @@ export function computeAssociations(
     minDaysWith: ASSOCIATION_MIN.daysWith,
     minDaysWithout: ASSOCIATION_MIN.daysWithout,
     maxResults: ASSOCIATION_MAX_RESULTS,
+    ...(processedShareByDate ? { processedShareByDate } : {}),
   });
 }
 

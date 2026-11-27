@@ -11,13 +11,15 @@
 // - se la ricetta dichiara per quali momenti va bene, solo quelli.
 //
 // Criteri da ottimizzare, in quest'ordine (ogni criterio pesa il doppio del successivo, ciascuno su una scala da 0 a 1):
-// costo (solo con «Spendi il meno possibile», allora in cima) > scadenze > ciò che c'è già in casa > varietà > obiettivi.
+// costo (solo con «Spendi il meno possibile», allora in cima) > scadenze > ciò che c'è già in casa > lacune della
+// settimana per gruppo alimentare (solo se chi chiama le passa) > varietà > obiettivi.
 //
 // Algoritmo: scelta golosa posto per posto in ordine di calendario (ogni posto prende il candidato con il guadagno
 // maggiore, dato ciò che è già stato scelto), poi tre passate di miglioramento locale: ogni posto viene ricalcolato
 // come se fosse l'ultimo e cambia solo se un'altra ricetta guadagna di più. Parità: vince l'id più basso.
 
 import { MEAL_KINDS, daysBetween, type MealKind } from "../diary";
+import type { DietGroup } from "../diet/types";
 import type { PlannedEntry, TargetRange } from "./types";
 
 export type RecipeSafetyVerdict = "clear" | "uncertain" | "contains";
@@ -71,6 +73,8 @@ export interface ProposalRecipe {
   /** Momenti per cui la ricetta è pensata (dalle etichette), se li dichiara. */
   meals?: readonly MealKind[];
   ingredients: readonly ProposalIngredient[];
+  /** Gruppi alimentari che la ricetta porta in tavola (una porzione per gruppo e per pasto), se si sanno. */
+  dietGroups?: readonly DietGroup[];
   /** Alimenti in scadenza che la ricetta usa. */
   expiring?: readonly ProposalExpiring[];
   /** Nutrienti dell'intera voce (porzioni comprese), solo se il dato è completo. */
@@ -110,7 +114,13 @@ export const DEFAULT_PROPOSAL_OPTIONS: ProposalOptions = {
 };
 
 /** Peso dei criteri: ognuno vale il doppio del successivo. */
-export const PROPOSAL_WEIGHTS = { cost: 32, expiry: 16, pantry: 8, variety: 4, goals: 2 } as const;
+export const PROPOSAL_WEIGHTS = { cost: 64, expiry: 32, pantry: 16, diet: 8, variety: 4, goals: 2 } as const;
+
+/**
+ * I pesi di prima che esistesse il criterio dei gruppi alimentari. Si usano finché non c'è nessuna lacuna da colmare,
+ * così l'esito senza `dietGaps` resta identico a quello di sempre (il rapporto tra dispensa e varietà non cambia).
+ */
+const BASE_WEIGHTS = { cost: 32, expiry: 16, pantry: 8, diet: 0, variety: 4, goals: 2 } as const;
 
 /** Sotto questo numero di ricette utilizzabili la proposta lo dice. */
 export const FEW_RECIPES = 5;
@@ -125,6 +135,12 @@ export interface ProposalInput {
   days?: Readonly<Record<string, ProposalDay>>;
   /** Nutrienti di una voce già scritta, se si sanno. */
   existingNutrients?: (entry: PlannedEntry) => ProposalNutrients | undefined;
+  /**
+   * Porzioni che mancano nella settimana per gruppo: indicazione minima meno mangiato finora meno già pianificato
+   * (le voci di `existing` sono quindi già contate qui). Ogni ricetta scelta ne colma una per gruppo. Assente, vuoto o
+   * senza valori positivi = il criterio non agisce.
+   */
+  dietGaps?: Partial<Record<DietGroup, number>>;
   options?: Partial<ProposalOptions>;
 }
 
@@ -137,6 +153,7 @@ export type ProposalReason =
   | { code: "cost"; cents: number }
   | { code: "expiring"; uses: { name: string; expiresOn: string }[] }
   | { code: "pantry"; inHome: number; total: number; /** Di quelli in casa, quanti oltre la data di qualità. */ stale: number }
+  | { code: "diet"; groups: DietGroup[] }
   | { code: "goals" }
   | { code: "variety" };
 
@@ -230,6 +247,7 @@ class State {
   private readonly buy = new Map<string, number>();
   private readonly mains = new Map<string, string[]>();
   private readonly amounts = new Map<string, Record<AmountKey, number>>();
+  private readonly dietCovered = new Map<DietGroup, number>();
 
   constructor(private readonly engine: Engine) {
     this.assigned = new Array<ProposalRecipe | undefined>(engine.slots.length).fill(undefined);
@@ -291,6 +309,7 @@ class State {
     const slot = this.engine.slots[i] as ProposalSlot;
     this.applyRecipe(1, slot.date, recipe.recipeId, recipe);
     this.addAmounts(slot.date, recipe.nutrients, 1);
+    this.coverDiet(recipe, 1);
   }
 
   unassign(i: number): void {
@@ -300,6 +319,28 @@ class State {
     const slot = this.engine.slots[i] as ProposalSlot;
     this.applyRecipe(-1, slot.date, recipe.recipeId, recipe);
     this.addAmounts(slot.date, recipe.nutrients, -1);
+    this.coverDiet(recipe, -1);
+  }
+
+  /** Porzioni ancora mancanti di un gruppo, dato ciò che la proposta ha già scelto. */
+  dietOpen(group: DietGroup): number {
+    return (this.engine.dietGaps.get(group) ?? 0) - (this.dietCovered.get(group) ?? 0);
+  }
+
+  /** Quanti gruppi hanno ancora una lacuna aperta. */
+  openDietGroups(): number {
+    let n = 0;
+    for (const g of this.engine.dietGaps.keys()) if (this.dietOpen(g) > 0) n++;
+    return n;
+  }
+
+  private coverDiet(recipe: ProposalRecipe, sign: 1 | -1): void {
+    if (this.engine.dietGaps.size === 0) return;
+    for (const g of new Set(recipe.dietGroups ?? [])) {
+      const next = (this.dietCovered.get(g) ?? 0) + sign;
+      if (next === 0) this.dietCovered.delete(g);
+      else this.dietCovered.set(g, next);
+    }
   }
 
   /** Quanti posti dello stesso giorno restano da riempire oltre al posto `i`. */
@@ -320,11 +361,19 @@ class Engine {
   readonly byId = new Map<string, ProposalRecipe>();
   readonly eligible: ProposalRecipe[];
   readonly slotsByDate = new Map<string, number[]>();
+  /** Solo le lacune positive e finite. */
+  readonly dietGaps = new Map<DietGroup, number>();
+  /** Almeno una lacuna da colmare: solo allora vale la tabella dei pesi con i gruppi alimentari. */
+  readonly dietActive: boolean;
   private readonly dayNos = new Map<string, number>();
   private readonly cost: { min: number; max: number } | undefined;
 
   constructor(readonly input: ProposalInput) {
     this.options = { ...DEFAULT_PROPOSAL_OPTIONS, ...input.options };
+    for (const [g, n] of Object.entries(input.dietGaps ?? {}) as [DietGroup, number | undefined][]) {
+      if (n !== undefined && Number.isFinite(n) && n > 0) this.dietGaps.set(g, n);
+    }
+    this.dietActive = this.dietGaps.size > 0;
     this.recipes = [...input.recipes].sort((a, b) => (a.recipeId < b.recipeId ? -1 : a.recipeId > b.recipeId ? 1 : 0));
     for (const r of this.recipes) if (!this.byId.has(r.recipeId)) this.byId.set(r.recipeId, r);
     this.eligible = this.recipes.filter(
@@ -435,6 +484,21 @@ class Engine {
     return parts.length === 0 ? undefined : parts.reduce((a, b) => a + b, 0) / parts.length;
   }
 
+  /** Da 0 a 1: quanto la ricetta colma delle lacune ancora aperte (al massimo tre gruppi bastano per il pieno). */
+  dietGain(r: ProposalRecipe, state: State): number {
+    if (!this.dietActive) return 0;
+    let fill = 0;
+    for (const g of new Set(r.dietGroups ?? [])) fill += Math.min(1, Math.max(0, state.dietOpen(g)));
+    if (fill === 0) return 0;
+    return Math.min(1, fill / Math.max(1, Math.min(3, state.openDietGroups())));
+  }
+
+  /** I gruppi della ricetta che hanno una lacuna aperta. */
+  dietFills(r: ProposalRecipe, state: State): DietGroup[] {
+    if (!this.dietActive) return [];
+    return [...new Set(r.dietGroups ?? [])].filter((g) => state.dietOpen(g) > 0);
+  }
+
   costGain(r: ProposalRecipe): number {
     if (!this.cost || !r.cost?.complete) return 0;
     const span = this.cost.max - this.cost.min;
@@ -442,12 +506,14 @@ class Engine {
   }
 
   gain(i: number, r: ProposalRecipe, state: State): number {
+    const w = this.dietActive ? PROPOSAL_WEIGHTS : BASE_WEIGHTS;
     return (
-      (this.options.spendLeast ? PROPOSAL_WEIGHTS.cost * this.costGain(r) : 0) +
-      PROPOSAL_WEIGHTS.expiry * this.expiryGain(i, r, state) +
-      PROPOSAL_WEIGHTS.pantry * this.pantryGain(i, r, state) +
-      PROPOSAL_WEIGHTS.variety * this.varietyGain(i, r, state) +
-      PROPOSAL_WEIGHTS.goals * (this.goalsGain(i, r, state) ?? 0)
+      (this.options.spendLeast ? w.cost * this.costGain(r) : 0) +
+      w.expiry * this.expiryGain(i, r, state) +
+      w.pantry * this.pantryGain(i, r, state) +
+      w.diet * this.dietGain(r, state) +
+      w.variety * this.varietyGain(i, r, state) +
+      w.goals * (this.goalsGain(i, r, state) ?? 0)
     );
   }
 
@@ -508,6 +574,8 @@ function reasonsFor(engine: Engine, i: number, r: ProposalRecipe, state: State):
   if (inHome > 0 && inHome * 2 >= r.ingredients.length) {
     out.push({ code: "pantry", inHome, total: r.ingredients.length, stale: here.filter((x) => staleOn(x, slot.date)).length });
   }
+  const filled = engine.dietFills(r, state);
+  if (filled.length > 0) out.push({ code: "diet", groups: filled });
   const goals = engine.goalsGain(i, r, state);
   if (goals !== undefined && goals >= 0.7 && r.nutrients) out.push({ code: "goals" });
   const top = out.slice(0, 2);

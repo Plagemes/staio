@@ -10,10 +10,10 @@ import { MEAL_KIND_LABELS } from "../meals";
 import ui from "../ui.module.css";
 import { dayMonth } from "./dates";
 import {
-  CRITERIA_TEXT,
-  CRITERIA_TEXT_SPEND,
   MAX_REPEAT_CHOICES,
   SERVINGS_CHOICES,
+  criteriaText,
+  gapGroupsText,
   headlineText,
   momentChoices,
   remainingDays,
@@ -59,7 +59,7 @@ export function ProposalCard({ view, weekDates, today, structureMeals, onUse, bu
       ) : (
         <>
           <p className={ui.lead}>{headlineText(summary)}</p>
-          <p className={ui.hint}>{settings.spendLeast ? CRITERIA_TEXT_SPEND : CRITERIA_TEXT}</p>
+          <p className={ui.hint}>{criteriaText({ spendLeast: settings.spendLeast, fillGaps: settings.fillGaps === true })}</p>
           {notes.length > 0 ? (
             <ul className={styles.rows}>
               {notes.map((n) => (
@@ -148,6 +148,18 @@ export function ProposalCard({ view, weekDates, today, structureMeals, onUse, bu
               <span className={ui.switchText}>
                 Anche le ricette che non posso controllare del tutto
                 <span className={ui.hint}>Entrano con un avviso: gli ingredienti vanno letti in etichetta.</span>
+              </span>
+            </label>
+          ) : null}
+
+          {view.hasGaps || settings.fillGaps ? (
+            <label className={ui.switch}>
+              <input type="checkbox" checked={settings.fillGaps === true} onChange={() => set({ fillGaps: !settings.fillGaps })} />
+              <span className={ui.switchText}>
+                Colma ciò che manca nella settimana
+                <span className={ui.hint}>
+                  {view.hasGaps ? `Ancora poco: ${gapGroupsText(view.dietGaps)}. Le ricette che li portano passano avanti.` : "Ora non manca niente."}
+                </span>
               </span>
             </label>
           ) : null}

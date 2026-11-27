@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AssociationsResult } from "@/core/analysis";
+import { addDays } from "@/core/diary";
+import { useDietHistory } from "../diet";
 import type { AssociationsInputs } from "./associationsJob";
 import { runAssociations } from "./associationsClient";
+import { ASSOCIATION_WINDOW_DAYS } from "./config";
 
 type State =
   | { source: AssociationsInputs; status: "ok"; result: AssociationsResult }
@@ -15,8 +18,24 @@ export interface AssociationsOutcome {
 }
 
 /** Calcola le associazioni in un worker quando gli ingressi cambiano; i risultati di ingressi vecchi non si mostrano. */
-export function useAssociations(inputs: AssociationsInputs | undefined): AssociationsOutcome {
+export function useAssociations(base: AssociationsInputs | undefined): AssociationsOutcome {
   const [state, setState] = useState<State | undefined>();
+  // Stessa finestra delle associazioni: la quota di prodotti molto lavorati per giorno viene dal quadro di Mangiato.
+  const dailyFrom = base ? addDays(base.today, -(ASSOCIATION_WINDOW_DAYS - 1)) : undefined;
+  const diet = useDietHistory(dailyFrom ? { dailyFrom } : {});
+  const daily = diet.history?.daily;
+  const dietSettled = diet.ready || diet.error;
+
+  const inputs = useMemo<AssociationsInputs | undefined>(() => {
+    if (!base || !dietSettled) return undefined;
+    if (!daily) return base;
+    const processedShareByDate: Record<string, { share: number; coverage: number }> = {};
+    for (const [date, d] of Object.entries(daily)) {
+      if (d.processedShare !== undefined) processedShareByDate[date] = { share: d.processedShare, coverage: d.coverage };
+    }
+    return Object.keys(processedShareByDate).length > 0 ? { ...base, processedShareByDate } : base;
+  }, [base, dietSettled, daily]);
+
   useEffect(() => {
     if (!inputs) return;
     let run: ReturnType<typeof runAssociations> | undefined;

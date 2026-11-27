@@ -1,35 +1,61 @@
-// Il testo della scheda «Qualità di ciò che mangi» in Salute: due righe al massimo, dagli stessi totali e dagli stessi
-// testi della pagina Qualità. Nessuna soglia nuova, nessun giudizio. Funzione pura.
-import type { DietImpactView } from "../quality/consumption";
-import { METRIC_PHRASE, metricTotalText, num, sharePercent } from "../quality/texts";
+// Il testo della scheda «Qualità di ciò che mangi» in Salute: una o due righe sulla settimana, da tutto ciò che è
+// stato registrato, con le frasi della vista dettagliata (features/diet). Nessuna soglia nuova, nessun giudizio.
+// Funzione pura. La qualità dei soli prodotti con codice a barre resta in /app/qualita.
+import type { DietHistory, Indicator, IndicatorId, WeekFrame } from "@/core/diet";
+import { capitalize, indicatorLabel, indicatorText, num, whenText } from "../diet/texts";
 
 export interface QualityCardView {
   lines: string[];
+  /** Il lunedì della settimana descritta; assente per la settimana in corso. */
+  week?: string;
 }
 
+/** Gli indicatori nominati nella prima riga, nell'ordine in cui si dicono. */
+const SUMMARY: readonly IndicatorId[] = ["vegFruit", "group:legumes", "group:fish"];
+
+const usable = (ind: Indicator | undefined): ind is Indicator =>
+  ind !== undefined && ind.status !== "insufficient" && ind.value !== undefined && Number.isFinite(ind.value);
+
+const find = (frame: WeekFrame, id: IndicatorId): Indicator | undefined => frame.indicators.find((i) => i.id === id);
+
+const hasUsable = (frame: WeekFrame): boolean => [...SUMMARY, "processedShare" as const].some((id) => usable(find(frame, id)));
+
+/** `current` è il lunedì della settimana in corso (l'ultima della storia): basta a dire «la settimana scorsa». */
+function opening(frame: WeekFrame, current: string): string {
+  return frame.inProgress ? "Questa settimana" : capitalize(whenText(frame.weekStart, current));
+}
+
+const dayCount = (n: number): string => `${num(n)} ${n === 1 ? "giorno registrato" : "giorni registrati"}`;
+
 /**
- * `null` quando non c'è nulla da pesare (nessun consumo di prodotti con codice a barre e valori): è lo stesso criterio
- * di «Ancora niente da pesare» in Qualità, così chi non scansiona prodotti non vede la scheda.
+ * `null` quando non c'è nessuna voce nelle settimane in storia (63 giorni circa): la scheda non occupa spazio.
+ * Si descrive la settimana più recente con dati sufficienti (la in corso, se già basta); se nessuna basta, si dice
+ * quanti giorni sono registrati, senza numeri sulla qualità.
  */
-export function qualityCardView(view: DietImpactView | undefined): QualityCardView | null {
-  if (!view || view.summary.productLines === 0) return null;
-  const { summary, report } = view;
-  const days = `ultimi ${summary.windowDays} giorni`;
+export function qualityCardView(history: Pick<DietHistory, "weeks"> | undefined): QualityCardView | null {
+  if (!history) return null;
+  const current = history.weeks[history.weeks.length - 1]?.weekStart ?? "";
+  const withData = [...history.weeks].reverse().filter((w) => w.daysWithData > 0);
+  if (withData.length === 0) return null;
+
+  const frame = withData.find(hasUsable);
+  if (!frame) {
+    const latest = withData[0];
+    return { lines: [`Dati insufficienti: ${dayCount(latest.daysWithData)} su ${num(latest.daysElapsed)}.`], ...(latest.inProgress ? {} : { week: latest.weekStart }) };
+  }
+
   const lines: string[] = [];
+  const parts = SUMMARY.map((id) => find(frame, id))
+    .filter(usable)
+    .map((ind) => `${indicatorLabel(ind.id)} ${indicatorText(ind, frame)}`);
+  lines.push(
+    parts.length > 0
+      ? `${opening(frame, current)}, ${dayCount(frame.daysWithData)}: ${parts.join(", ")}.`
+      : `${opening(frame, current)}, ${dayCount(frame.daysWithData)} su ${num(frame.daysElapsed)}.`,
+  );
 
-  const ultra = report.metrics.ultraProcessed;
-  if (ultra.entriesWithData > 0) {
-    lines.push(`Prodotti molto lavorati: ${metricTotalText(ultra)}, in media sugli ${days}.`);
-  } else {
-    const n = summary.productLines;
-    lines.push(`${num(n, 0)} ${n === 1 ? "consumo" : "consumi"} di prodotti con codice a barre negli ${days}.`);
-  }
+  const processed = find(frame, "processedShare");
+  if (usable(processed)) lines.push(`${capitalize(indicatorLabel("processedShare"))}: ${indicatorText(processed, frame)}.`);
 
-  const top = report.changes[0];
-  if (top) {
-    const best = top.effects.reduce((a, b) => (b.share > a.share ? b : a));
-    const of = best.metric === "ultraProcessed" ? "dei" : "del totale";
-    lines.push(`Pesa di più: ${top.name}, ${sharePercent(best.share)} ${of} ${METRIC_PHRASE[best.metric]}.`);
-  }
-  return { lines };
+  return { lines, ...(frame.inProgress ? {} : { week: frame.weekStart }) };
 }

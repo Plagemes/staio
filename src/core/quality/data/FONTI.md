@@ -67,3 +67,7 @@ Non usano soglie proprie: si fondano sul confronto con i riferimenti del motore 
 - **Soglie italiane o dell'Unione europea per il semaforo**: non esiste uno schema ufficiale UE obbligatorio; non ne ho trovato uno da usare al posto di quello britannico.
 - **Criteri per porzione** del semaforo: non applicabili senza la porzione.
 - **Valori di riferimento numerici per sale, zuccheri e grassi saturi**: non nei dati del progetto (vedi `src/core/nutrition/data/RIFERIMENTI.md`).
+
+## Ciò che mangi
+
+Il confronto settimanale con le Linee guida CREA (`src/core/diet`) ha le sue fonti e le sue scelte in `src/core/diet/FONTI.md`: questo file riguarda solo la qualità dei singoli prodotti.

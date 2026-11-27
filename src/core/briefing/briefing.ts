@@ -198,6 +198,13 @@ function yesterdayLine(input: BriefingInput, today: string): BriefingLine | unde
   };
 }
 
+/** Il consiglio sul mangiato, già scritto dal motore dei consigli: qui si decide solo se mostrarlo. Si può «lasciare così». */
+function dietLine(input: BriefingInput): BriefingLine | undefined {
+  const advice = input.dietAdvice;
+  if (!advice || (input.dismissed ?? []).includes(advice.key)) return undefined;
+  return { key: advice.key, kind: "diet", text: advice.text, certainty: advice.certainty, href: advice.href, order: 65 };
+}
+
 function noticeLine(input: BriefingInput, today: string): BriefingLine | undefined {
   const notices = input.otherNotices ?? [];
   if (notices.length === 0) return undefined;
@@ -220,6 +227,7 @@ export function buildBriefing(input: BriefingInput): Briefing {
     waterLine(input, at.date, at.minutes, timeZone),
     supplementLine(input, at.date, at.minutes, timeZone),
     yesterdayLine(input, at.date),
+    dietLine(input),
     noticeLine(input, at.date),
   ]
     .filter((l): l is BriefingLine => l !== undefined)

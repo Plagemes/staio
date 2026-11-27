@@ -1,0 +1,41 @@
+/* Il foglio «Come conto …»: gruppo, lavorazione, e «Torna alla stima» sotto. Il resto viene dai campi comuni. */
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-group);
+  min-width: 0;
+}
+
+/* Le quattro lavorazioni, una per riga: i nomi sono lunghi («ingrediente da cucina») */
+.levels {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-3);
+}
+
+.levels > label {
+  display: flex;
+}
+
+.levels > label > span {
+  flex: 1;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+/* «Vale per tutte le voci con questo nome.» e «Torna alla stima» stanno insieme, sotto i campi */
+.foot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+/* Una riga di «Come la conto» nella scheda della voce: «Legumi ~ · poco lavorato ~» */
+.line {
+  margin: 0;
+  font-size: var(--text-body-sm);
+  line-height: 1.4;
+  color: var(--color-ink);
+}

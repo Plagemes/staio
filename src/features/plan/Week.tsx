@@ -18,6 +18,7 @@ import { LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { AddEntrySheet } from "./AddEntry";
 import { CopyWeekSheet } from "./CopyWeekSheet";
+import { DietPlanRow } from "./DietPlanRow";
 import { DaySection, type DayItem } from "./DaySection";
 import { WEEK_LABELS, dayFromParam, dayMonth, nextMonday, shortDayLower, weekChoices, weekRangeText, type WeekChoice, type WeekId } from "./dates";
 import { buildClearDayType, buildDayType, buildWeek, copyDay } from "./edit";
@@ -331,6 +332,7 @@ function WeekView({ data, weeks, week, day, requestedDay, wantProposal, verifyPa
         </div>
       ) : null}
       {unavailableText && nothingAhead && !weekEmpty && !proposal.active ? <p className={ui.hint}>{unavailableText}</p> : null}
+      {!proposal.active && !weekEmpty ? <DietPlanRow weekStart={week.start} {...(canPropose ? { onPropose: proposal.start } : {})} /> : null}
       {proposal.active ? (
         <ProposalCard view={proposal} weekDates={dates} today={data.today} structureMeals={plan.structure?.meals.map((m) => m.kind)} onUse={() => void applyProposal()} busy={using} />
       ) : null}

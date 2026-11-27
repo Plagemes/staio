@@ -124,6 +124,14 @@ describe("runAssociations", () => {
   });
 });
 
+describe("handleAssociationsRequest con la quota di prodotti molto lavorati", () => {
+  it("passa processedShareByDate al calcolo, serializzabile", () => {
+    const data = { ...inputs(), processedShareByDate: { [dateOf(1)]: { share: 0.5, coverage: 0.9 } } };
+    const r = handleAssociationsRequest(structuredClone({ type: "run" as const, id: 1, ...data }));
+    expect(r).toEqual({ id: 1, ok: true, result: computeAssociations(data.diary, data.intakeDays, data.today, data.processedShareByDate) });
+  });
+});
+
 describe("handleAssociationsRequest", () => {
   it("ignora l'annullo e trasforma le eccezioni in risposta d'errore", () => {
     expect(handleAssociationsRequest({ type: "cancel", id: 1 })).toBeUndefined();

@@ -3,7 +3,8 @@
 // Il foglio «Voce»: una voce di un pasto si corregge dal posto. La quantità con «Salva», il momento in un passo dello
 // stesso foglio, oppure si toglie. Ogni azione riuscita scrive una volta sola, chiude il foglio e lascia l'avviso con
 // «Annulla»; un errore resta scritto dentro il foglio. Una voce «fuori casa» non ha una quantità: al suo posto si
-// sceglie la taglia, e «Salva» riscrive la voce con la stima nuova.
+// sceglie la taglia, e «Salva» riscrive la voce con la stima nuova. «Come la conto» dice gruppo e lavorazione della voce
+// (con la tilde se stimati) e da dove vengono; «Correggi» apre il foglio `ClassSheet`.
 import { useId, useRef, useState } from "react";
 import {
   changeConsumeQuantity,
@@ -16,6 +17,7 @@ import {
   type MealItem,
   type MealKind,
 } from "@/core/diary";
+import type { LineClass } from "@/core/diet";
 import type { AnyEvent } from "@/core/events";
 import type { ConsumeEvent, Lot } from "@/core/ledger";
 import { OUT_OF_HOME_SIZES, estimateOutOfHome, type IntakeLine, type OutOfHomeSize } from "@/core/nutrition";
@@ -24,13 +26,16 @@ import { appendEvents, getDeviceId } from "@/data";
 import { Button } from "@/design";
 import { ActionList, QuantityPicker, Sheet, type ActionItem, type QuantityOption, type QuantityValue } from "../common";
 import { OUT_OF_HOME_SIZE_LABELS, energyEstimateText, isOutOfHomeItem, outOfHomeBasisText, outOfHomeName, outOfHomeSizeOf } from "../meals";
+import { ClassSheet } from "../diet/ClassSheet";
+import classStyles from "../diet/classSheet.module.css";
+import { basisText } from "../diet/texts";
 import { useNotice } from "../notice";
 import { buildChangeMoment } from "../pantry/eaten";
 import { rememberPortion } from "../pantry/usePortions";
 import { pieceChoices } from "../pieces";
 import ui from "../ui.module.css";
 import { consumeRemovedText, itemMovedText, itemRemovedText, momentTargets, outOfHomeCorrectedText, quantityCorrectedText } from "./editText";
-import { lineNutrientText } from "./lineText";
+import { canCorrectClass, classBasisOf, classCurrentOf, classLinesOf, lineNutrientText } from "./lineText";
 import { inSentence } from "./summaries";
 import styles from "./MealEntries.module.css";
 
@@ -94,12 +99,14 @@ export type EntryTarget =
       /** L'alimento in dispensa; assente se è stato eliminato. */
       lot: Lot | undefined;
       line: IntakeLine | undefined;
+      /** Come l'app conta la voce (gruppo e lavorazione): `useLineMarks`. */
+      lineClass?: LineClass;
       /** Il momento del pasto in cui sta. */
       kind: MealKind;
       /** L'istante del pasto in cui sta (dal diario): giorno e ora valgono da qui, non dal consumo. */
       mealAt: string;
     }
-  | { type: "free"; mealId: string; index: number; item: MealItem; line: IntakeLine | undefined; kind: MealKind };
+  | { type: "free"; mealId: string; index: number; item: MealItem; line: IntakeLine | undefined; lineClass?: LineClass; kind: MealKind };
 
 interface Props {
   /** Il nome dell'alimento: resta nel titolo anche se la voce nel frattempo è sparita. */
@@ -125,7 +132,7 @@ const EPSILON = 1e-9;
 export function EntrySheet({ title, entry, date, today, diary, log, energyHistoryOf, onClose }: Props) {
   const { write, busy, error, clearError } = useSheetWrite(onClose);
   const ids = useId();
-  const [step, setStep] = useState<"main" | "moment">("main");
+  const [step, setStep] = useState<"main" | "moment" | "class">("main");
   /** La taglia scelta per una voce «fuori casa»; `null` finché non si tocca: vale quella scritta. */
   const [sizePicked, setSizePicked] = useState<OutOfHomeSize | null>(null);
   /** La quantità scelta; `undefined` finché non si tocca il selettore: vale quella di adesso. */
@@ -173,7 +180,7 @@ export function EntrySheet({ title, entry, date, today, diary, log, energyHistor
       ? momentTargets({ date, minutes: localMoment(current.mealAt, timeZone)?.minutes, today, kind: current.kind }, true)
       : momentTargets({ date, today, kind: current.kind }, false);
 
-  const go = (next: "main" | "moment") => {
+  const go = (next: "main" | "moment" | "class") => {
     setStep(next);
     clearError();
     // un campo lasciato vuoto non è una scelta: tornando dal passo si riparte dalla quantità di adesso
@@ -265,6 +272,10 @@ export function EntrySheet({ title, entry, date, today, diary, log, energyHistor
       </p>
     ) : null;
 
+  if (step === "class" && canCorrectClass(current.lineClass)) {
+    return <ClassSheet name={name} overrideKey={current.lineClass.overrideKey} current={classCurrentOf(current.lineClass)} onBack={() => go("main")} onClose={onClose} />;
+  }
+
   if (step === "moment") {
     const moments: ActionItem[] = targets.map((t) => ({ id: `${t.date}-${t.kind}`, label: t.label, disabled: busy, onSelect: () => moveTo(t) }));
     return (
@@ -286,13 +297,46 @@ export function EntrySheet({ title, entry, date, today, diary, log, energyHistor
     );
   }
 
+  // «Come la conto»: una voce libera senza valori propone prima di collegarla a un alimento (la stessa scelta di Nutrizione)
+  const classLines = classLinesOf(current.lineClass);
+  const classBasis = classBasisOf(current.lineClass);
+  const showClassSection = !outOfHome && classLines.lines.length > 0 && classBasis !== undefined;
+  const linkAction: ActionItem[] =
+    !outOfHome && current.type === "free" && lineNutrientText(current.line) === "senza dato"
+      ? [{ id: "link", label: "Collega a un alimento", href: "/app/salute/nutrizione" }]
+      : [];
+  const classActions: ActionItem[] = [
+    ...linkAction,
+    ...(canCorrectClass(current.lineClass) ? [{ id: "correct", label: "Correggi", disabled: busy, onSelect: () => go("class") }] : []),
+  ];
+
   const actions: ActionItem[] = [
     ...(targets.length > 0 ? [{ id: "moment", label: "Correggi il momento", disabled: busy, onSelect: () => go("moment") }] : []),
     ...(lot && lot.status === "active" ? [{ id: "lot", label: "Apri l'alimento", href: `/app/dispensa?lotto=${encodeURIComponent(lot.lotId)}` }] : []),
-    // a una stima «fuori casa» non c'è un alimento da collegare
-    ...(!outOfHome && lineNutrientText(current.line) === "senza dato" ? [{ id: "values", label: "Collega i valori", href: "/app/salute/nutrizione" }] : []),
+    // a una stima «fuori casa» non c'è un alimento da collegare; per una voce libera lo si propone in «Come la conto» e
+    // qui solo se quella sezione non c'è (classificazione non pronta o fallita): l'azione non deve sparire
+    ...(!outOfHome && current.type === "pantry" && lineNutrientText(current.line) === "senza dato" ? [{ id: "values", label: "Collega i valori", href: "/app/salute/nutrizione" }] : []),
+    ...(showClassSection ? [] : linkAction),
     { id: "remove", label: "Togli", danger: true, disabled: busy, onSelect: remove },
   ];
+
+  const classSection =
+    showClassSection && classBasis !== undefined ? (
+      <section className={ui.field} aria-labelledby={`${ids}-class`}>
+        <p id={`${ids}-class`} className={ui.fieldLabel}>
+          Come la conto
+        </p>
+        {classLines.lines.map((l) => (
+          <p key={`${l.label ?? ""}-${l.text}`} className={classStyles.line}>
+            {l.label ? <span className={ui.hint}>{l.label}: </span> : null}
+            {l.text}
+          </p>
+        ))}
+        {classLines.more > 0 ? <p className={ui.hint}>e altri {classLines.more}</p> : null}
+        <p className={ui.hint}>{basisText(classBasis)}</p>
+        {classActions.length > 0 ? <ActionList items={classActions} /> : null}
+      </section>
+    ) : null;
 
   if (outOfHome) {
     const written = outOfHome.item.energyKcal ?? 0;
@@ -367,6 +411,7 @@ export function EntrySheet({ title, entry, date, today, diary, log, energyHistor
         }}
         error={quantityError}
       />
+      {classSection}
       <ActionList items={actions} />
       {listError}
     </Sheet>

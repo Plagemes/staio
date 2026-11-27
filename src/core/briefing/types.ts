@@ -9,7 +9,7 @@ import type { PrepState } from "../prep";
 /** `label`: data stampata. `estimated`: stima o abitudine dedotta. `recorded`: dato che hai registrato. */
 export type BriefingCertainty = "label" | "estimated" | "recorded";
 
-export type BriefingKind = "expiry" | "plan" | "water" | "supplement" | "yesterday" | "notice" | "review";
+export type BriefingKind = "expiry" | "plan" | "water" | "supplement" | "yesterday" | "diet" | "notice" | "review";
 
 export interface BriefingLine {
   /** Stabile per lo stesso fatto. */
@@ -80,6 +80,8 @@ export interface BriefingInput {
   unresolvedFoods?: readonly UnresolvedFood[];
   /** Chiavi di ciò che l'utente ha lasciato così. */
   dismissed?: readonly string[];
+  /** Il consiglio più alto sulla qualità di ciò che si mangia che abbia un'azione vera (al massimo uno). */
+  dietAdvice?: { key: string; text: string; href: string; certainty: BriefingCertainty };
 }
 
 export interface Briefing {

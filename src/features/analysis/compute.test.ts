@@ -99,6 +99,17 @@ describe("computeAnalysis", () => {
     }
   });
 
+  it("senza la quota di prodotti molto lavorati l'esposizione non compare; con essa compare solo se supera le soglie", () => {
+    const { diary, intakeDays } = analyze(rich(60));
+    const none = computeAssociations(diary, intakeDays, dateOf(59));
+    expect(none.status === "ok" && none.associations.some((a) => a.exposure.id === "processed:high")).toBe(false);
+    // quota costante: nessuna differenza da mettere in luce, quindi nessuna esposizione sopra le soglie
+    const flat: Record<string, { share: number; coverage: number }> = {};
+    for (let i = 0; i < 60; i++) flat[dateOf(i)] = { share: 0.3, coverage: 0.9 };
+    const r = computeAssociations(diary, intakeDays, dateOf(59), flat);
+    expect(r.status === "ok" && r.associations.some((a) => a.exposure.id === "processed:high")).toBe(false);
+  });
+
   it("un risultato con l'ultimo dato vecchio è datato e lo dice", () => {
     const { diary, intakeDays } = analyze(rich(30));
     // l'ultimo dato è del giorno 29; oggi è il giorno 38

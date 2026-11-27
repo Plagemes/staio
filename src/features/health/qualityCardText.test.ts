@@ -1,60 +1,76 @@
 import { describe, expect, it } from "vitest";
-import type { ImpactMetric, ImpactReport, MetricImpact } from "@/core/quality";
-import type { DietImpactView } from "../quality/consumption";
+import type { Indicator, IndicatorId, WeekFrame } from "@/core/diet";
+import { fakeFrame, tally } from "@/core/diet/test-helpers";
 import { qualityCardView } from "./qualityCardText";
 
-const metric = (m: ImpactMetric, over: Partial<MetricImpact> = {}): MetricImpact => ({
-  metric: m,
-  unit: m === "ultraProcessed" ? "occasions" : "g",
-  totalPerWeek: 0,
-  entriesWithData: 0,
-  entriesTotal: 0,
-  complete: true,
-  contributors: [],
+const ind = (id: IndicatorId, over: Partial<Indicator> = {}): Indicator => ({
+  id,
+  value: 1,
+  unit: "servingsPerDay",
+  lowerBound: false,
+  certainty: "estimated",
+  coverage: 1,
+  status: "within",
   ...over,
 });
 
-function view(productLines: number, report: Partial<ImpactReport> = {}, ultra: Partial<MetricImpact> = {}): DietImpactView {
-  return {
-    summary: { entries: [], windowDays: 14, from: "2026-11-14", to: "2026-11-27", productLines, unusableLines: 0, restrictedLines: 0, otherLines: 0 },
-    report: {
-      metrics: {
-        sugars: metric("sugars"),
-        salt: metric("salt"),
-        saturatedFat: metric("saturatedFat"),
-        ultraProcessed: metric("ultraProcessed", ultra),
-      },
-      changes: [],
-      excluded: [],
-      ...report,
-    },
-  };
+const none = (id: IndicatorId): Indicator => ({ ...ind(id), value: undefined, status: "insufficient", insufficient: "few_days" });
+
+function week(start: string, over: Partial<WeekFrame> = {}, indicators: Indicator[] = []): WeekFrame {
+  const f = fakeFrame({ weekStart: start, daysWithData: 4, daysElapsed: 7, ...over });
+  const rowTallies = { ...f.rowTallies, legumes: tally({ occasions: 1 }), fish: tally({ occasions: 2 }) };
+  return { ...f, rowTallies, indicators };
 }
 
+const GOOD = (): Indicator[] => [
+  ind("vegFruit", { value: 3 }),
+  ind("group:legumes", { unit: "count", value: 1 }),
+  ind("group:fish", { unit: "count", value: 2 }),
+  ind("processedShare", { unit: "share", value: 0.22 }),
+];
+
 describe("qualityCardView", () => {
-  it("non c'è senza dati o senza consumi di prodotti", () => {
+  it("non c'è senza storia né senza nessuna voce", () => {
     expect(qualityCardView(undefined)).toBeNull();
-    expect(qualityCardView(view(0))).toBeNull();
+    expect(qualityCardView({ weeks: [] })).toBeNull();
+    expect(qualityCardView({ weeks: [week("2026-11-16", { daysWithData: 0 }), week("2026-11-23", { daysWithData: 0, inProgress: true })] })).toBeNull();
   });
 
-  it("dice i prodotti molto lavorati e quello che pesa di più", () => {
-    const v = view(
-      6,
-      { changes: [{ barcode: "1", name: "Merendine", effects: [{ metric: "sugars", perWeek: 40, share: 0.32 }] }] },
-      { entriesWithData: 6, entriesTotal: 6, totalPerWeek: 3, complete: true },
-    );
-    expect(qualityCardView(v)?.lines).toEqual([
-      "Prodotti molto lavorati: 3 consumi a settimana, in media sugli ultimi 14 giorni.",
-      "Pesa di più: Merendine, 32% del totale di zuccheri.",
+  it("dice la settimana in corso con le stime e i molto lavorati", () => {
+    const v = qualityCardView({ weeks: [week("2026-11-23", { inProgress: true }, GOOD())] });
+    expect(v?.lines).toEqual([
+      "Questa settimana, 4 giorni registrati: verdura e frutta ~3 porzioni al giorno, legumi ~1 volta, pesce ~2 volte.",
+      "Prodotti molto lavorati: ~22% dell'energia riconosciuta.",
     ]);
+    expect(v?.week).toBeUndefined();
   });
 
-  it("senza il dato sui molto lavorati conta i consumi e non inventa altro", () => {
-    expect(qualityCardView(view(1))?.lines).toEqual(["1 consumo di prodotti con codice a barre negli ultimi 14 giorni."]);
+  it("senza stime niente tilde e salta ciò che non si calcola", () => {
+    const g = GOOD().map((i) => ({ ...i, certainty: "measured" as Indicator["certainty"] })).filter((i) => i.id !== "group:fish");
+    const v = qualityCardView({ weeks: [week("2026-11-23", { inProgress: true, daysWithData: 1 }, g)] });
+    expect(v?.lines[0]).toBe("Questa settimana, 1 giorno registrato: verdura e frutta 3 porzioni al giorno, legumi 1 volta.");
   });
 
-  it("dichiara un totale parziale con «almeno»", () => {
-    const v = view(5, {}, { entriesWithData: 3, entriesTotal: 5, totalPerWeek: 2, complete: false });
-    expect(qualityCardView(v)?.lines[0]).toContain("almeno 2 consumi a settimana");
+  it("se la settimana in corso non basta, usa la scorsa e la dichiara", () => {
+    const v = qualityCardView({
+      weeks: [week("2026-11-16", {}, GOOD()), week("2026-11-23", { inProgress: true, daysWithData: 1, daysElapsed: 2 }, GOOD().map((i) => none(i.id)))],
+    });
+    expect(v?.lines[0].startsWith("La settimana scorsa, 4 giorni registrati:")).toBe(true);
+    expect(v?.week).toBe("2026-11-16");
+  });
+
+  it("settimane più vecchie: «nella settimana del …»", () => {
+    const v = qualityCardView({ weeks: [week("2026-11-09", {}, GOOD()), week("2026-11-16", { daysWithData: 0 }), week("2026-11-23", { inProgress: true, daysWithData: 0 })] });
+    expect(v?.lines[0].startsWith("Nella settimana del 9 nov, ")).toBe(true);
+  });
+
+  it("con pochi dati lo dice, senza numeri sulla qualità", () => {
+    const v = qualityCardView({ weeks: [week("2026-11-23", { inProgress: true, daysWithData: 2 }, GOOD().map((i) => none(i.id)))] });
+    expect(v?.lines).toEqual(["Dati insufficienti: 2 giorni registrati su 7."]);
+  });
+
+  it("senza i molto lavorati resta una riga", () => {
+    const v = qualityCardView({ weeks: [week("2026-11-23", { inProgress: true }, GOOD().slice(0, 3))] });
+    expect(v?.lines).toHaveLength(1);
   });
 });

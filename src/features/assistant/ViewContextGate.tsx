@@ -5,6 +5,7 @@
 import { useMemo, type ReactNode } from "react";
 import type { ViewContext } from "@/core/views";
 import { useDiary, usePantry } from "@/data";
+import { useDietHistory } from "../diet";
 import { dayOf } from "../format";
 import { toEngineProfile } from "../nutrition/profile";
 import { useIntake, useNutritionProfile, useReferences } from "../nutrition/useNutrition";
@@ -38,6 +39,8 @@ function WithNutrition({ base, children }: { base: Pick<ViewContext, "today" | "
   const nutrition = useIntake();
   const references = useReferences();
   const { profile, ready: profileReady } = useNutritionProfile();
+  // Senza dati o con un errore `diet` resta assente: le query quality_* dicono «Dati insufficienti».
+  const { history: diet } = useDietHistory();
 
   const ctx = useMemo<ViewContext | undefined>(() => {
     if (!nutrition.ready || !references || !profileReady) return undefined;
@@ -46,8 +49,9 @@ function WithNutrition({ base, children }: { base: Pick<ViewContext, "today" | "
       intake: nutrition.intake,
       references,
       profile: profile ? toEngineProfile(profile, base.today) : null,
+      ...(diet ? { diet } : {}),
     };
-  }, [base, nutrition.ready, nutrition.intake, references, profile, profileReady]);
+  }, [base, nutrition.ready, nutrition.intake, references, profile, profileReady, diet]);
 
   if (nutrition.error) return <>{children({ status: "error" })}</>;
   // senza i nutrienti pronti le viste che non li usano si possono già calcolare: le altre dicono «non ancora pronti»

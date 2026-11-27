@@ -352,4 +352,9 @@ export function regularityText(sdMinutes: number): string {
   return `variabile (scarto tipico ${formatDuration(sdMinutes)})`;
 }
 
+/** Etichetta dell'esposizione: quella «molto lavorati» è una stima, e lo dice con la tilde. */
+export function exposureLabel(exposure: { id: string; label: string }): string {
+  return exposure.id === "processed:high" ? "giorni con più energia del solito da prodotti molto lavorati (~)" : exposure.label;
+}
+
 export const formatClock = (minutes: number): string => formatMinutes(minutes);

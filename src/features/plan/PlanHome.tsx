@@ -9,6 +9,7 @@ import { DIET_HREF } from "../allergens";
 import { LoadingLine, StorageError } from "../shell/EmptyState";
 import ui from "../ui.module.css";
 import { CopyWeekSheet } from "./CopyWeekSheet";
+import { DietPlanRow } from "./DietPlanRow";
 import { nextMonday, weekChoices } from "./dates";
 import { TonightSection } from "./TonightSection";
 import { mealCount, mealsText, weekRows } from "./tonight";
@@ -93,6 +94,7 @@ export function PlanHome() {
             </Link>
           </li>
         </ul>
+        {rows.empty ? null : <DietPlanRow weekStart={current.start} proposeHref={PROPOSE_HREF} />}
         <div className={ui.row}>
           {rows.empty ? <Button href={PROPOSE_HREF}>Proponi la settimana</Button> : null}
           <MoreActions items={more} />

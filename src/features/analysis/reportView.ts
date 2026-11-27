@@ -13,6 +13,8 @@ import { formatQuantity } from "@/core/units";
 import { formatCalendarDate, formatPrice } from "../format";
 import { DISCARD_REASON_LABELS } from "../labels";
 import { REPORT_MIN } from "./config";
+import type { PeriodDietSummary, PeriodIndicatorSummary } from "@/core/diet";
+import { indicatorLabel } from "../diet/texts";
 import { RELIABILITY_LABELS, days, formatDecimal, formatKgValue, plural, weighIns, type InsufficientView } from "./present";
 
 export const REPORT_KINDS: { id: ReportKind; label: string }[] = [
@@ -189,4 +191,39 @@ export function nutrientsInsufficientView(completeDays: number): InsufficientVie
     reasons: [`Nel periodo ci sono ${days(completeDays)} tracciati per intero.`],
     missing: [`Mancano ancora ${days(Math.max(0, REPORT_MIN.completeDays - completeDays))}: servono almeno ${REPORT_MIN.completeDays} per il confronto con i riferimenti.`],
   };
+}
+
+// ---------------------------------------------------------------------------------------------- qualità di ciò che si mangia
+
+const weeksText = (n: number): string => `${n} ${n === 1 ? "settimana" : "settimane"}`;
+
+/** «dentro l'indicazione in 2, sotto in 1»: solo gli esiti che ci sono, in parole. */
+function indicatorTally(ind: PeriodIndicatorSummary): string | undefined {
+  const parts: string[] = [];
+  if (ind.within > 0) parts.push(`dentro l'indicazione in ${ind.within}`);
+  if (ind.below > 0) parts.push(`sotto in ${ind.below}`);
+  if (ind.above > 0) parts.push(`sopra in ${ind.above}`);
+  return parts.length === 0 ? undefined : `${indicatorLabel(ind.id)}: ${parts.join(", ")}`;
+}
+
+/** Quanti indicatori si nominano nel rapporto: i più lontani dall'indicazione, non l'elenco intero. */
+const DIET_REPORT_INDICATORS = 3;
+
+/**
+ * Il riepilogo del periodo in frasi, o `undefined` se il periodo non tocca nessuna settimana (la sezione non c'è).
+ * Con dati insufficienti una sola riga lo dice.
+ */
+export function dietReportLines(summary: PeriodDietSummary): string[] | undefined {
+  if (summary.weeks === 0) return undefined;
+  if (summary.sufficientWeeks === 0) {
+    return [`Dati insufficienti: nessuna delle ${summary.weeks === 1 ? "1 settimana" : `${summary.weeks} settimane`} del periodo ha giorni registrati a sufficienza.`];
+  }
+  const head = `${weeksText(summary.sufficientWeeks)} su ${summary.weeks} con dati sufficienti`;
+  const notable = summary.indicators
+    .filter((i) => i.within + i.below + i.above > 0)
+    .sort((a, b) => b.below + b.above - (a.below + a.above))
+    .slice(0, DIET_REPORT_INDICATORS)
+    .map(indicatorTally)
+    .filter((t): t is string => t !== undefined);
+  return [notable.length === 0 ? `${head}.` : `${head} · ${notable.join(" · ")}.`];
 }

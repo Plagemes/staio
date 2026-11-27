@@ -9,6 +9,8 @@ export interface AssociationsInputs {
   diary: DiaryState;
   intakeDays: readonly DayIntake[];
   today: string;
+  /** Per data: quota di energia da prodotti molto lavorati e copertura (solo numeri, serializzabile). */
+  processedShareByDate?: Readonly<Record<string, { share: number; coverage: number }>>;
 }
 
 export type AssociationsRequest = ({ type: "run"; id: number } & AssociationsInputs) | { type: "cancel"; id: number };
@@ -21,7 +23,7 @@ export type AssociationsResponse =
 export function handleAssociationsRequest(request: AssociationsRequest): AssociationsResponse | undefined {
   if (request.type !== "run") return undefined;
   try {
-    return { id: request.id, ok: true, result: computeAssociations(request.diary, request.intakeDays, request.today) };
+    return { id: request.id, ok: true, result: computeAssociations(request.diary, request.intakeDays, request.today, request.processedShareByDate) };
   } catch (e) {
     return { id: request.id, ok: false, message: e instanceof Error ? e.message : "errore sconosciuto" };
   }

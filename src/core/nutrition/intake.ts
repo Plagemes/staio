@@ -189,15 +189,36 @@ export interface IntakeResult {
   days: DayIntake[];
 }
 
-/** `consume` validi e non annullati, con o senza pasto, in ordine canonico. */
+/**
+ * Id dei `consume` con cui una preparazione preleva i suoi ingredienti: uso in cucina, non cibo mangiato. Si mangiano
+ * le porzioni, che portano già la loro parte degli ingredienti; contare anche questi consumi conterebbe tutto due
+ * volte, la prima nel giorno della cottura. Vale anche per una preparazione annullata: i suoi consumi restano uso in
+ * cucina (e di norma sono annullati con lei).
+ */
+function prepIngredientConsumeIds(events: readonly unknown[]): Set<string> {
+  const ids = new Set<string>();
+  for (const e of events) {
+    if (typeof e !== "object" || e === null || (e as { type?: unknown }).type !== "prep") continue;
+    const ingredients = (e as { ingredients?: unknown }).ingredients;
+    if (!Array.isArray(ingredients)) continue;
+    for (const ing of ingredients) {
+      const id = typeof ing === "object" && ing !== null ? (ing as { consumeEventId?: unknown }).consumeEventId : undefined;
+      if (typeof id === "string" && id !== "") ids.add(id);
+    }
+  }
+  return ids;
+}
+
+/** `consume` validi e non annullati, con o senza pasto, in ordine canonico; esclusi gli ingredienti delle preparazioni. */
 function activeConsumeEvents(events: readonly unknown[]): ConsumeEvent[] {
   const log = prepareLog(events);
   const { voided } = voidsOfLog(log.events);
+  const ingredients = prepIngredientConsumeIds(log.events);
   const out: ConsumeEvent[] = [];
   for (const e of log.events) {
     const c = e as Partial<ConsumeEvent>;
     if (c.type !== "consume" || typeof c.id !== "string") continue;
-    if (voided.has(c.id) || !isValidKnownEvent(e)) continue;
+    if (voided.has(c.id) || ingredients.has(c.id) || !isValidKnownEvent(e)) continue;
     out.push(e as ConsumeEvent);
   }
   return out;
@@ -415,7 +436,8 @@ function pantryLine(
  *
  * - Le voci libere dei pasti e i consumi di dispensa collegati da `mealId` formano il pasto;
  *   i consumi senza pasto (o con un pasto che non esiste nel diario) vanno alla giornata del loro
- *   `at`. Eventi annullati e non validi non contano.
+ *   `at`. Eventi annullati e non validi non contano. I consumi con cui una preparazione preleva gli ingredienti non
+ *   sono cibo mangiato: contano le porzioni.
  * - Le composizioni vengono dal risolutore, che riceve con ogni voce gli stati preferiti: `cooked`
  *   per le voci libere dei pasti, `dried`/`raw`/`as_sold` per la dispensa (`statePreference`). Ogni
  *   riga dice lo stato assunto in `composition.state`.

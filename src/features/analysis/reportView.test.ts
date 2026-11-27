@@ -17,6 +17,7 @@ import {
   weightReportText,
 } from "./reportView";
 import { basisText } from "./present";
+import { dietReportLines } from "./reportView";
 
 describe("periodi del rapporto", () => {
   const week = reportPeriod("week", "2026-03-04");
@@ -134,5 +135,39 @@ describe("testi delle sezioni", () => {
 
   it("nutrienti con pochi giorni completi: quanti ne mancano", () => {
     expect(nutrientsInsufficientView(2).missing[0]).toMatch(/Mancano ancora 3 giorni/);
+  });
+});
+
+describe("qualità di ciò che si mangia nel rapporto", () => {
+  const FORBIDDEN = /(devi|dovresti|sano|malsano|sicuro per te|compatibile|voto|punteggio|bravo|male)/i;
+  const base = { from: "2026-03-02", to: "2026-03-29" };
+
+  it("riepilogo in parole", () => {
+    const lines = dietReportLines({
+      ...base,
+      weeks: 4,
+      sufficientWeeks: 3,
+      indicators: [
+        { id: "group:legumes", within: 2, below: 1, above: 0 },
+        { id: "group:fish", within: 0, below: 0, above: 0 },
+      ],
+    });
+    expect(lines).toEqual(["3 settimane su 4 con dati sufficienti · legumi: dentro l'indicazione in 2, sotto in 1."]);
+    for (const l of lines ?? []) expect(l).not.toMatch(FORBIDDEN);
+  });
+
+  it("senza indicatori utili resta il conto delle settimane", () => {
+    expect(dietReportLines({ ...base, weeks: 1, sufficientWeeks: 1, indicators: [] })).toEqual(["1 settimana su 1 con dati sufficienti."]);
+  });
+
+  it("dati insufficienti: una riga che lo dice", () => {
+    const lines = dietReportLines({ ...base, weeks: 2, sufficientWeeks: 0, indicators: [] });
+    expect(lines).toHaveLength(1);
+    expect(lines?.[0]).toMatch(/^Dati insufficienti/);
+    expect(lines?.[0]).not.toMatch(FORBIDDEN);
+  });
+
+  it("nessuna settimana: la sezione non c'è", () => {
+    expect(dietReportLines({ ...base, weeks: 0, sufficientWeeks: 0, indicators: [] })).toBeUndefined();
   });
 });

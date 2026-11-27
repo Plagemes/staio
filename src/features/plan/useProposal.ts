@@ -15,12 +15,16 @@ import {
   type ProposalSlot,
   type WeekProposal,
 } from "@/core/plan";
+import type { DietGroup } from "@/core/diet";
 import { buildPriceBook } from "@/core/shopping";
+import { useDietAdvice } from "../diet";
 import {
   buildProposalInput,
   defaultMoments,
   defaultSettings,
+  dietSoFar,
   finalizeProposal,
+  withDietSoFar,
   type Finalized,
   type ProposalSettings,
 } from "./proposal";
@@ -36,6 +40,8 @@ interface Snapshot {
   /** Da cosa dipende ciò che si è controllato: se cambia, la proposta si ricontrolla. */
   deps: readonly unknown[];
 }
+
+const NO_GAPS: Partial<Record<DietGroup, number>> = {};
 
 /** Perché non si può proporre: senza ricette salvate, o senza posti liberi da oggi in poi. */
 export type ProposalUnavailable = "no_recipes" | "no_slots";
@@ -54,6 +60,10 @@ export interface ProposalView {
   settings: ProposalSettings | undefined;
   proposal: WeekProposal | undefined;
   hasPrices: boolean;
+  /** Porzioni che mancano nella settimana, per gruppo (vuoto se la settimana non è quella in corso o non c'è lacuna). */
+  dietGaps: Partial<Record<DietGroup, number>>;
+  /** Ci sono lacune aperte: «Colma ciò che manca nella settimana» ha senso. */
+  hasGaps: boolean;
   recipeCount: number;
   /** Una riga sotto la proposta, per esempio «non ho altre ricette per questo posto». */
   message: string | null;
@@ -81,6 +91,12 @@ export function useProposal({ data, weekStart, weekDates, entries, declared, dec
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const plan = data.plan;
+  const diet = useDietAdvice();
+  // le lacune valgono per la settimana in corso: per un'altra settimana la proposta resta quella di sempre
+  const dietWeek = diet.planned?.weekStart === weekStart;
+  const dietGaps = useMemo(() => (dietWeek ? diet.gaps : NO_GAPS), [dietWeek, diet.gaps]);
+  const hasGaps = Object.keys(dietGaps).length > 0;
+  const sofar = useMemo(() => (dietWeek ? dietSoFar(diet.history, diet.planned, weekStart) : NO_GAPS), [dietWeek, diet.history, diet.planned, weekStart]);
   const timeZone = data.diary?.timeZone ?? DEFAULT_TIME_ZONE;
 
   const slotsFor = useCallback(
@@ -112,6 +128,8 @@ export function useProposal({ data, weekStart, weekDates, entries, declared, dec
         linkOf: data.linkOf,
         ...(confirmations ? { confirmations } : {}),
         ...(data.foods ? { foods: data.foods } : {}),
+        ...(diet.recipeFacts ? { dietFacts: diet.recipeFacts } : {}),
+        ...(hasGaps ? { dietGaps } : {}),
         overrides: data.overrides,
         ...(data.nutrientsOf ? { nutrientsOf: data.nutrientsOf } : {}),
         ...(book && hasPrices ? { book } : {}),
@@ -122,7 +140,7 @@ export function useProposal({ data, weekStart, weekDates, entries, declared, dec
       });
       return { input, hasPrices };
     },
-    [plan, data, timeZone, declared, confirmations, weekDates, slotsFor, entries],
+    [plan, data, timeZone, declared, confirmations, weekDates, slotsFor, entries, diet.recipeFacts, hasGaps, dietGaps],
   );
 
   const deps = useMemo(() => [data.recipes, declared, confirmations, data.linkOf, entries] as const, [data.recipes, declared, confirmations, data.linkOf, entries]);
@@ -154,11 +172,15 @@ export function useProposal({ data, weekStart, weekDates, entries, declared, dec
     }
   }
 
-  const proposal = useMemo(() => (snap ? explainProposal(snap.input, snap.picks) : undefined), [snap]);
+  const proposal = useMemo(() => {
+    if (!snap) return undefined;
+    const explained = explainProposal(snap.input, snap.picks);
+    return { ...explained, meals: withDietSoFar(explained.meals, sofar) };
+  }, [snap, sofar]);
 
   const start = useCallback(() => {
-    if (plan) generate(defaultSettings({ plan, weekDates, today: data.today }));
-  }, [plan, generate, weekDates, data.today]);
+    if (plan) generate(defaultSettings({ plan, weekDates, today: data.today, hasGaps }));
+  }, [plan, generate, weekDates, data.today, hasGaps]);
 
   const swap = useCallback(
     (slot: ProposalSlot) => {
@@ -208,6 +230,8 @@ export function useProposal({ data, weekStart, weekDates, entries, declared, dec
     settings: snap?.settings,
     proposal,
     hasPrices: snap?.hasPrices ?? false,
+    dietGaps,
+    hasGaps,
     recipeCount: data.recipes.length,
     message,
     start,

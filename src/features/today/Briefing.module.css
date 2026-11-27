@@ -67,6 +67,25 @@
   gap: var(--space-4);
 }
 
+/* La riga del consiglio: il testo porta all'azione, «Lascia così» sta sotto, a destra */
+.withLeave {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.withLeave .link {
+  align-items: baseline;
+}
+
+:global([data-palette="vivo"]) .withLeave {
+  padding-bottom: var(--space-3);
+}
+
+:global([data-palette="vivo"]) .withLeave > :last-child {
+  margin-left: var(--space-5);
+}
+
 /* L'elenco che una riga apre sotto di sé («Nel piano, non fatti») */
 .under {
   margin-top: var(--gap-item);

@@ -1,7 +1,7 @@
 /* Service worker scritto a mano. Per alzare la versione vedi src/pwa/README.md. */
 "use strict";
 
-const CACHE_VERSION = "v7";
+const CACHE_VERSION = "v8";
 const PREFIX = "staio-";
 const CACHES = {
   pages: PREFIX + "pages-" + CACHE_VERSION, // HTML delle navigazioni
@@ -53,6 +53,7 @@ const PRECACHE_PAGES = [
   "/app/salute/analisi",
   "/app/salute/esperimenti",
   "/app/salute/rapporto",
+  "/app/salute/mangiato",
   "/app/qualita",
   "/app/qualita/prodotto",
   "/app/qualita/scaffale",

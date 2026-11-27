@@ -47,6 +47,7 @@ import { useRecord } from "../useRecord";
 import { mealsWithPantryOf } from "./dayRows";
 import { DrinkLines } from "./DrinkLines";
 import { OTHER_VERSION_NOTE, isCompactMoment, mealSheetTitle, momentChoices, repeatableNames, revivedMealText, snackBlockTitle } from "./editText";
+import { useLineMarks } from "../diet";
 import { EntrySheet, type EntryTarget } from "./EntrySheet";
 import { EntryRow, LooseLine, freeItemLine, type DayIntakeLookup } from "./MealLines";
 import { MealSheet } from "./MealSheet";
@@ -141,6 +142,8 @@ export function MealMoments({ date, today, now, diary, day, meals, loose, log, p
   const lots = new Map(pantry.lots.map((l) => [l.lotId, l]));
   const lotNames = new Map(pantry.lots.map((l) => [l.lotId, l.productRef]));
   const nameOf = (c: ConsumeEvent) => lotNames.get(c.lotId) ?? "Alimento";
+  // segni e classi delle righe del giorno: una mappa per giorno, nessun calcolo per riga
+  const marks = useLineMarks(date);
   const viewingToday = date === today;
   // «Come ieri»: i pasti di ieri servono solo guardando oggi
   const yesterdayMeals = useMemo(
@@ -246,7 +249,7 @@ export function MealMoments({ date, today, now, diary, day, meals, loose, log, p
       for (const meal of meals) {
         const consume = meal.pantryConsumes.find((c) => c.id === open.consumeId);
         if (consume) {
-          return { type: "pantry", consume, name: nameOf(consume), lot: lots.get(consume.lotId), line: intake.lineOf(consume.id), kind: meal.kind, mealAt: meal.at };
+          return { type: "pantry", consume, name: nameOf(consume), lot: lots.get(consume.lotId), line: intake.lineOf(consume.id), lineClass: marks.classOf(consume.id), kind: meal.kind, mealAt: meal.at };
         }
       }
       return undefined;
@@ -255,7 +258,7 @@ export function MealMoments({ date, today, now, diary, day, meals, loose, log, p
     const item = meal?.items[open.index];
     // la posizione vale solo se lì c'è ancora la stessa voce
     if (!meal || !item || item.name !== open.title) return undefined;
-    return { type: "free", mealId: meal.mealId, index: open.index, item, line: freeItemLine(intake, meal.mealId, open.index), kind: meal.kind };
+    return { type: "free", mealId: meal.mealId, index: open.index, item, line: freeItemLine(intake, meal.mealId, open.index), lineClass: marks.classOf(`${meal.eventId}#${open.index}`), kind: meal.kind };
   }
 
   async function removeWith(key: string, make: Parameters<typeof remove>[0], description: string) {
@@ -294,6 +297,7 @@ export function MealMoments({ date, today, now, diary, day, meals, loose, log, p
                 quantity={c.quantity}
                 certainty={c.certainty}
                 line={intake.lineOf(c.id)}
+                mark={marks.markOf(c.id)}
                 onOpen={() => setSheet({ type: "consume", consumeId: c.id, title: nameOf(c) })}
               />
             ))}
@@ -305,6 +309,7 @@ export function MealMoments({ date, today, now, diary, day, meals, loose, log, p
                 quantity={i.quantity}
                 certainty={i.certainty}
                 line={freeItemLine(intake, meal.mealId, index)}
+                mark={marks.markOf(`${meal.eventId}#${index}`)}
                 withoutAmount={isOutOfHomeItem(i)}
                 onOpen={() => setSheet({ type: "item", mealId: meal.mealId, index, title: i.name })}
               />

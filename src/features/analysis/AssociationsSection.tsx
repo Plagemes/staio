@@ -7,6 +7,7 @@ import {
   associationsInsufficient,
   basisText,
   days,
+  exposureLabel,
   formatDecimal,
   formatPercent,
   formatRange,
@@ -21,7 +22,7 @@ const STRENGTH_TEXT = { small: "piccola", moderate: "media", large: "grande" } a
 /** Titolo di un'associazione: cosa è stato osservato, senza dire che una cosa spieghi l'altra. */
 export function associationTitle(a: Pick<Association, "exposure" | "outcome" | "lag">): string {
   const when = a.lag === 0 ? "lo stesso giorno" : "il giorno dopo";
-  return `${a.exposure.label} e ${OUTCOME_LABELS[a.outcome]} ${when}`;
+  return `${exposureLabel(a.exposure)} e ${OUTCOME_LABELS[a.outcome]} ${when}`;
 }
 
 function AssociationItem({ a }: { a: Association }) {

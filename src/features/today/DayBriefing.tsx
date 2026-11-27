@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { safeAppPath } from "@/core/notify";
 import { Button, SectionHeader } from "@/design";
+import { dismissWithNotice } from "../diet";
+import { useNotice } from "../notice";
 import { CatchUpSheet } from "../catchup/CatchUpSheet";
 import { catchUpLineText } from "../catchup/catchupText";
 import { useCatchUp } from "../catchup/useCatchUp";
@@ -37,6 +39,7 @@ export function DayBriefing({ view, shoppingCount, missedCount, missed, onShowWa
   const [open, setOpen] = useState(false);
   const [missedOpen, setMissedOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const notice = useNotice();
   const catchUpDays = useCatchUp();
   // i giorni restano quelli del tocco: dopo «Salva» la riga sparisce, ma il foglio si chiude da sé
   const [catchUpOpen, setCatchUpOpen] = useState<readonly string[] | null>(null);
@@ -56,6 +59,15 @@ export function DayBriefing({ view, shoppingCount, missedCount, missed, onShowWa
     setError(null);
     try {
       await dismiss(key);
+    } catch {
+      setError("Non sono riuscito a ricordarlo. Riprova.");
+    }
+  }
+
+  async function leaveAdvice(key: string) {
+    setError(null);
+    try {
+      await dismissWithNotice(key, notice);
     } catch {
       setError("Non sono riuscito a ricordarlo. Riprova.");
     }
@@ -83,6 +95,16 @@ export function DayBriefing({ view, shoppingCount, missedCount, missed, onShowWa
                   <button type="button" className={styles.link} aria-expanded={open} aria-controls="da-rivedere" onClick={() => setOpen(!open)}>
                     <span>{line.text}</span>
                   </button>
+                ) : line.kind === "diet" ? (
+                  <div className={styles.withLeave}>
+                    <Link href={safeAppPath(line.href)} className={styles.link}>
+                      <span>{line.text}</span>
+                      {line.certainty === "estimated" ? <span className={styles.estimate}>stima</span> : null}
+                    </Link>
+                    <Button variant="text" onClick={() => void leaveAdvice(line.key)}>
+                      Lascia così
+                    </Button>
+                  </div>
                 ) : line.href.startsWith("#") ? (
                   <a
                     href={line.href}
@@ -119,6 +141,11 @@ export function DayBriefing({ view, shoppingCount, missedCount, missed, onShowWa
               </li>
             ) : null}
           </ul>
+        ) : null}
+        {error && !open ? (
+          <p className={ui.error} role="alert">
+            {error}
+          </p>
         ) : null}
         {!briefing.reviewInLines && briefing.reviewCount > 0 ? (
           <div>

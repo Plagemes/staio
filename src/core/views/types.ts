@@ -1,6 +1,7 @@
 // Tipi delle viste generate: il contesto di calcolo, i risultati delle interrogazioni e il loro catalogo.
 // Una vista è solo una descrizione: i numeri nascono qui, dalle interrogazioni eseguite sui dati del dispositivo.
 import type { DiaryState } from "../diary";
+import type { DietHistory } from "../diet/types";
 import type { Certainty, PantryState } from "../ledger";
 import type { IntakeResult, Profile, ReferenceWithVariant } from "../nutrition";
 
@@ -15,6 +16,8 @@ export interface ViewContext {
   references?: readonly ReferenceWithVariant[];
   /** Profilo per i valori di riferimento; null se l'utente non l'ha ancora scritto. */
   profile?: Profile | null;
+  /** Quadro settimanale della qualità di ciò che si mangia. Assente finché non è calcolato. */
+  diet?: DietHistory;
 }
 
 /** Un numero con la sua unità e la sua certezza. */

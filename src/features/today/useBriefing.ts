@@ -9,10 +9,12 @@ import {
   rememberDismissed,
   type Briefing,
 } from "@/core/briefing";
+import { briefingAdvice } from "@/core/diet";
 import { addDays, DEFAULT_TIME_ZONE } from "@/core/diary";
 import type { AnyEvent } from "@/core/events";
 import type { PantryState } from "@/core/ledger";
 import { useDiary, usePreps } from "@/data";
+import { briefingAdviceText, dietHref, hrefOf, useDietAdvice } from "../diet";
 import { useTodayNotices } from "../notifications";
 import { unresolvedGroups } from "../nutrition/prepare";
 import { useIntake } from "../nutrition/useNutrition";
@@ -49,6 +51,7 @@ export function useBriefing({ now, viewDate, pantry, log, plan }: Args): Briefin
   const preps = usePreps().data;
   const notices = useTodayNotices();
   const intake = useIntake().intake;
+  const dietAdvice = useDietAdvice();
   const dismissed = useSetting<string[]>(DISMISSED_SETTING_KEY, isDismissedList, NO_DISMISSED);
 
   const unresolvedFoods = useMemo(() => {
@@ -56,6 +59,20 @@ export function useBriefing({ now, viewDate, pantry, log, plan }: Args): Briefin
     const since = addDays(dayOf(now), -NO_NUTRITION_WINDOW_DAYS);
     return unresolvedGroups(intake.days.filter((d) => d.date >= since)).map((g) => ({ key: g.key, label: g.label, count: g.count, lastDate: g.lastDate }));
   }, [intake, now]);
+
+  // il consiglio più alto con un'azione vera, al massimo uno; nei giorni passati il riepilogo non c'è (lo decide il core)
+  const dietLine = useMemo(() => {
+    if (!dietAdvice.ready) return undefined;
+    const advice = briefingAdvice(dietAdvice.advice);
+    if (!advice) return undefined;
+    const action = advice.actions.find((a) => hrefOf(a) !== undefined && a.kind !== "openDetail");
+    return {
+      key: advice.key,
+      text: briefingAdviceText(advice, { today: dietAdvice.today ?? viewDate, ...(dietAdvice.history ? { history: dietAdvice.history } : {}) }),
+      href: (action ? hrefOf(action) : undefined) ?? dietHref({ anchor: "consigli" }),
+      certainty: advice.certainty === "estimated" ? ("estimated" as const) : advice.certainty === "label" ? ("label" as const) : ("recorded" as const),
+    };
+  }, [dietAdvice.ready, dietAdvice.advice, dietAdvice.today, dietAdvice.history, viewDate]);
 
   const briefing = useMemo(() => {
     if (!now || !pantry || !log || !diary || !dismissed.ready) return EMPTY;
@@ -72,12 +89,13 @@ export function useBriefing({ now, viewDate, pantry, log, plan }: Args): Briefin
         missingForPlan: plan.missingToday,
         otherNotices: reviewNotices(notices ?? []).map((f) => ({ key: f.key, short: f.short, url: f.url })),
         unresolvedFoods,
+        ...(dietLine ? { dietAdvice: dietLine } : {}),
         dismissed: dismissed.value,
       });
     } catch {
       return EMPTY;
     }
-  }, [now, viewDate, pantry, log, diary, preps, plan.planned, plan.missingToday, notices, unresolvedFoods, dismissed.value, dismissed.ready]);
+  }, [now, viewDate, pantry, log, diary, preps, plan.planned, plan.missingToday, notices, unresolvedFoods, dietLine, dismissed.value, dismissed.ready]);
 
   const dismiss = useCallback(async (key: string) => {
     const current = await getSetting<unknown>(DISMISSED_SETTING_KEY);

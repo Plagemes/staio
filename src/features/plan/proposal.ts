@@ -2,6 +2,7 @@
 // il generatore di `core/plan/propose` sceglie, i testi in italiano e il controllo finale prima di scrivere nel piano.
 // Logica pura: niente si scrive qui.
 import type { ConfirmationMap } from "@/core/allergens";
+import { GUIDELINE_ROWS, targetFor, type DietGroup, type DietHistory, type EnergyLevel, type PlannedDiet, type TargetView } from "@/core/diet";
 import { addDays, type MealKind } from "@/core/diary";
 import { DEFAULT_TIME_ZONE } from "@/core/expiry";
 import type { FoodComposition } from "@/core/nutrition";
@@ -51,6 +52,8 @@ import type { FoodOverrides } from "../nutrition/resolver";
 import type { LinkOf } from "../recipes/allergenLinks";
 import { whenText, weekdayName } from "./dates";
 import { checkWeekConstraints } from "./safety";
+import { DIET_GAP_ROWS } from "../diet/inputs";
+import { dietReasonText, groupLabel, listText } from "../diet/texts";
 
 /** Le scelte dell'utente per una proposta. Non si salvano: valgono per questa proposta. */
 export interface ProposalSettings {
@@ -64,6 +67,8 @@ export interface ProposalSettings {
   spendLeast: boolean;
   /** Giorni con poco tempo. */
   lowTimeDays: string[];
+  /** «Colma ciò che manca nella settimana»: le lacune di porzioni passano al generatore. Assente = spento. */
+  fillGaps?: boolean;
 }
 
 export const MAX_REPEAT_CHOICES = [1, 2, 3] as const;
@@ -88,9 +93,16 @@ export function momentChoices(structureMeals: readonly MealKind[] | undefined): 
   return MEAL_KIND_ORDER.filter((k) => kinds.includes(k));
 }
 
-export function defaultSettings(args: { plan: PlanState; weekDates: readonly string[]; today: string }): ProposalSettings {
+export function defaultSettings(args: {
+  plan: PlanState;
+  weekDates: readonly string[];
+  today: string;
+  /** Ci sono lacune aperte nella settimana: la scelta «Colma ciò che manca» parte accesa. */
+  hasGaps?: boolean;
+}): ProposalSettings {
   const days = remainingDays(args.weekDates, args.today);
   return {
+    ...(args.hasGaps ? { fillGaps: true } : {}),
     moments: defaultMoments(args.plan.structure?.meals.map((m) => m.kind)),
     days,
     maxRepeats: DEFAULT_PROPOSAL_OPTIONS.maxRepeats,
@@ -193,6 +205,10 @@ export interface FactsArgs {
   book?: PriceBook;
   plan: PlanState;
   weekDates: readonly string[];
+  /** I gruppi di ogni ricetta, per `recipeId` (da `useDietAdvice().recipeFacts`). */
+  dietFacts?: ReadonlyMap<string, { groups: readonly DietGroup[] }>;
+  /** Porzioni che mancano nella settimana, per gruppo; contano solo con `settings.fillGaps`. */
+  dietGaps?: Partial<Record<DietGroup, number>>;
 }
 
 const hasDeclared = (d: FactsArgs["declared"]): boolean => d.allergens.some((a) => a.trim() !== "") || d.excludedFoods.some((a) => a.trim() !== "");
@@ -261,6 +277,8 @@ export function buildProposalRecipes(args: FactsArgs): ProposalRecipe[] {
     };
     const mainKey = mainKeyOf(recipe);
     if (mainKey !== undefined) out.mainKey = mainKey;
+    const groups = args.dietFacts?.get(recipe.recipeId)?.groups;
+    if (groups && groups.length > 0) out.dietGroups = groups;
     const minutes = totalMinutes(recipe);
     if (minutes !== undefined) out.minutes = minutes;
     const meals = mealsOfTags(recipe.tags);
@@ -313,6 +331,7 @@ export function buildProposalInput(args: FactsArgs & { slots: readonly ProposalS
           },
         }
       : {}),
+    ...(settings.fillGaps && args.dietGaps && Object.keys(args.dietGaps).length > 0 ? { dietGaps: args.dietGaps } : {}),
     options: { maxRepeats: settings.maxRepeats, allowUncertain: settings.allowUncertain, spendLeast: settings.spendLeast },
   };
 }
@@ -322,6 +341,13 @@ export function buildProposalInput(args: FactsArgs & { slots: readonly ProposalS
 export const CRITERIA_TEXT = "Scelgo in quest'ordine: ciò che scade, ciò che hai già in casa, varietà, i tuoi obiettivi, il tempo che hai.";
 export const CRITERIA_TEXT_SPEND = "Scelgo in quest'ordine: il costo stimato, ciò che scade, ciò che hai già in casa, varietà, i tuoi obiettivi, il tempo che hai.";
 
+/** I criteri in ordine, con «ciò che manca nella settimana» tra la dispensa e la varietà quando la scelta è accesa. */
+export function criteriaText(opts: { spendLeast: boolean; fillGaps: boolean }): string {
+  if (!opts.fillGaps) return opts.spendLeast ? CRITERIA_TEXT_SPEND : CRITERIA_TEXT;
+  const head = opts.spendLeast ? "il costo stimato, ciò che scade, ciò che hai già in casa" : "ciò che scade, ciò che hai già in casa";
+  return `Scelgo in quest'ordine: ${head}, ciò che manca nella settimana, varietà, i tuoi obiettivi, il tempo che hai.`;
+}
+
 const lower = (s: string): string => s.toLowerCase();
 
 function usesText(uses: readonly { name: string; expiresOn: string }[], today: string): string {
@@ -329,6 +355,28 @@ function usesText(uses: readonly { name: string; expiresOn: string }[], today: s
   const rest = uses.length - names.length;
   const list = rest > 0 ? `${names.join(", ")} e altri ${rest}` : names.join(" e ");
   return `Usa ${list} in scadenza ${whenText((uses[0] as { expiresOn: string }).expiresOn, today)}`;
+}
+
+/** Un motivo «diet» con quante volte la settimana ha già portato il gruppo (mangiato più nel piano). */
+export type DietReasonWithCount = Extract<ProposalReason, { code: "diet" }> & { sofar?: Partial<Record<DietGroup, number>> };
+
+const times = (n: number): string => `${n} ${n === 1 ? "volta" : "volte"}`;
+
+/** «Porta legumi: questa settimana finora 1 volta»; senza conteggio solo «Porta legumi». */
+export function dietReasonLine(reason: DietReasonWithCount): string {
+  const base = dietReasonText(reason.groups);
+  const known = reason.groups.filter((g) => reason.sofar?.[g] !== undefined);
+  if (known.length === 0) return base;
+  const count = (g: DietGroup): number => reason.sofar?.[g] ?? 0;
+  const only = known.length === 1 && reason.groups.length === 1 ? known[0] : undefined;
+  const what = only !== undefined ? times(count(only)) : known.map((g) => `${groupLabel(g)} ${times(count(g))}`).join(", ");
+  return `${base}: questa settimana finora ${what}`;
+}
+
+/** Le proposte con il conteggio «finora» nei motivi «diet»: il testo lo legge `reasonText`. */
+export function withDietSoFar<T extends { reasons: ProposalReason[] }>(meals: readonly T[], sofar: Partial<Record<DietGroup, number>>): T[] {
+  if (Object.keys(sofar).length === 0) return [...meals];
+  return meals.map((m) => ({ ...m, reasons: m.reasons.map((r): ProposalReason => (r.code === "diet" ? ({ ...r, sofar } as DietReasonWithCount) : r)) }));
 }
 
 export function reasonText(reason: ProposalReason, today: string): string {
@@ -346,6 +394,8 @@ export function reasonText(reason: ProposalReason, today: string): string {
       return "Vicina ai tuoi obiettivi della giornata";
     case "variety":
       return "Per variare la settimana";
+    case "diet":
+      return dietReasonLine(reason);
   }
 }
 
@@ -391,6 +441,56 @@ export function summaryNotes(summary: ProposalSummary, unfilled: number): string
     );
   }
   return out;
+}
+
+/* ------------------------------------------------------------------------------------------------ dieta e piano */
+
+/** Le righe con un'indicazione a settimana: le uniche in cui «volte» si confronta con «indicate». */
+const WEEKLY_ROWS = DIET_GAP_ROWS.flatMap((id) => {
+  const row = GUIDELINE_ROWS.find((r) => r.id === id);
+  const group = row?.groups[0];
+  return row && group !== undefined && targetFor(id, 2000)?.kind === "perWeek" ? [{ id, group }] : [];
+});
+
+/**
+ * Quante volte la settimana in corso ha già portato ciascun gruppo con indicazione settimanale: occasioni mangiate più
+ * voci già nel piano. Vuoto se la settimana non è quella in corso.
+ */
+export function dietSoFar(history: Pick<DietHistory, "weeks"> | undefined, planned: PlannedDiet | undefined, weekStart: string): Partial<Record<DietGroup, number>> {
+  const current = history?.weeks[history.weeks.length - 1];
+  const out: Partial<Record<DietGroup, number>> = {};
+  if (!current || !current.inProgress || current.weekStart !== weekStart) return out;
+  for (const { id, group } of WEEKLY_ROWS) {
+    out[group] = (current.rowTallies[id]?.occasions ?? 0) + (planned && planned.weekStart === weekStart ? (planned.entriesByGroup[group] ?? 0) : 0);
+  }
+  return out;
+}
+
+export interface DietPlanItem {
+  group: DietGroup;
+  entries: number;
+  target?: TargetView;
+}
+
+/**
+ * La riga del piano: per i gruppi con indicazione a settimana, quante voci ha il piano da oggi, con l'indicazione. Un
+ * gruppo compare se ha voci o se ha ancora una lacuna; vuoto se la settimana non è quella in corso.
+ */
+export function dietPlanItems(planned: PlannedDiet | undefined, gaps: Partial<Record<DietGroup, number>>, level: EnergyLevel, weekStart: string): DietPlanItem[] {
+  if (!planned || planned.weekStart !== weekStart) return [];
+  const out: DietPlanItem[] = [];
+  for (const { id, group } of WEEKLY_ROWS) {
+    const entries = planned.entriesByGroup[group] ?? 0;
+    if (entries <= 0 && (gaps[group] ?? 0) <= 0) continue;
+    const target = targetFor(id, level);
+    out.push({ group, entries, ...(target ? { target } : {}) });
+  }
+  return out;
+}
+
+/** I gruppi con una lacuna aperta, in una riga: «legumi e pesce». */
+export function gapGroupsText(gaps: Partial<Record<DietGroup, number>>): string {
+  return listText((Object.keys(gaps) as DietGroup[]).filter((g) => (gaps[g] ?? 0) > 0).map(groupLabel));
 }
 
 export const shortDay = (date: string): string => weekdayName(date).slice(0, 3);

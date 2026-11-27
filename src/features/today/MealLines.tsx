@@ -10,13 +10,14 @@ import type { Certainty, ConsumeEvent, Quantity } from "@/core/ledger";
 import { mealEnergyHistory, type IntakeLine, type MealIntake } from "@/core/nutrition";
 import { formatQuantity } from "@/core/units";
 import { Button, Value } from "@/design";
+import { lineMarkLabel, type LineMark } from "../diet";
 import { itemText } from "../meals";
 import { buildChangeMoment } from "../pantry/eaten";
 import { useIntake } from "../nutrition/useNutrition";
 import ui from "../ui.module.css";
 import { useRecord } from "../useRecord";
 import { consumeRemovedText, momentTargets, type MomentTarget } from "./editText";
-import { lineNutrientText } from "./lineText";
+import { lineMarkSuffix, lineNutrientText } from "./lineText";
 import entries from "./MealEntries.module.css";
 import styles from "./Today.module.css";
 
@@ -68,14 +69,17 @@ interface EntryRowProps {
   quantity: Quantity;
   certainty: Certainty;
   line: IntakeLine | undefined;
+  /** Il segno «molto lavorato», se la voce lo porta (`useLineMarks`): una riga sola, dopo i nutrienti. */
+  mark?: LineMark;
   /** La quantità non dice niente e non si mostra: una stima «fuori casa» è «1 pz» per forma, conta la sua energia. */
   withoutAmount?: boolean;
   onOpen: () => void;
 }
 
 /** Una voce di un pasto: una riga sola, senza comandi. Il tocco apre il foglio «Voce». */
-export function EntryRow({ id, name, quantity, certainty, line, withoutAmount = false, onOpen }: EntryRowProps) {
+export function EntryRow({ id, name, quantity, certainty, line, mark, withoutAmount = false, onOpen }: EntryRowProps) {
   const note = lineNutrientText(line);
+  const suffix = lineMarkSuffix(mark);
   return (
     <li id={id}>
       <button type="button" className={entries.entry} aria-haspopup="dialog" onClick={onOpen}>
@@ -83,7 +87,17 @@ export function EntryRow({ id, name, quantity, certainty, line, withoutAmount = 
           <span className={entries.entryName}>{name}</span>
           {withoutAmount ? null : <span className={entries.entryAmount}>{formatQuantity(quantity)}</span>}
         </Value>
-        {note ? <span className={entries.entryNote}>{note}</span> : null}
+        {note || suffix ? (
+          <span className={entries.entryNote}>
+            {note}
+            {mark && suffix ? (
+              <>
+                <span aria-hidden="true">{note ? ` ${suffix}` : suffix}</span>
+                <span className={ui.srOnly}>, {lineMarkLabel(mark)}</span>
+              </>
+            ) : null}
+          </span>
+        ) : null}
       </button>
     </li>
   );

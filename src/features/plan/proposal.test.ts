@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { DietHistory, PlannedDiet } from "@/core/diet";
 import { derivePlan, proposeWeek, weekDates, type PlannedEntry, type ProposedMeal } from "@/core/plan";
+import { plannedRowText } from "../diet/texts";
 import { structureEv } from "@/core/plan/test-helpers";
 import { derivePantry } from "@/core/ledger";
 import { purchase, q } from "@/core/ledger/test-helpers";
@@ -9,15 +11,21 @@ import { makeExpandForChecks } from "./expand";
 import {
   buildProposalInput,
   buildProposalRecipes,
+  criteriaText,
   defaultMoments,
   defaultSettings,
+  dietPlanItems,
+  dietReasonLine,
+  dietSoFar,
   expiringFoods,
   finalizeProposal,
+  gapGroupsText,
   headlineText,
   mealsOfTags,
   reasonLine,
   summaryNotes,
   stockViews,
+  withDietSoFar,
   type FactsArgs,
   type ProposalSettings,
 } from "./proposal";
@@ -326,5 +334,92 @@ describe("scrittura: ultimo controllo", () => {
     const ctx = { ...base, expandForChecks: makeExpandForChecks({ recipes: [dubbia], preps: [] }), entries: [], meals: [meal("dubbia", DATES[1] as string)], declared: { allergens: ["glutine"], excludedFoods: [] } };
     expect(finalizeProposal(ctx).added).toBe(0);
     expect(finalizeProposal({ ...ctx, allowUncertain: true }).added).toBe(1);
+  });
+});
+
+describe("qualità di ciò che mangi nella proposta", () => {
+  const insalata = recipeOf("insalata", { title: "Insalata", servings: 2, ingredients: [{ name: "Lattuga", quantity: { value: 200, unit: "g" } }], steps: [{ text: "Condisci." }] });
+  const dietFacts = new Map([
+    ["zuppa", { groups: ["legumes" as const] }],
+    ["insalata", { groups: ["vegetables" as const] }],
+  ]);
+  const one = [{ date: DATES[2] as string, meal: "dinner" as const }];
+  const run = (over: Partial<FactsArgs>) => {
+    const input = buildProposalInput({ ...facts({ recipes: [insalata, zuppa], ...over }), slots: one, entries: [] });
+    return { input, meal: proposeWeek(input).meals[0] as ProposedMeal };
+  };
+
+  it("i gruppi delle ricette passano al generatore", () => {
+    const [i, z] = buildProposalRecipes(facts({ recipes: [insalata, zuppa], dietFacts }));
+    expect(i?.dietGroups).toEqual(["vegetables"]);
+    expect(z?.dietGroups).toEqual(["legumes"]);
+    expect(buildProposalRecipes(facts({ recipes: [insalata, zuppa] })).every((r) => r.dietGroups === undefined)).toBe(true);
+  });
+
+  it("spenta (o senza lacune) l'esito è identico a prima e non passa nessuna lacuna", () => {
+    const off = run({ dietFacts, dietGaps: { legumes: 2 } });
+    const plain = run({});
+    expect(off.input.dietGaps).toBeUndefined();
+    expect(off.meal).toEqual(plain.meal);
+    const emptyGaps = run({ dietFacts, dietGaps: {}, settings: settings({ fillGaps: true }) });
+    expect(emptyGaps.input.dietGaps).toBeUndefined();
+    expect(emptyGaps.meal).toEqual(plain.meal);
+  });
+
+  it("accesa, la ricetta che colma la lacuna passa avanti e il motivo lo dice", () => {
+    const on = run({ dietFacts, dietGaps: { legumes: 2 }, settings: settings({ fillGaps: true }) });
+    expect(on.input.dietGaps).toEqual({ legumes: 2 });
+    expect(on.meal.recipeId).toBe("zuppa");
+    expect(on.meal.reasons).toContainEqual({ code: "diet", groups: ["legumes"] });
+    expect(reasonLine(on.meal, TODAY)).toMatch(/^Porta legumi\./);
+  });
+
+  it("il motivo dice quante volte il gruppo è già comparso", () => {
+    const reason = { code: "diet" as const, groups: ["legumes" as const] };
+    expect(dietReasonLine({ ...reason, sofar: { legumes: 1 } })).toBe("Porta legumi: questa settimana finora 1 volta");
+    expect(dietReasonLine({ ...reason, sofar: { legumes: 0 } })).toBe("Porta legumi: questa settimana finora 0 volte");
+    expect(dietReasonLine(reason)).toBe("Porta legumi");
+    const meal = { reasons: [reason, { code: "variety" as const }] };
+    const [withCount] = withDietSoFar([meal], { legumes: 1 });
+    expect(reasonLine(withCount as typeof meal, TODAY)).toBe("Porta legumi: questa settimana finora 1 volta. Per variare la settimana.");
+    expect(withDietSoFar([meal], {})[0]).toEqual(meal);
+  });
+
+  it("i criteri nominano ciò che manca solo quando la scelta è accesa", () => {
+    expect(criteriaText({ spendLeast: false, fillGaps: false })).not.toMatch(/manca/);
+    expect(criteriaText({ spendLeast: true, fillGaps: true })).toMatch(/in casa, ciò che manca nella settimana, varietà/);
+    expect(defaultSettings({ plan, weekDates: DATES, today: TODAY, hasGaps: true }).fillGaps).toBe(true);
+    expect(defaultSettings({ plan, weekDates: DATES, today: TODAY }).fillGaps).toBeUndefined();
+  });
+
+  const tally = (occasions: number) => ({ occasions, servings: occasions, grams: 0, gramsKnown: true, days: occasions, certainty: "estimated" as const });
+  const history = (weekStart: string, inProgress = true): Pick<DietHistory, "weeks"> =>
+    ({ weeks: [{ weekStart, inProgress, rowTallies: { legumes: tally(1), fish: tally(0) } }] }) as unknown as Pick<DietHistory, "weeks">;
+  const planned = (weekStart: string): PlannedDiet => ({ weekStart, servingsByGroup: { legumes: 2 }, entriesByGroup: { legumes: 1 }, unresolved: 0 });
+
+  it("«finora» è il mangiato più il piano, solo per la settimana in corso", () => {
+    expect(dietSoFar(history(TODAY), planned(TODAY), TODAY)).toMatchObject({ legumes: 2, fish: 0 });
+    expect(dietSoFar(history(TODAY), undefined, TODAY).legumes).toBe(1);
+    expect(dietSoFar(history(TODAY), planned(TODAY), "2026-11-23")).toEqual({});
+    expect(dietSoFar(history(TODAY, false), planned(TODAY), TODAY)).toEqual({});
+    expect(dietSoFar(undefined, undefined, TODAY)).toEqual({});
+  });
+
+  it("la riga del piano: gruppi con voci o lacune, con l'indicazione; niente fuori dalla settimana in corso", () => {
+    const items = dietPlanItems(planned(TODAY), { legumes: 1, fish: 2 }, 2000, TODAY);
+    expect(items.map((i) => [i.group, i.entries])).toEqual([["legumes", 1], ["fish", 0]]);
+    const text = plannedRowText(items);
+    expect(text).toMatch(/^Nel piano di questa settimana: legumi 1 volta \(indicate /);
+    expect(text).toMatch(/pesce 0 volte \(indicate /);
+    expect(dietPlanItems(planned(TODAY), { legumes: 1 }, 2000, "2026-11-23")).toEqual([]);
+    expect(dietPlanItems(undefined, { legumes: 1 }, 2000, TODAY)).toEqual([]);
+    expect(dietPlanItems({ weekStart: TODAY, servingsByGroup: {}, entriesByGroup: {}, unresolved: 0 }, {}, 2000, TODAY)).toEqual([]);
+    // la verdura ha un'indicazione al giorno: non entra nella riga del piano
+    expect(dietPlanItems({ ...planned(TODAY), entriesByGroup: { vegetables: 4 } }, { vegetables: 3 }, 2000, TODAY)).toEqual([]);
+  });
+
+  it("le lacune si dicono in parole", () => {
+    expect(gapGroupsText({ legumes: 1, fish: 2 })).toBe("legumi e pesce");
+    expect(gapGroupsText({ legumes: 0 })).toBe("");
   });
 });

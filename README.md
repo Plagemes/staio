@@ -115,6 +115,7 @@ Per un prodotto senza ricetta l'app sceglie una forma adatta alla confezione e a
 | `src/core/allergens` | Controllo di allergeni ed esclusioni, con esito incerto esplicito |
 | `src/core/analysis` | Stime e associazioni con la loro incertezza, esperimenti |
 | `src/core/quality` | Qualità dei prodotti per dimensioni, ogni soglia con la fonte |
+| `src/core/diet` | Qualità di ciò che mangi: confronto settimanale con le linee guida CREA, consigli dal registro, ogni numero con la fonte |
 | `src/core/views` | Viste dichiarative: l'AI sceglie cosa mostrare, i numeri li calcola l'app |
 | `src/core/notify` | Avvisi: cosa notificare e quando, senza server |
 | `src/core/sync` | Unione dei dati tra dispositivi, con file e con Drive |
@@ -168,6 +169,8 @@ Gli abbinamenti di gusto derivano da FlavorGraph e FlavorDB, dati sotto CC BY-NC
 Il controllo di allergeni ed esclusioni aiuta ma non sostituisce la lettura dell'etichetta: non rileva tracce né contaminazioni, e gli elenchi di alimenti e derivati non sono esaustivi. Ciò che non si può verificare è segnalato come incerto, mai come compatibile.
 
 Le analisi mostrano andamenti e associazioni osservate con la loro incertezza: non dicono perché qualcosa accade. Le soglie "a semaforo" dell'indice di qualità vengono dallo schema volontario britannico per l'etichettatura frontale; ogni soglia usata ha la sua fonte in `src/core/quality/data/FONTI.md`.
+
+La qualità di ciò che mangi (`/app/salute/mangiato`, `src/core/diet`) non dà pareri medici: confronta la settimana con le Linee guida per una sana alimentazione del CREA (revisione 2018) e con i riferimenti dell'OMS e dell'EFSA, e ogni consiglio dice da dove viene. Le porzioni sono orientative, non valgono per minori, gravidanza o chi ha patologie particolari, e ciò che l'app deduce (gruppo di un alimento, lavorazione, zuccheri liberi) è una stima dichiarata come tale; le scelte dell'app che non vengono dalle fonti sono elencate in `src/core/diet/FONTI.md`.
 
 ## Licenza
 
